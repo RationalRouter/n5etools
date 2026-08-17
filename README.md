@@ -1,4 +1,4 @@
-# N5E Toolkit
+# N5Etools
 
 A portable, offline desktop app for the **Naruto 5e** homebrew TTRPG: character
 creation, a persistent interactive character sheet, and built-in dice rolling.
