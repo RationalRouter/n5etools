@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1>Enhancement Seals</h1>
+{{range .Groups}}
+<h2>{{.Label}}</h2>
+<ul class="tooltip-list">
+  {{range .Seals}}
+  <li class="tooltip" tabindex="0">
+    <span class="tooltip-trigger"><a href="/seals/{{.Slug}}">{{.Name}}</a>{{if .SealRank.Valid}} <span class="tooltip-rank">({{.SealRank.String}}-Rank)</span>{{end}}</span>
+    <span class="tooltip-content">{{if .Description.Valid}}{{formatDescription .Description.String}}{{else}}—{{end}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

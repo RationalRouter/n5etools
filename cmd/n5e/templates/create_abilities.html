@@ -1,0 +1,72 @@
+{{define "content"}}
+<h1>Ability Scores</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+
+<div class="method-picker" role="tablist">
+  <button type="button" class="method-tile" data-method="standard" aria-pressed="false">Standard Array</button>
+  <button type="button" class="method-tile" data-method="pointbuy" aria-pressed="false">Point Buy</button>
+  <button type="button" class="method-tile" data-method="manual" aria-pressed="false">Manual Entry</button>
+</div>
+
+<div class="method-panel" data-method-panel="standard">
+<h2>Standard Array</h2>
+<p class="page-subtitle">Assign 15, 14, 13, 12, 11, and 10 — one to each ability.</p>
+<form class="creation-form" method="post" action="/characters/{{.ID}}/create/abilities">
+  <input type="hidden" name="method" value="standard">
+  <div class="ability-score-row"><label for="std-str">Strength</label><input type="number" id="std-str" name="str" value="{{.Values.str}}" required></div>
+  <div class="ability-score-row"><label for="std-dex">Dexterity</label><input type="number" id="std-dex" name="dex" value="{{.Values.dex}}" required></div>
+  <div class="ability-score-row"><label for="std-con">Constitution</label><input type="number" id="std-con" name="con" value="{{.Values.con}}" required></div>
+  <div class="ability-score-row"><label for="std-int">Intelligence</label><input type="number" id="std-int" name="int" value="{{.Values.int}}" required></div>
+  <div class="ability-score-row"><label for="std-wis">Wisdom</label><input type="number" id="std-wis" name="wis" value="{{.Values.wis}}" required></div>
+  <div class="ability-score-row"><label for="std-cha">Charisma</label><input type="number" id="std-cha" name="cha" value="{{.Values.cha}}" required></div>
+  <button type="submit" class="btn-primary">Save Standard Array</button>
+</form>
+</div>
+
+<div class="method-panel" data-method-panel="pointbuy">
+<h2>Point Buy</h2>
+<div class="point-buy-layout">
+  <form class="creation-form" method="post" action="/characters/{{.ID}}/create/abilities" id="pointbuy-form">
+    <input type="hidden" name="method" value="pointbuy">
+    <div class="ability-score-row"><label for="pb-str">Strength</label><input type="number" id="pb-str" name="str" value="{{.Values.str}}" min="8" max="15" required></div>
+    <div class="ability-score-row"><label for="pb-dex">Dexterity</label><input type="number" id="pb-dex" name="dex" value="{{.Values.dex}}" min="8" max="15" required></div>
+    <div class="ability-score-row"><label for="pb-con">Constitution</label><input type="number" id="pb-con" name="con" value="{{.Values.con}}" min="8" max="15" required></div>
+    <div class="ability-score-row"><label for="pb-int">Intelligence</label><input type="number" id="pb-int" name="int" value="{{.Values.int}}" min="8" max="15" required></div>
+    <div class="ability-score-row"><label for="pb-wis">Wisdom</label><input type="number" id="pb-wis" name="wis" value="{{.Values.wis}}" min="8" max="15" required></div>
+    <div class="ability-score-row"><label for="pb-cha">Charisma</label><input type="number" id="pb-cha" name="cha" value="{{.Values.cha}}" min="8" max="15" required></div>
+    <p class="point-buy-remaining">Points remaining: <span id="pointbuy-remaining">30</span> / 30</p>
+    <button type="submit" class="btn-primary">Save Point Buy</button>
+  </form>
+  <aside class="point-buy-reference">
+    <h3>Costs</h3>
+    <dl class="fact-list">
+      {{range .Costs}}<dt>{{.Score}}</dt><dd>{{.Cost}} pt{{if ne .Cost 1}}s{{end}}</dd>{{end}}
+    </dl>
+  </aside>
+</div>
+<script type="application/json" id="pointbuy-cost-data">{{jsonify .CostMap}}</script>
+</div>
+
+<div class="method-panel" data-method-panel="manual">
+<h2>Manual Entry</h2>
+<p class="page-subtitle">For rolled scores, DM-assigned arrays, or anything else — entered as-is, unvalidated.</p>
+<p class="section-hint">"Roll 6 Scores" uses the standard 4d6-drop-lowest method (not specified in the N5e book) as a convenience — feel free to just type in your own numbers instead.</p>
+<button type="button" class="btn-primary" id="manual-roll-btn">Roll 6 Scores</button>
+<div id="manual-roll-results" class="manual-roll-results" hidden>
+  <div class="manual-roll-chips" id="manual-roll-chips"></div>
+  <div class="manual-roll-assign" id="manual-roll-assign"></div>
+  <button type="button" class="btn-primary" id="manual-roll-apply">Apply Rolls</button>
+</div>
+<form class="creation-form" method="post" action="/characters/{{.ID}}/create/abilities">
+  <input type="hidden" name="method" value="manual">
+  <div class="ability-score-row"><label for="man-str">Strength</label><input type="number" id="man-str" name="str" value="{{.Values.str}}" required></div>
+  <div class="ability-score-row"><label for="man-dex">Dexterity</label><input type="number" id="man-dex" name="dex" value="{{.Values.dex}}" required></div>
+  <div class="ability-score-row"><label for="man-con">Constitution</label><input type="number" id="man-con" name="con" value="{{.Values.con}}" required></div>
+  <div class="ability-score-row"><label for="man-int">Intelligence</label><input type="number" id="man-int" name="int" value="{{.Values.int}}" required></div>
+  <div class="ability-score-row"><label for="man-wis">Wisdom</label><input type="number" id="man-wis" name="wis" value="{{.Values.wis}}" required></div>
+  <div class="ability-score-row"><label for="man-cha">Charisma</label><input type="number" id="man-cha" name="cha" value="{{.Values.cha}}" required></div>
+  <button type="submit" class="btn-primary">Save Manual Entry</button>
+</form>
+</div>
+{{end}}

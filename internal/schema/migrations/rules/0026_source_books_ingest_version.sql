@@ -1,0 +1,20 @@
+-- Adds the "which schema/parser version last actually ingested this book"
+-- stamp internal/autoupdate needs alongside drive_last_modified (migration
+-- 0023). The two answer different questions: drive_last_modified says "has
+-- the PDF itself changed on Drive," ingest_schema_version says "has THIS
+-- BINARY's own parsing/schema logic moved on since the last successful
+-- ingest" — a real gap found 2026-07-27 (see V2_ROADMAP.md's former "Known
+-- bugs" entry): a migration that adds a table needing a content backfill
+-- (e.g. jutsu_upcast_rules) applies structurally on every startup regardless,
+-- but its CONTENT only gets populated when a real ingest runs — and until
+-- now, autoupdate only ever ran one when Drive's own timestamp moved, so an
+-- existing install's freshly-added-but-empty table could sit empty forever
+-- if nothing about the upstream PDF happened to change afterward.
+--
+-- Nullable on purpose, same reasoning as drive_last_modified: every row that
+-- predates this migration (every row that has ever existed, as of shipping
+-- this) has no stamp yet, which internal/autoupdate treats as "force one
+-- real re-ingest on the next startup regardless of Drive's timestamp" — the
+-- self-healing behavior this migration exists to enable, applied
+-- automatically to every install already out in the wild.
+ALTER TABLE source_books ADD COLUMN ingest_schema_version TEXT;

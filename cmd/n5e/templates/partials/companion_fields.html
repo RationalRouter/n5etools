@@ -1,0 +1,585 @@
+{{/* companion_stat_fields: AC/HP/Speed row, six ability scores, Summon
+     Tribe picker (summon only), Armor Chassis (puppet only), Attacks/
+     Traits/Notes — shared by the companion popup (companion_sheet.html)
+     and the main sheet's Puppets/Summons tabs (character_sheet.html), so
+     the two views can never drift on what a field means or how it saves.
+
+     Expects a dict: Companion, CharacterID, FormID (a per-companion-unique
+     id — the popup only ever shows one companion so it can hardcode
+     "companion-form", but a sheet tab can show several at once, so each
+     card needs its own "companion-form-<id>"), SummonTribes (only read for
+     kind="summon"), ArmorChassisOptions (only read for kind="puppet" —
+     []puppetArmorChassis; the Armor Chassis dropdown works identically on
+     the popup and the tab, since it's just another whole-form field like
+     Speed). AC and Max HP are pre-populated from the computed baseline at
+     creation time (and backfilled for any older companion still missing
+     one — see loadPuppetsTabData) rather than shown as a separate
+     "expected" hint, so they need no Expected* params here anymore;
+     puppetCompanionView still carries ExpectedAC/ExpectedMaxHP for that
+     write-time computation, this partial just doesn't read them.
+
+     ShowStructuredAttacks/AttacksTarget (only set by the Puppets tab):
+     structured, rollable Attacks needs sheet-vitals.js's fetch-form
+     wiring and character-sheet.js's .rollable click handler, neither of
+     which the companion popup's own layout_bare.html loads (deliberately
+     — see that file's own doc comment on staying genuinely small); the
+     popup keeps the plain freeform Attacks textarea every non-puppet
+     companion already uses instead of silently rendering dead controls.
+
+     Every field belongs to FormID via the HTML `form="..."` attribute
+     rather than DOM nesting, because HP-current/AC/Max HP each live in
+     their own sibling `<form>` (forms cannot nest) — see
+     handleCompanionHP/handleCompanionIntField's doc for why. */}}
+{{define "companion_stat_fields"}}
+<form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}" id="{{.FormID}}"></form>
+
+<div class="companion-stat-row">
+  {{/* AC/HP-current/HP-max share the same delta-editable shape: a leading
+       +/- adjusts, a bare number sets outright, blank clears, mirroring
+       the main sheet's HP/Ryo boxes. Each response is the new plain
+       value, written back into its input so a leftover "+3" is never
+       resubmitted by a later, unrelated field's blur. */}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/ac" class="companion-delta-form">
+    <label>AC <input type="text" inputmode="numeric" name="value" value="{{if .Companion.AC.Valid}}{{.Companion.AC.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="ac" placeholder="—"
+                      title="Type a number to set AC, or +1 / -1 to adjust it"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp" class="companion-hp-form">
+    <label>HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPCurrent.Valid}}{{.Companion.HPCurrent.Int64}}{{end}}"
+                      class="companion-hp-field" placeholder="—"
+                      title="Type a number to set HP, or +3 / -2 to adjust it"></label>
+  </form>
+  <span class="companion-stat-sep">/</span>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp_max" class="companion-delta-form">
+    <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPMax.Valid}}{{.Companion.HPMax.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="hp_max" placeholder="—" aria-label="Max HP"
+                      title="Type a number to set Max HP, or +2 / -2 to adjust it"></label>
+  </form>
+  <label>Speed <input type="number" name="speed" form="{{.FormID}}" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}" class="companion-field"></label>
+  {{/* Flying speed is only shown once the puppet actually has one — either
+       granted by Hovering Mechanism (ExpectedFlySpeed) or typed in by the
+       player at some point. A blank field on every ordinary walking puppet
+       would be a permanent empty box on a card that is already dense. */}}
+  {{if or .Companion.FlySpeed.Valid .ExpectedFlySpeed}}
+  <label>Fly <input type="number" name="fly_speed" form="{{.FormID}}" value="{{if .Companion.FlySpeed.Valid}}{{.Companion.FlySpeed.Int64}}{{end}}" class="companion-field"></label>
+  {{end}}
+
+  {{/* Chakra Enhanced Retrofit (Class: Puppet Master/3rd Level) — "Your
+       Puppet Tool gains a number of seal slots equal to 2 + your
+       Proficiency Bonus. You can place both Armor and Weapon seals on your
+       puppet." Tab-only (ShowSeals), matching ShowStructuredAttacks' own
+       "the popup stays a lean quick reference" precedent above — a plain
+       flex child of .companion-stat-row so it sits directly to the right
+       of Speed, wrapping onto its own line on a narrow card same as every
+       other stat here. */}}
+  {{if .ShowSeals}}
+  <div class="companion-seals">
+    <span class="companion-seals-label">Seals <span class="option-picker-epithet">{{len .Seals}}/{{.SealCap}}</span></span>
+    <div class="companion-seals-chips">
+      {{range .Seals}}
+      <span class="companion-seal-chip tooltip" tabindex="0">
+        {{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+        <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/seals/{{.ID}}/delete"
+              class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+          <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+        </form>
+      </span>
+      {{end}}
+    </div>
+    {{if .SealOptions}}
+    <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/seals"
+          class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+      <select name="seal_slug" required>
+        <option value="">— add a seal —</option>
+        {{range .SealOptions}}
+        <option value="{{.Slug}}">{{.Name}} ({{.AppliesTo}})</option>
+        {{end}}
+      </select>
+      <button type="submit">+ Add</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+
+{{/* Every modeled always-on Puppet Upgrade bonus (internal/puppetupgrades)
+     is folded into a brand-new companion's very first computed
+     AC/Max HP/Speed/flying speed (see loadPuppetsTabData), but — same as
+     every other computed default here — never SILENTLY rewritten into an
+     EXISTING companion's own already-set value (that stays a hard rule — a
+     stored AC/HP might be the player's own deliberate override, not just a
+     stale computed default). Instead: a real "Sync" button per field that
+     sets that field's own value to the FULL current computed total
+     (.ExpectedAC/.ExpectedMaxHP/.ExpectedSpeed/.ExpectedFlySpeed, baseline
+     + chassis + every bonus, already right whether or not the stored value
+     has ever been set) and fires that field's OWN existing autosave
+     (companion-fields.js) — deliberately a plain <button type="button">,
+     NOT a second <form> posting to the same /ac or /hp_max URL the field's
+     own tiny form already targets, since two forms racing to submit to one
+     endpoint is exactly the shape of bug that field's own Enter-key guard
+     (companion-fields.js) exists to prevent elsewhere. Idempotent either
+     way (sets the total, not a "+1" delta, so clicking twice never
+     double-applies), but still an explicit player action, not an automatic
+     one. */}}
+{{/* Ability-score/size sync buttons (Expected* from a picked Puppeteer
+     Chassis/Puppet Framework/Puppet Role/Puppet Weapon Type — see
+     puppet_foundation.go) share this same block/button shape even when
+     there are no puppetUpgradeBonusNote entries at all, since a fresh
+     companion can have a Foundation pick and nothing else yet. */}}
+{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus}}
+<div class="section-hint companion-enhanced-durability-hint">
+  {{if .UpgradeBonuses}}
+  <span>
+    {{range $i, $b := .UpgradeBonuses}}{{if $i}}; {{end}}{{$b.Name}}: {{range $j, $p := $b.Parts}}{{if $j}}, {{end}}{{$p}}{{end}}{{end}}
+    — already folded into a brand-new puppet's starting numbers.
+  </span>
+  {{end}}
+  {{/* ElevatedDesignBonus: a computed +2-per-ability annotation, not baked
+       into the editable score fields above — see
+       puppetElevatedDesignAbilityBonus's own doc for why. */}}
+  {{if .ElevatedDesignBonus}}
+  <span>
+    Elevated Design: {{range $ab, $amt := .ElevatedDesignBonus}}{{upper $ab}} +{{$amt}} (max 22); {{end}}not reflected in the fields above.
+  </span>
+  {{end}}
+  {{if .ExpectedAC}}
+  <button type="button" class="companion-sync-btn" data-field="ac" data-value="{{.ExpectedAC}}">Sync AC to {{.ExpectedAC}}</button>
+  {{end}}
+  {{if .ExpectedMaxHP}}
+  <button type="button" class="companion-sync-btn" data-field="hp_max" data-value="{{.ExpectedMaxHP}}">Sync Max HP to {{.ExpectedMaxHP}}</button>
+  {{end}}
+  {{if .ExpectedSpeed}}
+  <button type="button" class="companion-sync-btn" data-field="speed" data-value="{{.ExpectedSpeed}}">Sync Speed to {{.ExpectedSpeed}}</button>
+  {{end}}
+  {{if .ExpectedFlySpeed}}
+  <button type="button" class="companion-sync-btn" data-field="fly_speed" data-value="{{.ExpectedFlySpeed}}">Sync Fly to {{.ExpectedFlySpeed}}</button>
+  {{end}}
+  {{if .ExpectedStr}}
+  <button type="button" class="companion-sync-btn" data-field="str_score" data-value="{{.ExpectedStr}}">Sync STR to {{.ExpectedStr}}</button>
+  {{end}}
+  {{if .ExpectedDex}}
+  <button type="button" class="companion-sync-btn" data-field="dex_score" data-value="{{.ExpectedDex}}">Sync DEX to {{.ExpectedDex}}</button>
+  {{end}}
+  {{if .ExpectedCon}}
+  <button type="button" class="companion-sync-btn" data-field="con_score" data-value="{{.ExpectedCon}}">Sync CON to {{.ExpectedCon}}</button>
+  {{end}}
+  {{if .ExpectedInt}}
+  <button type="button" class="companion-sync-btn" data-field="int_score" data-value="{{.ExpectedInt}}">Sync INT to {{.ExpectedInt}}</button>
+  {{end}}
+  {{if .ExpectedWis}}
+  <button type="button" class="companion-sync-btn" data-field="wis_score" data-value="{{.ExpectedWis}}">Sync WIS to {{.ExpectedWis}}</button>
+  {{end}}
+  {{if .ExpectedCha}}
+  <button type="button" class="companion-sync-btn" data-field="cha_score" data-value="{{.ExpectedCha}}">Sync CHA to {{.ExpectedCha}}</button>
+  {{end}}
+  {{if .ExpectedSize}}
+  <button type="button" class="companion-sync-btn" data-field="size" data-value="{{.ExpectedSize}}">Sync Size to {{.ExpectedSize}}</button>
+  {{end}}
+</div>
+{{end}}
+
+<div class="companion-ability-row">
+  <label>STR <input type="number" name="str_score" form="{{.FormID}}" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}" class="companion-field"></label>
+  <label>DEX <input type="number" name="dex_score" form="{{.FormID}}" value="{{if .Companion.Dex.Valid}}{{.Companion.Dex.Int64}}{{end}}" class="companion-field"></label>
+  <label>CON <input type="number" name="con_score" form="{{.FormID}}" value="{{if .Companion.Con.Valid}}{{.Companion.Con.Int64}}{{end}}" class="companion-field"></label>
+  <label>INT <input type="number" name="int_score" form="{{.FormID}}" value="{{if .Companion.Int.Valid}}{{.Companion.Int.Int64}}{{end}}" class="companion-field"></label>
+  <label>WIS <input type="number" name="wis_score" form="{{.FormID}}" value="{{if .Companion.Wis.Valid}}{{.Companion.Wis.Int64}}{{end}}" class="companion-field"></label>
+  <label>CHA <input type="number" name="cha_score" form="{{.FormID}}" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}" class="companion-field"></label>
+</div>
+
+{{/* SymphonyEnhancement: Red Technique's Symphony of Puppetry, Enhancement
+     branch — "double their maximum hit points, and increase one of their
+     ability scores by +2, each." Both effects are annotation-only (see
+     ElevatedDesignBonus's own comment above for why); the ability half also
+     needs a one-time picker, since unlike Elevated Design's flat +2/+2 this
+     is a genuinely independent pick per companion. */}}
+{{if .SymphonyEnhancement}}
+<div class="section-hint companion-symphony-enhancement-hint">
+  <span>Symphony of Puppetry (Enhancement): this Puppet Tool's max HP is doubled in combat — not reflected in the Max HP field above.</span>
+  {{if .SymphonyEnhancement.Ability}}
+  <span>Ability bonus: {{abilityLabel .SymphonyEnhancement.Ability}} +2 — not reflected in the field above.</span>
+  {{else}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/symphony-enhancement-ability"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+    <label>Ability bonus (+2)
+      <select name="ability" required class="companion-field" onchange="this.form.requestSubmit()">
+        <option value="">— choose —</option>
+        {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
+      </select>
+    </label>
+  </form>
+  {{end}}
+</div>
+{{end}}
+
+{{if eq .Companion.Kind "puppet"}}
+<label class="companion-block-label">Size <input type="text" name="size" form="{{.FormID}}" value="{{.Companion.Size}}" class="companion-field" placeholder="Medium"></label>
+{{end}}
+
+{{if eq .Companion.Kind "summon"}}
+<label class="companion-block-label">Summon Tribe
+  <select name="summon_tribe_slug" form="{{.FormID}}" class="companion-field">
+    <option value="">— choose a tribe —</option>
+    {{$current := .Companion.SummonTribeSlug}}
+    {{range .SummonTribes}}
+    <option value="{{.Slug}}"{{if eq .Slug $current}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+</label>
+{{end}}
+
+{{/* Purple Technique lets a Puppet Tool transform into Juggernaut Armor
+     built around a chosen Armor Chassis — a real dropdown backed by
+     rules.db's puppet_armor_chassis (migration 0031, hand-transcribed from
+     the source PDF's image-only chassis table), not free text: picking one
+     changes the AC formula (see puppetArmorChassisAC), so it needs to
+     resolve to real data, not an arbitrary string. The checkbox just
+     reflects whether the puppet is currently worn as armor — nothing
+     downstream reads it yet, it's a visible flag for the player's own
+     bookkeeping.
+
+     The chassis pick itself is locked once made — the book's own Armor
+     Chassis feature text describes it as a one-time crafting decision at
+     2nd level with no mention anywhere of re-selecting it later, and
+     several Purple Upgrades gate on a specific chassis
+     (puppet_upgrade_prereq.go), so an editable chassis would let a player
+     toggle to whichever one qualifies for a given upgrade and toggle back
+     afterward. Disabled here (never submitted) and also enforced server-
+     side regardless (charstore.SetCompanionFields' own CASE guard) — same
+     "UI convenience, not the real enforcement" pattern as every other
+     gate on this tab. */}}
+{{if eq .Companion.Kind "puppet"}}
+{{$current := .Companion.ArmorChassis}}
+<label class="companion-block-label">Armor Chassis
+  <select name="armor_chassis" form="{{.FormID}}" class="companion-field" data-detail-select{{if $current}} disabled{{end}}>
+    <option value="">— none —</option>
+    {{range .ArmorChassisOptions}}
+    <option value="{{.Name}}" data-ac-bonus="{{.ACBonus}}" data-dex-mode="{{.DexBonusMode}}"{{if eq .Name $current}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  {{if $current}}<span class="section-hint companion-armor-chassis-locked">Chosen permanently at 2nd level — cannot be changed.</span>{{end}}
+  {{/* The chosen chassis's own armor properties, each with its rules text
+       on hover. Reinforced's number is the damage reduction it grants and
+       is shown ALREADY RAISED by Enhanced Durability where that applies
+       ("increases the Reinforced property by 3", Purple Technique) — the
+       adjustment happens in Go (adjustChassisReinforced) rather than here,
+       so the displayed number is the one the rules actually produce rather
+       than a base the player has to do arithmetic on. */}}
+  {{if .ChassisProperties}}
+  <div class="companion-chassis-properties">
+    {{range .ChassisProperties}}
+    <span class="companion-chassis-property tooltip" tabindex="0">
+      {{.Label}}
+      <span class="tooltip-content">{{formatDescription .Description}}</span>
+    </span>
+    {{end}}
+  </div>
+  {{end}}
+  {{/* An <option> can't hold a <template> child, so this select's pending-
+       selection preview (sheet-puppet-detail.js, only reachable from the
+       Puppets tab — the popup never loads that script) reads a matching
+       <template data-value="..."> from this sibling store instead, keyed
+       by the same name as the option's own value. */}}
+  <span class="detail-body-store" hidden>{{range .ArmorChassisOptions}}<template data-value="{{.Name}}">{{formatDescription .Description}}</template>{{end}}</span>
+</label>
+<label class="companion-armor-form-toggle">
+  <input type="checkbox" name="is_armor_form" form="{{.FormID}}" value="1" class="companion-field" {{if .Companion.IsArmorForm}}checked{{end}}>
+  Currently worn as armor
+</label>
+{{end}}
+
+{{/* Matryoshka Framework's own multi-body split/merge (charstore.
+     SplitCompanionIntoBodies/MergeCompanionBodies) — Puppets-tab only
+     (ShowMatryoshka), matching ShowSeals' own tab-only precedent above.
+     Shown on the companion that picked the Framework (IsMatryoshkaFramework)
+     OR any body already sharing a matryoshka_group_id — a split sibling body
+     has no Foundation pick of its own (only the original companion row
+     does), so the group-id check is what keeps its own jutsu-slots field
+     and Merge button visible. */}}
+{{if and .ShowMatryoshka (eq .Companion.Kind "puppet") (or .IsMatryoshkaFramework .Companion.MatryoshkaGroupID.Valid)}}
+<div class="companion-matryoshka">
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/matryoshka_jutsu_slots" class="companion-delta-form">
+    <label>Known Jutsu Slots
+      <input type="text" inputmode="numeric" name="value" value="{{.Companion.MatryoshkaJutsuSlots}}"
+             class="companion-delta-field" data-field="matryoshka_jutsu_slots" placeholder="0"
+             title="Type a number to set known jutsu slots, or +1 / -1 to adjust it">
+    </label>
+    <span class="section-hint companion-matryoshka-hint">Up to 9 total, 3 per body if split.</span>
+  </form>
+
+  {{if .Companion.MatryoshkaGroupID.Valid}}
+  {{if eq .Companion.MatryoshkaGroupID.Int64 .Companion.ID}}
+  <span class="companion-matryoshka-status">Split into multiple bodies.</span>
+  {{else}}
+  <span class="companion-matryoshka-status">Part of a split body group.</span>
+  {{end}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.MatryoshkaGroupID.Int64}}/matryoshka-merge"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab" data-also-refresh="sheet-companions">
+    <button type="submit">Merge bodies</button>
+  </form>
+  {{else}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/matryoshka-split"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab" data-also-refresh="sheet-companions">
+    <label>Split into
+      <select name="count" required>
+        <option value="2">2 bodies</option>
+        <option value="3">3 bodies</option>
+      </select>
+    </label>
+    <button type="submit">Split</button>
+  </form>
+  {{end}}
+</div>
+{{end}}
+
+{{/* Puppet Tool's baseline Saving Throws/Damage Resistance/Damage
+     Immunity/Condition Immunities/Weapon Proficiencies/Senses — the same
+     for every Puppet Master subclass (see puppetToolStatBlock's own doc on
+     why these come from a migration, not a live parse), never edited here.
+     Weapon Proficiencies reads "Always the same as yours" verbatim from
+     the book — it means the puppet shares the Puppet Master's own weapon
+     proficiency list, shown on the Core tab's own Proficiencies box. */}}
+{{if and (eq .Companion.Kind "puppet") .BaseTraits}}
+<section class="companion-block-label companion-base-traits">
+  <span>Puppet Tool Traits</span>
+  <dl class="companion-trait-list">
+    <dt>Saving Throws</dt><dd>{{.BaseTraits.SavingThrowsText}}</dd>
+    <dt>Damage Resistance</dt><dd>{{.BaseTraits.DamageResistance}}</dd>
+    <dt>Damage Immunity</dt><dd>{{.BaseTraits.DamageImmunity}}</dd>
+    <dt>Condition Immunities</dt><dd>{{.BaseTraits.ConditionImmunity}}</dd>
+    <dt>Weapon Proficiencies</dt><dd>{{.BaseTraits.WeaponProficiency}}</dd>
+    <dt>Senses</dt><dd>Passive Perception {{.BaseTraits.PassivePerception}}</dd>
+  </dl>
+  {{if .BaseTraits.TraitsText}}<p class="companion-base-traits-text">{{.BaseTraits.TraitsText}}</p>{{end}}
+</section>
+{{end}}
+
+{{/* Foundation Traits: every clause this companion's own picked Puppeteer
+     Chassis/Puppet Framework/Puppet Role/Puppet Weapon Type grants that
+     has no computed field to land in — resistances, weapon/armor
+     proficiencies, grapple/lift bonuses, long-rest weapon-mode property
+     text, Controller's/Supporter's own spelled-out Proficiency Bonus
+     formulas, etc. (see internal/puppetupgrades/foundation.go's own header
+     for why these are curated text rather than simulated). Same dt/dd-
+     adjacent "always-visible reference, never buried in prose" treatment
+     Puppet Tool Traits above already gives the class-wide baseline. */}}
+{{if .FoundationTraits}}
+<section class="companion-block-label companion-foundation-traits">
+  <span>{{.FoundationCatalogLabel}}: {{.FoundationEntryName}}</span>
+  <ul class="sheet-feature-list">
+    {{range .FoundationTraits}}{{if .}}<li>{{.}}</li>{{end}}{{end}}
+  </ul>
+</section>
+{{end}}
+
+{{if .ShowStructuredAttacks}}
+{{/* Structured, rollable attacks — replaces the old freeform textarea, tab
+     only (see this partial's own doc comment for why). Also covers a
+     puppet casting jutsu "under certain circumstances": a row is just a
+     name/optional dice/description, added the same way any other attack
+     is, rather than a separate jutsu-known/casting-economy system this app
+     has no chakra-pool model for a companion to support. */}}
+<section class="companion-block-label companion-attacks">
+  <span>Attacks</span>
+  {{if .Attacks}}
+  <ul class="sheet-feature-list companion-attack-list">
+    {{range .Attacks}}
+    <li class="companion-attack-row" data-detail-name="{{.Name}}">
+      <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
+              data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
+              data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
+      <span class="companion-attack-name">{{.Name}}</span>
+      {{if .DamageDice}}
+      <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
+              data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
+              data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
+      {{end}}
+      <template class="detail-body">{{if .Description}}<p>{{.Description}}</p>{{end}}</template>
+      {{/* .ID is 0 for an upgrade-granted attack (puppetUpgradeGrantedAttacks) —
+           it isn't a stored charstore.CompanionAttack row, so there's
+           nothing for a delete POST to target; remove the granting upgrade
+           itself instead, from the Puppet Upgrades list below. */}}
+      {{if .ID}}
+      <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/attacks/{{.ID}}/delete"
+            class="sheet-inline-form sheet-fetch-form" data-target="{{$.AttacksTarget}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      {{else}}
+      <span class="companion-attack-granted-hint" title="Granted by a Puppet Upgrade — remove the upgrade to remove this attack">from upgrade</span>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+  <details class="sheet-custom-attack companion-add-attack">
+    <summary>Add an attack</summary>
+    <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/attacks" class="sheet-fetch-form" data-target="{{.AttacksTarget}}">
+      <label>Name <input type="text" name="name" required placeholder="Bash"></label>
+      <div class="sheet-custom-attack-damage">
+        <span class="sheet-vitals-label">Damage dice</span>
+        <input type="number" name="damage_count" min="0" placeholder="2" aria-label="Number of damage dice">
+        <span class="sheet-custom-attack-d">d</span>
+        <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="Damage die size">
+        <input type="text" name="damage_type" placeholder="Slashing" aria-label="Damage type">
+      </div>
+      {{template "sheet_modifier_fields" (dict "AttackAbility" "" "AttackProf" "none" "AttackFlat" 0
+                  "DamageAbility" "" "DamageFlat" 0 "AutoLabel" "None")}}
+      <label>Description <input type="text" name="description" placeholder="Optional — what it does, when you can use it"></label>
+      <button type="submit">Add Attack</button>
+    </form>
+  </details>
+</section>
+{{else if .ReadOnlyAttacks}}
+{{/* Same rollable attack rows as the tab's own structured Attacks, minus
+     the add/delete forms and detail-panel wiring (sheet-puppet-detail.js
+     isn't loaded here) — the popup is a quick reference for combat, not
+     an editing surface; add/remove a puppet's attacks from the Puppets
+     tab on the main sheet instead. */}}
+<section class="companion-block-label companion-attacks">
+  <span>Attacks</span>
+  {{if .Attacks}}
+  <ul class="sheet-feature-list companion-attack-list">
+    {{range .Attacks}}
+    <li class="companion-attack-row">
+      <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
+              data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
+              data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
+      <span class="companion-attack-name">{{.Name}}</span>
+      {{if .DamageDice}}
+      <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
+              data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
+              data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="section-hint">No attacks yet — add one from the Puppets tab on the main sheet.</p>
+  {{end}}
+</section>
+{{else}}
+<label class="companion-block-label">Attacks
+  <textarea name="attacks" form="{{.FormID}}" rows="4" class="companion-field" placeholder="One attack per line — name, bonus, damage.">{{.Companion.Attacks}}</textarea>
+</label>
+{{end}}
+
+<label class="companion-block-label">Traits &amp; Abilities
+  <textarea name="traits" form="{{.FormID}}" rows="4" class="companion-field" placeholder="Chassis/upgrades, tribe traits, whatever applies.">{{.Companion.Traits}}</textarea>
+</label>
+
+<label class="companion-block-label">Notes
+  <textarea name="notes" form="{{.FormID}}" rows="4" class="companion-field" placeholder="Anything else.">{{.Companion.Notes}}</textarea>
+</label>
+{{end}}
+
+{{/* puppet_skills_box: a puppet's resolved 21-skill list, grouped by
+     ability exactly like the Core tab's own Skills box — shared by the
+     Puppets tab (character_sheet.html's sheet_puppet_tab) and the
+     companion popup, so the two views can never drift on how a skill's
+     final number is laid out. Expects a []puppetSkillGroupRow directly
+     (puppet_skills.go's resolvePuppetSkills), not a dict — both callers
+     already have exactly that value on hand under different field names.
+     The dot is read-only (no toggle form): proficiency here is fully
+     derived, never set directly on the companion. Rollable the same way
+     the Core tab's own skill rows are, since the number is already the
+     final, comparison-resolved modifier. */}}
+{{define "puppet_skills_box"}}
+{{if .}}
+<section class="companion-skills">
+  <h3>Puppet Skills</h3>
+  <div class="sheet-skill-groups companion-skill-groups">
+    {{range .}}
+    <div class="sheet-skill-group">
+      <h4 class="sheet-skill-group-heading">{{abilityLabel .Ability}}</h4>
+      {{range .Skills}}
+      <div class="sheet-skill-line">
+        <span class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}} companion-skill-prof-dot" aria-hidden="true"></span>
+        <div class="sheet-skill-row rollable{{if .Proficient}} sheet-proficient{{end}}"
+             data-sides="20" data-modifier="{{.Modifier}}" data-label="{{.Name}} Check" tabindex="0" role="button">
+          <span class="sheet-skill-name">{{.Name}}</span>
+          <span class="sheet-skill-mod">{{signed .Modifier}}</span>
+        </div>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+{{end}}
+
+{{/* summon_tribe_reference: the read-only tribe stat block/attacks/roles/
+     features/progression panel shown on a kind="summon" companion — shared
+     by the popup and the Summons tab. Expects *summonTribeReference (nil =
+     no tribe chosen yet). */}}
+{{define "summon_tribe_reference"}}
+<section class="companion-reference">
+  <h2>Summon Tribe Reference</h2>
+  {{if not .}}
+  <p class="section-hint">Choose a Summon Tribe above to see its reference here.</p>
+  {{else}}
+  <p class="section-hint">{{.SummonType}}</p>
+  {{if .Description}}<p>{{.Description}}</p>{{end}}
+  <dl class="sheet-passive-trait-list">
+    {{if .DefensiveAbility}}<dt>Defensive Ability</dt><dd>{{.DefensiveAbility}}</dd>{{end}}
+    {{if .SavingThrows}}<dt>Saving Throws</dt><dd>{{.SavingThrows}}</dd>{{end}}
+    {{if .Skills}}<dt>Skills</dt><dd>{{.Skills}}</dd>{{end}}
+    {{if .Senses}}<dt>Senses</dt><dd>{{.Senses}}</dd>{{end}}
+    {{if .JutsuSaveDCText}}<dt>Jutsu Save DC</dt><dd>{{.JutsuSaveDCText}}</dd>{{end}}
+    {{if .JutsuAttackBonusText}}<dt>Jutsu Attack Bonus</dt><dd>{{.JutsuAttackBonusText}}</dd>{{end}}
+    {{if .JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{.JutsuSpecialtyText}}</dd>{{end}}
+  </dl>
+
+  {{if .Attacks}}
+  <h3>Natural Weapons</h3>
+  <ul class="sheet-feature-list">
+    {{range .Attacks}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .Roles}}
+  <h3>Roles</h3>
+  <ul class="sheet-feature-list">
+    {{range .Roles}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .Features}}
+  <h3>Special Features</h3>
+  <p class="section-hint">Gated by the character's current summon rank. Locked ones are dimmed until the character's rank catches up.</p>
+  <ul class="sheet-feature-list">
+    {{range .Features}}
+    <li{{if .Locked}} class="companion-reference-locked"{{end}}>
+      <strong>{{.Name}}</strong>
+      <span class="option-picker-epithet">{{.Rank}}-Rank{{if .Locked}} (locked){{end}}</span>
+      {{formatDescription .Description}}
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .Progression}}
+  <h3>Stat Progression</h3>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Rank</th><th>Size</th><th>Stats</th></tr></thead>
+      <tbody>
+        {{range .Progression}}
+        <tr{{if .Locked}} class="companion-reference-locked"{{end}}>
+          <td>{{.Rank}}{{if .Locked}} (locked){{end}}</td>
+          <td>{{.SizeText}}</td>
+          <td>{{.StatsText}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+  {{end}}
+</section>
+{{end}}

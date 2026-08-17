@@ -1,0 +1,72 @@
+{{/* Clan detail card — shared by the standalone /clans/{slug} page and the
+     character-creation Clan step's two-pane preview (right pane, swapped in
+     via fetch). Call with a clanDetail. */}}
+{{define "clan_detail_card"}}
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{.Epithet}}</p>
+
+{{if .Overview}}<p class="overview">{{.Overview}}</p>{{end}}
+
+<dl class="fact-list">
+  <dt>Speed</dt><dd>{{if .SpeedFeet.Valid}}{{.SpeedFeet.Int64}} ft{{else}}—{{end}}</dd>
+  <dt>Extra Language</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
+  <dt>Ability Increase</dt><dd>{{if .AbilityIncreaseText.String}}{{.AbilityIncreaseText.String}}{{else}}—{{end}}</dd>
+</dl>
+
+{{if .Traits}}
+<h2>Clan Traits</h2>
+<div class="entry-list">
+  {{range .Traits}}
+  <div class="entry">
+    <h3>{{.Name}}</h3>
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{if .Features}}
+<h2>Clan Features</h2>
+<div class="entry-list">
+  {{range .Features}}
+  <div class="entry{{if .Locked}} companion-reference-locked{{end}}">
+    <h3>{{.Name}}{{if .Level.Valid}} <span class="entry-level">(Level {{.Level.Int64}}{{if .Locked}}, locked{{end}}{{if .ScalesThrough}}, scales through {{.ScalesThrough}}{{end}})</span>{{end}}</h3>
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{if .Proficiencies}}
+<h2>Proficiencies</h2>
+<dl class="fact-list">
+  {{range .Proficiencies}}
+  <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
+  {{end}}
+</dl>
+{{end}}
+
+{{if .Jutsu}}
+<h2>Clan Jutsu</h2>
+<ul class="tooltip-list">
+  {{range .Jutsu}}
+  <li class="tooltip" tabindex="0">
+    <span class="tooltip-trigger">{{.Name}}{{if .Rank.Valid}} <span class="tooltip-rank">({{.Rank.String}}-Rank)</span>{{end}}</span>
+    <span class="tooltip-content">{{formatDescription .Description}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+
+{{if .Latents}}
+<h2>Bloodline Latents</h2>
+<ul class="tooltip-list">
+  {{range .Latents}}
+  <li class="tooltip" tabindex="0">
+    <span class="tooltip-trigger">{{.Name}}</span>
+    <span class="tooltip-content">{{formatDescription .Description}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

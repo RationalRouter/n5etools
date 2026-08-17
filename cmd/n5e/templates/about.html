@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>About the Creator</h1>
+<p class="page-subtitle">rational_router — formerly Rational_Router#1278 on Discord</p>
+
+<div class="prose">
+  <p>Hey everyone! To be completely transparent: I don't actually play Naruto 5e myself.</p>
+
+  <p>I ended up here because of a friend of mine who helps manage the massive Google Sheets for the game. I work in cybersecurity and do a lot of programming in my off time, so when I heard that he was manually handjamming thousands of rows of raw data, I couldn't resist the opportunity to build something that could help make his work a lot easier and by extension help you guys out too. Helping people is what I like to do, and programming is fun, so the idea came naturally.</p>
+
+  <p>That's how N5etools started. It's an offline, local app inspired by the layout of classic 5etools. The goal is simple: a fast, one-stop web page where players and GMs can search and find all the source material instantly, without having to dig through multiple files or drives. Behind the scenes, the app is designed to look for the latest book updates and pull the text in automatically so you don't have to. I built this thing with the mindset that everything must function with minimal hassle/difficulty to you guys, the end users. No matter how difficult it is for me to build or maintain, my philosophy is to create something that has zero dependencies and works on your local machine, OS agnostic, so you don't have to download extra things to make it work.</p>
+
+  <p>I'm here to handle the coding side of things, but since I don't know the rules of the game as well as you guys, I'm relying entirely on you for the game logic. If something looks broken, missing, or could just work better for your sessions, let me know!</p>
+</div>
+
+<div class="callout">
+  <p><strong>Get in touch.</strong> Got feedback, a question, or just want to say hi? <a class="btn-primary" href="https://docs.google.com/forms/d/e/1FAIpQLSfonWfBxEHLL0Fbx2S3g6etbe84FSHEHCtA5UMQbGNz9ltHjQ/viewform?usp=publish-editor" target="_blank" rel="noopener">Send a Message →</a></p>
+  <p>Found something actually broken? Head to <a href="/bugs">Bug Reports</a> instead — and check the <a href="/faq">FAQ</a> first, your question might already be answered there.</p>
+</div>
+
+{{template "info_links" (dict "InfoPage" "about")}}
+{{end}}

@@ -1,0 +1,4237 @@
+:root {
+  --bg: #0b0c0f;
+  --panel: #16181e;
+  --panel-border: #2a2d38;
+  --text: #f2f2f0;
+  --text-dim: #9498a8;
+  /* Headers use gold, subclass-specific content uses blue — a deliberate
+     3-color semantic split (see .subclass-scope below). --accent stays a
+     separate, neutral, third color for plain links/interactive states so
+     it doesn't blur either of those two signals. */
+  --gold: #d4af37;
+  --gold-hover: #e8c65a;
+  --blue: #5aa9e6;
+  --blue-hover: #7cc0f5;
+  --accent: #d9822b;
+  --accent-hover: #eb9a45;
+  /* The 3D dice, and only the 3D dice — deliberately outside the palette
+     above, which is the page chrome. static/js/dice3d.js reads these two
+     at roll time and feeds them to the shaders, so they are the one place
+     to change the dice's colour; they must stay plain 6-digit hex (that is
+     all parseColor there accepts). */
+  --dice-green: #2e8555;
+  --dice-numeral: #ffffff;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* The browser's default [hidden]{display:none} lives in the lowest-priority
+   UA stylesheet tier — ANY author class selector that sets `display` on a
+   hidden element (e.g. .card{display:block}) silently wins over it, so
+   toggling the `hidden` attribute via JS stops actually hiding the element.
+   This bit both the Items page's kind checkboxes AND its search box (same
+   root cause: item-filter.js sets card.hidden, but .card{display:block}
+   overrode it — only elements with no competing display rule, like the
+   group heading, were actually disappearing). Force it globally so `hidden`
+   always means hidden, everywhere, permanently. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+h1, h2, h3 { color: var(--gold); }
+
+/* Wraps subclass-specific content on the classes page (descriptions,
+   interleaved features, option lists — toggled by static/js/subclass-
+   tabs.js) so its headers read as blue instead of the general-content
+   gold. */
+.subclass-scope h1, .subclass-scope h2, .subclass-scope h3 { color: var(--blue); }
+
+/* Classes page: 5etools-style flowing feature list. Each feature is a
+   plain header with a full-width rule directly underneath (colored gold
+   for general features, blue for subclass ones — see .subclass-scope
+   above) followed by body text at full brightness, not a bordered card —
+   so gold and blue entries read as one continuous document instead of
+   visually separated boxes. Scoped to .class-detail only; every other
+   page (feats, backgrounds, items, ...) keeps the boxed .entry card look
+   from the base .entry rule above. */
+.class-detail .entry {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+.class-detail .entry h3 {
+  margin: 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--gold);
+  font-size: 1.05rem;
+}
+.class-detail .subclass-scope .entry h3 { border-bottom-color: var(--blue); }
+.class-detail .entry p { color: var(--text); margin: 0.6rem 0 0; }
+/* Subclass-scoped body text (not just headers) reads blue too — previously
+   only the header picked up --blue while its flavor text stayed the
+   default white, which read as "the description is missing" at a glance
+   rather than "this is subclass content". Selector deliberately does NOT
+   require .entry as an ancestor of these rules the way line 71 above does:
+   class_detail.html puts .subclass-scope and .entry on the very SAME div
+   for interleaved level features (`class="entry subclass-scope"`), and a
+   descendant combinator never matches when both classes are on one node —
+   that's why the first attempt at this silently did nothing there (it only
+   "worked" for the separate case where .subclass-scope wraps a whole
+   options-list block as a real ancestor of .entry). Plain ".subclass-scope
+   p" covers both shapes correctly. */
+.class-detail .subclass-scope p,
+.class-detail .subclass-scope li { color: var(--blue); }
+/* Exception: when body content is itself a list of named sub-entries
+   (e.g. Slayer Styles' "Studied Crippling. When you would use..."), the
+   bold name reads as a sub-heading/bullet label, not flavor text — keep it
+   at the default white so it still pops against the now-blue body instead
+   of blending in with it (gold — the sitewide default for .named-entries
+   strong — would read as "general content" here, which is wrong; plain
+   text-color white reads as a neutral label instead). */
+.class-detail .subclass-scope .named-entries strong { color: var(--text); }
+.class-detail .entry-level-note {
+  margin: 0.25rem 0 0;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+/* The selected subclass's own name + description, shown just below the
+   tiles — deliberately as prominent as a section header (not a plain
+   .overview paragraph) so picking a subclass is unmistakable even before
+   scrolling down to its interleaved features. */
+.class-detail .subclass-heading { margin: 1.25rem 0 1rem; }
+.class-detail .subclass-heading h2 {
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--blue);
+}
+.class-detail .subclass-heading .overview { margin: 0; color: var(--text); }
+
+.class-detail h3.options-list-heading {
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 0.3rem;
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.class-detail .level-feature-group { margin-bottom: 1.5rem; }
+
+/* Left-hand "Outline" nav (populated by static/js/class-outline.js) — a
+   sticky mirror of every visible heading on the page, click to smooth-
+   scroll there. Widen .content only when this sidebar is present so the
+   two-column layout has room; every other page stays at the normal
+   centered single-column width. */
+.content:has(.class-outline) { max-width: 1300px; }
+.class-detail-layout { display: flex; align-items: flex-start; gap: 2rem; }
+.class-detail { flex: 1 1 auto; min-width: 0; }
+/* The back link and the outline box are wrapped together in one sticky
+   column so "back to all classes" is always in view next to the outline,
+   instead of sitting at the top of the (independently scrolling) right-hand
+   content column where reaching it meant scrolling back to the page top. */
+.class-outline-column {
+  position: sticky;
+  top: 1rem;
+  flex: 0 0 240px;
+  width: 240px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+.class-outline-back { margin: 0 0 0.6rem; font-size: 0.85rem; }
+.class-outline {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.85rem;
+  font-size: 0.82rem;
+}
+.class-outline h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  border-bottom: none;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.class-outline ul { list-style: none; margin: 0; padding: 0; }
+.class-outline li { margin: 0; }
+.class-outline a {
+  display: block;
+  color: var(--gold);
+  padding: 0.15rem 0;
+  line-height: 1.3;
+}
+.class-outline a:hover { color: var(--gold-hover); }
+/* Subclass-scoped outline entries (a subclass's own node, and every
+   feature/option nested under it) — same blue used for subclass content
+   everywhere else on the page, see .subclass-scope above. */
+.class-outline a.outline-subclass { color: var(--blue); }
+.class-outline a.outline-subclass:hover { color: var(--blue-hover); }
+.class-outline .outline-sub { list-style: none; margin: 0; padding-left: 0.9rem; }
+@media (max-width: 900px) {
+  .class-outline-column { display: none; }
+}
+
+.subclass-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.subclass-tile {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.subclass-tile:hover { border-color: var(--blue); }
+.subclass-tile.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.jutsu-tile-facts { color: var(--text-dim); font-size: 0.8em; }
+.jutsu-tile .tooltip-content p { margin: 0.35rem 0 0; color: var(--text); }
+
+.items-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.items-toolbar input[type="search"] {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
+  min-width: 220px;
+}
+.items-kind-filters { display: flex; flex-wrap: wrap; gap: 0.9rem; font-size: 0.85rem; color: var(--text-dim); }
+.items-kind-filters label { display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+
+/* Weapon/armor sub-filter rows (static/js/equipment-subfilter.js): one row
+   per group, each headed by the kind it narrows so "Light" can't be read as
+   a property of the whole list. The 0.6rem between rows and the 0.75rem
+   above the first one keep them from merging into the kind checkboxes
+   directly above — they're a second, subordinate question, and the two sets
+   shouldn't read as one continuous strip of boxes. */
+.items-subfilters { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem; }
+/* An author `display` beats the UA's [hidden] rule, so the feats pane's empty
+   container would otherwise still take up a flex gap in the toolbar column. */
+.items-subfilters[hidden] { display: none; }
+.items-subfilter-group { display: flex; align-items: baseline; gap: 0.9rem; }
+/* The checkboxes are their own flex row so that when a narrow pane wraps
+   them, the wrapped ones line up with the row above rather than sliding
+   back under the group heading. */
+.items-subfilter-boxes { flex: 1; min-width: 0; row-gap: 0.45rem; }
+.items-subfilter-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  opacity: 0.85;
+  /* Fixed width so the two rows' checkboxes line up under each other
+     instead of stepping in and out with the length of the heading. */
+  min-width: 4.5rem;
+}
+
+/* Jutsu page's "Categories" dropdown filter (cmd/n5e/static/js/jutsu-
+   filter.js) — a checkbox panel behind a button instead of Items' always-
+   visible row, since jutsu has ~50 distinct category groups rather than
+   Items' 6 kinds. */
+.dropdown-filter { position: relative; }
+.dropdown-toggle {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.dropdown-toggle:hover { border-color: var(--accent); }
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 260px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+.dropdown-panel-actions {
+  position: sticky;
+  top: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 0.4rem 0.5rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel);
+}
+.dropdown-panel-actions button,
+.dropdown-panel-section-actions button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.dropdown-panel-actions button:hover,
+.dropdown-panel-section-actions button:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Same Select all/Deselect all affordance as .dropdown-panel-actions
+   (Categories), but scoped to one section within the "Filters" dropdown
+   (Duration) rather than sticky across the whole panel — that dropdown
+   holds multiple independent sections (Range/Duration/Components), so a
+   single sticky action row wouldn't unambiguously belong to any one of
+   them. */
+.dropdown-panel-section-actions { display: flex; gap: 0.5rem; padding: 0 0.4rem 0.3rem; }
+.dropdown-panel-heading,
+.dropdown-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.dropdown-panel-heading { font-weight: 600; color: var(--text); }
+.dropdown-panel-item { padding-left: 1.6rem; color: var(--text-dim); font-size: 0.85rem; }
+.dropdown-panel-heading:hover, .dropdown-panel-item:hover { background: var(--bg); }
+
+/* Jutsu page's "Filters" dropdown (Range/Duration/Components) — a plain,
+   non-checkbox section label, unlike .dropdown-panel-heading which is
+   itself a "select all in this group" checkbox row for Categories. */
+.dropdown-panel-wide { min-width: 300px; }
+.dropdown-panel-section-heading {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.4rem 0.2rem;
+  border-top: 1px solid var(--panel-border);
+  margin-top: 0.4rem;
+}
+.dropdown-panel-section-heading:first-child { border-top: none; margin-top: 0; }
+
+/* Dual-thumb range slider (Jutsu page's Range filter): two overlapping
+   native <input type=range> sharing one track, each showing only its own
+   thumb — the input itself is pointer-events:none so clicks pass through
+   to whichever thumb is on top, and only the thumb pseudo-elements
+   re-enable pointer-events. A plain custom-drawn track sits underneath
+   with a highlighted "fill" segment between the two thumbs. */
+.range-slider-item { padding-left: 0.4rem; }
+.range-slider { position: relative; height: 1.4rem; margin: 0.4rem 0.4rem 0.2rem; }
+.range-slider-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--panel-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.range-slider-track-fill { position: absolute; top: 0; bottom: 0; background: var(--accent); }
+.range-slider input[type="range"] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range-slider input[type="range"]::-webkit-slider-runnable-track { background: transparent; }
+.range-slider input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--panel);
+}
+.range-slider input[type="range"]::-moz-range-track { background: transparent; }
+.range-slider input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--panel);
+}
+.range-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+/* Shared 5etools-style two-pane list+detail shape — Items and Jutsu both
+   use this (identical structure: filterable list left, live detail pane
+   right, swapped via fetch to a ?fragment=1 route). Generic .browse-*
+   names since it's not Items-specific; same widening trick the classes
+   page's outline sidebar and the homepage's Patch Notes band use
+   (.content:has(...)) so only a page using this layout grows beyond the
+   site's normal 960px column. */
+.content:has(.browse-layout) { max-width: 1300px; }
+.browse-layout { display: flex; align-items: flex-start; gap: 2rem; }
+
+.browse-list-pane {
+  flex: 0 0 320px;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+}
+.browse-list-pane .items-toolbar { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+.browse-list-pane .items-toolbar input[type="search"] { min-width: 0; }
+
+/* min-height: 0 overrides a flex item's default min-height:auto, which
+   would otherwise let this child grow to its full content height (the
+   whole list) regardless of the sticky parent's max-height above,
+   defeating both the internal scrollbar and the stickiness itself (a
+   pane exactly as tall as the page has nothing to "stick" against). */
+.browse-list { overflow-y: auto; margin-top: 0.75rem; min-height: 0; padding-right: 0.45rem; }
+.browse-group-heading {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.browse-group-heading:first-child { margin-top: 0; }
+
+.browse-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+.browse-row:hover { background: var(--panel); color: var(--text); }
+.browse-row.active { background: var(--panel); border: 1px solid var(--accent); }
+.browse-row-name { font-size: 0.9rem; }
+.browse-row-meta { color: var(--text-dim); font-size: 0.8rem; white-space: nowrap; }
+
+.browse-detail-pane {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+}
+.browse-detail-pane h1 { margin-top: 0; }
+
+@media (max-width: 900px) {
+  .browse-layout { flex-direction: column; }
+  .browse-list-pane { position: static; max-height: none; flex: 1 1 auto; width: 100%; }
+}
+
+/* Jutsu page's sourcebook filter tiles, sitting above the text search in
+   the browse list pane's toolbar. */
+.source-tiles { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.source-tile {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.source-tile.active { border-color: var(--accent); color: var(--text); }
+.source-tile:hover { border-color: var(--accent); }
+
+/* Item-card fact rows (Cost, Weight, Bulk, ...): the base .fact-list uses
+   one shared fixed-width label column sized for the whole list's longest
+   label (fine elsewhere, e.g. Class casting/proficiencies where labels are
+   similar lengths) — here "Cost" and "Armor Category" can both appear in
+   the same card, so any single shared width either wastes space after
+   "Cost" or wraps "Armor Category". .fact-list-tight wraps each dt/dd in
+   its own flex row instead, so each label hugs its own value independently
+   regardless of what the other rows in the same card need. */
+dl.fact-list-tight { display: flex; flex-direction: column; gap: 0.3rem; }
+/* dl.fact-list-tight (tag+class) beats the base .fact-list dt/dd rules
+   below (class+tag, same specificity) regardless of source order — a
+   bare .fact-list-tight dt/dd would tie with them and lose to whichever
+   is later in the file. */
+dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin: 0; }
+.fact-row { display: flex; gap: 0.5rem; align-items: baseline; }
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.nav-brand {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; flex: 1; }
+
+.nav-search { position: relative; }
+.nav-search input[type="search"] {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.9rem;
+  width: 220px;
+}
+.nav-search input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+.search-results li { margin: 0; }
+.search-results a {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  color: var(--text);
+}
+.search-results a:hover,
+.search-results li.active a {
+  background: var(--bg);
+  color: var(--text);
+}
+.search-result-type { color: var(--text-dim); font-size: 0.75rem; white-space: nowrap; }
+
+/* A single shared floating preview, positioned via JS (search.js), not the
+   usual .tooltip/.tooltip-content CSS-hover chain: .search-results has
+   overflow-y: auto (needed for the max-height scroll on long match lists),
+   and any :hover-revealed absolutely-positioned child would be clipped by
+   that same overflow — so this one has to escape via position: fixed and
+   JS-computed coordinates instead of pure CSS.
+
+   pointer-events is deliberately "auto", not "none": the tooltip renders
+   outside #site-search-results (a DOM sibling), so moving the cursor from a
+   result row onto the tooltip itself needs the tooltip to be a real
+   mouseover/mouseout target — otherwise the browser routes that transition
+   to whatever's visually behind it, search.js's mouseout handler sees a
+   relatedTarget outside the results list, and the tooltip vanishes the
+   instant the cursor leaves the row text. */
+#search-tooltip {
+  position: fixed;
+  max-width: min(320px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  pointer-events: auto;
+}
+#search-tooltip[hidden] { display: none; }
+
+/* Informative/meta pages (About, Bug Reports, FAQ, Technical Overview) —
+   deliberately kept visually distinct (dimmer, smaller) from the main
+   .nav-links content tabs so the "browse the rulebook" links stay the
+   primary visual weight in the bar. flex:1 on .nav-links already pushes
+   everything after it to the right, so this group needs no positioning of
+   its own to land top-right. */
+.nav-info { display: flex; gap: 1rem; font-size: 0.8rem; }
+.nav-info a { color: var(--text-dim); }
+.nav-info a:hover { color: var(--accent); }
+
+.content { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.site-footer {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 0.5rem;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--text-dim);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.hero p { color: var(--text-dim); }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.card:hover { border-color: var(--accent); color: var(--text); }
+
+.card h2 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+.card-epithet { color: var(--accent); margin: 0 0 0.75rem; font-style: italic; font-size: 0.9rem; }
+/* Separates an upgraded item's own note from the base item's description
+   that expandKitReference pulls in below it, so it's obvious which text
+   belongs to which — the tier's actual upgrade is the Bonus Effect row up
+   in the fact list. */
+.item-base-heading { margin: 1.25rem 0 0.25rem; font-size: 0.95rem; color: var(--gold); }
+
+.card dl { margin: 0; font-size: 0.85rem; }
+.card dt { color: var(--text-dim); float: left; width: 45%; clear: left; }
+.card dd { margin: 0 0 0.25rem 45%; }
+
+.overview { color: var(--text-dim); max-width: 70ch; }
+
+.fact-list { margin: 1rem 0; font-size: 0.9rem; }
+.fact-list dt { color: var(--text-dim); float: left; width: 160px; clear: left; }
+.fact-list dd { margin: 0 0 0.35rem 160px; }
+
+.entry-list { display: flex; flex-direction: column; gap: 1rem; }
+.entry {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.entry h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.entry-level { color: var(--text-dim); font-weight: normal; font-size: 0.85rem; }
+.entry p { margin: 0; color: var(--text-dim); }
+
+.plain-list { margin: 0; padding-left: 1.25rem; color: var(--text-dim); }
+.plain-list li { margin-bottom: 0.25rem; }
+/* Languages (part 10): each row gets a remove button, same as tools/skills,
+   weapons, jutsu and inventory. Only this list needs the flex treatment —
+   plain-list is reused elsewhere for lists with no per-row controls. */
+.sheet-language-list { padding-left: 0; list-style: none; }
+.sheet-language-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.sheet-language-list .sheet-trash-btn { flex: 0 0 auto; }
+
+.prose-list { margin: 0.5rem 0 0.75rem; padding-left: 1.5rem; }
+.prose-list li { margin-bottom: 0.4rem; }
+.prose-sublist { margin: 0.4rem 0 0; padding-left: 1.25rem; list-style: circle; }
+.prose-sublist li { margin-bottom: 0.25rem; }
+
+/* Named sub-entries (e.g. Weapon Specialist's Gungnir Piercer Styles) — see
+   namedEntryPattern in format.go. Each entry is its own paragraph with the
+   name bolded inline, matching how the book itself prints these. */
+.named-entries p { margin: 0.5rem 0; }
+.named-entries strong { color: var(--gold); }
+
+/* Static info pages (About the Creator, Bug Reports, FAQ, Technical
+   Overview) — flowing prose content rather than database-driven cards, so
+   these don't reuse .overview (that class is deliberately dimmed, meant for
+   a one-line summary ABOVE a details list, not full-brightness body copy). */
+.page-subtitle { margin: -0.5rem 0 1.5rem; color: var(--text-dim); font-style: italic; }
+
+/* Choose a Class: the Starting Level picker sits inline with the "Back to
+   checklist" link rather than buried in the per-class confirm form below —
+   flex on this specific instance only, so bare .page-subtitle elsewhere
+   (still just italic caption text) is untouched. */
+.page-subtitle-with-level { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.page-level-picker { font-style: normal; color: var(--text); display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+
+/* Finish Creation / Back to Characters on the creation hub: reusing bare
+   .page-subtitle here (as elsewhere) would inherit its negative top margin
+   — tuned for sitting directly under an <h1> — which collapses the gap
+   between these two unrelated actions down to nothing. Real, explicit
+   spacing instead (~0.3rem is already the project's stated minimum; this
+   uses noticeably more so the two actions read as clearly distinct). */
+.creation-hub-finish { margin-top: 1.5rem; }
+.creation-hub-back { margin-top: 1.25rem !important; font-style: normal; }
+
+.prose { max-width: 70ch; }
+.prose p { margin: 0 0 1rem; }
+.prose p:last-child { margin-bottom: 0; }
+
+.callout {
+  max-width: 70ch;
+  margin: 1.5rem 0 0;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-dim);
+}
+.callout p { margin: 0 0 0.5rem; }
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { color: var(--text); }
+
+.btn-primary {
+  display: inline-block;
+  margin-top: 0.35rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--bg); }
+
+/* FAQ list reuses .entry-list/.entry (same card look as clan traits,
+   backgrounds, etc.) with the question as the card header — see faq.html. */
+.faq-item h3 { color: var(--gold); }
+
+/* Cross-link footer shared by all four info pages (partials/info_links.html)
+   — keeps every one of them reachable from every other one. */
+.info-links { margin: 2.5rem 0 0; max-width: 70ch; }
+.info-links-label {
+  margin: 0 0 0.6rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 1.25rem;
+}
+.info-links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+.info-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  color: var(--text);
+}
+.info-link:hover { border-color: var(--accent); color: var(--text); }
+.info-link strong { color: var(--gold); font-size: 0.9rem; }
+.info-link span { color: var(--text-dim); font-size: 0.8rem; }
+
+/* Home page: hero on top, Patch Notes as a full-width band below it. The
+   page widens beyond the site's normal 960px column (same :has() trick the
+   classes page uses for its outline sidebar) specifically so the notes list
+   below has room to flow wide-and-short instead of narrow-and-tall. */
+.home-layout { display: flex; flex-direction: column; gap: 2rem; }
+.content:has(.patch-notes) { max-width: 1100px; }
+
+.patch-notes {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+}
+.patch-notes h2 { margin: 0 0 0.25rem; font-size: 1rem; }
+.patch-notes .page-subtitle { margin: 0 0 1rem; font-size: 0.8rem; }
+/* Fixed-row-count grid with grid-auto-flow: column, not CSS multi-column —
+   multi-column's default `column-fill: balance` doesn't guarantee a strict
+   fill order, and this list has a real requirement: item order (newest
+   first) must land newest-top-left -> oldest-bottom-right, deterministically.
+   10 items over an explicit row count that evenly divides 10 (10/5/2, see
+   the media queries below) always leaves zero leftover cells, so the 10th
+   (oldest) item always lands in the last row of the last column — the
+   literal bottom-right corner, not just "roughly last".
+
+   Grid rows share ONE height across every column in that row (unlike
+   multi-column, which lets each column size independently) — a row is only
+   as short as its longest cell allows. That's what caused an earlier
+   overflow/whitespace bug: one much-longer entry stretched its whole row,
+   leaving big gaps under its shorter neighbors. Real fix was trimming the
+   list copy to actual patch-note length (home.html) so row heights stay
+   close together — keep future entries short (~60-85 characters), or a
+   stray long one will reintroduce that gap.
+
+   Mobile-first column count (base rule = 1 column, wider tiers below add
+   columns) rather than a single fixed 5-column layout: at 5 columns, each
+   grid-auto-columns floor × 5 plus 4 gaps must fit inside .patch-notes'
+   actual inner width, which is bounded by .content's 1100px cap MINUS its
+   own padding MINUS .patch-notes' own padding — comfortably tighter than
+   1100px. The 210px-floor version of this rule overflowed that real budget
+   at ordinary window widths (not just extreme ones), which is what caused a
+   second, different overflow bug (the grid itself wider than its box, not
+   a row-height mismatch). 150px was computed against the worst case in the
+   1000px..1100px range this actually runs at, with real margin to spare;
+   overflow-x: auto is a hard backstop in case some future edit (larger
+   font-size override, extra columns, a wider gap) breaks that math again —
+   worst case is a scrollbar, never clipped/spilling text. */
+.patch-notes ul {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(10, auto);
+  grid-auto-columns: minmax(150px, 1fr);
+  gap: 1rem 1.5rem;
+  margin: 0;
+  padding: 0 0 0.3rem;
+  list-style: none;
+  overflow-x: auto;
+}
+/* min-width: 0 overrides a grid item's default min-width:auto, which is
+   computed from the item's content and — critically — from the LONGEST
+   UNBROKEN RUN within that content when the content has no soft-wrap
+   opportunity the browser is willing to use (e.g. a slash-joined phrase
+   like "action/range/duration/components" with no spaces: real incident,
+   2026-07-23 — that min-width:auto floor exceeded grid-auto-columns'
+   150px track minimum, which grid sizing allows, so the column itself
+   grew wide enough to fit the unbroken run and spilled into the next
+   column's space). Same root-cause *category*, different axis, as the
+   flex min-height:auto fix on .browse-list above — a browser default that
+   quietly ignores an explicit size constraint whenever content refuses to
+   wrap. overflow-wrap: anywhere is the actual backstop: it lets the
+   browser break even mid-word/mid-token when nothing else fits, so a
+   future accidentally-unbreakable bullet degrades to an ugly mid-word
+   break inside its own column instead of overflowing into the next one. */
+.patch-notes li {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.patch-date {
+  display: block;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+@media (min-width: 640px) {
+  .patch-notes ul { grid-template-rows: repeat(5, auto); }
+}
+@media (min-width: 1000px) {
+  .patch-notes ul { grid-template-rows: repeat(2, auto); }
+}
+/* Entries extracted from the book's ALL-CAPS-artifact list shape (Puppet
+   Master's chassis/tier upgrades and similar — see capsEntryPattern in
+   format.go) render title-cased rather than shouting, and italicized
+   instead of plain bold — a deliberate second visual treatment so this
+   list shape doesn't look identical to the other (Gungnir Piercer Styles-
+   style) unmarked list shape once both are rendered as real HTML. */
+.caps-entry-name { font-style: italic; }
+
+/* A caps-entry's leading "Cost: X Drain: Y" stat line (split from the
+   surrounding prose by splitLeadingStatLine in format.go) reads as a small
+   stat block next to the entry name, not more of the sentence. */
+.entry-stat-line { color: var(--text-dim); font-size: 0.85rem; }
+
+.section-hint { margin: -0.5rem 0 0.75rem; color: var(--text-dim); font-size: 0.8rem; font-style: italic; }
+
+.table-scroll { overflow-x: auto; margin-bottom: 1.5rem; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.data-table th, .data-table td {
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--panel-border);
+  white-space: nowrap;
+}
+.data-table th { color: var(--text-dim); font-weight: 600; }
+
+/* Class Levels table (partials/class_detail.html) only — a class with
+   several resource columns (Puppet Master's five material Upgrade tiers,
+   for instance) routinely runs wide enough to need .table-scroll's
+   horizontal scroll, and once the reader has scrolled right to see those
+   columns, "Level" itself — the one value every other column is read
+   against — is exactly what scrolls out of view first. Pinned to the left
+   edge of the scroll container instead; an opaque background (matching the
+   page, not the table's own transparent one) is required for a sticky
+   cell, or columns scrolling underneath would show through it. */
+.class-level-table th:first-child,
+.class-level-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  box-shadow: 1px 0 var(--panel-border);
+}
+.class-level-table th:first-child { z-index: 1; }
+
+.tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tooltip {
+  position: relative;
+  /* .tooltip-content is position:absolute but NOT display:none while
+     hidden (opacity/visibility only — see that rule's own comment for
+     why: tooltip-position.js needs it measurable before the first hover).
+     A laid-out absolutely-positioned box, even invisible, still counts
+     toward the layout overflow of the nearest ancestor that clips
+     (overflow non-visible) — which, with nothing clipping HERE, is
+     whatever .sheet-box the trigger happens to sit inside. Since
+     .tooltip-content can be up to 320px wide anchored at a trigger chip
+     that's often much narrower, this silently inflated every such box's
+     scrollWidth well past its visible content, producing a real (if
+     easy to miss) horizontal scrollbar at rest, before anything was ever
+     hovered — confirmed on both the Hunters Patterns picker and the
+     pre-existing Martial Techniques picker, so this was never
+     one-box-specific. Clipping it right here (overflow: hidden) stops
+     that overflow from escaping this element at all while at rest; the
+     :hover/:focus override below un-clips it the instant it actually
+     needs to render beyond its own tiny box. */
+  overflow: hidden;
+}
+.tooltip:hover,
+.tooltip:focus,
+.tooltip:focus-within {
+  overflow: visible;
+}
+.tooltip-trigger {
+  display: inline-block;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: help;
+  border-bottom: 1px dotted var(--accent);
+}
+.tooltip-rank { color: var(--text-dim); font-weight: normal; font-size: 0.8em; }
+/* Some tooltip-trigger chips are real links (e.g. feats, which now have
+   their own detail page) — "help" reads wrong once clicking navigates. */
+a.tooltip-trigger { cursor: pointer; }
+a.tooltip-trigger:hover { color: var(--accent-hover); }
+
+.tooltip-content {
+  position: absolute;
+  /* No gap between trigger and box (bottom: 100%, not 100% + margin): a gap
+     would be a dead zone the mouse has to cross with nothing hoverable
+     under it, breaking the hover chain right as the reader moves toward
+     the box to select text. The existing padding below is what actually
+     provides that breathing room, since padding stays inside the
+     hoverable box (a margin would not). */
+  bottom: 100%;
+  left: 0;
+  width: max-content;
+  /* min() so the box shrinks instead of clipping off-screen on narrow
+     viewports/near the right edge — a real fix, not just a preference,
+     since the fixed left:0 anchor has no edge-collision detection. */
+  max-width: min(320px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  /* Deliberately NOT pointer-events: none — the box needs to stay open and
+     selectable while the mouse is over it (moving onto it, not just the
+     trigger, is how a reader copies the text), and since it's a DOM
+     descendant of .tooltip, hovering it keeps .tooltip:hover matched. */
+  user-select: text;
+}
+.tooltip:hover .tooltip-content,
+.tooltip:focus .tooltip-content,
+.tooltip:focus-within .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+/* Horizontal positioning is an explicit `left` PIXEL OFFSET set by
+   tooltip-position.js, not a CSS class — a binary left/right anchor flip
+   turned out not to be enough (a flip to right-anchor can just as easily
+   push the box past the container's LEFT edge on a narrow panel instead;
+   see that file's own doc comment for the live-reproduced bug this
+   replaced). No CSS rule needed here for that axis. */
+/* Flips the anchor to open downward (below the trigger) instead of the
+   default upward — applied by tooltip-position.js when the box's default
+   bottom:100% placement would clip against its nearest scrollable
+   ancestor's own top edge (e.g. a trigger sitting near the top of a
+   .sheet-box, which is overflow:auto). */
+.tooltip-content.tooltip-content-below { bottom: auto; top: 100%; transform: translateY(-4px); }
+.tooltip:hover .tooltip-content.tooltip-content-below,
+.tooltip:focus .tooltip-content.tooltip-content-below,
+.tooltip:focus-within .tooltip-content.tooltip-content-below {
+  transform: translateY(0);
+}
+
+/* Floating dice roller (templates/partials/dice_roller.html,
+   static/js/dice-roller.js) — a D&D Beyond-style dice tray fixed to the
+   bottom-right corner on every page. */
+/* Full-viewport WebGL dice overlay (static/js/dice3d.js) — transparent
+   background so tumbling dice render directly over whatever page the user
+   is on; pointer-events:none so the page underneath stays fully clickable
+   while dice are rolling.
+   width/height are set here as well as on the backing store: the canvas
+   element's intrinsic size is its backing-store size in device pixels, so
+   without this a 2x display would lay the element out at twice the
+   viewport and scroll the page sideways. */
+#dice-3d {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 39;
+  pointer-events: none;
+}
+
+#dice-roller { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 40; }
+
+/* Back to top (static/js/back-to-top.js) — the mirror corner from the dice
+   roller, not stacked above it, since the dice tray's own panel opens
+   upward from there (.dice-panel, right below) and would run right into
+   anything placed above the FAB. Raised well clear of .site-footer's own
+   fixed bottom-left credit line rather than sharing its exact corner —
+   the "at least ~3mm of breathing room between distinct things" rule
+   applies to two unrelated fixed-position elements just as much as it does
+   to adjacent buttons in normal flow. Hidden by default (hidden attribute
+   in the markup); JS toggles .back-to-top-visible past a scroll threshold
+   rather than fighting over the display property with two mechanisms. */
+#back-to-top {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 3rem;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s;
+}
+#back-to-top.back-to-top-visible { opacity: 1; visibility: visible; }
+#back-to-top:hover { background: var(--accent-hover); }
+
+.dice-fab,
+#dice-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+#dice-fab:hover { background: var(--accent-hover); }
+
+.dice-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.75rem);
+  width: 300px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 1rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.dice-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.dice-panel-header h3 { margin: 0; font-size: 1rem; }
+#dice-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+#dice-close:hover { color: var(--text); }
+
+/* Roll Mode (Normal/Advantage/Disadvantage) and Elemental Matchup — applies
+   automatically to every lone-d20 roll on the page (skill/save/attack/Clash
+   tiles, or a manual single-d20 tray roll), see dice-roller.js's startRoll.
+   Kept compact: the panel itself is a fixed 300px (see .dice-panel below). */
+.dice-roll-mode {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.dice-mode-btn {
+  flex: 1;
+  padding: 0.4rem 0.2rem;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dice-mode-btn:hover { border-color: var(--text-dim); color: var(--text); }
+.dice-mode-btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+.dice-elemental-matchup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.dice-elemental-matchup label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+.dice-elemental-matchup select {
+  width: 100%;
+  padding: 0.3rem;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+.dice-elemental-hint {
+  text-align: center;
+  color: var(--gold);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.dice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+/* .dice-die (the <button>) is deliberately NOT the clipped element — the
+   count badge is a sibling of .dice-die-shape positioned outside that
+   inner shape's box (top/right negative offsets), and clip-path on an
+   ancestor clips everything painted within its box, badge included. Only
+   the inner .dice-die-shape gets the hexagon clip/background/border, so
+   the badge sitting just outside it stays visible. */
+.dice-die {
+  position: relative;
+  aspect-ratio: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.dice-die-shape {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(25% 3%, 75% 3%, 97% 50%, 75% 97%, 25% 97%, 3% 50%);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.dice-die:hover .dice-die-shape { border-color: var(--accent); color: var(--text); }
+.dice-die.active .dice-die-shape { border-color: var(--accent); color: var(--text); background: #1c1508; }
+.dice-die.rolling .dice-die-shape { animation: dice-spin 0.5s linear infinite; }
+
+.dice-die-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+@keyframes dice-spin {
+  from { transform: rotate(0deg) scale(1.08); }
+  to { transform: rotate(360deg) scale(1.08); }
+}
+
+.dice-actions { display: flex; gap: 0.6rem; margin-bottom: 0.5rem; }
+.dice-actions button {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dice-btn-reset { background: var(--bg); color: var(--text); }
+.dice-btn-reset:hover { border-color: var(--text-dim); }
+.dice-btn-roll { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.dice-btn-roll:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.dice-clear-link {
+  display: block;
+  margin: 0 auto;
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+.dice-clear-link:hover { color: var(--gold-hover); text-decoration: underline; }
+
+.dice-results {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--panel-border);
+  text-align: center;
+}
+.dice-results-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 0.2rem;
+}
+.dice-results-total {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.dice-results-total.dice-pulse { animation: dice-pulse 0.35s ease; }
+@keyframes dice-pulse {
+  0% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+.dice-results-breakdown {
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+/* ---- Character creation flow ------------------------------------------
+   First form-based UI in this app — every other page is read-only browsing,
+   so there's no existing input/select/textarea styling to copy. Baseline
+   (background, border, radius) matches .nav-search's search input for
+   visual consistency with the one other text input in the app. */
+
+.creation-form { max-width: 60ch; }
+.creation-form label {
+  display: block;
+  margin: 1rem 0 0.3rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+.creation-form label:first-child { margin-top: 0; }
+/* Bare .section-hint's negative top margin (see its own rule) is tuned for
+   sitting directly under an <h1> — same wrong-context reuse
+   .creation-hub-finish/.creation-hub-back already had to fix elsewhere.
+   Inside a stacked form a hint follows a field, not a heading, and the
+   collapse crowded it against both the field above and the next
+   label/button below (e.g. multiclass_add_form's Starting Level hint,
+   right on top of "Choose 1 toolkit"). */
+.creation-form .section-hint { margin: 0.4rem 0 1rem; }
+.creation-form input[type="text"],
+.creation-form input[type="number"],
+.creation-form select,
+.creation-form textarea {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.95rem;
+  width: 100%;
+  font-family: inherit;
+}
+.creation-form input[type="text"]:focus,
+.creation-form input[type="number"]:focus,
+.creation-form select:focus,
+.creation-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.creation-form textarea { min-height: 5rem; resize: vertical; }
+.creation-form input[type="number"] { width: 5rem; }
+.creation-form button.btn-primary { margin-top: 1.25rem; border: 1px solid var(--accent); cursor: pointer; }
+.creation-form-error {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid #d9482b;
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Ability-score / skill-choice / equipment-choice groups: several related
+   inputs side by side, distinct from the single-column form fields above. */
+.ability-score-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+.ability-score-row label { margin: 0; width: 6rem; flex-shrink: 0; }
+.ability-score-row input[type="number"] { width: 4.5rem; }
+.point-buy-costs { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 0; }
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.4rem 1rem;
+  margin: 0.5rem 0 0;
+}
+.choice-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.equipment-choice-group {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  border-radius: 6px;
+}
+.equipment-choice-group label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+  color: var(--text);
+  font-weight: normal;
+}
+.equipment-preview-link { margin-left: 1.6rem; font-size: 0.8rem; }
+
+/* "N Kits of your Choice" dropdowns (create-equipment.js) — indented under
+   their radio like .equipment-preview-link, stacked with real gaps so
+   multiple slots (and each slot's own preview link) never crowd together. */
+.kit-choice-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0.75rem 1.6rem;
+}
+.kit-choice-slot { display: flex; align-items: center; gap: 0.75rem; }
+.kit-choice-slot .equipment-preview-link { margin-left: 0; }
+
+/* Clan ability-score increase picker. One row per increase, each reading
+   "+2  [Dexterity ▾]" — the amount sits left as a fixed-width gold label so
+   a two-slot clan's rows line up whether the ability is a dropdown or a
+   fixed grant. The 1rem gap between rows is the same breathing room the kit
+   slots above use; these are distinct decisions, not one control.
+
+   These rules are written as `.creation-form .clan-asi-*`, not bare class
+   selectors: `.creation-form label` is (0,1,1) and would otherwise beat a
+   (0,1,0) `.clan-asi-slot`, leaving every row stuck as a block. */
+.creation-form-heading { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
+.clan-asi-variant + .clan-asi-variant { margin-top: 1rem; }
+.creation-form .clan-asi-variant-label { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.creation-form .clan-asi-variant-label input[type="radio"] { width: auto; }
+.clan-asi-slots { display: flex; flex-direction: column; gap: 0.6rem; margin: 0.5rem 0 0.25rem; }
+.creation-form .clan-asi-slot { display: flex; align-items: center; gap: 0.75rem; margin: 0; }
+.clan-asi-amount { flex: 0 0 2.5rem; color: var(--gold); font-weight: 700; }
+.clan-asi-fixed { color: var(--text-dim); }
+.creation-form .clan-asi-slot select { margin: 0; width: auto; min-width: 12rem; }
+
+/* Automatic background grant line — was reusing .page-subtitle, whose
+   negative top margin (tuned for sitting right under an <h1>) made it look
+   cramped/wrong mid-form next to other grant rows. */
+.grant-automatic {
+  margin: 0.75rem 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--panel);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+/* Equipment step: form on the left, a shared item-stat preview pane on the
+   right — one pane serves every "View stats" link on the page, unlike
+   Clan/Class/Jutsu's per-row list+detail (there's no single list to browse
+   here, just several independent radio groups). */
+.equipment-layout { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+.equipment-form-pane { flex: 1 1 400px; }
+.equipment-preview-pane { flex: 1 1 320px; align-self: stretch; }
+
+/* Option-picker lists (clan/class/background "choose one" pages): a plain
+   link list, matching .entry-list's card look but compact — this app
+   already avoids client-side wizard state, so picking one re-navigates the
+   page with the choice reflected server-side instead of toggling via JS. */
+.option-picker { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.75rem 0 1.5rem; }
+.option-picker form { margin: 0; }
+.option-picker a,
+.option-picker-row {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.option-picker a:hover,
+.option-picker-row:hover { background: var(--panel); }
+.option-picker a.option-current,
+.option-picker-row.option-current { border-color: var(--accent); }
+.option-picker-epithet { color: var(--text-dim); font-size: 0.85rem; margin-left: 0.4rem; }
+
+/* Creation hub checklist. */
+.creation-checklist { list-style: none; margin: 1rem 0; padding: 0; max-width: 40ch; }
+.creation-checklist li { margin-bottom: 0.4rem; border-radius: 6px; border-left: 3px solid var(--panel-border); }
+.creation-checklist li.step-done { border-left-color: var(--gold); }
+/* The whole tile is one <a> (not just the label text) — previously the
+   exact word had to be clicked; the CSS below (moved here from the old
+   bare <li> rule) makes the full padded row the click target. */
+.creation-checklist-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  background: var(--panel);
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+.creation-checklist-link:hover { background: var(--panel-border); }
+.step-status { font-size: 0.8rem; color: var(--text-dim); }
+.step-done .step-status { color: var(--gold); }
+
+/* Ability-score step: method-choice landing, Point Buy live counter,
+   Manual Entry roll-and-assign convenience. */
+.method-picker { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1rem 0 1.5rem; }
+.method-tile {
+  padding: 0.6rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.method-tile:hover { border-color: var(--accent); }
+.method-tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+
+.point-buy-layout { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+.point-buy-layout .creation-form { flex: 1 1 320px; }
+.point-buy-reference {
+  flex: 0 0 200px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+.point-buy-reference h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--gold); }
+.point-buy-reference .fact-list dt { width: 2.5rem; }
+.point-buy-reference .fact-list dd { margin-left: 2.5rem; }
+.point-buy-remaining { margin: 1rem 0 0; font-weight: 600; }
+.point-buy-remaining #pointbuy-remaining { color: var(--gold); }
+.point-buy-remaining #pointbuy-remaining.creation-form-error-inline { color: #d9482b; }
+
+.manual-roll-results { margin: 1rem 0; padding: 0.75rem 1rem; background: var(--panel); border-radius: 6px; }
+.manual-roll-chips { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.manual-roll-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.manual-roll-assign .ability-score-row select {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  width: 4.5rem;
+}
+
+/* Character sheet — read-only display + click-to-roll rows. */
+/* Sheet header: name on the left, and on the right the three things that
+   belong together at the top of the sheet — inspiration, level, and the
+   portrait. align-items:flex-start keeps the portrait anchored to the top
+   edge rather than stretching to the header's height. */
+.sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 0.25rem;
+  flex-wrap: wrap;
+}
+.sheet-header-main { min-width: 0; }
+.sheet-header-side { display: flex; align-items: flex-start; gap: 1.25rem; }
+.sheet-header-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; }
+
+.sheet-portrait { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 9rem; }
+.sheet-portrait-img,
+.sheet-portrait-empty {
+  width: 9rem;
+  height: 9rem;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+}
+/* object-fit:cover crops a non-square upload to the square frame instead
+   of stretching it — a portrait distorted to fit is worse than one
+   cropped. */
+.sheet-portrait-img { object-fit: cover; display: block; }
+.sheet-portrait-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  border-style: dashed;
+}
+.sheet-portrait-form { display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem; margin: 0; width: 100%; }
+/* The file input itself is hidden but still focusable and still the real
+   control; the <label for> beside it is the visible button. Using
+   display:none instead would drop it out of the tab order and break
+   keyboard access to the upload. */
+.sheet-portrait-form input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.sheet-portrait-btn {
+  display: block;
+  text-align: center;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.sheet-portrait-btn:hover { border-color: var(--accent); color: var(--text); }
+/* Choosing a file uploads immediately once sheet-portrait.js has wired the
+   form, which is what adds .js-wired — so the explicit submit button is
+   hidden only in that case. With scripting off it stays visible and the
+   form still works as an ordinary POST. */
+.sheet-portrait-submit {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+.sheet-portrait-form.js-wired .sheet-portrait-submit { display: none; }
+.sheet-portrait-form input[type="file"]:focus-visible + .sheet-portrait-btn { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sheet-portrait-remove-form { margin: 0; }
+.sheet-portrait-remove {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+.sheet-portrait-remove:hover { color: var(--gold); }
+
+@media (max-width: 700px) {
+  .sheet-header-side { width: 100%; justify-content: space-between; }
+}
+
+.sheet-stat-trio { display: flex; gap: 1rem; margin: 1rem 0 1.5rem; }
+.sheet-stat-box {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  background: var(--panel);
+  border-radius: 8px;
+}
+.sheet-stat-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.sheet-stat-value { font-size: 1.6rem; font-weight: 700; color: var(--gold); }
+
+/* Compact readout for single small numbers (Proficiency Bonus, Passive
+   Perception) — .sheet-stat-box/.sheet-stat-value is sized for the big
+   flashy HP/AC/Chakra trio and was badly oversized reused here. */
+.sheet-mini-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  margin: 0.4rem 0;
+}
+.sheet-mini-stat-label { font-size: 0.8rem; color: var(--text-dim); }
+.sheet-mini-stat-value { font-size: 0.95rem; font-weight: 700; color: var(--gold); }
+
+/* Proficiency Bonus, Initiative, Speed and Hit Dice, as a row of small
+   squares at the top of the left column — .sheet-mini-stat is a full-width
+   label-left/value-right strip, which is what made Proficiency Bonus read
+   as "a long rectangle". aspect-ratio:1 on a fixed-width track is what
+   actually makes them square; the tiles are deliberately narrow so all
+   four plus their gaps fit inside the left column at its narrowest.
+   Initiative is a .rollable, so it needs the same border/background as a
+   static tile but must not look like the whole box is a link when it isn't
+   — hover state comes from .rollable.
+
+   Sizing check: 4 tiles at 5rem plus 3
+   gaps of 0.6rem is 21.8rem / ~349px. The left column is the 1.1fr track
+   of a three-column grid inside a 1600px-max content area, so it is ~548px
+   at full width and still ~388px in a 1200px window — the row fits without
+   wrapping in both. flex-wrap stays on regardless so a narrower viewport
+   wraps to two rows of two rather than overflowing the column. */
+.sheet-square-row {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.4rem 0 1rem;
+  flex-wrap: wrap;
+  /* Initiative carries an "Adjust" disclosure under its tile, so its column is
+     taller than the other three. Top-align rather than stretch so the four
+     squares stay on one line instead of the tall one dragging the rest with
+     it. No effect on the others, which are all the same fixed square. */
+  align-items: flex-start;
+}
+
+/* Initiative's tile plus its disclosure. Fixed to the same width as a bare
+   square so adding the control cannot widen the row past the four-across fit
+   .sheet-square-stat's comment works out. */
+.sheet-square-init {
+  position: relative;
+  flex: 0 0 auto;
+  width: 5.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Roll-the-die and open-the-settings are different actions sitting one above
+     the other; this is the ~3mm of separation the project's spacing rule asks
+     for so they never read as one control. */
+  gap: 0.7rem;
+}
+.sheet-init-options > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  user-select: none;
+}
+.sheet-init-options > summary::-webkit-details-marker { display: none; }
+.sheet-init-options > summary:hover,
+.sheet-init-options[open] > summary { color: var(--text); border-color: var(--accent); }
+/* Floats over the page instead of pushing the layout around when opened —
+   that is the whole point of folding it away. Anchored to the left edge of the
+   tile: Initiative is the second of four squares, so the panel opens well
+   inside the column rather than off the side of it. */
+.sheet-init-form {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: max-content;
+  min-width: 10.5rem;
+  max-width: 15rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.sheet-init-form label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.sheet-init-form select,
+.sheet-init-form input {
+  width: 5rem;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+}
+.sheet-init-form select { text-transform: uppercase; }
+.sheet-init-form button { align-self: flex-end; margin-top: 0.15rem; }
+.sheet-square-stat {
+  flex: 0 0 auto;
+  /* 5.4rem, matching the attack-modifier tiles below, so "20 / 20" and
+     "120 ft" fit on one line at the full value size — see .sheet-square-of
+     and .sheet-square-unit. Four of these plus three 0.6rem gaps is
+     23.4rem / ~374px, still inside the ~388px the left column has at a
+     1200px window; flex-wrap covers anything narrower. */
+  width: 5.4rem;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  text-align: center;
+}
+.sheet-square-label {
+  font-size: 0.6rem;
+  line-height: 1.15;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sheet-square-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+  /* One figure per box: "7 / 7" and "30 ft" must never break across two
+     lines now that both halves are full size. */
+  white-space: nowrap;
+}
+/* Both of these used to be shrunk — the hit-dice denominator to 0.9rem, the
+   speed unit to a dim 0.6rem — which made a single number read as two
+   different things stuck together. They inherit the value's type now;
+   the box was widened to 5.4rem to pay for it. */
+.sheet-square-of,
+.sheet-square-unit { font-size: inherit; font-weight: inherit; color: inherit; line-height: inherit; }
+
+/* Speed's tile is click-to-edit like Ryo (part 10), but it has to keep
+   .sheet-square-value's own size/weight/colour rather than picking up
+   .sheet-vitals-display's smaller ones — a plain button-chrome reset instead
+   of reusing that class avoids the specificity fight between the two.
+   Deliberately no `color` here: this rule sits AFTER .sheet-square-value in
+   the cascade with equal (single-class) specificity, so a `color: inherit`
+   here would win the tie and override its gold with whatever this button's
+   parent happens to be — which has no color of its own, silently turning
+   Speed back to the default text colour. Leaving color unset lets
+   .sheet-square-value's gold apply undisturbed. */
+.sheet-square-value-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.sheet-square-value-btn:hover { color: var(--gold-hover); }
+.sheet-square-edit-input { width: 4rem; text-align: center; font-size: 1rem; padding: 0.15rem 0.3rem; }
+
+/* Ninjutsu/Genjutsu/Taijutsu attack modifiers: the rollable tile reuses the
+   square-stat shape above (same label/value type scale) with its ability
+   picker stacked underneath, so the three read as one group. The 0.75rem
+   column gap and 0.4rem stack gap are what keep the "Set" button from
+   sitting flush against the tile it belongs to — the ~3mm breathing room
+   distinct controls need between them. */
+.sheet-attack-mods {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1.5rem;
+  align-items: flex-start;
+}
+.sheet-attack-mod {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.sheet-attack-mod-roll {
+  width: 5.4rem;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  text-align: center;
+}
+.sheet-attack-mod-form { display: flex; align-items: center; gap: 0.35rem; margin: 0; }
+/* Fixed narrow width: the options are three-letter codes, and letting the
+   select size to its content made the four groups together wider than the
+   middle column at a 1200px window. 3.8rem clipped the text itself, though —
+   the browser's own native dropdown-arrow chrome eats into the select's
+   content box on top of its padding, which a plain width declaration doesn't
+   account for, so "STR"/"WIS" rendered with their last glyph sheared off.
+   4.6rem leaves enough clearance for the arrow AND the full three-letter
+   code, still comfortably under the four-groups-at-1200px budget above. */
+.sheet-attack-mod-form select {
+  width: 4.6rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.25rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.sheet-attack-mod-form .sheet-attack-mod-set { padding: 0.2rem 0.4rem; font-size: 0.7rem; }
+
+/* Clash Checks: a second row inside .sheet-attack-mods, each tile carrying
+   its own ability-override picker exactly like the Attack tiles above.
+   flex-basis:100% pushes it onto its own row below the Attack tiles rather
+   than competing with them for width, same technique as .sheet-maxima
+   below; the border-top plus its own top margin/padding gives it the
+   ~3mm-plus separation distinct control groups need from the Attack row
+   above. */
+.sheet-clash-checks {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--panel-border);
+}
+.sheet-clash-checks-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+/* The manual Max HP / Max Chakra pin. flex-basis:100% makes it its own row
+   inside .sheet-vitals rather than a fifth box competing with HP/THP/
+   Chakra for width, and the 1rem top margin keeps the closed summary off
+   the boxes above it. */
+.sheet-maxima {
+  flex: 1 1 100%;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
+}
+/* Louder than a normal <summary>: this one is a real control the player has
+   to be able to find, not a footnote. Everything else in this block uses
+   0.8rem dim text, which is exactly why it disappeared. */
+.sheet-maxima > summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.01em;
+}
+.sheet-maxima > summary:hover { color: var(--gold-hover); }
+.sheet-maxima .sheet-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+}
+.sheet-maxima label { display: flex; flex-direction: column; gap: 0.2rem; }
+.sheet-maxima input[type="number"] { width: 5rem; }
+
+.rollable { cursor: pointer; }
+.rollable:hover { border-color: var(--accent) !important; background: var(--panel-border); }
+.rollable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Ability tiles, shaped like the Roll20 sheet's: small portrait
+   rectangles rather than full-width rows, each reading name / modifier /
+   score top to bottom.
+   All six sit on ONE line — repeat(6, 1fr), not auto-fill. auto-fill
+   wrapped them into two or three rows whenever the left column was
+   narrow; the fixed six-column track plus the
+   smaller type below keeps the whole set on a single row instead, and
+   minmax(0, 1fr) lets the tracks shrink past their content rather than
+   overflowing the column. */
+.sheet-ability-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0.75rem 0 1.5rem;
+}
+.sheet-ability-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.15rem;
+  min-height: 4.2rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sheet-ability-box:hover { border-color: var(--accent); }
+.sheet-ability-name {
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+}
+/* The score doubles as the edit affordance, so it needs the button reset
+   rules; the dotted underline is what marks it clickable without adding
+   another control competing for space in an already tight row. */
+.sheet-ability-score {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  min-width: 1.9rem;
+  color: var(--text-dim);
+  font-family: inherit;
+  cursor: pointer;
+}
+.sheet-ability-score:hover { color: var(--gold); border-color: var(--gold); }
+.sheet-ability-input {
+  width: 3rem;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.1rem 0.2rem;
+  text-align: center;
+}
+/* The modifier is the number you actually roll with, so it's the one
+   that reads at a glance from across the table. */
+.sheet-ability-mod { color: var(--gold); font-weight: 700; font-size: 1.15rem; line-height: 1.1; }
+
+.sheet-save-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.75rem 0 1.5rem; }
+.sheet-save-box {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+.sheet-save-mod { color: var(--gold); font-weight: 600; }
+.sheet-proficient { border-color: var(--gold); }
+
+.sheet-skill-groups { display: flex; flex-wrap: wrap; gap: 1.5rem; margin: 0.75rem 0 1.5rem; }
+.sheet-skill-group { flex: 1 1 220px; }
+.sheet-skill-group-heading { margin: 0 0 0.4rem; font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.sheet-skill-row {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: space-between;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+.sheet-skill-row.sheet-proficient { border-color: var(--gold); }
+.sheet-skill-mod { color: var(--gold); font-weight: 600; }
+
+/* Mastery badge on a skill/toolkit row (core book ch. 6, "Mastery"). Sits
+   inline after the name, inside the same flex row as the modifier, so it
+   must not grow: the name column is already the flexible one, and a badge
+   that took part in the flex sizing would push the modifier off the row on
+   the narrowest grid column. Deliberately not the gold used for
+   proficiency — Mastery and proficiency are independent (a skill can carry
+   either, both, or neither), so they can't share a colour. */
+.sheet-mastery-badge {
+  flex: 0 0 auto;
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  color: var(--blue);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* .section-hint carries a negative top margin tuned for sitting under an
+   <h1>; this one sits under a list row, where that would pull it into the
+   line above (the same .section-hint negative-margin trap noted elsewhere in this codebase). */
+.sheet-mastery-capped { margin: 0.15rem 0 0; font-size: 0.8rem; }
+
+/* ---- Character sheet redesign: tabs, 3-column Core layout, editable
+   HP/THP/Ryo, chat/dice-log, item popups, Bio tab. Everything above this
+   point in the sheet block still applies as-is (ability/save/skill rows
+   keep their same look); this is purely additive. */
+
+/* min(vw, px), same pattern as the popup/dialog widths above: this app ships
+   to ~13,000 players on displays that can't be controlled for, so the width
+   can't be tuned to any one person's monitor. 96vw
+   fills nearly the whole window on anything up to a normal desktop size —
+   the old flat 1600px cap left ~5cm of dead space margin:auto on a
+   1920px-wide window for no reason. Narrower than either bound (a laptop, a
+   smaller window) is untouched — max-width is a ceiling, not a forced
+   width, so it already just shrinks to fit.
+
+   The ceiling itself was originally 2200px, sized for a hypothetical
+   "genuinely wide" 2560px+ monitor and reasoned (without one on hand to
+   check) that stretching further would just space a fixed 3-column layout
+   out rather than help. Confirmed wrong against real ultrawide hardware
+   2026-08-17: the sheet's box grid (sheet-layout.js) is a real 12-column
+   grid, not a fixed 3-column one — Edit Layout already lets a player shrink
+   individual boxes' column spans to pack more of them per row, so more
+   available width is directly usable once a player rearranges, not wasted
+   space. 5000px clears 96vw on a 5120px-wide 32:9 super-ultrawide (4915px)
+   as well as a 3440px-wide 21:9 ultrawide (3302px, which 96vw already
+   covers on its own) — both confirmed against real monitors, not guessed —
+   while still capping the small number of displays wider than that. */
+.content:has(.sheet-core-layout),
+.content:has(.sheet-puppets-layout),
+.content:has(.sheet-summons-layout) { max-width: min(96vw, 5000px); }
+
+/* The tab bar carries two groups pushed to opposite ends — the sheet's own
+   tabs on the left, the three reference libraries on the right — so the
+   gap between them is what tells you they are different kinds of thing.
+   space-between on the bar does that with no spacer element. */
+.sheet-tabs {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin: 1rem 0 1.25rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+.sheet-tab-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.sheet-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 0.25rem;
+  cursor: pointer;
+}
+.sheet-tab-btn:hover { color: var(--text); }
+.sheet-tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.sheet-body { display: flex; align-items: flex-start; gap: 1.75rem; }
+.sheet-body > section { flex: 1 1 auto; min-width: 0; }
+
+/* Both tabs share one fine-grained 12-track grid (sheet-grid.js/sheet-layout.js)
+   so a box can be dragged/resized across what used to be fixed column
+   boundaries, with other boxes pushed/compacted out of the way. 12 columns
+   divides evenly into Core's default 3 bands (4/4/4) and Bio's 2 bands
+   (6/6). Row-gap is smaller than column-gap on purpose: a 1.75rem row-gap
+   would dwarf the 20px row unit (N5eGrid.ROW_HEIGHT) and defeat the point of
+   fine-grained row snapping. grid-auto-rows uses minmax(20px, auto), not a
+   bare 20px, so a box renders at its natural height before sheet-layout.js
+   has run (or if it fails to load) instead of being clipped to one row. */
+/* .sheet-core-grid is a sibling of .sheet-layout-toolbar, not a wrapper
+   around it: sheet-layout.js resolves the actual grid root as
+   ":scope > form, :scope > .sheet-core-grid" (Bio's <form> plays the same
+   role). Making the toolbar itself a grid child here — instead of a plain
+   block sibling above the grid — would turn it into an implicit grid item
+   with no explicit placement, and the browser auto-places that wherever it
+   finds a free cell, which is nowhere near the top once every box carries
+   an explicit grid-column/grid-row. */
+.sheet-core-grid,
+.sheet-bio-form {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  /* Fixed, not minmax(20px, auto): every box carries an explicit
+     grid-row span computed by sheet-layout.js (20px + 8px gap per row,
+     matching N5eGrid.ROW_HEIGHT/ROW_GAP exactly), and .sheet-box already
+     has overflow:auto for content that doesn't fit. An "auto" max let any
+     row a tall box's content passed through grow to fit that content
+     regardless of the box's own assigned span — which meant a box's
+     rendered height was really max(rowSpan's floor, tallest content
+     sharing its rows), not rowSpan itself. That's what made shrinking a
+     box with real content (Bio's Character Backstory, a 24-row textarea)
+     visually do nothing: the row kept inflating back to fit the content
+     no matter how small a rowSpan the resize grip committed. Fixed rows
+     make box height strictly rowSpan-driven in both directions, with
+     overflow now actually reaching .sheet-box's overflow:auto instead of
+     never triggering it. */
+  grid-auto-rows: 20px;
+  gap: 0.5rem 1.75rem;
+}
+/* .sheet-col is a transitional wrapper: sheet-layout.js reads it once at
+   init (for default box grouping/order) and then removes it, reparenting
+   every box directly into the grid above. Until that JS has run — the
+   moment of initial paint, and also the DOM state sheet-layout.js itself
+   measures natural box heights against before flattening anything — a
+   .sheet-col still needs to occupy its correct default band width as a
+   grid item (not the 1-track sliver it'd auto-place into with no explicit
+   span) and still needs to stack its boxes vertically itself, exactly like
+   the old pre-grid flex layout did. Getting either of these wrong doesn't
+   just flash briefly: it corrupts the natural-height measurement
+   sheet-layout.js bases every box's default row-span on.
+   align-self: start (not the grid default of stretch) matters now that
+   grid-auto-rows below is a fixed 20px rather than minmax(20px, auto): a
+   stretched item is forced to the track's exact size, and a flex column
+   forced down to 20px shrinks every child inside it to fit — which is
+   what silently crushed every box's natural-height measurement to next to
+   nothing the moment the row track stopped being allowed to grow. Letting
+   .sheet-col size itself from its own content instead — free to extend
+   past that nominal 20px track, since nothing here clips it — is what
+   keeps the measurement accurate. */
+.sheet-col { display: flex; flex-direction: column; align-self: start; gap: 0.4rem; min-width: 0; }
+.sheet-core-grid > .sheet-col { grid-column: span 4; }
+.sheet-bio-form > .sheet-col { grid-column: span 6; }
+.sheet-col h2 { margin: 1rem 0 0.4rem; font-size: 1rem; }
+
+.sheet-inline-form { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+/* Two "+" forms stacked in one panel (add a tool / add a custom skill)
+   are separate actions, and collapsed 0.3rem margins leave them about
+   1mm apart — under this project's ~3mm bar for adjacent controls. */
+.sheet-col .sheet-inline-form + .sheet-inline-form { margin-top: 0.75rem; }
+.sheet-panel-form { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.4rem 0 1.25rem; }
+.sheet-panel-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-dim); }
+
+.sheet-inline-form input[type="text"],
+.sheet-inline-form input[type="number"],
+.sheet-panel-form input[type="text"],
+.sheet-panel-form textarea,
+.sheet-panel-form select {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+/* :not(.sheet-prof-bullet) is load-bearing, not tidiness. The proficiency
+   bullets are <button>s living inside .sheet-inline-form, and a descendant
+   selector like `.sheet-inline-form button` (0,1,1) outranks the bullet's
+   own single-class rule (0,1,0) — so this generic button styling was
+   winning, overriding border-radius:50% with 6px and re-adding
+   padding:0.4rem 0.75rem. This was the recurring "squares with rounded
+   edges" symptom: the circle CSS was right the whole time, it was just
+   being outvoted. Any future bullet-shaped control inside
+   these forms needs the same exclusion, or a higher-specificity selector
+   of its own. */
+.sheet-inline-form button:not(.sheet-prof-bullet),
+.sheet-panel-form button:not(.sheet-prof-bullet) {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sheet-inline-form button:not(.sheet-prof-bullet):hover,
+.sheet-panel-form button:not(.sheet-prof-bullet):hover { border-color: var(--accent); color: var(--accent); }
+
+/* Both of these are qualified with `.sheet-inline-form button` on purpose,
+   and it is load-bearing for the same reason the :not(.sheet-prof-bullet)
+   comment above spells out. This toggle is a <button> inside a
+   .sheet-inline-form, so the generic rule above scores (0,2,1) — a plain
+   `.sheet-inspiration-toggle.sheet-inspiration-on` (0,2,0) loses to it on
+   every property they share. That is why two rounds of "make the on state
+   obvious" didn't land: background, colour, border, padding and font-size
+   were all still coming from the generic button rule, and the only things
+   getting through were font-weight and box-shadow — exactly the observed
+   symptom of the on-state's text size increasing slightly while remaining
+   very difficult to tell apart from the off state. */
+.sheet-inline-form button.sheet-inspiration-toggle {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+}
+/* Toggled on: the star and the word both go gold, with a
+   gold border and a faint gold wash behind them so the whole chip reads as
+   lit from across the page rather than needing a side-by-side comparison.
+   Gold text on the dark panel rather than dark text on a solid gold fill —
+   gold-on-dark is this sheet's "this is live" signal everywhere else
+   (headings, modifiers), so the state matches what the rest of the page has
+   already taught the reader. */
+.sheet-inline-form button.sheet-inspiration-toggle.sheet-inspiration-on {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+  box-shadow: 0 0 0.5rem rgba(212, 175, 55, 0.35);
+}
+.sheet-inline-form button.sheet-inspiration-toggle.sheet-inspiration-on .sheet-inspiration-star {
+  color: var(--gold);
+  text-shadow: 0 0 0.4rem rgba(212, 175, 55, 0.8);
+}
+/* Hover must not undo the on state: the generic :hover above repaints the
+   text with --accent (orange), which on a lit toggle reads as it switching
+   off under the pointer. */
+.sheet-inline-form button.sheet-inspiration-toggle.sheet-inspiration-on:hover {
+  color: var(--gold-hover);
+  border-color: var(--gold-hover);
+}
+
+/* 1.5rem, not the 0.6rem the Level form's own controls use: this is the gap
+   between two DIFFERENT things (the Level control and the class/subclass
+   line, part 10), not between a label and its own input, so it needs the
+   project's ~3mm-of-breathing-room minimum rather than a tight inline gap. */
+.sheet-level-row { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+
+.sheet-skill-line { display: flex; align-items: center; gap: 0.5rem; }
+.sheet-prof-toggle-form { margin: 0; }
+/* Open ring when not proficient, solid filled dot when proficient — same
+   read as the DnDBeyond reference. appearance:none + explicit padding:0
+   strip the browser's native button chrome (the earlier version kept
+   default button padding/box-shadow, which is what made this render as a
+   squarish shape with an off-center bullet character instead of a clean
+   circle); there's no text content anymore, the circle is pure
+   background-color/border, so there's nothing left to mis-center. */
+.sheet-prof-bullet {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  display: inline-flex;
+  background: none;
+  border: 2px solid var(--text-dim);
+  border-radius: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.sheet-prof-bullet:hover { border-color: var(--accent); }
+.sheet-prof-bullet.sheet-prof-bullet-on { background: var(--gold); border-color: var(--gold); }
+
+.sheet-vitals { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.75rem 0 1.25rem; }
+.sheet-vitals > div {
+  flex: 1 1 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-vitals-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.sheet-vitals-display {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+button.sheet-vitals-display:hover { color: var(--gold-hover); }
+span.sheet-vitals-display { cursor: default; }
+/* text-align:right, not center: the caret sits where the typing ends up.
+   Centered, an empty box put the caret in the middle of the field with
+   blank space on both sides, which read as "this input is somehow already
+   half full." This rule covers every
+   click-to-edit box (HP, Temp HP, Chakra); Ryo overrides it below because
+   its box is wide enough that left-aligned currency reads better. */
+.sheet-vitals-edit-input {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  width: 5rem;
+  text-align: right;
+  font-size: 1rem;
+}
+.sheet-base-temp-hp-box input[type="number"] { width: 4rem; }
+
+/* Full-width row, not a fourth 130px vitals box like HP/Temp HP/Chakra —
+   it holds a label plus two buttons, so it needs the width and a row
+   layout instead of .sheet-vitals > div's column default. */
+.sheet-concentration-box {
+  flex: 1 1 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.75rem;
+}
+.sheet-concentration-box .sheet-fetch-form { margin: 0; }
+
+.sheet-rest-buttons { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 1.25rem; margin-top: 0.5rem; }
+.sheet-rest-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-rest-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; color: var(--text-dim); }
+/* The long-rest and full-rest forms are each just a button and a one-line
+   hint, nothing else — with the shared flex-start alignment the button
+   hugged the left edge of a box sized by the hint underneath it, so it
+   read as misaligned next to the short-rest box beside it. Centre both
+   forms' children instead; the short rest form keeps the default left
+   flow because its labelled inputs have to line up in a row. */
+.sheet-long-rest-form, .sheet-full-rest-form { justify-content: center; align-items: center; }
+.sheet-long-rest-form .sheet-rest-hint, .sheet-full-rest-form .sheet-rest-hint { text-align: center; }
+/* The manual HP/Chakra entry fields are the no-dice-roller fallback:
+   sheet-rest.js marks <body> once it can roll, and from then on the player
+   picks dice counts instead of typing gains.
+   The marker is on <body>, not on the form (where it used to be as
+   .js-wired): the form sits inside #sheet-vitals, which is re-rendered and
+   replaced on every vitals edit, so a class put on it by JS is gone after
+   the first HP change and the manual fields would reappear mid-session. */
+body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
+.sheet-rest-hint { flex: 1 1 100%; margin: 0.25rem 0 0; font-size: 0.7rem; }
+.sheet-rest-form input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  width: 3.5rem;
+}
+
+/* Ryo. The 1.5rem bottom margin is deliberate and load-bearing: this is
+   the last block in the middle column, sitting directly alongside the
+   Features & Traits panel, and the two were visually colliding before.
+   Anything added below it here needs the same check. */
+.sheet-ryo { margin: 0.5rem 0 1.5rem; }
+.sheet-ryo-heading { display: flex; align-items: center; gap: 0.5rem; }
+.sheet-ryo-coin { display: block; flex: 0 0 auto; }
+.sheet-ryo-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-ryo-value { font-size: 1.3rem; }
+/* Wider than the HP boxes (a purse runs to seven figures) but right-aligned
+   like them, so the caret lands at the end of the field in every one of
+   these click-to-edit boxes rather than adrift in the middle of one. */
+.sheet-ryo-box .sheet-vitals-edit-input { width: 8rem; }
+.sheet-ryo .section-hint { margin: 0.4rem 0 0; }
+
+/* Attacks & Jutsu table. The wrapper scroll rule matters here because
+   weapon names are long and the middle column is narrow — the table
+   scrolls inside itself rather than widening the page. */
+.sheet-attack-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 0.75rem; display: block; overflow-x: auto; }
+.sheet-attack-table th,
+.sheet-attack-table td { text-align: left; padding: 0.35rem 0.5rem 0.35rem 0; vertical-align: middle; }
+.sheet-attack-table thead th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-dim); font-weight: 600; }
+.sheet-attack-table tbody tr { border-top: 1px solid var(--panel-border); }
+.sheet-attack-table tbody th { font-weight: 500; }
+.sheet-attack-roll {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sheet-attack-roll:hover { border-color: var(--gold); color: var(--gold-hover); }
+/* A Damage button is disabled for the ~600ms between an Attack roll's own
+   click and its result landing, on rows whose Damage button carries a
+   crit-damage bonus (Puppet Roles' Lurker) — see character-sheet.js's
+   roll()/toggleDamagePending. Without this, a click during that window
+   would roll damage before the row knows whether the Attack crit, silently
+   missing the bonus. */
+.sheet-attack-roll:disabled { opacity: 0.5; cursor: not-allowed; }
+.sheet-attack-roll:disabled:hover { border-color: var(--panel-border); color: var(--gold); }
+
+/* Pocket calculator. Given a real bottom margin so its keypad never ends
+   up shoulder-to-shoulder with the panel beside it. No max-width: it used
+   to be capped at 15rem to read as a small accessory, but that fought the
+   box-level resize grip — widening the Calculator box past 15rem left the
+   extra width as dead space the calculator itself refused to fill, which
+   read as "the resize doesn't do anything." The box's own default width
+   (data-min-w) is what keeps it compact until the user deliberately drags
+   it wider now. */
+.sheet-calculator { margin: 0.5rem 0 1.5rem; }
+.sheet-calculator summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+}
+.sheet-calculator summary:hover { color: var(--text); }
+.sheet-calc {
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-calc-display {
+  display: block;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--gold);
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: right;
+  /* A long result must scroll inside the display rather than widening the
+     whole calculator and pushing the column around. */
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.sheet-calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+.sheet-calc-keys button {
+  padding: 0.45rem 0;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.sheet-calc-keys button:hover { border-color: var(--accent); }
+.sheet-calc-wide { grid-column: span 2; }
+.sheet-calc-equals { color: var(--gold); border-color: var(--gold); }
+
+/* Inventory tab. The table scrolls inside its own wrapper so long item
+   names never widen the page. */
+/* Carrying capacity. Reads as one line — "Bulk 12/14" — with the derivation
+   underneath it, so the number is scannable and the arithmetic is available
+   without being loud. Over capacity the whole box turns red, because the
+   Encumbered condition is severe enough to be worth interrupting for. */
+.sheet-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 1rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-bulk-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.sheet-bulk-value { font-size: 1.2rem; font-weight: 700; color: var(--gold); }
+.sheet-bulk-of { font-size: 0.85rem; color: var(--text-dim); font-weight: 400; }
+.sheet-bulk-hint { flex: 1 1 100%; margin: 0.15rem 0 0; }
+.sheet-bulk-bonus { color: var(--blue); }
+.sheet-bulk-over { border-color: #b4443a; }
+.sheet-bulk-over .sheet-bulk-value { color: #e0685c; }
+.sheet-bulk-warning { color: #e0685c; display: block; margin-top: 0.15rem; }
+.sheet-inventory-bulk { white-space: nowrap; }
+
+.sheet-table-scroll { overflow-x: auto; max-width: 100%; }
+.sheet-inventory-table { border-collapse: collapse; min-width: 32rem; }
+.sheet-inventory-table th,
+.sheet-inventory-table td { text-align: left; padding: 0.45rem 0.9rem 0.45rem 0; vertical-align: middle; }
+.sheet-inventory-table thead th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-dim); font-weight: 600; }
+.sheet-inventory-table tbody tr { border-top: 1px solid var(--panel-border); }
+.sheet-inventory-table tbody th { font-weight: 500; }
+.sheet-inventory-kind { color: var(--text-dim); font-size: 0.8rem; text-transform: capitalize; }
+.sheet-inventory-form { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.sheet-inventory-qty {
+  width: 4rem;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  padding: 0.25rem 0.4rem;
+}
+/* The per-row Save button beside a quantity box. Kept in the markup so the
+   inventory still works with JavaScript off, but hidden once sheet-
+   inventory.js has wired the quantity field to submit on change: a Save
+   button on every single row is a lot of visual noise for a control the
+   player never needs to press. .js-qty-autosave is set on <html> by that
+   file, so the button only disappears when something is actually there to
+   replace it. */
+.sheet-inventory-save { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 6px; }
+.js-qty-autosave .sheet-inventory-save { display: none; }
+/* Unpack and the trash can are the two most different things you can do to a
+   row — one spends the pack, the other throws it away — so they get real
+   space between them rather than sitting as one strip (the ~3mm rule). */
+.sheet-inventory-row-actions { display: flex; align-items: center; gap: 0.75rem; }
+.sheet-unpack-btn {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sheet-unpack-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sheet-inventory-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem;
+  margin: 0.5rem 0 1.5rem;
+}
+.sheet-inventory-add-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-dim); }
+.sheet-inventory-add-form select {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  padding: 0.35rem 0.5rem;
+  max-width: 22rem;
+}
+
+/* Screen-reader-only: the Remove column's heading, which has no visible
+   label because the buttons under it are self-explanatory. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The Features & Traits disclosure. The <h2> stays a real heading for the
+   document outline but renders inline so the summary is one line with its
+   native marker, and the count sits beside it. The 0.4rem padding is what
+   keeps the marker off the column edge and the open panel off the heading
+   above it. */
+/* The 1rem top margin is the one .sheet-col h2 used to supply — zeroing the
+   heading's own margin to sit it on the summary line moved that job here,
+   and without it the summary sits flush against the Save Ambitions button
+   above. */
+.sheet-feature-panel { margin: 1rem 0 0; }
+.sheet-feature-panel > summary {
+  cursor: pointer;
+  padding: 0.15rem 0 0.15rem 0.1rem;
+  color: var(--gold);
+}
+.sheet-feature-panel > summary:hover { color: var(--gold-hover); }
+.sheet-feature-panel > summary h2 { display: inline; margin: 0; }
+.sheet-feature-panel > summary .option-picker-epithet { margin-left: 0.4rem; }
+/* Bare .section-hint's negative top margin is tuned for sitting under an
+   <h1> — every one of these panels' hint text sits under a <summary><h2>
+   instead, where that negative margin pulls it up into the header line
+   above (the same .section-hint negative-margin trap noted elsewhere in this codebase). Left
+   unscoped, the hint's own top edge overlaps the header's bottom edge by a
+   few px, rendering as a faint line cutting across the hint's first line of
+   text — reported on Puppet Master Tactics but present on every
+   .sheet-feature-panel that opens with a .section-hint (Mastery, Martial
+   Techniques, Hunters Patterns, ...). */
+.sheet-feature-panel .section-hint { margin-top: 0.4rem; }
+
+.sheet-feature-list { list-style: none; margin: 0.5rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.sheet-feature-list li { position: relative; padding: 0.5rem 2rem 0.5rem 0.75rem; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; }
+.sheet-feature-list li p { margin: 0.3rem 0 0; color: var(--text-dim); font-size: 0.85rem; }
+
+/* Pending Choices' ASI-or-Feat picker: unlike the single-<select> skill/save
+   rows this list otherwise holds, each of these is a real multi-field form
+   (sheet-asi-choice.js toggles which fields are active), so it needs its own
+   layout rather than the shared .sheet-inline-form single-row flex. */
+.pending-asi-row > .puppet-upgrade-pick-name { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+.pending-asi-form.sheet-inline-form { flex-wrap: wrap; align-items: flex-end; row-gap: 0.75rem; }
+.pending-asi-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-dim); }
+.pending-asi-field select { min-width: 11rem; }
+.pending-asi-branch { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+/* Brief on-screen save confirmation — see sheet-vitals.js's flashSaveToasts
+   for why some actions need one (their own re-render looks unchanged). A
+   keyframe animation rather than a transition: it starts correctly the
+   moment the class is added, with no separate forced-reflow step needed to
+   make the browser notice the "before" state first. */
+.sheet-save-toast { font-size: 0.8rem; color: var(--dice-green); }
+.sheet-save-toast-visible { animation: sheet-save-toast-flash 1.75s ease forwards; }
+@keyframes sheet-save-toast-flash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Compact "ⓘ" icon-only tooltip trigger — any dropdown pick whose fuller
+   detail needs a rollover chip beside it rather than its own labeled
+   trigger text (Pending Choices' feat picker, Hand Wraps of Passion, and
+   any future one) shares this rather than each defining its own sizing. */
+.sheet-info-tooltip { align-self: center; margin-bottom: 0.1rem; }
+.sheet-info-tooltip .tooltip-trigger { padding: 0.35rem 0.5rem; font-size: 1rem; line-height: 1; }
+/* Before a feat is picked there's nothing for the ⓘ to open — sheet-asi-
+   choice.js only adds .sheet-popup-trigger (and a real href) once a feat is
+   selected, so the trigger reads as inert rather than a dead link. */
+.pending-asi-feat-popup:not(.sheet-popup-trigger) { cursor: default; opacity: 0.4; pointer-events: none; }
+/* Safety net alongside sheet-asi-choice.js's own character-count truncation:
+   even a description right at that limit can still run tall in a narrow
+   320px box, so this scrolls instead of pushing the box off-screen. */
+.pending-asi-feat-description { max-height: 60vh; overflow-y: auto; }
+.pending-asi-confirm { margin-left: auto; }
+.sheet-delete-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.sheet-delete-btn:hover { color: var(--accent); }
+
+.sheet-passive-trait-list { margin: 0.5rem 0; display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.75rem; }
+.sheet-passive-trait-list dt { color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+.sheet-passive-trait-list dd { margin: 0; }
+/* Reuses the sitewide .tooltip/.tooltip-trigger/.tooltip-content chip (see
+   app.css's own .tooltip rules and tooltip-position.js for the shared hover/
+   focus mechanics and edge-collision flip), but flattened back to plain
+   dotted-underline inline text — these entries sit comma-joined inside one
+   <dd>, not as separate wrapping chips like every other .tooltip-trigger
+   usage in this app, so the chip's own background/border/padding would look
+   wrong here. */
+.sheet-passive-trait-list .tooltip-trigger {
+  display: inline;
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--panel-border);
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.sheet-bio-layout { display: flex; flex-direction: column; }
+.sheet-bio-field {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: none;
+}
+/* Before width-resize, the textarea's own native resize handle (bottom-right
+   corner) and the box's corner grip were two different controls fighting for
+   the same corner. One shared control replaces both: the native
+   handle is gone (resize: none above) and the field now stretches to fill
+   whatever height sheet-layout.js gives its .sheet-box, so the grip is the
+   only way to resize either. :has() is already used this way elsewhere in
+   this file (.content:has(.sheet-core-layout)). */
+.sheet-box:has(> .sheet-bio-field) { display: flex; flex-direction: column; }
+.sheet-box:has(> .sheet-bio-field) > .sheet-bio-field { flex: 1 1 auto; height: auto; min-height: 0; }
+
+/* Core tab Notes, under Passive Perception. Reuses .sheet-bio-field for the
+   box itself so both scratchpads look and autosave the same; this only adds
+   the placement. margin-top clears the passive-Perception strip above it by
+   well over the ~3mm rule (1.25rem ≈ 5mm), and the textarea is taller than a
+   Bio field because this is the one on the page people will actually be
+   typing into mid-session. */
+.sheet-notes-form { margin: 1.25rem 0 0; }
+.sheet-notes-form h2 { margin: 0 0 0.4rem; }
+.sheet-notes-field { min-height: 10rem; }
+
+.sheet-sidebar { flex: 0 0 300px; position: sticky; top: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+.sheet-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.sheet-chat-panel h2 { margin: 0; font-size: 1rem; }
+.sheet-chat-clear-btn {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sheet-chat-clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sheet-chat-log {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.sheet-chat-line { font-size: 0.85rem; padding: 0.3rem 0.5rem; border-radius: 6px; }
+.sheet-chat-message { color: var(--text); }
+.sheet-chat-roll { color: var(--text-dim); background: var(--bg); font-family: monospace; }
+.sheet-chat-nat20 { color: var(--dice-green); background: rgba(46, 133, 85, 0.12); }
+.sheet-chat-nat1 { color: #d9482b; background: rgba(217, 72, 43, 0.12); }
+.sheet-chat-panel .sheet-inline-form { margin-top: 0; }
+.sheet-chat-panel input[type="text"] { flex: 1 1 auto; min-width: 0; }
+
+/* Class Reference / Clan Reference: plain link buttons stacked under Chat &
+   Dice Log in the persistent sidebar — each opens its own reference.go
+   handler's popup in a real, separate, movable browser window
+   (reference-popup.js) rather than expanding in-place, so they're styled
+   like buttons, not disclosure triangles. */
+.sheet-reference-btn {
+  display: block;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+.sheet-reference-btn:hover { color: var(--gold-hover); border-color: var(--gold); }
+
+.sheet-popup-dialog {
+  max-width: min(700px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+.sheet-popup-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.sheet-popup-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 50%;
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.sheet-popup-close:hover { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 1200px) {
+  .sheet-body { flex-direction: column; }
+  .sheet-sidebar { flex: 1 1 auto; width: 100%; position: static; }
+}
+@media (max-width: 860px) {
+  /* Boxes carry explicit inline grid-column/grid-row placement (up to
+     column 12) from sheet-layout.js — just narrowing the grid's own tracks
+     isn't enough here, the placement itself has to be overridden too, or
+     the browser spins up unexpected implicit tracks to satisfy stale
+     coordinates against a container that suddenly only has one explicit
+     track. !important is the only way to beat an inline style, already
+     used this way elsewhere in this file (see [hidden]). */
+  .sheet-core-grid,
+  .sheet-bio-form {
+    grid-template-columns: 1fr;
+    /* Every box below drops to grid-row: auto, so — unlike the desktop
+       explicit-span case above — this row's size has nothing else to go
+       on but content, same as the old universal rule. Fixed 20px rows
+       here would squash every stacked mobile box down to a 20px sliver. */
+    grid-auto-rows: minmax(20px, auto);
+  }
+  .sheet-core-grid .sheet-box,
+  .sheet-bio-form .sheet-box {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+}
+
+.character-list { display: flex; flex-direction: column; gap: 0.6rem; max-width: 70ch; }
+.character-card { display: flex; flex-direction: column; gap: 0.6rem; }
+.character-card p { margin: 0; }
+.character-card-stats { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.character-stat { color: var(--text-dim); font-size: 0.85rem; }
+.character-stat strong { color: var(--text); font-weight: 600; }
+.draft-tag { color: var(--accent); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
+/* Deliberately quiet until hovered: a delete button one card away from the
+   link you meant to click shouldn't be the loudest thing on the page.
+   margin-top holds it clear of the stats row above it (the ~3mm rule). */
+.character-card-delete { margin: 0.5rem 0 0; align-self: flex-start; }
+.btn-danger {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.btn-danger:hover { border-color: #b4443a; color: #e0685c; }
+/* Same shape as .btn-danger but amber, not red — Reset Levels sits right
+   next to Delete Character and is destructive in a different way (retcon,
+   not permanent removal), so it shouldn't read as the same action twice. */
+.btn-warning { background: none; border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text-dim); font-family: inherit; font-size: 0.8rem; padding: 0.3rem 0.7rem; cursor: pointer; }
+.btn-warning:hover { border-color: #b48a3a; color: #e0a85c; }
+.sheet-header-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.75rem 0 0; }
+.sheet-header-actions form { margin: 0; }
+.hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+/* Confirm form under a two-pane creation picker (Clan/Class/Background) —
+   sits below .browse-layout, not styled like .creation-form's single-column
+   input form since it only ever holds one hidden input + one button. */
+.creation-picker-confirm { margin: 1.25rem 0 0; }
+
+/* "Your Classes" summary panel (create_class.html, multiclassing) — sits
+   above the browse-layout picker with real margin below it so the two
+   don't read as one continuous block. */
+.your-classes-panel { margin: 0 0 1.5rem; }
+.your-classes-panel h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+.your-classes-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.your-class-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.your-class-name { font-weight: 600; margin-right: 0.25rem; }
+.your-class-inline-form { margin: 0; }
+.your-class-level-select, .your-class-subclass-select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Pushed to the row's far edge with auto margin — a destructive action
+   should never sit flush against the level/subclass controls it could be
+   misclicked from (the ~3mm breathing-room rule). */
+.your-class-remove-form { margin: 0 0 0 auto; }
+.btn-small { font-size: 0.75rem; padding: 0.25rem 0.55rem; }
+
+/* Class picker row badge for a class the character already has — sits
+   inside .browse-row, which is already flex/space-between, so this just
+   needs to not collide with the name. */
+.browse-row-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+}
+.browse-row.held { opacity: 0.75; }
+.creation-picker-confirm button:disabled { opacity: 0.5; cursor: not-allowed; }
+.creation-picker-below { margin-top: 1.25rem; }
+
+/* Jutsu step: checkbox (selection) sits outside the clickable preview row
+   (name+meta), so clicking the checkbox toggles selection only and never
+   triggers creation-picker.js's row-click preview handler. */
+.jutsu-choice-row { display: flex; align-items: center; gap: 0.5rem; }
+.jutsu-choice-row .creation-picker-row { flex: 1; }
+
+/* Jutsu step's toolbar (search + select all/deselect all + running count),
+   same visual language as the Jutsu browse page's .items-toolbar. */
+.jutsu-select-actions { display: flex; gap: 0.75rem; }
+.jutsu-select-actions button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-family: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.jutsu-select-actions button:hover { color: var(--accent-hover); text-decoration: underline; }
+.jutsu-selected-count { color: var(--text-dim); font-size: 0.85rem; margin-left: auto; }
+.jutsu-selected-count-over { color: #d9482b; font-weight: 600; }
+/* The clan-jutsu tally sits directly after the total, so only the first of
+   the pair gets pushed right by margin-left:auto — otherwise the two
+   counters end up at opposite ends of the toolbar reading as unrelated
+   numbers, when the whole point is comparing them. */
+.jutsu-clan-count { margin-left: 0.75rem; color: var(--blue); }
+/* Shown only while every pick is spent, next to the counter it explains.
+   Quiet rather than red: hitting the cap is the rules working, not a
+   mistake the player made. */
+.jutsu-cap-hint { margin-left: 0.75rem; color: var(--text-dim); font-size: 0.85rem; font-style: italic; }
+/* "3 / 5 known", inline after the Jutsu headings on both the Core tab and
+   the Jutsu tab. Its own class rather than .jutsu-selected-count, which is
+   built for a flex toolbar (margin-left:auto) and would drift to the far
+   side of a heading. Deliberately quieter than the heading it follows —
+   it's a readout, not a second title. */
+.sheet-jutsu-count {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Over the class's allowance: flagged, not blocked. Feats, scrolls and GM
+   rulings all legitimately push a character past the table. */
+.sheet-jutsu-count-over { color: var(--accent); font-weight: 600; }
+/* A jutsu that can't be picked because the allowance is spent. Faded and
+   not-allowed rather than hidden — seeing what you'd have to give something
+   up for is the point. */
+.jutsu-choice-row input[type="checkbox"]:disabled { cursor: not-allowed; }
+.jutsu-choice-row:has(input[type="checkbox"]:disabled) .browse-row-name { opacity: 0.55; }
+/* Marks a row as coming from the character's clan list rather than the
+   class list. Blue is already this app's "this is specific to your
+   subclass/lineage" signal (see the classes page), so it carries over. */
+.jutsu-source-badge {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Character sheet: library tabs (Jutsu / Feats / Inventory) ----
+
+   Each of the three is the same two-pane shape: what the character has on
+   the left, the filterable rules library on the right, drag right-to-left
+   to take something. minmax(0, …) on both tracks rather than a bare 1fr,
+   because a grid track's default min-width is auto — one long jutsu name or
+   a wide inventory table would otherwise push the track past the viewport
+   and give the whole page a horizontal scrollbar instead of scrolling
+   inside its own pane. */
+.sheet-library-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+.sheet-library-owned,
+.sheet-library-browse { min-width: 0; display: flex; flex-direction: column; }
+.sheet-library-owned h2,
+.sheet-library-browse h2 { margin: 0 0 0.4rem; font-size: 1rem; }
+/* This h2's own 0.4rem bottom margin isn't enough to clear bare
+   .section-hint's -0.5rem top margin (tuned for sitting under an <h1>) —
+   net negative, so the hint's own top edge overlaps the header's bottom
+   edge by a couple px, the same "line cutting across the header/hint
+   junction" bug as .sheet-feature-panel's own override above (Your Feats,
+   Known Jutsu, and the full-page Inventory pane all share this shape). */
+.sheet-library-owned .section-hint { margin-top: 0; }
+.sheet-library-form { display: flex; flex-direction: column; gap: 0.6rem; margin: 0; min-width: 0; }
+.sheet-library-form .items-toolbar { margin: 0; }
+.sheet-library-search { min-width: 0; }
+
+/* The Jutsu Library's own "which Nature Releases do I have" panel — sits
+   above the filter toolbar, bordered off as its own block since it's a
+   different kind of thing (a status readout + occasional picker) than the
+   search/filter controls right below it. */
+.sheet-elemental-affinities {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+.sheet-elemental-affinities h3 { margin: 0 0 0.4rem; font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.sheet-elemental-affinity-list { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sheet-elemental-affinity-list:last-child { margin-bottom: 0; }
+.sheet-elemental-affinity-slot { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-dim); margin-top: 0.4rem; }
+.sheet-elemental-affinity-slot select { font-size: 0.85rem; padding: 0.25rem 0.4rem; }
+
+/* Select all / Deselect all over the item and feat panes' kind checkboxes,
+   the same text-link affordance the jutsu toolbar's dropdowns already use.
+   1rem between the two (≈4mm) so they never read as one control, and the
+   row sits clear of the checkboxes it acts on. */
+.sheet-library-filter-actions { display: flex; gap: 1rem; margin: 0 0 0.15rem; }
+.sheet-library-filter-actions button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.sheet-library-filter-actions button:hover { color: var(--accent-hover); text-decoration: underline; }
+/* margin-left:auto parks the eligibility toggle at the far end of the row,
+   well clear of the two Select all/Deselect all links — it does something
+   categorically different from them and shouldn't read as a third link in
+   the same set. */
+.sheet-library-show-all {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+/* Shown only when "Show unavailable" is ticked, so it never appears without
+   the toggle that explains it. Faded, and the + is left working: the sheet
+   does not enforce prerequisites (a GM waiving one is normal play), it just
+   says which ones aren't met. */
+.sheet-lib-row-ineligible .browse-row-name { opacity: 0.6; }
+.sheet-lib-row-ineligible .browse-row-meta { color: var(--accent); }
+
+/* Feat Library rows: Clan/Clan(Rare)/Class feats read blue, the same
+   gold/blue split's blue (see .subclass-scope's own doc comment up top) —
+   its scoped rules cover .class-detail/.character-reference-page/
+   #sheet-feature-choices, none of which wrap this pane, so it needs its
+   own copy. Ineligible's opacity above still wins visually (0.6 on top of
+   blue reads as a dim blue, not a fight over which rule applies — no
+   specificity conflict since neither rule sets the other's property). */
+.browse-row-name.subclass-scope { color: var(--blue); }
+
+/* Bounded so the library scrolls inside itself rather than making the page
+   several screens long — the owned pane beside it has to stay visible for
+   a drag to be possible at all. */
+.sheet-library-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-top: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+}
+
+/* Two distinct actions per row — open the card, or add the thing — so
+   they get real space between them rather than reading as one strip. */
+.sheet-lib-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.1rem 0; }
+.sheet-lib-row .browse-row { flex: 1 1 auto; min-width: 0; align-items: flex-start; }
+.sheet-lib-row .browse-row-name { flex: 1 1 8rem; min-width: 6rem; overflow-wrap: anywhere; }
+/* The meta column on these panes is a feat's whole prerequisite line
+   ("Level 5+, Any two of the following three ability scores must be 14+
+   (Strength, Dexterity, Constitution)"), not the two words it carries on
+   /items and /jutsu. .browse-row-meta is white-space:nowrap for those short
+   labels, and an unwrappable sentence inside a flex row does two visible
+   things at once: it pushes the row wider than the pane, so the list grows
+   a horizontal scrollbar, and it squeezes the flexible name beside it down
+   to about one character per line — the observed symptom of a column of
+   stacked letters. Both symptoms are the one cause, so the fix is
+   here rather than an overflow-x band-aid on the list.
+   flex-basis + min-width on the name is the other half: it keeps the name
+   readable instead of letting a long prerequisite claim the whole row. */
+.sheet-lib-row .browse-row-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+/* Already-owned rows stay usable — a second antidote is a normal thing to
+   want — they are just visibly answered already. */
+.sheet-lib-row-owned .browse-row-name::after {
+  content: " ✓";
+  color: var(--gold);
+}
+.sheet-lib-row-dragging { opacity: 0.5; }
+
+.sheet-lib-add {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+}
+.sheet-lib-add:hover { color: var(--gold); border-color: var(--gold); }
+.sheet-lib-add-inline { color: var(--gold); }
+/* Jutsu Library's own ineligible rows are a hard gate, not just a hint (see
+   the "+Learn" button's own disabled attribute, character_sheet.html) — a
+   plain browser-default disabled look is not enough contrast against the
+   already-dimmed .sheet-lib-row-ineligible name/meta text next to it. */
+.sheet-lib-add:disabled { opacity: 0.4; cursor: not-allowed; }
+.sheet-lib-add:disabled:hover { color: var(--text-dim); border-color: var(--panel-border); }
+
+/* The drop target is outlined for the whole drag (armed) and fills in once
+   the pointer is actually over it. Before this, nothing marked the box out
+   until you were already inside it, and an empty Feats or Jutsu pane is
+   only three lines tall next to a 60vh library — so a drop aimed at the
+   height you grabbed the row from fell outside the target and silently did
+   nothing. See sheet-library.js's dragstart handler. */
+.sheet-library-owned-armed {
+  outline: 2px dashed var(--panel-border);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.sheet-library-owned-over {
+  outline: 2px dashed var(--gold);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+/* Matches .sheet-library-list's max-height so the "what you have" pane is
+   as tall as the library you drag out of, however little is in it. Only in
+   the two-column layout: below the breakpoint the panes stack, and a 60vh
+   floor would be a screenful of blank space between them. */
+@media (min-width: 901px) {
+  .sheet-library-owned { min-height: 60vh; }
+}
+
+.sheet-owned-list { list-style: none; margin: 0.3rem 0 0.9rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.sheet-owned-list li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.sheet-owned-list li form { margin-left: auto; }
+.sheet-owned-list-blocks li {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-owned-head { display: flex; align-items: center; gap: 0.5rem; }
+.sheet-owned-head form { margin-left: auto; }
+.sheet-owned-body { margin: 0.35rem 0 0; color: var(--text-dim); font-size: 0.85rem; }
+
+@media (max-width: 900px) {
+  .sheet-library-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Character sheet: trash cans and custom attacks ----
+
+   .sheet-delete-btn is absolutely positioned for the Features list it was
+   written for; inside a table cell or a list row it has to sit in normal
+   flow instead, which is all this class changes. */
+.sheet-trash-btn { position: static; font-size: 0.9rem; opacity: 0.65; }
+.sheet-trash-btn:hover { opacity: 1; }
+
+.sheet-subheading { margin: 1.1rem 0 0.35rem; font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* The condensed inventory under the Core tab's jutsu table: name, bulk,
+   equipped, trash. No header row — with four short columns the headings
+   cost more space than they explain. */
+.sheet-inventory-condensed { min-width: 0; width: 100%; }
+.sheet-inventory-condensed th,
+.sheet-inventory-condensed td { padding: 0.3rem 0.5rem 0.3rem 0; }
+.sheet-inventory-condensed td:last-child,
+.sheet-inventory-condensed td:nth-last-child(2) { width: 1px; white-space: nowrap; }
+
+.sheet-custom-attack { margin: 0.75rem 0 1rem; }
+/* Same bold gold as .sheet-maxima's summary, matching the same bolded
+   typeface used for manual/rolled HP/chakra. Both are real controls the
+   player has to be able to find, and both were previously set in the 0.8rem
+   dim text everything
+   else around them uses — which is exactly why they disappeared. */
+.sheet-custom-attack > summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.01em;
+}
+.sheet-custom-attack > summary:hover { color: var(--gold-hover); }
+/* The weapon/jutsu choice. A fieldset for the grouping semantics, stripped
+   of the browser's default border and inset padding, which look nothing like
+   the rest of this form. */
+.sheet-custom-attack-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.sheet-custom-attack-kind legend { padding: 0; margin-bottom: 0.25rem; }
+.sheet-custom-attack-kind label { display: flex; flex-direction: row; align-items: center; gap: 0.35rem; }
+/* The pencil and the trash can do very different things to the same row, so
+   they need real space between them rather than reading as one strip of
+   icons — the ~3mm rule. */
+.sheet-custom-attack-actions { display: flex; align-items: center; gap: 0.75rem; }
+/* Rank picker next to a jutsu's Cast button — same visual weight as the
+   other sheet <select>s (.sheet-modifier-fields, .sheet-inline-form) rather
+   than the browser's raw default, and capped narrow enough that 5 rank
+   options don't blow up the row's width — .sheet-attack-table already
+   scrolls horizontally (overflow-x: auto) as the fallback for anything that
+   still doesn't fit at a narrow viewport. */
+.sheet-upcast-rank {
+  width: 6.5rem;
+  max-width: 40%;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+.sheet-attack-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.65;
+  /* U+270E LOWER RIGHT PENCIL points its tip down-RIGHT, which reads backwards
+     next to every other edit affordance people have used. Mirroring lays it
+     top-right to bottom-left with the tip at the lower left, the way an edit
+     pencil is normally drawn. Done as a transform rather than by swapping in
+     U+270F, which most platforms promote to a colour emoji and which would
+     then ignore the button's own colour and hover state. Applies to every ✎ on
+     the sheet — weapon, custom-attack and jutsu rows all share this class. */
+  display: inline-block;
+  transform: scaleX(-1);
+}
+.sheet-attack-edit-btn:hover { color: var(--accent); opacity: 1; }
+/* The edit form, revealed underneath the row it edits. Indented and set on
+   the panel background so it reads as belonging to the row above rather than
+   as another attack in the table. */
+.sheet-custom-attack-edit-row > td {
+  background: var(--panel);
+  padding: 0.75rem 1rem 1rem;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Custom inventory items (part 10): a homebrew row's name is the toggle for
+   its own "explode into a detail view" edit row, since there is no rules
+   page for it to link to like a catalogue row's name has. Styled to read as
+   a link (matching .sheet-popup-trigger's plain <a> look) so the two kinds
+   of row still look like the same kind of control. */
+.sheet-custom-item-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.sheet-custom-item-toggle:hover { color: var(--gold-hover); text-decoration: underline; }
+.sheet-custom-item-edit-row > td {
+  background: var(--panel);
+  padding: 0.75rem 1rem 1rem;
+  border-radius: 0 0 8px 8px;
+}
+/* .sheet-inventory-add-form label (below) already sets flex-direction:
+   column at equal specificity — qualifying with the form class here is what
+   lets this row-direction override win instead of losing to source order. */
+.sheet-inventory-add-form label.sheet-custom-item-equipped { flex-direction: row; align-items: center; gap: 0.35rem; }
+/* The shared "ability + proficiency + flat value" composer. Two fieldsets side
+   by side while there is room, stacked when there isn't — min-width:0 on the
+   flex children is what actually lets them shrink instead of forcing the
+   attack table to scroll sideways, since a fieldset's default min-width is its
+   content. */
+.sheet-modifier-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+.sheet-modifier-fields fieldset {
+  flex: 1 1 12rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem 0.6rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.sheet-modifier-fields legend {
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.sheet-modifier-fields label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+.sheet-modifier-fields select,
+.sheet-modifier-fields input {
+  width: 7.5rem;
+  max-width: 55%;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
+.sheet-custom-attack-form { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0 0; }
+/* The submit is a different action from the fields above it, so it gets the
+   project's ~3mm of separation rather than the form's tighter field gap. */
+.sheet-custom-attack-form > button[type="submit"] { align-self: flex-start; margin-top: 0.35rem; }
+.sheet-custom-attack-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-dim); }
+.sheet-custom-attack-form input {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  padding: 0.3rem 0.45rem;
+  min-width: 0;
+}
+.sheet-custom-attack-form button { align-self: flex-start; margin-top: 0.5rem; }
+.sheet-custom-attack-damage { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.sheet-custom-attack-damage .sheet-vitals-label { flex: 1 1 100%; }
+.sheet-custom-attack-damage input[type="number"] { width: 3.5rem; }
+.sheet-custom-attack-damage input[type="text"] { width: 6rem; }
+.sheet-custom-attack-d { color: var(--text-dim); }
+
+/* ---- Part 9: header class/subclass line, AC's Adjust menu, the T&CS
+   rework, and the draggable Core-tab boxes. ---- */
+
+/* Class/subclass summary, under the level row, moved beneath the name.
+   Styled like a quiet subtitle rather than a heading — it reads as context
+   for the name above it, not a new section. */
+/* Sits beside the Level form inside .sheet-level-row now, not stacked below
+   it, so it takes no top margin of its own — the row's own align-items:
+   center handles the vertical alignment instead. */
+.sheet-class-line { margin: 0; color: var(--text-dim); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sheet-class-line .option-picker-epithet { margin-left: 0.3rem; }
+.sheet-class-entry { display: inline-flex; align-items: center; gap: 0.4rem; }
+/* The subclass form is inline content sitting in the middle of a running
+   line ("Puppet Master 2 [picker]"), not a block-level form like every
+   other .sheet-inline-form on the sheet — display:inline-flex keeps it
+   from forcing a line break between the class/level text and the select. */
+.sheet-subclass-form { display: inline-flex; margin: 0; }
+.sheet-subclass-select {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  max-width: 14rem;
+}
+/* Per-class level picker, same inline-content reasoning as the subclass
+   form above ("Weapon Specialist [level] / Ninjutsu Specialist [level]").
+   Given an accent border/background and bold weight (unlike the muted
+   subclass select beside it) — this control changes class levels, one of
+   the most consequential edits on the sheet, and blended into
+   .sheet-class-line's dim text at the same subtle weight as everything
+   else around it, it read as inert label text rather than an editable
+   control. */
+.sheet-class-level-form { display: inline-flex; margin: 0; }
+/* Selector scoped to the parent form (rather than the bare .sheet-class-
+   level-select class alone) so its specificity beats the later, more
+   general ".sheet-inline-form select" rule below — a bare single-class
+   selector here previously lost that fight and rendered as the same
+   dim, unstyled generic <select> as every other inline-form dropdown. */
+.sheet-class-level-form .sheet-class-level-select {
+  background: rgba(217, 130, 43, 0.14);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  width: 3.5rem;
+  cursor: pointer;
+}
+.sheet-class-level-form .sheet-class-level-select:hover,
+.sheet-class-level-form .sheet-class-level-select:focus-visible {
+  background: rgba(217, 130, 43, 0.24);
+  border-color: var(--accent-hover);
+}
+.sheet-character-level { white-space: nowrap; }
+/* Sits at the end of the class/subclass line, not its own row — a rare
+   action that doesn't need a whole line of visual weight to itself. */
+.sheet-add-class-link { font-size: 0.85rem; color: var(--text-dim); text-decoration: underline; }
+.sheet-add-class-link:hover { color: var(--accent); }
+
+/* AC's own Adjust menu. The box needs a wrapper now that it carries a
+   disclosure under it, the same reason Initiative's square got
+   .sheet-square-init — position:relative on the wrap is what anchors the
+   floating .sheet-init-form to the AC box instead of the whole trio.
+   flex-start keeps the trio's row from stretching every box to match this
+   one's new height (currently moot with one box in the trio, but the same
+   rule .sheet-square-row already follows). */
+.sheet-stat-trio { align-items: flex-start; }
+.sheet-stat-box-wrap {
+  position: relative;
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sheet-stat-box-wrap .sheet-stat-box { flex: 0 0 auto; width: 100%; }
+
+/* Tool Proficiencies & Custom Skills (part 9 rework): every line is now a
+   rollable row plus a pencil that reveals its own ability/proficiency/bonus
+   tweak menu, the same pencil-and-hidden-form pattern a custom attack row
+   already uses (.sheet-attack-edit-btn, data-edit-target) — just a stacked
+   div pair here instead of a second table row, since this box is a plain
+   list rather than a table. 0.75rem between the row and its pencil matches
+   every other "two different actions side by side" gap on this sheet
+   (.sheet-custom-attack-actions, .sheet-inventory-row-actions). */
+.sheet-prof-line { display: flex; align-items: center; gap: 0.75rem; margin: 0.3rem 0; }
+.sheet-prof-line .sheet-skill-row { flex: 1 1 auto; }
+.sheet-prof-edit-row {
+  background: var(--panel);
+  padding: 0.6rem 0.75rem 0.75rem;
+  border-radius: 8px;
+  margin: -0.15rem 0 0.5rem;
+}
+/* .sheet-init-form is written for a floating disclosure panel elsewhere on
+   the sheet (Initiative, AC) — here it sits inline inside the edit row's own
+   panel background instead, so every bit of "float above the page" styling
+   is cancelled back to plain flow. */
+.sheet-prof-edit-row .sheet-init-form {
+  position: static;
+  margin-top: 0;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* The tool/language <select> dropdowns replacing free-text "add" inputs —
+   same visual weight as the text inputs beside them in the same
+   .sheet-inline-form. */
+.sheet-inline-form select {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  max-width: 16rem;
+}
+
+/* Draggable, resizable Core/Bio-tab boxes (sheet-grid.js/sheet-layout.js).
+   Every top-level section is one of these now, each with its own ⠿ handle
+   in the top-right corner and a resize grip in the bottom-right —
+   position:relative is what anchors both absolutely-positioned controls to
+   their own box instead of drifting to the grid container. overflow-y:auto
+   is a no-op until a box actually gets a custom height set (see
+   sheet-layout.js's resize handler); it never clips a box nobody has
+   resized. overflow-x:auto is the width equivalent — boxes can now be
+   narrowed below their natural content width, which wasn't possible before
+   width resize existed. */
+.sheet-box { position: relative; overflow: auto; }
+/* Boxes are freely repositionable now, so "first in DOM" no longer reliably
+   means "visually first" the way .sheet-col h2:first-child could assume
+   when order was purely a per-column DOM stack — every box just gets its
+   own small top margin instead of a conditional "only if visually first"
+   rule with no stable DOM meaning left to key off of. */
+.sheet-box > h2:first-of-type,
+.sheet-feature-panel.sheet-box > summary h2 { margin-top: 0.25rem; }
+/* Part 10: both controls stay in the markup but invisible/inert until
+   "Edit Layout" is on (see .sheet-layout-editing below) — a handle showing
+   all the time made an accidental drag too easy. */
+.sheet-box-handle {
+  display: none;
+  position: absolute;
+  top: 0.05rem;
+  right: 0.1rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: grab;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.15rem 0.3rem;
+  opacity: 0.35;
+  z-index: 2;
+}
+.sheet-layout-editing .sheet-box-handle { display: inline-block; }
+.sheet-box-handle:hover { opacity: 1; color: var(--accent); }
+.sheet-box-handle:active { cursor: grabbing; }
+/* Clears room for the handle beside a heading long enough to reach the
+   corner it sits in ("Tool Proficiencies & Custom Skills" in the narrowest
+   column) — short headings (Notes, Ambitions) don't need it but aren't hurt
+   by it either. Kept unconditional (not gated on editing) so headings don't
+   reflow width every time Edit Layout is toggled. */
+.sheet-box-handle + h2 { padding-right: 1.7rem; }
+.sheet-box-dragging { opacity: 0.45; }
+/* Same feature-count summary line the panel already had, just sharing its
+   row with the handle now — gap gives the icon and the disclosure text the
+   same ~3mm separation every other pair of distinct controls on this sheet
+   gets. */
+.sheet-feature-panel.sheet-box > summary { display: flex; align-items: center; gap: 0.6rem; list-style: none; }
+.sheet-feature-panel.sheet-box > summary h2 { padding-right: 0; }
+.sheet-feature-panel.sheet-box > summary::-webkit-details-marker { display: none; }
+/* display:flex above drops <summary>'s native list-item marker in every
+   browser (flex display replaces the implicit list-item box the marker
+   rendered from) — without a replacement the panel looks like it just
+   disappears when clicked instead of reading as a dropdown. This stands in
+   for it, rotating open the same way a native marker would. */
+.sheet-feature-panel.sheet-box > summary::before {
+  content: "\25B8";
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+.sheet-feature-panel.sheet-box[open] > summary::before { transform: rotate(90deg); }
+
+/* The resize grip, bottom-right corner, editing-only same as the drag
+   handle. A plain CSS corner-bracket rather than an emoji/icon font glyph —
+   nothing in the existing icon set reads as "resize" at this size. */
+.sheet-box-resize-handle {
+  display: none;
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+.sheet-layout-editing .sheet-box-resize-handle { display: block; }
+.sheet-box-resize-handle::before {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-dim);
+  border-bottom: 2px solid var(--text-dim);
+  opacity: 0.5;
+}
+.sheet-box-resize-handle:hover::before { opacity: 1; border-color: var(--accent); }
+/* The dashed outline is the whole "this is now an editable dashboard" cue —
+   every box gets it uniformly rather than only the one being dragged or
+   resized, so it reads as a mode the whole layout is in. */
+.sheet-layout-editing .sheet-box { outline: 1px dashed var(--panel-border); outline-offset: 3px; }
+
+/* Part 11: "boxes inside a box" — the individual tiles inside
+   sheet_squares/Ability Scores/Saving Throws can themselves be
+   reordered, and each of those rows can flip between a horizontal row and
+   a vertical (Roll20-style) stack, via sheet-subgrid.js. Same "gated on
+   the tab's Edit Layout toggle" convention as the box-level controls above
+   — reusing `.sheet-layout-editing`, the class sheet-layout.js already
+   maintains on the ancestor [data-sheet-layout], rather than a second
+   editing flag, is what lets sheet-subgrid.js stay fully event-delegated
+   with no load-order dependency on that script (see its own top-of-file
+   comment for why: #sheet-squares is a fragment the sheet swaps by
+   outerHTML, and anything wired at load goes dead the moment that
+   happens). */
+[data-subgrid] { position: relative; }
+.sheet-square-stat,
+.sheet-ability-box,
+.sheet-save-box { position: relative; }
+.sheet-subitem-handle {
+  display: none;
+  position: absolute;
+  top: 0.05rem;
+  right: 0.1rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: grab;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 0.1rem;
+  opacity: 0.4;
+  z-index: 2;
+}
+.sheet-layout-editing .sheet-subitem-handle { display: block; }
+.sheet-subitem-handle:hover { opacity: 1; color: var(--accent); }
+.sheet-subitem-dragging { opacity: 0.4; }
+.sheet-layout-editing [data-subgrid] > [data-subitem] {
+  outline: 1px dashed var(--panel-border);
+  outline-offset: 2px;
+}
+/* Overlaps the row's own bottom-right corner (same corner-affordance
+   convention as .sheet-box-resize-handle above) rather than sitting
+   outside the row as a real flex/grid item — a real item would either eat
+   one of Ability Scores' fixed six grid tracks or need every containing
+   .sheet-box's own overflow:auto to have headroom for it, which a
+   negative offset below the row can't guarantee. */
+.sheet-subgrid-orient-toggle {
+  display: none;
+  position: absolute;
+  right: 0.1rem;
+  bottom: 0.1rem;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  z-index: 3;
+}
+.sheet-layout-editing .sheet-subgrid-orient-toggle { display: inline-block; }
+.sheet-subgrid-orient-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Vertical (Roll20-style) stack — flex rows just flip axis; the ability
+   grid drops to one column so its six tiles stack instead of squeezing
+   into 1/6-width slivers. */
+.sheet-subgrid-vertical.sheet-square-row,
+.sheet-subgrid-vertical.sheet-save-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+/* Stacked instead of 1fr-wide: a vertical Roll20-style column reads as a
+   narrow tower of small tiles, not six full-width bars — 1fr let each tile
+   stretch to the box's whole width, which is the opposite of "smaller"
+   once already flipped to vertical. Sized to fixed physical dimensions
+   (2.5cm x 2cm) rather than converting to rem, so the
+   requested physical size stays exact regardless of the page's base
+   font-size. */
+.sheet-subgrid-vertical.sheet-ability-row {
+  grid-template-columns: max-content;
+  justify-content: start;
+}
+.sheet-subgrid-vertical.sheet-ability-row .sheet-ability-box {
+  width: 2.5cm;
+  height: 2cm;
+  min-height: 0;
+}
+body.n5e-resizing { cursor: nwse-resize; user-select: none; }
+
+.sheet-layout-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+}
+.sheet-bio-layout .sheet-layout-toolbar { margin: 0 0 1rem; }
+
+/* Pending Choices banner (character_sheet.html, sheet_feature_choices) — a
+   plain block sibling of the toolbar above and .sheet-core-grid below, so it
+   sits at the very top of the Core tab regardless of anything a player has
+   dragged around, and is never itself draggable/resizable. Styled as a
+   notification rather than a normal panel (accent border/background,
+   centered heading) since the whole point is that it's hard to miss. */
+.pending-choices-banner {
+  margin: 0 0 1rem;
+  padding: 1rem 1.25rem;
+  background: #241a08;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.pending-choices-banner h2 {
+  margin: 0 0 0.5rem;
+  text-align: center;
+  color: var(--gold);
+}
+/* Reset and Undo are both "recover from a layout mistake" actions, so they
+   sit in their own group with a tight gap — space-between on the toolbar
+   itself then only has to split THIS group from Edit Layout, rather than
+   spreading all three buttons out evenly and reading as unrelated. */
+.sheet-layout-toolbar-left { display: flex; align-items: center; gap: 0.5rem; }
+.sheet-layout-reset,
+.sheet-layout-undo,
+.sheet-layout-edit-toggle {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+.sheet-layout-reset:hover,
+.sheet-layout-undo:hover:not(:disabled),
+.sheet-layout-edit-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.sheet-layout-undo:disabled { opacity: 0.4; cursor: default; }
+/* The "on" state of the global Edit Layout toggle — the one button whose
+   own state needs to read clearly at a glance, since it changes what every
+   other box on the tab will do to a click or drag. */
+.sheet-layout-edit-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(217, 130, 43, 0.15);
+}
+
+/* Companion popup (companion_sheet.html) — a small standalone page (see
+   layout_bare.html), so .content's normal 2rem/1.5rem padding is trimmed
+   down to fit the ~520px popup window companion-popup.js opens. */
+.companion-popup-content { max-width: 100%; padding: 1.25rem; margin: 0; }
+.companion-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+.companion-name-field {
+  flex: 1 1 auto;
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+.companion-kind-badge { text-transform: capitalize; white-space: nowrap; }
+
+.companion-stat-row,
+.companion-ability-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; margin-bottom: 1rem; }
+.companion-stat-row label,
+.companion-ability-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+.companion-stat-row input,
+.companion-ability-row input {
+  width: 4rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+/* HP current/max reads as one "current / max" pair, not two unrelated
+   stats, so the separator sits at input height rather than label height. */
+.companion-stat-sep { align-self: flex-end; padding-bottom: 0.5rem; color: var(--text-dim); }
+
+.companion-block-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+.companion-block-label select,
+.companion-block-label textarea,
+.companion-block-label input[type="text"] {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+/* Sits right below the Armor Chassis field above it — its own bottom
+   margin keeps it from crowding whichever field/section comes next
+   (the puppet reference panel's own top border+padding when present). */
+.companion-armor-form-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem; }
+/* .companion-block-label is a column flexbox that already spaces its own
+   children with `gap` — .section-hint's own negative top margin (tuned for
+   sitting directly under an <h1>, not a plain flex child) would fight that
+   gap here instead of adding to it, so it's overridden back to a plain 0
+   for this one spot. */
+.companion-block-label .section-hint { margin-top: 0; }
+
+/* Same dt/dd grid shape as .sheet-passive-trait-list, scoped separately
+   since this one sits inside a .companion-block-label flex column instead
+   of the sheet's own passives box. */
+.companion-trait-list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; }
+.companion-trait-list dt { color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+.companion-trait-list dd { margin: 0; color: var(--text); }
+.companion-base-traits-text { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-dim); }
+
+/* Matryoshka Framework's own jutsu-slots counter + Split/Merge action.
+   Column flexbox with its own `gap` for breathing room between the counter
+   form, its hint, and the split/merge form — same shape as
+   .companion-armor-form-toggle above, with the same margin-bottom so it
+   doesn't crowd the Puppet Tool baseline traits section right below it. */
+.companion-matryoshka { display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem; }
+.companion-matryoshka label { display: flex; align-items: center; gap: 0.5rem; }
+/* Bare .section-hint's negative top margin is tuned for sitting directly
+   under an <h1> (see that class's own rule) — here it sits inside a plain
+   flex column after a <label>, so it needs the same override every other
+   non-<h1> .section-hint spot in this file already carries. */
+.companion-matryoshka-hint { margin-top: 0; }
+.companion-matryoshka-status { color: var(--text-dim); font-style: italic; }
+.companion-matryoshka select { font-size: 0.85rem; padding: 0.3rem 0.4rem; }
+
+.companion-reference { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--panel-border); }
+.companion-reference h3 { margin-top: 1.25rem; }
+/* Shown, not hidden, so the player can see what's coming rather than
+   wondering why a feature they read about in the book isn't here yet —
+   same reasoning the main sheet's own level-gated content follows. */
+.companion-reference-locked { opacity: 0.55; }
+
+/* character_reference.html's own subclass sections: the gold/blue split
+   (see .subclass-scope's own doc up top) applied outside .class-detail —
+   .subclass-scope's header rule already applies unscoped, but its body-text
+   rule is scoped to .class-detail, so this page needs its own copy for the
+   feature list's <strong>/plain text (formatDescription's own output).
+   Must include p explicitly: formatDescription always wraps prose in <p>,
+   and a directly-matching rule elsewhere (.sheet-feature-list li p) beats
+   a color merely inherited from the <li> — same bug shape .class-detail's
+   own p selector above already exists to avoid. */
+.character-reference-page .subclass-scope li,
+.character-reference-page .subclass-scope p { color: var(--blue); }
+.character-reference-page .subclass-scope li strong { color: var(--text); }
+/* The merged, single, level-sorted feature list puts .subclass-scope
+   directly ON each subclass <li> itself (there's no longer a wrapping
+   section per source to hang an ancestor rule off of, now that class and
+   subclass entries interleave in one list) — a compound selector, not the
+   descendant one above, since li is not its own descendant. */
+.character-reference-page li.subclass-scope,
+.character-reference-page li.subclass-scope p { color: var(--blue); }
+.character-reference-page li.subclass-scope strong { color: var(--text); }
+.character-reference-page { max-width: 46rem; }
+
+/* character_sheet.html's own Pending Choices box (sheet_feature_choices):
+   same .subclass-scope-on-the-<li> shape as the character-reference-page
+   rule above, its own copy since that selector is scoped to a different
+   page's container class. Only .puppet-upgrade-pick-name needs it named
+   explicitly — the <select>'s own text isn't affected by a color rule on
+   an ancestor <li> the way plain text is, but naming it here keeps this
+   rule self-contained rather than relying on inheritance from the <li>. */
+#sheet-feature-choices li.subclass-scope,
+#sheet-feature-choices li.subclass-scope .puppet-upgrade-pick-name { color: var(--blue); }
+
+/* character_clan_reference.html's own hint line sits right after the
+   back-link paragraph, not under an <h1> like bare .section-hint is tuned
+   for — margin-top: 0 instead of the
+   bare class's negative one. */
+.clan-reference-hint { margin: 0 0 0.75rem; color: var(--text-dim); font-size: 0.8rem; font-style: italic; }
+
+/* Puppets/Summons tabs: one .companion-card per companion inside the
+   sheet-box list — the popup only ever shows one companion so it never
+   needed a card wrapper; the tab can show several at once. Bottom margin
+   (not just gap) so the LAST card still has clear breathing room before
+   the box's own bottom edge, and cards are visually separated from each
+   other by a real border rather than by whitespace alone.
+
+   The Puppets tab's own card is a real <details> (collapsible — see
+   sheet_puppet_tab), the Summons tab's and the popup's own are still a
+   plain <div>; deliberately NOT the .sheet-box class/data-box-id the outer
+   grid-managed boxes use — sheet-layout.js's own box list is built with an
+   unscoped `.sheet-box[data-box-id]` descendant query (not `:scope >`), so
+   reusing that class on an element nested inside a real grid box would get
+   it swept into the drag/resize grid as if it were its own independently
+   positioned box. */
+.companion-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.companion-card:last-child { margin-bottom: 0; }
+/* position:relative: its own .sheet-delete-btn is position:absolute and
+   needs a LOCAL anchor — without one, it escapes to whatever ancestor
+   further up the tree happens to have position set, landing wherever
+   that is instead of this card's own top-right corner (same bug shape as
+   #sheet-puppet-tactics .puppet-upgrade-pick, see that rule's own doc). */
+.companion-card-header { position: relative; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+.companion-card-header .companion-name-field { margin-right: 0.5rem; }
+/* A <summary> used as the card header (Puppets tab only — see above):
+   same disclosure-triangle replacement as .sheet-feature-panel.sheet-box's
+   own <details>, since display:flex drops the native list-item marker in
+   every browser with nothing standing in for it by default. */
+summary.companion-card-header { list-style: none; cursor: pointer; }
+summary.companion-card-header::-webkit-details-marker { display: none; }
+summary.companion-card-header::before {
+  content: "\25B8";
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.companion-card[open] > summary.companion-card-header::before { transform: rotate(90deg); }
+
+.companion-upgrades { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--panel-border); }
+/* One heading per upgrade LIST ("Puppet Master Upgrades", "Black Iron
+   Upgrades", ...), grouping that list's own tiers underneath — without
+   this, a class-wide list and a subclass-exclusive list sharing tier names
+   (Wood/Bronze/Silver/Gold/Platinum Tier) rendered as two unlabeled runs
+   that read as the same tiers shown twice. */
+/* The right-hand Details panel (see sheet-puppet-detail.js) needs to stay
+   in view while the Puppets list beside it — often much longer, once a
+   puppet has picked several tiers of upgrades — gets scrolled, the same
+   "follow the reader" treatment already given to the class-detail page's
+   .class-outline-column and Items/Jutsu's .browse-list-pane. top/max-height
+   match those two exactly; max-height's overflow-y:auto is a safety net for
+   a single description that's genuinely taller than the viewport, not the
+   normal case (see this box's data-default-h-cm in character_sheet.html for
+   why it isn't cramped into a much smaller box the rest of the time). */
+.sheet-box[data-box-id="puppets-reference"] {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.puppet-upgrade-list { margin-bottom: 1.5rem; }
+.puppet-upgrade-list:last-child { margin-bottom: 0; }
+.puppet-upgrade-list-name {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--accent);
+}
+/* Distinct tiers need visible separation from each other — the same
+   "at least ~3mm of breathing room between distinct things" rule this
+   project applies to buttons applies here too, since each tier has its
+   own independent add-form right below its own pick list. */
+.puppet-upgrade-tier { margin-bottom: 1.25rem; }
+.puppet-upgrade-tier:last-child { margin-bottom: 0; }
+.puppet-upgrade-tier h5 { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; }
+.puppet-upgrade-tier .sheet-feature-list { margin-bottom: 0.5rem; }
+.puppet-upgrade-tier .sheet-panel-form { flex-direction: column; align-items: stretch; gap: 0.5rem; margin: 0; }
+
+/* Compact pick rows — name + remove button only, no inline formatted
+   description (that moved to the right-hand detail panel on click, see
+   sheet-puppet-detail.js) — this is what actually declutters the
+   wall-of-text look a fully-expanded pick used to have. Cursor/hover
+   signal the row itself is clickable for that detail preview. */
+.puppet-upgrade-pick { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.puppet-upgrade-pick:hover .puppet-upgrade-pick-name { color: var(--accent); }
+.puppet-upgrade-pick-name { flex: 1 1 auto; }
+
+/* A repeatable upgrade's own sub-choices (e.g. Poison Mist Hell's up-to-3
+   Poison Tag qualities) sit indented under their parent pick, each already-
+   taken one its own small rollover-tooltip chip (reuses .tooltip/
+   .tooltip-content, same mechanism as the option picker below) with its
+   own remove button. */
+.puppet-upgrade-subchoices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0 1.6rem;
+  width: 100%;
+}
+.puppet-subchoice-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: help;
+}
+.puppet-upgrade-subchoices select { font-size: 0.8rem; padding: 0.3rem 0.4rem; }
+
+/* Chakra Enhanced Retrofit's own seal picker — a flex child of
+   .companion-stat-row (sits directly right of Speed), same compact chip
+   look as .puppet-subchoice-pick above rather than a new pattern. */
+.companion-seals { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.75rem; color: var(--text-dim); }
+.companion-seals-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.companion-seals-chips:empty { display: none; }
+/* The worn Armor Chassis's own properties, under the chassis dropdown.
+   Same chip shape as the seal chips below, minus the delete button — these
+   are read-only rules text belonging to the chassis, not player picks.
+   margin-top gives them real separation from the locked-chassis hint above
+   rather than letting them read as part of that sentence. */
+.companion-chassis-properties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.companion-chassis-property {
+  display: inline-flex;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: help;
+}
+
+.companion-seal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  cursor: help;
+}
+/* .sheet-delete-btn is position:absolute by default, sized/positioned to
+   sit at a much bigger container's own top-right corner (a
+   .sheet-feature-list li, a whole card header) — this chip is too small
+   and short to contain an overlaid button that way at all (giving it its
+   own position:relative just moved the escape from "wrong ancestor" to
+   "right ancestor, but the button still visually spills past this tiny
+   chip's own edges into whatever sits next to or below it"). Reverted to
+   plain static/inline flow instead, same override shape
+   .sheet-trash-btn already uses elsewhere for an inline (non-overlay)
+   delete control. */
+.companion-seal-chip .sheet-delete-btn {
+  position: static;
+  font-size: 0.75rem;
+  opacity: 0.65;
+  padding: 0;
+}
+.companion-seal-chip .sheet-delete-btn:hover { opacity: 1; }
+.companion-seals select { font-size: 0.8rem; padding: 0.3rem 0.4rem; max-width: 12rem; }
+
+.companion-enhanced-durability-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.75rem 0; }
+.companion-enhanced-durability-hint button { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+
+/* Overrides bare .section-hint's negative top margin (tuned for sitting
+   directly under an <h1> — see this file's other overrides of the same
+   class) since this block sits right after the ability-score row instead.
+   Stacked as block children, not the durability hint's flex row, since
+   this can show two independent lines (the HP note, and either the
+   ability-bonus note or its own picker form) rather than one wrapping list
+   of buttons. */
+.companion-symphony-enhancement-hint { margin: 0.75rem 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.companion-symphony-enhancement-hint form { display: flex; align-items: center; gap: 0.5rem; }
+.companion-symphony-enhancement-hint select { font-size: 0.85rem; padding: 0.3rem 0.5rem; }
+
+/* The upgrade-option picker: a wrapping row of radio chips, one per not-yet-
+   added option. Used to be a .tooltip-list (hover to preview the
+   description) — dropped in favor of just reading the right-hand Details
+   panel (sheet-puppet-detail.js's own "change" listener on
+   upgrade_entry_slug already shows the full description there the moment an
+   option is selected, so the hover preview was pure duplication). The
+   hover box also had no viewport-edge collision detection, and a chip near
+   the right edge of a wide tier row clipped its own text off-screen — the
+   Details panel has neither problem, since it's a real page element with
+   real room instead of a small floating box. */
+.puppet-upgrade-option-list { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/* A real radio input still backs each tile (native single-selection and
+   "required" validation for free, see character_sheet.html and
+   sheet-puppet-detail.js's own click handler for the deselect-on-reclick
+   behavior a plain radio doesn't give for free) — visually hidden rather
+   than display:none so it stays focusable/keyboard-operable, with the
+   label doing 100% of the clickable tile's own look. */
+.puppet-upgrade-option-list input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.puppet-upgrade-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.puppet-upgrade-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.puppet-upgrade-option:disabled:hover { border-color: var(--panel-border); }
+.puppet-upgrade-option:hover { border-color: var(--accent); }
+/* A locked option (see puppets.go's puppet_upgrade_prereq.go) stays visible
+   rather than hidden — the player can see what an upgrade needs before
+   they've earned it — just visibly inert: dimmed, a "not-allowed" cursor
+   instead of the normal pointer, and its own hint line naming what's
+   missing right underneath, small enough not to compete with the tile's
+   own name. */
+.puppet-upgrade-option-locked { display: flex; flex-direction: column; gap: 0.2rem; max-width: 14rem; }
+.puppet-upgrade-option-locked .puppet-upgrade-option {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.puppet-upgrade-option-locked .puppet-upgrade-option:hover { border-color: var(--panel-border); }
+.puppet-upgrade-option-prereq { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
+.puppet-upgrade-option:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+.puppet-upgrade-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A chosen Tactic's full text, shown directly under the tile row (up to 2
+   at once) rather than behind a click-to-preview panel the way Puppet
+   Upgrades use — there's no comparably long list to declutter here, just 5
+   options total. */
+.puppet-tactic-detail { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--panel-border); }
+.puppet-tactic-detail h4 { margin: 0 0 0.35rem; color: var(--accent); }
+.puppet-tactic-detail:first-of-type { margin-top: 1rem; }
+
+/* Passionate Flame's / Ruin's own sub-section inside sheet_martial_techniques
+   — visually separated from the picker above it the same way
+   .puppet-tactic-detail separates a Tactic's full text from the tile row.
+   The nested .section-hint gets its own override: that class's bare form
+   carries a negative top margin tuned for sitting directly under an <h1>
+   (the same .section-hint negative-margin trap), but here it sits under an <h3>. */
+.sheet-subclass-detail { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--panel-border); }
+.sheet-subclass-detail > .section-hint { margin-top: 0.4rem; }
+
+/* Generalized Skill's own picker, above the companion card list — see
+   sheet_puppet_tab's own doc for why it's character-wide, not per-puppet. */
+.puppet-generalized-skill { margin-bottom: 1.5rem; }
+.puppet-generalized-skill h3 { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; }
+.puppet-generalized-skill select { font-size: 0.85rem; padding: 0.3rem 0.4rem; margin-right: 0.5rem; }
+
+/* Each companion card's own full 21-skill list (puppet_skills.go's
+   resolvePuppetSkills) — reuses the Core tab's own .sheet-skill-groups/
+   .sheet-skill-row/.sheet-prof-bullet classes directly (see
+   character_sheet.html's PuppetSkills block) rather than a parallel set, so
+   the two stay visually identical by construction. .companion-skill-groups/
+   .companion-skill-prof-dot are the only two spots needing their own
+   tweak: a smaller column width (a companion card is narrower than the
+   Core tab's full-width Skills box) and a non-button dot (proficiency here
+   is entirely computed, never player-toggleable, so there's no click
+   target to style as one).
+   Overriding a mismatched pointer/hover carried over from the shared
+   .sheet-prof-bullet rule, which was written for an actual <button>. */
+.companion-skills { margin-top: 1rem; }
+.companion-skill-groups { gap: 1rem; margin: 0.4rem 0 0; }
+.companion-skill-groups .sheet-skill-group { flex-basis: 160px; }
+.companion-skill-prof-dot { cursor: default; }
+.companion-skill-prof-dot:hover { border-color: var(--text-dim); }
+/* A Tactic's own pick row has no click-for-detail behavior (its full text
+   is already always shown right below it, see .puppet-tactic-detail) —
+   override .puppet-upgrade-pick's pointer cursor/hover-highlight so the row
+   doesn't visually promise an interaction it doesn't have. */
+#sheet-puppet-tactics .puppet-upgrade-pick { cursor: default; }
+#sheet-puppet-tactics .puppet-upgrade-pick:hover .puppet-upgrade-pick-name { color: inherit; }
+/* .sheet-delete-btn is position:absolute, meant to sit at its own row's
+   top-right corner — every other place that uses it wraps it in a
+   .sheet-feature-list li (position:relative there, see that rule). This is
+   the one spot that uses a bare div instead, so with no positioned
+   ancestor of its own, the button escaped all the way up to .sheet-box's
+   own position:relative and rendered pinned to the whole PANEL's top-right
+   corner — landing on top of the "Puppet Master Tactics" header itself
+   rather than next to the Tactic it actually deletes. */
+#sheet-puppet-tactics .puppet-upgrade-pick { position: relative; }
+
+/* Structured, rollable puppet attacks — replaces the old freeform textarea
+   (Puppets tab only, see companion_fields.html's ShowStructuredAttacks
+   doc). Each row is clickable for its own detail-panel preview
+   (data-detail-name, see sheet-puppet-detail.js), same cursor/hover signal
+   as an upgrade pick. */
+.companion-attacks { margin-top: 0; }
+.companion-attack-list { margin: 0.4rem 0 0.75rem; }
+.companion-attack-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; cursor: pointer; }
+.companion-attack-row:hover .companion-attack-name { color: var(--accent); }
+.companion-attack-name { flex: 1 1 auto; }
+.companion-attack-granted-hint { color: var(--text-dim); font-size: 0.75rem; font-style: italic; }
+.companion-add-attack { margin-top: 0.5rem; }
+.companion-add-attack form { display: flex; flex-direction: column; gap: 0.6rem; }
+.companion-add-attack form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-dim); }
+.companion-add-attack form button[type="submit"] { align-self: flex-start; margin-top: 0.25rem; }

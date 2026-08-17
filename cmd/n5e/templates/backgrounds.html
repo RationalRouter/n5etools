@@ -1,0 +1,20 @@
+{{define "content"}}
+<h1>Backgrounds</h1>
+<div class="entry-list">
+  {{range .Backgrounds}}
+  <div class="entry">
+    <h3><a href="/backgrounds/{{.Slug}}">{{.Name}}</a></h3>
+    {{formatDescription .Description}}
+    <dl class="fact-list">
+      {{if .FeatureName.Valid}}<dt>{{.FeatureName.String}}</dt><dd>{{.FeatureText.String}}</dd>{{end}}
+      {{if .ASIText.Valid}}<dt>Ability Score Increase</dt><dd>{{formatDescription .ASIText.String}}</dd>{{end}}
+      {{if .EquipmentText.Valid}}<dt>Equipment</dt><dd>{{.EquipmentText.String}}</dd>{{end}}
+      {{if .EquipmentPackText.Valid}}<dt>Equipment Pack</dt><dd>{{.EquipmentPackText.String}}</dd>{{end}}
+      {{range .Proficiencies}}
+      <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
+      {{end}}
+    </dl>
+  </div>
+  {{end}}
+</div>
+{{end}}

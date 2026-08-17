@@ -1,0 +1,15 @@
+{{define "content"}}
+{{with .Stance}}
+<p><a href="/stances">← All Fighting Stances</a></p>
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{$.TypeLabel}}</p>
+
+{{if .Prerequisites.Valid}}
+<dl class="fact-list">
+  <dt>Prerequisite</dt><dd>{{.Prerequisites.String}}</dd>
+</dl>
+{{end}}
+
+{{formatDescription .Description}}
+{{end}}
+{{end}}

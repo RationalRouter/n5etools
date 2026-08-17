@@ -1,0 +1,15 @@
+{{define "content"}}
+<h1>Classes</h1>
+<div class="card-grid">
+  {{range .Classes}}
+  <a class="card" href="/classes/{{.Slug}}">
+    <h2>{{.Name}}</h2>
+    <dl>
+      <dt>Hit Die</dt><dd>{{if .HitDie.Valid}}{{diceAvg (printf "d%d" .HitDie.Int64)}}{{else}}—{{end}}</dd>
+      <dt>Chakra Die</dt><dd>{{if .ChakraDie.Valid}}{{diceAvg (printf "d%d" .ChakraDie.Int64)}}{{else}}—{{end}}</dd>
+      <dt>Jutsu Tier</dt><dd>{{if .JutsuTier.Valid}}{{.JutsuTier.String}}{{else}}—{{end}}</dd>
+    </dl>
+  </a>
+  {{end}}
+</div>
+{{end}}

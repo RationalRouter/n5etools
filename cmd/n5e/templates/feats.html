@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1>Feats</h1>
+{{range .Groups}}
+<h2>{{.Category}}</h2>
+<ul class="tooltip-list">
+  {{range .Feats}}
+  <li class="tooltip" tabindex="0">
+    <a class="tooltip-trigger" href="/feats/{{.Slug}}">{{.Name}}</a>
+    <span class="tooltip-content">{{if .Prerequisites.Valid}}<strong>{{.Prerequisites.String}}</strong><br>{{end}}{{formatDescription .Description}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

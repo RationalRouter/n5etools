@@ -1,0 +1,36 @@
+{{/* Cross-links between the four static info pages (About, Bugs, FAQ,
+     Technical Overview), rendered at the bottom of each one, skipping
+     whichever page is currently active. Call with:
+       {{template "info_links" (dict "InfoPage" "about")}}
+     InfoPage must be one of "about", "bugs", "faq", "technical". */}}
+{{define "info_links"}}
+<nav class="info-links">
+  <p class="info-links-label">More about N5etools</p>
+  <div class="info-links-grid">
+    {{if ne .InfoPage "about"}}
+    <a class="info-link" href="/about">
+      <strong>About the Creator</strong>
+      <span>Who's behind this, and why it exists.</span>
+    </a>
+    {{end}}
+    {{if ne .InfoPage "bugs"}}
+    <a class="info-link" href="/bugs">
+      <strong>Bug Reports</strong>
+      <span>Something broken? Report it here.</span>
+    </a>
+    {{end}}
+    {{if ne .InfoPage "faq"}}
+    <a class="info-link" href="/faq">
+      <strong>FAQ</strong>
+      <span>Common questions, answered.</span>
+    </a>
+    {{end}}
+    {{if ne .InfoPage "technical"}}
+    <a class="info-link" href="/technical">
+      <strong>Technical Overview</strong>
+      <span>How it's built, and what's planned for 2.0.</span>
+    </a>
+    {{end}}
+  </div>
+</nav>
+{{end}}

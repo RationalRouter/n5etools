@@ -1,0 +1,32 @@
+{{define "content"}}
+<h1>Backups</h1>
+{{if .RestoreStaged}}
+<p class="page-subtitle">Restore staged. <strong>Close this tab and relaunch N5E Toolkit</strong> to finish — the app is shutting down now.</p>
+{{else}}
+<p class="page-subtitle">
+  characters.db is snapshotted automatically every 10 minutes and every time the app closes.
+  The last {{.MaxKept}} snapshots are kept.
+</p>
+<form method="post" action="/backups">
+  <button type="submit" class="btn-primary">Back Up Now</button>
+</form>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+
+<div class="character-list">
+  {{range .Backups}}
+  <div class="entry character-card">
+    <p>
+      <strong>{{.WhenLabel}}</strong><br>
+      {{.ReasonLabel}} &middot; {{.SizeLabel}}
+    </p>
+    <form method="post" action="/backups/{{.Filename}}/restore"
+          data-confirm="Restore the {{.WhenLabel}} backup? This replaces every character currently in the app with what's in this backup — a safety copy of what's here now is made first, but the app will close to finish and you'll need to relaunch it.">
+      <button type="submit" class="btn-danger">Restore this backup</button>
+    </form>
+  </div>
+  {{else}}
+  <p>No backups yet — one will be taken automatically within 10 minutes, or click "Back Up Now" above.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

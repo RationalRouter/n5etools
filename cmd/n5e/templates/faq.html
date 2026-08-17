@@ -1,0 +1,37 @@
+{{define "content"}}
+<h1>FAQ</h1>
+<p class="page-subtitle">Frequently asked questions</p>
+
+<div class="entry-list">
+  <div class="entry faq-item">
+    <h3>What exactly is N5etools?</h3>
+    <p>Think of it as a fast, searchable digital reference library for your games. It's a local web app designed to look and feel like classic 5etools, bringing the sourcebooks into one clean, responsive interface so you don't have to flip through multiple PDFs or heavy spreadsheets during a session.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>Does this replace the official N5e Google Sheets?</h3>
+    <p>Not at all! This is meant to be a companion tool. While the sheets are amazing for character building and active tracking, N5etools is designed to be the ultimate, fast-loading knowledge base for players and GMs to look up rules, jutsu, items, and features on the fly.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>How do the books stay updated?</h3>
+    <p>Behind the scenes, the app is built to automatically check for the latest versions of the text, extract the data, and update its own internal reference library. You won't need to manually import new updates when a book changes.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>Do I need an internet connection to use it?</h3>
+    <p>Once you have it downloaded and set up on your machine, it runs as a local server, meaning the core reference library works entirely offline. You'll only need internet when the app checks for new sourcebook updates.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>I found a typo or an incorrect rule. Can you fix it?</h3>
+    <p>Because the app extracts text directly from the source material, errors usually fall into two categories. If the text is wrong in the actual PDF, that's up to the N5E design team to patch. But if the app accidentally mangled the text or put a jutsu in the wrong category, that's a coding bug on my end! Please <a href="/bugs">report those</a> so I can fix the layout.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>Can you add homebrew rules or custom clans?</h3>
+    <p>Right now, the focus is entirely on getting the official, core N5E source material running perfectly and updating seamlessly. Once the foundation is rock-solid, I might look into ways for users to add their own custom data, but for now, we're sticking to the official books.</p>
+  </div>
+  <div class="entry faq-item">
+    <h3>Why did you build this if you don't even play the game?</h3>
+    <p>Short answer: I wanted to help a friend. I saw how much manual, exhausting effort went into organizing the data behind the scenes just to keep the game running smoothly for everyone. I realized I could use my programming background to automate the tedious parts, letting the creators focus on making the game fun and letting you guys focus on playing it. See <a href="/about">About the Creator</a> for the longer version, or <a href="/technical">Technical Overview</a> if you want the actual how-it-works details.</p>
+  </div>
+</div>
+
+{{template "info_links" (dict "InfoPage" "faq")}}
+{{end}}

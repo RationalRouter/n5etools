@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ryo">
+  <title>Ryo</title>
+  <!--
+    A Sengoku-era mon: the round, square-holed cash coin that actually
+    circulated in Japan through the period (the Eiraku Tsuho / Yongle
+    Tongbao pattern). Two details do the identifying work at icon size —
+    the pierced square centre and the raised rim around both the outer
+    edge and the hole, which is how these were cast and then strung
+    through the middle in bundles of a thousand.
+
+    The coin body is one evenodd path so the square is a real hole: the
+    page background shows through it rather than the icon painting a dark
+    square that would only match one theme. The four marks are the ghost
+    of the four kanji that ring the hole on the real coin — at 1rem tall
+    actual glyphs would collapse into mud, and they would need an
+    embedded CJK font to render offline besides, so they are drawn as
+    strokes.
+  -->
+  <defs>
+    <linearGradient id="mon-face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9915a"/>
+      <stop offset="0.55" stop-color="#a8703e"/>
+      <stop offset="1" stop-color="#7d4f28"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#mon-face)" fill-rule="evenodd"
+        d="M32 2a30 30 0 1 0 0 60 30 30 0 0 0 0-60Zm-9 21h18v18H23V23Z"/>
+  <circle cx="32" cy="32" r="27.5" fill="none" stroke="#5d3919" stroke-width="2.5" opacity="0.75"/>
+  <rect x="20.5" y="20.5" width="23" height="23" rx="1" fill="none" stroke="#5d3919" stroke-width="2.5" opacity="0.75"/>
+  <g fill="none" stroke="#5d3919" stroke-width="2.6" stroke-linecap="round" opacity="0.8">
+    <path d="M27.5 12.5h9M32 9v7"/>
+    <path d="M27.5 51.5h9M30 47.5l4 8"/>
+    <path d="M12.5 27.5v9M9.5 32h7"/>
+    <path d="M51.5 27.5v9M48 32h7"/>
+  </g>
+</svg>

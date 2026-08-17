@@ -1,0 +1,15 @@
+-- A free-text scratchpad on the Core tab, under Passive Perception.
+--
+-- The Bio tab already has five long-form fields, but every one of them is a
+-- named section of the character's fiction (appearance, backstory, allies,
+-- treasure) and lives a tab away from the numbers. The Core tab itself needs
+-- somewhere to put the miscellaneous things that come up mid-session — a
+-- condition that's running, what the GM said about a door, the count on a
+-- resource the rules don't track — without leaving the stats being looked
+-- at.
+--
+-- One TEXT column on characters rather than a rows table: this is one box
+-- per character with no structure to it, the same shape as the five Bio
+-- columns migration 0004 added, and it is saved the same way (whole field,
+-- on blur).
+ALTER TABLE characters ADD COLUMN notes TEXT NOT NULL DEFAULT '';

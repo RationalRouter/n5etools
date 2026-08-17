@@ -1,0 +1,19 @@
+{{/* character_clan_reference.html: the "Clan Reference" popup — reuses
+     clan_detail_card (partials/clan_detail.html, shared by the standalone
+     /clans/{slug} page and the creation-flow Clan step preview) for the
+     character's own clan. clan_reference.go's handleCharacterClanReference
+     sets .Locked on each of .Clan.Features whose level this character
+     hasn't reached yet, so the full catalog always renders (a planning
+     view, letting the player see what's coming) with not-yet-qualified
+     features dimmed via companion-reference-locked rather than removed —
+     the other two callers never set Locked, so they render exactly as
+     before. Opened the same real-separate-window way as
+     character_reference.html's own Class Reference popup
+     (reference-popup.js, [data-reference-popup]). */}}
+{{define "content"}}
+<div class="character-reference-page">
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+  <p class="clan-reference-hint">Clan Reference — every benefit {{.CharacterName}}'s clan grants. Features this character hasn't reached the level for yet are dimmed.</p>
+  {{template "clan_detail_card" .Clan}}
+</div>
+{{end}}

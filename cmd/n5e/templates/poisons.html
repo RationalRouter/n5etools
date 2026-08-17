@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>Poisons</h1>
+<p class="section-hint">Crafted with a Poison Kit during downtime — cannot be bought at a normal shop.</p>
+{{range .Groups}}
+<h2>{{.Rank}}-Rank</h2>
+<div class="entry-list">
+  {{range .Poisons}}
+  <div class="entry">
+    <h3><a href="/poisons/{{.Slug}}">{{.Name}}</a></h3>
+    <dl class="fact-list fact-list-tight">
+      <div class="fact-row"><dt>Craft DC</dt><dd>{{.CraftDC.Int64}}</dd></div>
+      {{if .CostRyo.Valid}}<div class="fact-row"><dt>Cost</dt><dd>{{.CostRyo.Float64}} Ryo</dd></div>{{end}}
+      {{if .Uses.Valid}}<div class="fact-row"><dt>Uses</dt><dd>{{.Uses.Int64}}</dd></div>{{end}}
+      {{if .Bulk.Valid}}<div class="fact-row"><dt>Bulk</dt><dd>{{.Bulk.Float64}}</dd></div>{{end}}
+    </dl>
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

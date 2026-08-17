@@ -1,0 +1,76 @@
+{{/* sheet_modifier_fields: the "ability + proficiency + flat value" composer,
+     shared by every attack that has a to-hit and a damage bonus — equipped
+     weapons and hand-written custom rows alike, and a companion's own
+     structured attacks (companion_fields.html's Attacks section) — moved
+     into its own partial file (out of character_sheet.html) specifically so
+     companion_sheet.html's own isolated template set (see templates.go —
+     it parses layout_bare.html + companion_sheet.html + partials/*.html,
+     NOT character_sheet.html) can still resolve it; html/template's
+     contextual-escaping analysis requires every {{template}} call reachable
+     in the parse tree to resolve within its own set, even one only ever
+     reached through a branch that page never takes.
+
+     Rather than a static number typed in, the player chooses proficiency +
+     ability + a custom value, with damage composed as ability + custom
+     value. The reason it is worth the extra controls is that a typed-in total goes
+     stale in silence — level up and the proficiency bonus moves, raise
+     Strength and every Strength attack moves, and a number typed once does
+     neither. Storing the parts means the sheet recomputes the total on every
+     render, the same way every other number here works.
+
+     Damage deliberately has no proficiency control: proficiency has never
+     applied to a damage roll in this system, and offering the choice would
+     imply it might.
+
+     AutoLabel is what the empty ability option is called — "Weapon default"
+     for an equipped weapon, whose properties already imply one, and "None"
+     for a custom row, which has nothing to fall back to. Expects
+     {AttackAbility, AttackProf, AttackFlat, DamageAbility, DamageFlat,
+     AutoLabel}. */}}
+{{define "sheet_modifier_fields"}}
+<div class="sheet-modifier-fields">
+  <fieldset>
+    <legend>To hit</legend>
+    <label>
+      <span>Ability</span>
+      <select name="attack_ability">
+        <option value="">{{.AutoLabel}}</option>
+        {{$chosen := .AttackAbility}}
+        {{range abilities}}
+        <option value="{{.}}"{{if eq . $chosen}} selected{{end}}>{{upper .}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>
+      <span>Proficiency</span>
+      {{$mode := .AttackProf}}
+      <select name="attack_prof">
+        <option value="full"{{if eq $mode "full"}} selected{{end}}>Full</option>
+        <option value="half"{{if eq $mode "half"}} selected{{end}}>Half</option>
+        <option value="none"{{if eq $mode "none"}} selected{{end}}>None</option>
+      </select>
+    </label>
+    <label>
+      <span>Bonus</span>
+      <input type="number" name="attack_bonus" step="1" value="{{.AttackFlat}}" aria-label="Flat attack bonus">
+    </label>
+  </fieldset>
+  <fieldset>
+    <legend>Damage</legend>
+    <label>
+      <span>Ability</span>
+      <select name="damage_ability">
+        <option value="">{{.AutoLabel}}</option>
+        {{$dchosen := .DamageAbility}}
+        {{range abilities}}
+        <option value="{{.}}"{{if eq . $dchosen}} selected{{end}}>{{upper .}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>
+      <span>Bonus</span>
+      <input type="number" name="damage_bonus" step="1" value="{{.DamageFlat}}" aria-label="Flat damage bonus">
+    </label>
+  </fieldset>
+</div>
+{{end}}

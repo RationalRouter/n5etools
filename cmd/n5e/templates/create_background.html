@@ -1,0 +1,62 @@
+{{define "content"}}
+<h1>Choose a Background</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    <div class="browse-list">
+      {{$id := .ID}}
+      {{$focus := .Focus}}
+      {{range .Backgrounds}}
+      <a class="browse-row creation-picker-row {{if eq .Slug $focus}}active{{end}}"
+         href="/characters/{{$id}}/create/background?background={{.Slug}}" data-slug="{{.Slug}}">
+        <span class="browse-row-name">{{.Name}}</span>
+      </a>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="creation-detail-pane">
+    {{if .FocusDetail}}{{template "create_background_focus" .}}{{else}}<p class="section-hint">Pick a background on the left to see its details.</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* Combined background-detail + this character's grant/choice confirm
+     form — returned whole by handleCreateBackground's ?fragment=1 branch,
+     since (like Class) the form is character-scoped. Call with the full
+     page data map (needs .ID, .Focus, .FocusDetail, .Profs). */}}
+{{define "create_background_focus"}}
+{{template "background_detail_card" .FocusDetail}}
+<form class="creation-form" method="post" action="/characters/{{.ID}}/create/background">
+  <input type="hidden" name="background_slug" value="{{.Focus}}">
+  {{range .Profs}}
+  {{if .Options}}
+  <label>Choose {{.ChooseN}} {{.Kind}}{{if gt .ChooseN 1}}s{{end}} from {{.Value}}</label>
+  {{$row := .}}
+  {{$pairs := skillOptionPairs .}}
+  <div class="kit-choice-slots">
+    {{range $slot := seq .ChooseN}}
+    {{$slotValue := index $row.SlotValues $slot}}
+    <div class="kit-choice-slot">
+      <select name="choice_{{$row.Index}}_{{$slot}}" class="background-choice-select" required>
+        <option value="">— choose —</option>
+        {{range $pairs}}
+        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slotValue}}selected{{end}}>{{.Name}}{{if .Desc}} — {{.Desc}}{{end}}</option>
+        {{end}}
+      </select>
+      {{if eq $row.Kind "tool"}}
+      <a class="creation-picker-row equipment-preview-link background-choice-preview" href="/items/" data-slug="" hidden>View stats</a>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  {{else if .IsChoice}}
+  <label for="freetext-{{.Index}}">{{.Kind}} — {{.Value}}</label>
+  <input type="text" id="freetext-{{.Index}}" name="choice_{{.Index}}" placeholder="What did you pick?">
+  {{else}}
+  <p class="grant-automatic">Grants {{.Kind}}: {{.Value}}{{if .ValueDesc}} — {{.ValueDesc}}{{end}} <span class="option-picker-epithet">(automatic)</span></p>
+  {{end}}
+  {{end}}
+  <button type="submit" class="btn-primary">Confirm {{.FocusDetail.Name}}</button>
+</form>
+{{end}}

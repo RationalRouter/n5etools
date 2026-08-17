@@ -1,0 +1,195 @@
+{{/* your_classes_panel: the character's already-chosen classes, one row
+     each, with an inline level field, an inline subclass picker (only for
+     a class with a subclass group), and a Remove button. Nothing renders
+     for a draft with no class yet. Shared by the creation flow's Class
+     step and the sheet's own Add a Class page (characters.go's
+     buildClassStepData sets .ActionBase to whichever of
+     /create/class or /sheet/class the caller is) — both are plain
+     multi-page forms, not fetch/swap fragments, so this reuses cleanly
+     between them despite the sheet otherwise being fragment-based
+     elsewhere. Expects the full page data map (needs .ID, .ActionBase,
+     .YourClasses, .LevelOptions). */}}
+{{define "your_classes_panel"}}
+{{if .YourClasses}}
+<div class="your-classes-panel">
+  <h2>Your Classes</h2>
+  <div class="your-classes-list">
+    {{$base := .ActionBase}}
+    {{$levelOpts := .LevelOptions}}
+    {{range .YourClasses}}
+    {{$c := .}}
+    <div class="your-class-row">
+      <span class="your-class-name">{{.ClassName}}</span>
+      {{/* No inline onchange here — class-level-confirm.js delegates the
+           change, since lowering a level can invalidate a subclass pick
+           (only ever gained/kept at a high-enough level) or proficiencies
+           gained at a level being dropped below, and the player gets asked
+           to confirm first. That confirm gate has to live in JS rather than
+           the usual data-confirm/confirm-submit.js pattern: this select
+           auto-submits via a real form.submit() call, which — unlike a
+           user clicking a submit button — never fires the form's own
+           `submit` event at all, so confirm-submit.js's document-level
+           listener would never see it. */}}
+      <form method="post" action="{{$base}}/level" class="your-class-inline-form">
+        <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
+        <select name="level" class="your-class-level-select" aria-label="{{.ClassName}} level">
+          {{range $levelOpts}}
+          <option value="{{.}}" {{if eq . $c.Levels}}selected{{end}}>Level {{.}}</option>
+          {{end}}
+        </select>
+      </form>
+      {{if .SubclassOptions}}
+      <form method="post" action="{{$base}}/subclass" class="your-class-inline-form">
+        <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
+        <select name="subclass_slug" class="your-class-subclass-select" onchange="this.form.submit()" aria-label="{{.ClassName}} subclass">
+          <option value="">— choose subclass —</option>
+          {{range .SubclassOptions}}
+          <option value="{{.Slug}}" {{if eq .Slug $c.SubclassSlug}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </form>
+      {{end}}
+      <form method="post" action="{{$base}}/remove" class="your-class-remove-form"
+            data-confirm="Remove {{.ClassName}}? This deletes everything it granted — proficiencies, HP/Chakra progress and any subclass pick for it — and cannot be undone.">
+        <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
+        <button type="submit" class="btn-danger btn-small">Remove</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* Combined class-detail + confirm form — returned whole by
+     handleCreateClass's ?fragment=1 branch, since (unlike Clan) the confirm
+     form here is character-scoped and can't be served by the generic
+     /classes/{slug} route. Branches three ways depending on the
+     character's existing classes: AlreadyHeld (read-only, nothing to add),
+     IsMulticlassAdd (a smaller multiclass grant), or neither (the original
+     full first-level grant). Call with the full page data map (needs .ID,
+     .ActionBase, .Focus, .FocusDetail, .SkillChoices, .ChooseN, ...). */}}
+{{define "create_class_focus"}}
+{{template "class_detail_card" .FocusDetail}}
+{{if .AlreadyHeld}}
+<p class="section-hint">Already one of your classes — remove it above to change your picks.</p>
+{{else if .IsMulticlassAdd}}
+{{template "multiclass_add_form" .}}
+{{else}}
+<form class="creation-form" method="post" action="{{.ActionBase}}" id="class-confirm-form" data-current-level="{{.CurrentLevel}}">
+  <input type="hidden" name="class_slug" value="{{.Focus}}">
+  {{/* No Level field in this form's own markup — it lives in the page
+       header (create_class.html's #creation-level-select), associated with
+       THIS form via its own form="class-confirm-form" attribute. HTML
+       resolves that reference dynamically by id, so it keeps submitting
+       correctly across creation-picker.js's fragment swaps even though the
+       actual <select> element lives outside this form's own subtree.
+       creation-picker.js reads this form's id/data-current-level to show,
+       hide and pre-fill the header control after every swap. */}}
+  {{if .SkillChoices}}
+  <label>Choose {{.ChooseN}} skills</label>
+  <div class="choice-grid">
+    {{range .SkillChoices}}
+    <label><input type="checkbox" name="skills" value="{{.Skill}}" {{if .Selected}}checked{{end}}> {{.Skill}}</label>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .ToolkitChoices}}
+  {{/* The class's tool proficiency is printed as an instruction ("Select
+       Any two Toolkits"), so it becomes that many real dropdowns of the
+       toolkit catalog — same shape as the equipment step's kit slots.
+       Without this the instruction itself was saved as the proficiency's
+       name. Field names are positional (toolkit_0, toolkit_1, …) so a
+       blank slot stays blank at its own index. */}}
+  {{$toolkits := .Toolkits}}
+  <label>Toolkit proficiencies</label>
+  <div class="kit-choice-slots">
+    {{range $i, $slot := .ToolkitChoices}}
+    <div class="kit-choice-slot">
+      <span class="option-picker-epithet">{{$slot.Prompt}}</span>
+      <select name="toolkit_{{$i}}" class="kit-choice-select" required>
+        <option value="">— choose a toolkit —</option>
+        {{/* value is the display NAME, not the slug: character_proficiencies
+             stores proficiencies by the name the book prints, and the
+             class's automatic kit grants are already stored that way. The
+             slug rides along in data-slug purely so the preview link can
+             point at /items/{slug}. */}}
+        {{range $toolkits}}
+        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slot.Chosen}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      {{/* No "View stats" link here, unlike the equipment step. That link
+           works by swapping the item card into #creation-detail-pane — but
+           on this page that pane IS this form, so previewing a toolkit
+           would destroy the class choice being made. */}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+  <button type="submit" class="btn-primary">Confirm {{.FocusDetail.Name}}</button>
+</form>
+{{end}}
+{{end}}
+
+{{/* multiclass_add_form: "add this as an additional class" — a much
+     smaller grant than the first-class form above (charstore's
+     Multiclassing Proficiencies table, not the full first-level pool), so
+     it needs at most one skill/toolkit/weapon choice rather than a whole
+     pool of them. Expects the full page data map (needs .ActionBase,
+     .Focus, .FocusDetail, .MaxLevel, .NeedsSkill/.SkillOptions,
+     .NeedsToolkit/.ToolkitOptions, .NeedsWeapon/.WeaponOptions,
+     .UnmetPrereqClasses, .Chosen*). */}}
+{{define "multiclass_add_form"}}
+{{if .UnmetPrereqClasses}}
+<p class="creation-form-error">Ability score prerequisites not currently met for: {{range $i, $name := .UnmetPrereqClasses}}{{if $i}}, {{end}}{{$name}}{{end}}. Adjust ability scores first, or submit anyway and it will be rejected.</p>
+{{end}}
+{{if le .MaxLevel 0}}
+<p class="creation-form-error">This character is already at total level 20 across their existing classes — no room for another class.</p>
+{{else}}
+<form class="creation-form" method="post" action="{{.ActionBase}}">
+  <input type="hidden" name="class_slug" value="{{.Focus}}">
+  <label for="mc-level">Starting Level in {{.FocusDetail.Name}}</label>
+  <select name="level" id="mc-level">
+    {{$current := .CurrentLevel}}
+    {{$max := .MaxLevel}}
+    {{range .LevelOptions}}
+    {{if le . $max}}
+    <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.}}</option>
+    {{end}}
+    {{end}}
+  </select>
+  <p class="section-hint">Multiclassing grants a smaller proficiency set than starting in this class — see the Multiclassing table above.</p>
+  {{if .NeedsSkill}}
+  <label for="mc-skill">Choose 1 skill</label>
+  <select name="mc_skill" id="mc-skill" required>
+    <option value="">— choose a skill —</option>
+    {{$chosen := .ChosenSkill}}
+    {{range .SkillOptions}}
+    <option value="{{.}}" {{if eq . $chosen}}selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+  {{end}}
+  {{if .NeedsToolkit}}
+  <label for="mc-toolkit">Choose 1 toolkit</label>
+  <select name="mc_toolkit" id="mc-toolkit" required>
+    <option value="">— choose a toolkit —</option>
+    {{$chosen := .ChosenToolkit}}
+    {{range .ToolkitOptions}}
+    <option value="{{.Name}}" {{if eq .Name $chosen}}selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  {{end}}
+  {{if .NeedsWeapon}}
+  <label for="mc-weapon">Choose 1 martial weapon</label>
+  <select name="mc_weapon" id="mc-weapon" required>
+    <option value="">— choose a weapon —</option>
+    {{$chosen := .ChosenWeapon}}
+    {{range .WeaponOptions}}
+    <option value="{{.Name}}" {{if eq .Name $chosen}}selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  {{end}}
+  <button type="submit" class="btn-primary">Add {{.FocusDetail.Name}} as an additional class</button>
+</form>
+{{end}}
+{{end}}

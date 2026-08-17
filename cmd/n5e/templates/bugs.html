@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>Bug Reports</h1>
+<p class="page-subtitle">Found something broken? Here's what to include.</p>
+
+<div class="prose">
+  <p>Describe the bug in as much detail as you can:</p>
+</div>
+
+<ul class="prose-list">
+  <li>What is currently happening?</li>
+  <li>How did you find the bug?</li>
+  <li>How can I replicate it?</li>
+</ul>
+
+<div class="callout">
+  <p>Ready to send it? <a class="btn-primary" href="https://docs.google.com/forms/d/e/1FAIpQLSfonWfBxEHLL0Fbx2S3g6etbe84FSHEHCtA5UMQbGNz9ltHjQ/viewform?usp=publish-editor" target="_blank" rel="noopener">Report a Bug →</a></p>
+  <p>Not sure it's actually a bug? Check the <a href="/faq">FAQ</a> first — the "I found a typo" question covers the two most common cases.</p>
+</div>
+
+{{template "info_links" (dict "InfoPage" "bugs")}}
+{{end}}

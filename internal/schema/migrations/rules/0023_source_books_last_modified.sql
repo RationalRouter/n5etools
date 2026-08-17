@@ -1,0 +1,13 @@
+-- Adds the cheap-check baseline the startup auto-updater (internal/
+-- autoupdate) needs to know whether a book's Drive copy has changed since
+-- the last ingest, without downloading it: a HEAD request's Last-Modified
+-- header (internal/fetch.HeadLastModified), stored here as RFC1123 text and
+-- compared against on every startup.
+--
+-- Nullable on purpose: every row inserted by a hand-run `n5e-ingest` (the
+-- only way any row has ever been created up to this point) has no such
+-- baseline yet. That's correct, not a gap to backfill — a NULL here simply
+-- means "treat the next auto-update check as if this book has never been
+-- checked," which harmlessly re-downloads and re-ingests once, then starts
+-- tracking normally from that point on.
+ALTER TABLE source_books ADD COLUMN drive_last_modified TEXT;

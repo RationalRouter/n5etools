@@ -1,0 +1,89 @@
+{{define "content"}}
+<h1>Choose a Clan</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    <div class="browse-list">
+      {{$id := .ID}}
+      {{$selected := .Selected}}
+      {{$focus := .Focus}}
+      {{range .Clans}}
+      <a class="browse-row creation-picker-row {{if eq .Slug $focus}}active{{end}}"
+         href="/characters/{{$id}}/create/clan?clan={{.Slug}}" data-slug="{{.Slug}}">
+        <span class="browse-row-name">{{.Name}}{{if eq .Slug $selected}} <span class="option-picker-epithet">(current)</span>{{end}}</span>
+        {{if .Epithet}}<span class="browse-row-meta">{{.Epithet}}</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="creation-detail-pane">
+    {{if .FocusDetail}}{{template "create_clan_focus" .}}{{else}}<p class="section-hint">Pick a clan on the left to see its details.</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* Combined clan-detail card + this character's ability-increase picker and
+     confirm button — returned whole by handleCreateClan's ?fragment=1
+     branch, the same way the class and background steps return theirs.
+
+     The picker has to live inside the swapped pane rather than in a fixed
+     confirm form below the layout: 16 of the 45 clans grant a CHOICE of
+     ability ("+2 Str or Dex, +1 Con"), so the controls differ per clan and a
+     form outside the fetched fragment would still be showing the previous
+     clan's options. Call with the full page data map (needs .ID, .Focus,
+     .FocusDetail, .ASIVariants, .ASIChosen, .AbilityOrder). */}}
+{{define "create_clan_focus"}}
+{{template "clan_detail_card" .FocusDetail}}
+<form class="creation-form" method="post" action="/characters/{{.ID}}/create/clan">
+  <input type="hidden" name="clan_slug" value="{{.Focus}}">
+  {{if .ASIVariants}}
+  <h3 class="creation-form-heading">Ability Score Increases</h3>
+  {{$chosen := .ASIChosen}}
+  {{$multi := gt (len .ASIVariants) 1}}
+  {{range $vi, $variant := .ASIVariants}}
+  <div class="clan-asi-variant">
+    {{/* The radio only appears when the clan really does offer more than
+         one spread — clan/non-clan is currently the only one. Everywhere
+         else the single variant is the rule, not a choice, so a radio
+         with one option would just be noise. */}}
+    {{if $multi}}
+    <label class="clan-asi-variant-label">
+      <input type="radio" name="asi_variant" value="{{$vi}}" {{if eq $vi 0}}checked{{end}}>
+      {{$variant.Label}}
+    </label>
+    {{else}}
+    <input type="hidden" name="asi_variant" value="{{$vi}}">
+    {{end}}
+    <div class="clan-asi-slots">
+      {{$picks := index $chosen $vi}}
+      {{range $si, $slot := $variant.Slots}}
+      {{$current := ""}}
+      {{if $picks}}{{$current = index $picks $si}}{{end}}
+      <label class="clan-asi-slot">
+        <span class="clan-asi-amount">{{signed $slot.Amount}}</span>
+        {{if $slot.Fixed}}
+        {{/* Nothing to decide — show the ability and post it as a hidden
+             field so the form still carries a complete answer. */}}
+        {{$only := index $slot.Options 0}}
+        <span class="clan-asi-fixed">{{abilityLabel $only}}</span>
+        <input type="hidden" name="asi_{{$vi}}_{{$si}}" value="{{$only}}">
+        {{else}}
+        <select name="asi_{{$vi}}_{{$si}}" required>
+          {{range $slot.Options}}
+          <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{abilityLabel .}}</option>
+          {{end}}
+        </select>
+        {{end}}
+      </label>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  <p class="section-hint">Each increase has to go to a different ability.</p>
+  {{else}}
+  <p class="section-hint">This clan grants no ability score increases.</p>
+  {{end}}
+  <button type="submit" class="btn-primary">Choose {{.FocusDetail.Name}}</button>
+</form>
+{{end}}

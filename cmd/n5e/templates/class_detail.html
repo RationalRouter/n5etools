@@ -1,0 +1,16 @@
+{{define "content"}}
+{{with .Class}}
+<div class="class-detail-layout">
+<div class="class-outline-column">
+<p class="class-outline-back"><a href="/classes">← All Classes</a></p>
+<nav class="class-outline" aria-label="Class page outline">
+  <h3>Outline</h3>
+  <ul id="class-outline-list"></ul>
+</nav>
+</div>
+<div class="class-detail">
+{{template "class_detail_card" .}}
+</div>
+</div>
+{{end}}
+{{end}}

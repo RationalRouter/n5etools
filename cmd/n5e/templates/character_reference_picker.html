@@ -1,0 +1,21 @@
+{{/* character_reference_picker.html: the Class Reference popup's first
+     stop for a multiclass character (handleCharacterReference — reference.go).
+     A merged, interleaved catalog across every class stopped being readable
+     once there were two or more to interleave, so a multiclass character
+     picks one class at a time instead; a single-class character never sees
+     this page at all (handleCharacterReference skips straight to
+     character_reference.html). Each link navigates within the same real,
+     separate popup window reference-popup.js already opened — no JS needed
+     here, this is a normal same-window navigation. */}}
+{{define "content"}}
+<div class="character-reference-page">
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+  <h1>Class Reference</h1>
+  <p class="section-hint">{{.CharacterName}} has levels in more than one class — choose which one to view.</p>
+  <ul class="sheet-owned-list">
+    {{range .Classes}}
+    <li><a href="/characters/{{$.CharacterID}}/reference?class={{.Slug}}">{{.Name}} <span class="option-picker-epithet">Level {{.Levels}}</span></a></li>
+    {{end}}
+  </ul>
+</div>
+{{end}}

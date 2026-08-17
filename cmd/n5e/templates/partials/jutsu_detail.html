@@ -1,0 +1,29 @@
+{{/* Jutsu detail card — shared by the /jutsu two-pane list+detail view
+     (right pane, swapped in via fetch by jutsu-filter.js) and the
+     standalone /jutsu/{slug} page. Call with a jutsuDetail. */}}
+{{define "jutsu_detail_card"}}
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{.Classification}}{{if .CategoryGroup.Valid}} — {{.CategoryGroup.String}}{{end}}{{if .Rank.Valid}} · {{.Rank.String}}-Rank{{end}}</p>
+
+{{if .ClanSlug.Valid}}<p class="section-hint">Clan-exclusive: <a href="/clans/{{.ClanSlug.String}}">{{.ClanName.String}}</a></p>{{end}}
+
+<dl class="fact-list">
+  <dt>Casting Time</dt><dd>{{.CastingTime}}</dd>
+  <dt>Range</dt><dd>{{.Range}}</dd>
+  <dt>Duration</dt><dd>{{.Duration}}</dd>
+  <dt>Components</dt><dd>{{.Components}}</dd>
+  <dt>Cost</dt><dd>{{.CostText}}</dd>
+  <dt>Keywords</dt><dd>{{.Keywords}}</dd>
+</dl>
+
+{{formatDescription .Description}}
+
+{{if .AtHigherRanks.Valid}}
+<h2>At Higher Ranks</h2>
+{{formatDescription .AtHigherRanks.String}}
+{{end}}
+
+{{if .CastableClasses}}
+<p class="section-hint">Castable by: {{range $i, $c := .CastableClasses}}{{if $i}}, {{end}}<a href="/classes/{{$c.Slug}}">{{$c.Name}}</a>{{end}}</p>
+{{end}}
+{{end}}

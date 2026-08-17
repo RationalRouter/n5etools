@@ -1,0 +1,18 @@
+{{define "content"}}
+<h1>Creating {{.Name}}</h1>
+<p class="page-subtitle">Steps can be done in any order, and revisited any time before or after finishing.</p>
+<ul class="creation-checklist">
+  {{range .Steps}}
+  <li class="{{if .Done}}step-done{{end}}">
+    <a class="creation-checklist-link" href="{{.Href}}">
+      <span class="creation-checklist-label">{{.Label}}</span>
+      <span class="step-status">{{if .Done}}Done{{else}}Not started{{end}}</span>
+    </a>
+  </li>
+  {{end}}
+</ul>
+<form class="creation-hub-finish" method="post" action="/characters/{{.ID}}/create/finish">
+  <button type="submit" class="btn-primary">Finish Creation</button>
+</form>
+<p class="page-subtitle creation-hub-back"><a href="/characters">← Back to Characters</a></p>
+{{end}}

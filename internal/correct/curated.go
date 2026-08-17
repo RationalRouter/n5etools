@@ -1,0 +1,297 @@
+package correct
+
+import "strings"
+
+// curatedCorrection is one hand-verified, context-dependent prose fix that
+// can't be expressed as a safe general rule — unlike the systematic
+// heuristics elsewhere in this package (misspell, apostrophe, hyphenspace,
+// possessive, wordconfusion), each of these is a single specific sentence
+// in a single specific entry. Every Original string below was pulled
+// directly from dist/rules.db (full-corpus audit, 2026-08-05) and is long
+// enough to be a practical non-collision with unrelated prose elsewhere in
+// the corpus. Keys are written against the text AFTER the other Sweep
+// passes have already run (see the pass order in Sweep) — where a
+// correction's original phrase overlaps ground the hyphenspace/possessive/
+// wordconfusion passes already cover (e.g. "creatures Hit Points" ->
+// "creature's Hit Points"), the Original string here already reflects that
+// post-fix form, since curatedFix runs last.
+type curatedCorrection struct {
+	Original, Corrected string
+}
+
+var curatedCorrections = []curatedCorrection{
+	// --- classes ---
+	{"different as they might be been connected by one common factor",
+		"different as they might be, are connected by one common factor"},
+	{"Shisui Uchiha and Minato Namikaze When creating a Hunter-Nin consider",
+		"Shisui Uchiha and Minato Namikaze. When creating a Hunter-Nin consider"},
+	{"Kabuto Yakushi, Orochimaru & Shizune When creating a Medical-Nin consider",
+		"Kabuto Yakushi, Orochimaru & Shizune. When creating a Medical-Nin consider"},
+	{"Hinata Hyūga, and Killer B When creating a Taijutsu Specialist consider",
+		"Hinata Hyūga, and Killer B. When creating a Taijutsu Specialist consider"},
+	{"Darui, and Sasuke Uchiha  When creating a Weapon Specialist consider",
+		"Darui, and Sasuke Uchiha. When creating a Weapon Specialist consider"},
+	{"Kabuto Yakushi & Orochimaru. INTELLIGENCE OPERATIVE When creating an Intelligence Operative consider",
+		"Kabuto Yakushi & Orochimaru. When creating an Intelligence Operative consider"},
+	{"your attack and damage rolls. creatures that are not proficient with a cooking tool",
+		"your attack and damage rolls. Creatures that are not proficient with a cooking tool"},
+
+	// --- subclasses / class options (bronze-tier upgrades etc.) ---
+	{"The jutsu gains gains the benefits of being Overcharged.",
+		"The jutsu gains the benefits of being Overcharged."},
+	{"this also also shrinks and enlarges the creature",
+		"this also shrinks and enlarges the creature"},
+	{"the Reinforced Property, with a amount equal to your Intelligence Modifier",
+		"the Reinforced Property, with an amount equal to your Intelligence Modifier"},
+	{"As an Bonus action you spend the CCD Drain of this enhancement to spin",
+		"As a Bonus action you spend the CCD Drain of this enhancement to spin"},
+	{"automatically explode when a creature enters with 10 feet of the B.I.M",
+		"automatically explode when a creature enters within 10 feet of the B.I.M"},
+	{"When denotated creatures within a 5-foot-radius sphere of the B.I.M",
+		"When detonated, creatures within a 5-foot-radius sphere of the B.I.M"},
+	{"the range you can throw B.I. Ms.", "the range you can throw B.I.Ms."},
+	{"this B.I.M when it explodes must a Dexterity saving throw",
+		"this B.I.M when it explodes must make a Dexterity saving throw"},
+	{"remove the B.I.M as a action by making a Athletics check",
+		"remove the B.I.M as an action by making an Athletics check"},
+	{"You can roll a number of your hit dice, up to half. and give that amount of hit points",
+		"You can roll a number of your hit dice, up to half, and give that amount of hit points"},
+	{"succeed a Investigation or Perception check", "succeed an Investigation or Perception check"},
+	{"All melee attacks this Corpse makes have a extended reach of 5 feet",
+		"All melee attacks this Corpse makes have an extended reach of 5 feet"},
+	{"would hit the target with a unarmed", "would hit the target with an unarmed"},
+	{"your Cooking Tool gains a additional weapon property",
+		"your Cooking Tool gains an additional weapon property"},
+	{"your cooking tool gains a additional weapon property",
+		"your cooking tool gains an additional weapon property"},
+	{"turned into a Icon for your team", "turned into an Icon for your team"},
+	{"spend 5 charges of a Armorsmith Kit", "spend 5 charges of an Armorsmith Kit"},
+	{"When you use a Enhancement with the Trick", "When you use an Enhancement with the Trick"},
+	{"how many of each B.I.M type you hold a on long rest",
+		"how many of each B.I.M type you hold on a long rest"},
+	{"your inhalants can affect even affect those who believe themselves to be immune",
+		"your inhalants can affect even those who believe themselves to be immune"},
+	{"now apply to any number creatures of your choice", "now apply to any number of creatures of your choice"},
+
+	// --- clans ---
+	{"Demons Second Coming", "Demon’s Second Coming"},
+	{"The Villages Strongest", "The Village’s Strongest"},
+	{"it has brough about an era of prosperity", "it has brought about an era of prosperity"},
+	{"each one brough about a new era of prosperity", "each one brought about a new era of prosperity"},
+	{"contracts with unknown evils from different realms to preform malicious jutsu",
+		"contracts with unknown evils from different realms to perform malicious jutsu"},
+	{"At 3rd Level, the gain access to a special form of military food pills",
+		"At 3rd Level, they gain access to a special form of military food pills"},
+	{"you can select a another Genjutsu of D-Rank or lower", "you can select another Genjutsu of D-Rank or lower"},
+	{"You gain a Burrowing Speed equal of 15 feet", "You gain a Burrowing Speed equal to 15 feet"},
+	{"Starting, at 11rd level, you tap into your innate bloodline limit",
+		"Starting, at 11th level, you tap into your innate bloodline limit"},
+	{"Beginning at 11thh level, you may select a second Nindo",
+		"Beginning at 11th level, you may select a second Nindo"},
+	{"further increased to+4 at 11th", "further increased to +4 at 11th"},
+	{"place your palm on an object no larger than10 feet in any dimension",
+		"place your palm on an object no larger than 10 feet in any dimension"},
+	{"the object sheds bright light in a20-foot radius", "the object sheds bright light in a 20-foot radius"},
+	{"increase the duration of this feature on an object effected from 10 minutes to1 hour",
+		"increase the duration of this feature on an object effected from 10 minutes to 1 hour"},
+	{"Beginning at level 11th level, constructs created with the Earth Release keyword",
+		"Beginning at 11th level, constructs created with the Earth Release keyword"},
+	{"due to you to your natural gift for speed", "due to your natural gift for speed"},
+	{"taking 4d6 fire damage or half as much on a successful. If used with a Jutsu that affects an area, you instead increase the Jutsu's range by 10 feet",
+		"taking 4d6 fire damage or half as much on a successful one. If used with a Jutsu that affects an area, you instead increase the Jutsu's range by 10 feet"},
+	{"Weapons with the Ammunition property that you creature do not need to roll ammunition die",
+		"Weapons with the Ammunition property that you create do not need to roll ammunition die"},
+	{"Beginning at 18th level, you ignore treat immunity to Fire damage as resistance",
+		"Beginning at 18th level, you treat immunity to Fire damage as resistance"},
+	{"you gain a bonus equal to half of your Wisdom modifier as you can foresee a creature’ intentions",
+		"you gain a bonus equal to half of your Wisdom modifier as you can foresee a creature’s intentions"},
+
+	// --- feats ---
+	{"Increase your Intelligence score by 1, to a maximum of • Constructs and structures you summon",
+		"Increase your Intelligence score by 1, to a maximum of 20. • Constructs and structures you summon"},
+	{"Increase your Intelligence score by 1, to a maximum of • When you are near a sufficient source of water",
+		"Increase your Intelligence score by 1, to a maximum of 20. • When you are near a sufficient source of water"},
+	{"Increase your Intelligence score by 1, to a maximum of • When you would trigger a Swirl effect",
+		"Increase your Intelligence score by 1, to a maximum of 20. • When you would trigger a Swirl effect"},
+	{"When you would choose to deal damage to a creature hit points, you increase your",
+		"When you would choose to deal damage to a creature's hit points, you increase your"},
+	{"you gain a number of temporaries hit points equal to the number of healing dice rolled",
+		"you gain a number of temporary hit points equal to the number of healing dice rolled"},
+	{"as a hive, it's queen, and its army", "as a hive, its queen, and its army"},
+	{"Increase your Wisdom score by 1, to a maximum 20.", "Increase your Wisdom score by 1, to a maximum of 20."},
+	{"select a number of Genjutsu you know equal to your Wisdom or Charisma modifier (Max. 4) and make an Wisdom or Charisma (Illusions) check",
+		"select a number of Genjutsu you know equal to your Wisdom or Charisma modifier (Max. 4) and make a Wisdom or Charisma (Illusions) check"},
+
+	// --- backgrounds ---
+	{"damaging to the people who or consigned you to exile", "damaging to the people who consigned you to exile"},
+	{"• Select Gain a feat from Chapter 13: Customization options", "• Gain a feat from Chapter 13: Customization options"},
+	{"some things its people take for granted will be to you knew wonders",
+		"some things its people take for granted will be to you new wonders"},
+	{"a poorly written map from your homeland that depict where you are in the world",
+		"a poorly written map from your homeland that depicts where you are in the world"},
+
+	// --- jutsu ---
+	{"they appear as close as possible to to intrude and attack it",
+		"they appear as close as possible to intrude and attack it"},
+	{"must make an Intelligence Saving Throw throw at disadvantage",
+		"must make an Intelligence Saving Throw at disadvantage"},
+	{"creating a shockwave of force that that expands outward", "creating a shockwave of force that expands outward"},
+	{"All creature in in range must make a Dexterity Saving Throw",
+		"All creatures in range must make a Dexterity Saving Throw"},
+	{"once per turn, you can force them to make Strength Saving Throw",
+		"once per turn, you can force them to make a Strength Saving Throw"},
+	{"After, all creatures within 5 feet of you must make Constitution Saving Throw",
+		"After, all creatures within 5 feet of you must make a Constitution Saving Throw"},
+	{"When a or a creature you can see within range would take damage",
+		"When you or a creature you can see within range would take damage"},
+	{"targeting another creature other then you", "targeting another creature other than you"},
+	{"before refusing back together with you, you do not regain", "before fusing back together with you, you do not regain"},
+	{"recast this jutsu while touching it, you refuse with it as normal",
+		"recast this jutsu while touching it, you fuse with it as normal"},
+	{"the creatures are thrown 10 feet away into a pace that can hold them",
+		"the creatures are thrown 10 feet away into a place that can hold them"},
+	{"locking them in to a deadly waltz with you", "locking them into a deadly waltz with you"},
+	{"against all creature who are experiencing bouts of fear",
+		"against all creatures who are experiencing bouts of fear"},
+	{"All creature in a 45-foot cone originating from you", "All creatures in a 45-foot cone originating from you"},
+	{"it’s damage type becomes the corresponding nature releases damage type (Water = Cold)",
+		"its damage type becomes the corresponding nature release’s damage type (Water = Cold)"},
+	{"enhance its ability to fly far and it’s damage power", "enhance its ability to fly far and its damage power"},
+	{"as an action, make a Acrobatics or Sleight of Hand Check",
+		"as an action, make an Acrobatics or Sleight of Hand Check"},
+	{"Each of the selected creatures must make a Intelligence Saving Throw",
+		"Each of the selected creatures must make an Intelligence Saving Throw"},
+	{"with an Quake Shard that’s 10 feet tall", "with a Quake Shard that’s 10 feet tall"},
+	{"Spend a number of chakras die up to a max of an amount equal to twice your proficiency bonus",
+		"Spend a number of chakra die up to a max of an amount equal to twice your proficiency bonus"},
+	{"The target must spend a equal number of chakras die",
+		"The target must spend an equal number of chakra die"},
+	{"within 10-fee of the original target", "within 10-feet of the original target"},
+	{"you can move the weapon 30 feet an make a Melee Ninjutsu Attack",
+		"you can move the weapon 30 feet and make a Melee Ninjutsu Attack"},
+	{"This jutsu’s effects end immediately if the take damage or are knocked prone",
+		"This jutsu’s effects end immediately if they take damage or are knocked prone"},
+	{"Critical Failure: Same effects a failure, but the target is also Incapacitated",
+		"Critical Failure: Same effects as a failure, but the target is also Incapacitated"},
+	{"this jutsu gains a single nature release keyword that you can cast, and additional effects base on the Nature release",
+		"this jutsu gains a single nature release keyword that you can cast, and additional effects based on the Nature release"},
+	{"Make a Melee Taijutsu Attack. On a hit deal your Weapon’s Damage. You then can choose to keep it there",
+		"Make a Melee Taijutsu Attack. On a hit, you deal your Weapon’s Damage. You then can choose to keep it there"},
+	{"Make a Melee Taijutsu Attack against a creature in range. On a hit deal your Weapon’s Damage, and they become Restrained",
+		"Make a Melee Taijutsu Attack against a creature in range. On a hit, you deal your Weapon’s Damage, and they become Restrained"},
+	{"Make two Melee Taijutsu Attack. On a hit, you your Weapon’s Damage + 2d6",
+		"Make two Melee Taijutsu Attacks. On a hit, you deal your Weapon’s Damage + 2d6"},
+	{"you impost an effect based on the damage type of the weapon used",
+		"you impose an effect based on the damage type of the weapon used"},
+	{"Make a two Ranged Taijutsu Attacks against one creature you can see within range",
+		"Make two Ranged Taijutsu Attacks against one creature you can see within range"},
+	{"You make a Melee Ninjutsu Attack on a target creature or object. On a hit creature take 3d6 Wind Damage",
+		"You make a Melee Ninjutsu Attack on a target creature or object. On a hit, the creature takes 3d6 Wind Damage"},
+	{"On a failed save creature take 11d8+11 Fire Damage and gaining 3 ranks of Burned",
+		"On a failed save, the creature takes 11d8+11 Fire Damage and gains 3 ranks of Burned"},
+	{"Critical Failure: Affected creatures takes 3d12 + Genjutsu Ability modifier psychic damage and loses concentration",
+		"Critical Failure: Affected creatures take 3d12 + Genjutsu Ability modifier psychic damage and lose concentration"},
+	{"On a failed save select creatures takes Xd4+Taijutsu ability modifier",
+		"On a failed save, the selected creatures take Xd4+Taijutsu ability modifier"},
+
+	// --- equipment (enhancement seals) ---
+	{"for the purposed of overcoming resistance and capitalizing on Vulnerabilities",
+		"for the purpose of overcoming resistance and capitalizing on Vulnerabilities"},
+
+	// --- fighting stances ---
+	{"you can use a bonus action to make a one melee weapon attack",
+		"you can use a bonus action to make one melee weapon attack"},
+	{"These attacks are still three different instances of damage, but The damage reduction applied to the total value, once.",
+		"These attacks are still three different instances of damage, but the damage reduction is applied to the total value, once."},
+	{"These attacks are still two different instances of damage, but The damage reduction applied to the total value, once.",
+		"These attacks are still two different instances of damage, but the damage reduction is applied to the total value, once."},
+	{"as your stab into an opponent’s pressure points", "as you stab into an opponent’s pressure points"},
+	{"or other special senses that doesn't rely on sight", "or other special senses that don't rely on sight"},
+	{"Each strike aiming for a creature sensitive organs attempting to cause bludgeoning damage",
+		"Each strike aiming for a creature's sensitive organs attempting to cause bludgeoning damage"},
+
+	// --- summon tribes ---
+	{"Dear are timid, docile creatures", "Deer are timid, docile creatures"},
+	{"Deer’s have access to any Jutsu", "Deer have access to any Jutsu"},
+	{"Hare/ have access to any Jutsu", "Hare/Rabbit have access to any Jutsu"},
+	{"Turtle have access to any Jutsu", "Turtles have access to any Jutsu"},
+	{"Weasel have access to any Jutsu", "Weasels have access to any Jutsu"},
+	{"Ninjutsu with without any nature release keyword", "Ninjutsu without any nature release keyword"},
+	{"They serve summoner’s that appreciate methodic planning", "They serve summoners that appreciate methodic planning"},
+	{"For the duration of this stance, to summon cannot be attacked with advantage",
+		"For the duration of this stance, this summon cannot be attacked with advantage"},
+	{"For the duration of this stance, to summon ignores Resistance",
+		"For the duration of this stance, this summon ignores Resistance"},
+	{"this summons slams it’s hooves into the ground", "this summon slams its hooves into the ground"},
+	{"Creatures who’s space it passes through must make a Strength Saving Throw",
+		"Creatures whose space it passes through must make a Strength Saving Throw"},
+	{"as a result of a bite attack swallows them whole, fully consuming them",
+		"as a result of a bite attack, it swallows them whole, fully consuming them"},
+	{"to summon 4 Broodling’s as found in the Tsuchigumo clan description",
+		"to summon 4 Broodlings as found in the Tsuchigumo clan description"},
+	{"These Broodling’s can be commanded by this summons, summoner at no action cost",
+		"These Broodlings can be commanded by this summon’s summoner at no action cost"},
+	{"When this summons, summoner casts a jutsu. This summon can spend a Jutsu slot",
+		"When this summon’s summoner casts a jutsu, this summon can spend a Jutsu slot"},
+	{"This summons, summoner can spend 1 chakra die.", "This summon’s summoner can spend 1 chakra die."},
+	{"When this summons, summoner makes a Saving Throw, it adds the summons Strength modifier to the save",
+		"When this summon’s summoner makes a Saving Throw, it adds the summon’s Strength modifier to the save"},
+	{"When this summons, summoner deals damage with a melee attack, it adds the summons Strength modifier to the damage dealt",
+		"When this summon’s summoner deals damage with a melee attack, it adds the summon’s Strength modifier to the damage dealt"},
+	{"When this summons, summoner casts a Taijutsu or Bukijutsu of B-Rank or higher",
+		"When this summon’s summoner casts a Taijutsu or Bukijutsu of B-Rank or higher"},
+	{"This summons, summoner can use this summons Saving throw bonuses, in place of their own",
+		"This summon’s summoner can use this summon’s Saving throw bonuses, in place of their own"},
+	{"before the beginning of this summons, summoner’s turn", "before the beginning of this summon’s summoner’s turn"},
+
+	// --- adversaries ---
+	{"When this Adversary cast a Jutsu that requires an attack roll",
+		"When this Adversary casts a Jutsu that requires an attack roll"},
+	{"When this Adversary cast a Ninjutsu or Genjutsu while affected by an Elemental condition",
+		"When this Adversary casts a Ninjutsu or Genjutsu while affected by an Elemental condition"},
+	{"If this Adversary is takes damage equal to its level, this trait is suppressed",
+		"If this Adversary takes damage equal to its level, this trait is suppressed"},
+	{"it instead remains standing. But is unable to Attack, cast jutsu, consume items",
+		"it instead remains standing, but is unable to Attack, cast jutsu, consume items"},
+
+	// --- bloodline latents ---
+	{"Beginning at 11th level, The range increases to 1 mile.", "Beginning at 11th level, the range increases to 1 mile."},
+	{"you can spend convert 6 calories to end either the Shocked or Chilled conditions",
+		"you can convert 6 calories to end either the Shocked or Chilled conditions"},
+	{"You must have Latent Food Insolation I", "You must have Latent Fat Insulation I"},
+	{"Beginning at 11st level, ranged attacks with shuriken", "Beginning at 11th level, ranged attacks with shuriken"},
+	{"Beginning at 18st level, ranged attacks with shuriken", "Beginning at 18th level, ranged attacks with shuriken"},
+	{"Beginning at 11rd level, you can now remake the attack roll", "Beginning at 11th level, you can now remake the attack roll"},
+	{"You must have Latent Typhoon Go with the Flow I", "You must have Latent Go with the Flow I"},
+	{"You must have Latent Typhoon Go with the Flow II", "You must have Latent Go with the Flow II"},
+	{"if you would cast a jutsu with the Earth Release or Wind Release keywords, you can, you deal a bonus damage die to creatures who’s movement speed is currently 0",
+		"if you would cast a jutsu with the Earth Release or Wind Release keywords, you can deal a bonus damage die to creatures whose movement speed is currently 0"},
+	{"You must have Latent Chakra Adept II", "You must have Latent Yin Chakra Adept II"},
+	{"You must have Master of Shadows I1", "You must have Latent Master of Shadows I"},
+	{"you gain the unique benefits associated with your damage type as if you wereth level.",
+		"you gain the unique benefits associated with your damage type as if you were 7th level."},
+	{"Beginning at 7rd level, you can use Constitution as your Ninjutsu ability modifier",
+		"Beginning at 7th level, you can use Constitution as your Ninjutsu ability modifier"},
+	{"Beginning at 7rd level, you gain 3 Scorch die (d4)", "Beginning at 7th level, you gain 3 Scorch die (d4)"},
+	{"Beginning at 15rd level, you gain 2 additional Scorch die.", "Beginning at 15th level, you gain 2 additional Scorch die."},
+	{"Beginning at 15rd level, the reduction transforms and becomes resistance",
+		"Beginning at 15th level, the reduction transforms and becomes resistance"},
+	{"Beginning at 15rd level, ranged weapon or taijutsu attacks ignore resistance",
+		"Beginning at 15th level, ranged weapon or taijutsu attacks ignore resistance"},
+}
+
+// curatedFix applies every entry above as a plain substring replacement,
+// logged the same way as the other tools. An entry that doesn't match the
+// current text (e.g. a stale key after wording upstream changes) is
+// silently a no-op — this list is meant to grow and shrink as fixes land
+// upstream, not to error when one goes stale.
+func curatedFix(s string) (string, []textDiff) {
+	var diffs []textDiff
+	for _, c := range curatedCorrections {
+		if strings.Contains(s, c.Original) {
+			s = strings.ReplaceAll(s, c.Original, c.Corrected)
+			diffs = append(diffs, textDiff{tool: "curated", original: c.Original, corrected: c.Corrected})
+		}
+	}
+	return s, diffs
+}

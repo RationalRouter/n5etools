@@ -1,0 +1,15 @@
+-- Hovering Mechanism (Puppet Master, Silver Tier, Techniques: Black, Blue,
+-- Green, Purple, Red, Perfect): "Your Puppet Tool gains 30 feet of flying
+-- speed. If your Puppet already has a flying speed, increase its flying
+-- speed by +20 feet... For those who practice the Purple technique, if your
+-- Juggernaut Armor is Weaved Mail or a Wooden Suit, increase the flying
+-- speed by +10 feet. If it is a Steel Fortress, decrease the flying speed
+-- by -10ft."
+--
+-- A flying speed is a second, independent movement speed — it cannot be
+-- folded into the existing `speed` column without losing the distinction
+-- the rules draw between them (Dash multiplies both; difficult terrain,
+-- prone, and grapples affect only the ground one). NULL, like every other
+-- stat column here, means "never set" rather than 0, so a puppet that has
+-- never had a flying speed shows nothing instead of a misleading "0 ft".
+ALTER TABLE character_companions ADD COLUMN fly_speed INTEGER;

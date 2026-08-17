@@ -1,0 +1,15 @@
+{{define "content"}}
+<h1>Fighting Stances</h1>
+{{range .Groups}}
+<h2>{{.Label}}</h2>
+<div class="entry-list">
+  {{range .Stances}}
+  <div class="entry">
+    <h3><a href="/stances/{{.Slug}}">{{.Name}}</a></h3>
+    {{if .Prerequisites.Valid}}<p class="section-hint">{{.Prerequisites.String}}</p>{{end}}
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

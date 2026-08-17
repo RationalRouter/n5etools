@@ -1,0 +1,18 @@
+{{/* Feat detail card — shared by the standalone /feats/{slug} page and the
+     character sheet's click-to-open popup, which fetches
+     /feats/{slug}?fragment=1. Call with a featDetail. */}}
+{{define "feat_detail_card"}}
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{.Category}}</p>
+
+{{if .ClanSlug.Valid}}<p class="section-hint">Clan: <a href="/clans/{{.ClanSlug.String}}">{{.ClanName.String}}</a></p>{{end}}
+{{if .ClassSlug.Valid}}<p class="section-hint">Class: <a href="/classes/{{.ClassSlug.String}}">{{.ClassName.String}}</a></p>{{end}}
+
+{{if .Prerequisites.Valid}}
+<dl class="fact-list">
+  <dt>Prerequisite</dt><dd>{{.Prerequisites.String}}</dd>
+</dl>
+{{end}}
+
+{{formatDescription .Description}}
+{{end}}

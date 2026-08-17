@@ -1,0 +1,46 @@
+{{define "content"}}
+<h1>Technical Overview</h1>
+<p class="page-subtitle">For the curious — how this thing is built, and what might come next</p>
+
+<div class="prose">
+  <p>On the technical side of the house, most of my programming knowledge is Python. I am familiar with Go and a little bit of Rust, but I'm always down to learn a new programming language and build new programs. My philosophy in programming is automation — I prefer to build programs that require little user input and automatically do things for you. Think of the small things you do every day that you could automate, like checking/filtering emails or searching the web for something <em>super</em> specific or niche. Those are the types of things I like to build, and that Python is perfectly suited for: automation, web scraping, creating/editing/parsing Excel or Word documents, updating data files, scheduled tasks, and more.</p>
+
+  <p>However, I am always looking to improve my skills, and creating N5etools is the perfect way to help out a buddy and a couple thousand other people while sharpening my old skills and learning new ones, like creating web servers, working with databases, and using a programming language or two other than Python. To that end, combined with my philosophy for automation and ease of end-user use, I decided to write N5etools in Golang, a programming language developed by Google back in 2009. Golang is widely known for being one of the best programming languages when it comes to portability, as it can compile binaries for Windows, Linux, macOS, and a bunch of other operating systems — though I expect my user base to fall into one of those three camps. If you want a build for your particular operating system and it's supported by Go, shoot me a message and I'll whip one up real quick. If it isn't supported by Go, it's going to have to wait.</p>
+
+  <p>My main concern is to bake all the source books and character creation into the program first, then polish it and add more advanced features in version 2.0.</p>
+</div>
+
+<h2>Planned for Version 2.0</h2>
+<div class="callout">
+  <p><strong>Disclaimer:</strong> being on this list does <strong>not</strong> mean any of these are guaranteed to ship in 2.0 — just things I'd like to look into.</p>
+</div>
+
+<div class="entry-list">
+  <div class="entry">
+    <h3>Multiplayer</h3>
+    <p>The whole reason the app is a local web server (auto-opened in a browser tab) rather than a native desktop program is to make this an incremental step later rather than a rewrite — a local server is already client-server under the hood, so opening it up to the network is additive, not architectural surgery. This has been on the roadmap since before v1.0 planning even started.</p>
+  </div>
+  <div class="entry">
+    <h3>Roll20 API integration</h3>
+    <p>I would like to look into Roll20 integration and see if there's a way to open up the app to that ecosystem, so that players could take what I've built and essentially ride on the backbone of Roll20 to play N5e games that way. Needs a lot of research — I'm not even sure if this one is possible at all.</p>
+  </div>
+  <div class="entry">
+    <h3>Advanced 5e tooling</h3>
+    <p>Version 1.0 doesn't have any NPC/beast/hostile tracking of any kind — it's solely based on your character creation, character sheet, and reference material to have up while you play. Future releases may add a "bestiary" compendium or similar.</p>
+  </div>
+  <div class="entry">
+    <h3>In-app PDF viewer</h3>
+    <p>Let a player or GM open the actual sourcebook PDF pages inside the app instead of needing a separate PDF reader.</p>
+  </div>
+  <div class="entry">
+    <h3>Portuguese translation</h3>
+    <p>There's a Portuguese-speaking community in the Naruto 5e Brasil Discord. Translating the app is planned for v2.0 to facilitate wider adoption. If Portuguese takes off, I might translate it into other languages too, depending on how it goes.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <p>Run into something that doesn't work the way it's described above? That's a <a href="/bugs">Bug Report</a>, not a feature request. General questions about the app are probably already covered in the <a href="/faq">FAQ</a>.</p>
+</div>
+
+{{template "info_links" (dict "InfoPage" "technical")}}
+{{end}}

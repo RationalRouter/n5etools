@@ -1,0 +1,74 @@
+{{/* Item detail card — shared by the /items two-pane list+detail view (right
+     pane, swapped in via fetch by items-filter.js) and the standalone
+     /items/{slug} page. Call with an itemRow. */}}
+{{define "item_detail_card"}}
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{.KindLabel}}</p>
+
+<dl class="fact-list fact-list-tight">
+  {{if .CostRyo.Valid}}<div class="fact-row"><dt>Cost</dt><dd>{{.CostRyo.Float64}} Ryo</dd></div>{{end}}
+  {{if .WeightLb.Valid}}<div class="fact-row"><dt>Weight</dt><dd>{{.WeightLb.Float64}} lb</dd></div>{{end}}
+  {{if .Bulk.Valid}}<div class="fact-row"><dt>Bulk</dt><dd>{{.Bulk.Float64}}</dd></div>{{end}}
+  {{if .DamageDice.Valid}}<div class="fact-row"><dt>Damage</dt><dd>{{diceAvg .DamageDice.String}}{{if .DamageType.Valid}} {{.DamageType.String}}{{end}}</dd></div>{{end}}
+  {{if .WeaponCategory.Valid}}<div class="fact-row"><dt>Category</dt><dd>{{.WeaponCategory.String}}</dd></div>{{end}}
+  {{if .AmmoDie.Valid}}<div class="fact-row"><dt>Ammo Die</dt><dd>{{diceAvg .AmmoDie.String}}</dd></div>{{end}}
+  {{if .ACBonus.Valid}}<div class="fact-row"><dt>AC Bonus</dt><dd>+{{.ACBonus.Int64}}</dd></div>{{end}}
+  {{if .ArmorCategory.Valid}}<div class="fact-row"><dt>Armor Category</dt><dd>{{.ArmorCategory.String}}</dd></div>{{end}}
+  {{if .ArmorAbilityText}}<div class="fact-row"><dt>Ability Bonus</dt><dd>{{.ArmorAbilityText}}</dd></div>{{end}}
+  {{if .ArmorMaxMod.Valid}}<div class="fact-row"><dt>Max Ability Bonus</dt><dd>+{{.ArmorMaxMod.Float64}}</dd></div>{{end}}
+  {{if .StrengthReq.Valid}}<div class="fact-row"><dt>Strength Req.</dt><dd>{{.StrengthReq.Int64}}</dd></div>{{end}}
+  {{if .StealthDisadv.Valid}}{{if .StealthDisadv.Int64}}<div class="fact-row"><dt>Stealth</dt><dd>Disadvantage</dd></div>{{end}}{{end}}
+  {{if .SaveDC.Valid}}<div class="fact-row"><dt>Save DC</dt><dd>{{.SaveDC.Int64}}</dd></div>{{end}}
+  {{if .HealText}}<div class="fact-row"><dt>Restores</dt><dd>{{diceAvg .HealText}}</dd></div>{{end}}
+  {{if .Uses.Valid}}<div class="fact-row"><dt>Uses</dt><dd>{{.Uses.Int64}}</dd></div>{{end}}
+  {{if .Charges.Valid}}<div class="fact-row"><dt>Charges</dt><dd>{{.Charges.Int64}}</dd></div>{{end}}
+  {{if .CraftDC.Valid}}<div class="fact-row"><dt>Swift Craft DC</dt><dd>{{.CraftDC.Int64}}</dd></div>{{end}}
+  {{if .BonusEffect.Valid}}<div class="fact-row"><dt>Bonus Effect</dt><dd>{{.BonusEffect.String}}</dd></div>{{end}}
+</dl>
+
+{{if .Properties}}
+<ul class="tooltip-list">
+  {{range .Properties}}
+  <li class="tooltip" tabindex="0">
+    <a class="tooltip-trigger" href="/properties/{{.Slug}}">{{.Name}}{{if .Detail.Valid}} ({{.Detail.String}}){{end}}</a>
+    <span class="tooltip-content">{{.Description}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+
+{{if .Description.Valid}}{{formatDescription .Description.String}}{{end}}
+{{/* Greater/Superior/Supreme gear prints only "See <base item>." in place
+     of a description. expandKitReference splits that into this tier's own
+     note (rendered above, when it has one) and the base item's real
+     description, shown here under a heading that keeps it clear which text
+     belongs to which — the tier's own upgrade is the Bonus Effect row in
+     the fact list above. */}}
+{{if .BaseDescription}}
+<h3 class="item-base-heading">As {{.BaseName}}</h3>
+{{formatDescription .BaseDescription}}
+{{end}}
+
+{{/* Custom items (the local item library, custom_items — see
+     charstore.CustomItem) get an inline edit form right on their detail
+     page instead of a separate creation-form reopen (the bug this
+     replaced: clicking a custom item used to just reopen the "Add custom
+     item" form again). Not character-scoped: this entry can be carried by
+     more than one character, and an edit here is visible to all of them. */}}
+{{if .IsCustom}}
+<details class="sheet-custom-attack">
+  <summary>Edit this item</summary>
+  <p class="section-hint">Changes apply everywhere this item is carried — it's a shared entry in your local item
+     library, not just this one character's copy.</p>
+  <form method="post" action="/custom-items/{{.CustomID}}/update" class="sheet-inventory-add-form">
+    <label>Name <input type="text" name="name" required value="{{.Name}}"></label>
+    <label>Type <input type="text" name="kind" placeholder="Optional — trinket, container…" value="{{.Kind}}"></label>
+    <label>Bulk <input type="number" name="bulk" min="0" step="0.1" placeholder="Optional"
+                      value="{{if .Bulk.Valid}}{{.Bulk.Float64}}{{end}}"></label>
+    <label>Description <input type="text" name="notes" placeholder="Optional" value="{{.Description.String}}"></label>
+    {{template "custom_item_rollable_fields" (dict "Item" .)}}
+    <button type="submit">Save Changes</button>
+  </form>
+</details>
+{{end}}
+{{end}}

@@ -1,0 +1,47 @@
+{{/* character_reference.html: the "Class Reference" popup — a character's
+     own full class+subclass feature catalog, read-only, opened in a real
+     separate movable browser window (reference-popup.js's window.open) the
+     same way a companion's own sheet already opens (companion-popup.js).
+     One single list in level order — general class features and subclass
+     features interleaved together exactly as they were gained, matching
+     the Core tab's own Features & Traits list, rather than two separate
+     stacked blocks. General class features render in the page's default
+     gold; subclass features carry .subclass-scope on the <li> itself so
+     they read blue instead (see app.css's own doc on the gold/blue split).
+     Locked (not yet reached) features are dimmed rather than hidden — this
+     is a rules reference, not a "what do I have right now" list. */}}
+{{define "content"}}
+<div class="character-reference-page">
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a>{{if .Multiclass}} · <a href="/characters/{{.CharacterID}}/reference">Choose a different class</a>{{end}}</p>
+  <h1>Class Reference</h1>
+
+  {{if .Reference.Features}}
+  <p class="section-hint">Every class and subclass feature this character has, in level order. Locked ones are dimmed until the character actually reaches that level.</p>
+  <ul class="sheet-feature-list">
+    {{range .Reference.Features}}
+    <li class="{{if .IsSubclass}}subclass-scope{{end}}{{if .Locked}} companion-reference-locked{{end}}">
+      <strong>{{.Name}}</strong>
+      <span class="option-picker-epithet">{{if .Level}}Level {{.Level}}{{if .Locked}} (locked){{end}}{{else}}Always on{{end}}{{if .ScalesThrough}}, scales through {{.ScalesThrough}}{{end}} · {{.SourceLabel}}</span>
+      {{formatDescription .Description}}
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="section-hint">This character has no class levels yet, so there's no reference to show here.</p>
+  {{end}}
+
+  {{range .Reference.BaseOptions}}
+  <section class="companion-reference subclass-scope">
+    <h2>{{.ClassName}} — {{.SubclassName}}: {{.ListName}}</h2>
+    <ul class="sheet-feature-list">
+      {{range .Options}}
+      <li>
+        <strong>{{.Name}}</strong>
+        {{formatDescription .Description}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
+</div>
+{{end}}

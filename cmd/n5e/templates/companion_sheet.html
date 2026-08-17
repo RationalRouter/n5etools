@@ -1,0 +1,52 @@
+{{/* companion_sheet.html: a Puppet/Summon/custom companion's own small
+     popup-window sheet — see companions.go's package doc comment for why
+     every stat here is a plain player-entered field instead of computed
+     math like the main character sheet. Opened via companion-popup.js's
+     window.open, rendered through layout_bare.html (no main nav, no dice
+     roller, none of the box-grid/library JS the main sheet needs), so it
+     stays genuinely small rather than just visually resized.
+
+     Every field autosaves on blur via companion-sheet.js, the same "whole
+     field, on blur" shape sheet-bio.js already uses for the main sheet's
+     Bio/Notes fields — there is no Save button because there is nothing to
+     explicitly submit.
+
+     Every field except HP-current belongs to ONE logical form,
+     #companion-form, declared empty up front and associated to by every
+     other field via the HTML `form="companion-form"` attribute rather than
+     DOM nesting — the layout needs the HP-current box to sit inline in the
+     AC/HP/Speed row inside its OWN separate <form> (see handleCompanionHP's
+     doc for why it can't share the whole-form-resubmit autosave the rest of
+     the fields use), and forms cannot nest, so keeping one real <form>
+     element wrapping everything was not an option. */}}
+{{define "content"}}
+<div class="companion-sheet" data-character-id="{{.CharacterID}}" data-companion-id="{{.Companion.ID}}">
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+
+  <div class="companion-header">
+    <input type="text" name="name" form="companion-form" value="{{.Companion.Name}}" required class="companion-field companion-name-field" placeholder="Companion name">
+    <span class="option-picker-epithet companion-kind-badge">{{.Companion.Kind}}</span>
+  </div>
+
+  {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" .CharacterID "FormID" "companion-form"
+              "SummonTribes" .SummonTribes "ArmorChassisOptions" .ArmorChassisOptions "BaseTraits" .BaseTraits
+              "ReadOnlyAttacks" .ReadOnlyAttacks "Attacks" .Attacks "AttacksTarget" ""
+              "ElevatedDesignBonus" .ElevatedDesignBonus "SymphonyEnhancement" .SymphonyEnhancement
+              "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName)}}
+
+  {{/* A puppet's own combat quick-reference: the resolved Puppet Skills
+       list, rollable, same as the Puppets tab. The subclass's own
+       "Puppet Master Reference" feature catalog deliberately isn't
+       repeated here anymore — it lives in its own minimized panel on the
+       main sheet instead (see character_sheet.html's
+       sheet-puppet-reference-panel), so this popup stays a lean combat
+       reference rather than duplicating the full sheet. */}}
+  {{if eq .Companion.Kind "puppet"}}{{template "puppet_skills_box" .PuppetSkills}}{{end}}
+  {{if eq .Companion.Kind "summon"}}{{template "summon_tribe_reference" .SummonReference}}{{end}}
+
+  <form method="post" action="/characters/{{.CharacterID}}/sheet/companions/{{.Companion.ID}}/delete"
+        data-confirm="Delete {{.Companion.Name}}? This cannot be undone.">
+    <button type="submit" class="btn-danger">Delete Companion</button>
+  </form>
+</div>
+{{end}}

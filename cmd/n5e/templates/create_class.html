@@ -1,0 +1,37 @@
+{{define "content"}}
+<h1>Choose a Class</h1>
+<p class="page-subtitle page-subtitle-with-level">
+  <a href="/characters/{{.ID}}/create">← Back to checklist</a>
+  {{/* Hidden by default, shown by creation-picker.js only when the focused
+       class's fragment has a #class-confirm-form to attach to (a brand
+       first-level pick) — not shown for an already-held class or a
+       multiclass add, which don't use this field (see class_picker.html). */}}
+  <label class="page-level-picker" id="creation-level-picker" hidden>
+    Starting Level
+    <select id="creation-level-select" name="level" form="class-confirm-form">
+      {{range .LevelOptions}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+  </label>
+</p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+{{template "your_classes_panel" .}}
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    <div class="browse-list">
+      {{$id := .ID}}
+      {{$focus := .Focus}}
+      {{$held := .HeldSlugs}}
+      {{range .Classes}}
+      <a class="browse-row creation-picker-row {{if eq .Slug $focus}}active{{end}}{{if index $held .Slug}} held{{end}}"
+         href="/characters/{{$id}}/create/class?class={{.Slug}}" data-slug="{{.Slug}}">
+        <span class="browse-row-name">{{.Name}}</span>
+        {{if index $held .Slug}}<span class="browse-row-badge">yours</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="creation-detail-pane">
+    {{if .FocusDetail}}{{template "create_class_focus" .}}{{else}}<p class="section-hint">Pick a class on the left to see its details.</p>{{end}}
+  </div>
+</div>
+{{end}}

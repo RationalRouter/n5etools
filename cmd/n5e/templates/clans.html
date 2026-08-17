@@ -1,0 +1,15 @@
+{{define "content"}}
+<h1>Clans</h1>
+<div class="card-grid">
+  {{range .Clans}}
+  <a class="card" href="/clans/{{.Slug}}">
+    <h2>{{.Name}}</h2>
+    <p class="card-epithet">{{.Epithet}}</p>
+    <dl>
+      <dt>Speed</dt><dd>{{if .SpeedFeet.Valid}}{{.SpeedFeet.Int64}} ft{{else}}—{{end}}</dd>
+      <dt>Extra Language</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
+    </dl>
+  </a>
+  {{end}}
+</div>
+{{end}}

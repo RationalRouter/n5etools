@@ -1,0 +1,114 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} — N5etools</title>
+  <link rel="stylesheet" href="/static/css/app.css?v={{assetVersion}}">
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="/">N5etools</a>
+    <div class="nav-links">
+      <a href="/characters">Characters</a>
+      <a href="/backups">Backups</a>
+      <a href="/clans">Clans</a>
+      <a href="/jutsu">Jutsu</a>
+      <a href="/classes">Classes</a>
+      <a href="/feats">Feats</a>
+      <a href="/backgrounds">Backgrounds</a>
+      <a href="/stances">Stances</a>
+      <a href="/seals">Seals</a>
+      <a href="/items">Items</a>
+      <a href="/properties">Properties</a>
+      <a href="/traps">Traps</a>
+      <a href="/poisons">Poisons</a>
+    </div>
+    <div class="nav-info">
+      <a href="/about">About the Creator</a>
+      <a href="/bugs">Bug Reports</a>
+      <a href="/faq">FAQ</a>
+      <a href="/technical">Technical Overview</a>
+    </div>
+    <div class="nav-search">
+      <input type="search" id="site-search" placeholder="Search everything…" autocomplete="off" aria-label="Search">
+      <ul id="site-search-results" class="search-results" hidden></ul>
+      <div id="search-tooltip" hidden></div>
+    </div>
+  </nav>
+  <main class="content">
+    {{template "content" .}}
+  </main>
+  <footer class="site-footer">Created and maintained by RationalRouter and Claude</footer>
+  {{/* Hidden until static/js/back-to-top.js shows it past a scroll
+       threshold — most pages never scroll far enough for it to appear at
+       all, so this needs no per-page "is this one long enough" judgment
+       call (the Classes page with several subclasses selected, a long
+       character sheet tab, a big Feats/Items list all just naturally
+       trigger it on their own). */}}
+  {{/* No [hidden] attribute — app.css starts it at opacity:0/visibility:
+       hidden so back-to-top.js's scroll-triggered class toggle can fade it
+       in/out, which display:none (what [hidden] maps to) can't animate. */}}
+  <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  {{template "dice_roller" .}}
+  {{/* First, so its capture-phase listener is registered before any
+       fetch-and-swap submit handler further down can act on a form it
+       needs to gate. */}}
+  <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/search.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/back-to-top.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/subclass-tabs.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/class-outline.js?v={{assetVersion}}" defer></script>
+  {{/* Before both of its callers (items-filter.js and sheet-library.js) —
+       defer keeps execution in document order, and each of them reaches for
+       window.n5eEquipmentSubfilters as it initialises. */}}
+  <script src="/static/js/equipment-subfilter.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/items-filter.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/jutsu-filter.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/creation-picker.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/class-level-confirm.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/create-abilities.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/create-background.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/create-equipment.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/create-jutsu.js?v={{assetVersion}}" defer></script>
+  {{/* Both before dice-roller.js, and solids before dice3d: defer keeps
+       execution in document order, dice3d.js reads window.n5eDiceSolids as
+       it builds meshes, and dice-roller.js reaches for window.n5eDice3D as
+       it initialises. Same dependency rule as equipment-subfilter.js above. */}}
+  <script src="/static/js/dice3d-solids.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/dice3d.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/dice-roller.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/character-sheet.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-tabs.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-popup.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-refresh.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-vitals.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-jutsu-upcast.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-toggles.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-asi-choice.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-option-tooltip.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-chat.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-bio.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-portrait.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-calculator.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-abilities.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-rest.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-inventory.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/companion-fields.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/companion-popup.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/reference-popup.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-puppets.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-puppet-detail.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-option-tile-deselect.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-jutsu-fetch.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-library.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-grid.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-layout.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-subgrid.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/alive.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/heartbeat.js?v={{assetVersion}}" defer></script>
+</body>
+</html>
+{{end}}

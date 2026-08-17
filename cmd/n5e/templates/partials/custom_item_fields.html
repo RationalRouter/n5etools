@@ -1,0 +1,36 @@
+{{/* custom_item_rollable_fields: the "mark this custom item as a weapon/
+     toolkit/other rollable" block (custom_items.rollable_kind — see
+     charstore.CustomItem's doc comment), shared by the Inventory tab's "Add
+     custom item" form (character_sheet.html's sheet_custom_inventory_fields
+     — Item is always false there, since editing moved to the item's own
+     detail page) and a library entry's own edit form on that detail page
+     (item_detail_card's IsCustom block below — Item is the loaded itemRow).
+
+     Weapon is the only rollable kind with its own fields here (damage dice,
+     type, properties) because it is the only one buildAttacks reads
+     directly off custom_items — Toolkit and Other are wired into existing
+     per-character mechanisms instead (a character_proficiencies row, or a
+     character_custom_attacks row) the moment the item is created, with
+     nothing extra to configure at creation time. Expects {Item}. */}}
+{{define "custom_item_rollable_fields"}}
+{{$rk := ""}}{{$dc := 0}}{{$ds := 0}}{{$dt := ""}}{{$props := ""}}
+{{with .Item}}{{$rk = .RollableKind}}{{$dc = .DamageCount}}{{$ds = .DamageSides}}{{$dt = .DamageType.String}}{{$props = .PropertiesText}}{{end}}
+<fieldset class="sheet-custom-attack-kind">
+  <legend class="sheet-vitals-label">Rollable</legend>
+  <label><input type="radio" name="rollable_kind" value="" {{if eq $rk ""}}checked{{end}}> None</label>
+  <label><input type="radio" name="rollable_kind" value="weapon" {{if eq $rk "weapon"}}checked{{end}}> Weapon</label>
+  <label><input type="radio" name="rollable_kind" value="toolkit" {{if eq $rk "toolkit"}}checked{{end}}> Toolkit</label>
+  <label><input type="radio" name="rollable_kind" value="other" {{if eq $rk "other"}}checked{{end}}> Other rollable</label>
+</fieldset>
+<div class="sheet-custom-attack-damage">
+  <span class="sheet-vitals-label">Damage dice (weapon only)</span>
+  <input type="number" name="damage_count" min="0" placeholder="1" aria-label="Number of damage dice"
+         value="{{if $dc}}{{$dc}}{{end}}">
+  <span class="sheet-custom-attack-d">d</span>
+  <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="Damage die size"
+         value="{{if $ds}}{{$ds}}{{end}}">
+  <input type="text" name="damage_type" placeholder="Slashing" aria-label="Damage type (weapon only)" value="{{$dt}}">
+</div>
+<label>Weapon properties <input type="text" name="properties" placeholder="Optional — finesse, thrown… (weapon only)"
+                    value="{{$props}}"></label>
+{{end}}

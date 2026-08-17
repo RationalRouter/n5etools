@@ -1,0 +1,78 @@
+{{define "content"}}
+<h1>Jutsu</h1>
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    <div class="items-toolbar">
+      <input type="search" id="jutsu-search" placeholder="Filter jutsu…" autocomplete="off" aria-label="Filter jutsu">
+      <div class="dropdown-filter" id="jutsu-category-filter">
+        <button type="button" id="jutsu-category-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Categories ▾</button>
+        <div id="jutsu-category-panel" class="dropdown-panel" hidden></div>
+      </div>
+      <div class="dropdown-filter" id="jutsu-details-filter">
+        <button type="button" id="jutsu-details-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Filters ▾</button>
+        <div id="jutsu-details-panel" class="dropdown-panel dropdown-panel-wide" hidden>
+          <div class="dropdown-panel-section-heading">Range</div>
+          <div class="range-slider" id="jutsu-range-slider">
+            <div class="range-slider-track"><div class="range-slider-track-fill" id="jutsu-range-fill"></div></div>
+            <input type="range" id="jutsu-range-min" min="0" max="0" value="0" step="1" aria-label="Minimum range">
+            <input type="range" id="jutsu-range-max" min="0" max="0" value="0" step="1" aria-label="Maximum range">
+          </div>
+          <div class="range-slider-labels">
+            <span id="jutsu-range-min-label"></span>&ndash;<span id="jutsu-range-max-label"></span>
+          </div>
+          <label class="dropdown-panel-item range-slider-item">
+            <input type="checkbox" id="jutsu-range-include-special" checked>
+            Include Weapon Range / Movement Speed / Special
+          </label>
+
+          <div class="dropdown-panel-section-heading">Duration</div>
+          <div class="dropdown-panel-section-actions">
+            <button type="button" id="jutsu-duration-select-all">Select all</button>
+            <button type="button" id="jutsu-duration-deselect-all">Deselect all</button>
+          </div>
+          <div id="jutsu-duration-filters"></div>
+
+          <div class="dropdown-panel-section-heading">Components</div>
+          <div id="jutsu-component-filters"></div>
+        </div>
+      </div>
+    </div>
+    <div class="source-tiles" id="jutsu-source-tiles">
+      {{range .SourceTiles}}
+      <button type="button" class="source-tile active" data-source="{{.Slug}}">{{.Title}}</button>
+      {{end}}
+    </div>
+    <div class="items-kind-filters" id="jutsu-rank-filters"></div>
+    <div class="items-kind-filters" id="jutsu-action-filters"></div>
+    <div class="browse-list" id="browse-list">
+      {{range .Groups}}
+      <div data-jutsu-group>
+        <h3 class="browse-group-heading">{{.Classification}}</h3>
+        {{range .Subgroups}}
+        <div data-jutsu-subgroup>
+          {{if .Label}}<h4 class="browse-group-heading">{{.Label}}</h4>{{end}}
+          {{range .Entries}}
+          <a class="browse-row" href="/jutsu/{{.Slug}}"
+             data-slug="{{.Slug}}" data-name="{{.Name}}" data-description="{{.Description}}"
+             data-classification="{{.Classification}}"
+             data-category="{{if .CategoryGroup.Valid}}{{.CategoryGroup.String}}{{else}}{{.Classification}}{{end}}"
+             data-source="{{.SourceBook}}" data-rank="{{.Rank.String}}"
+             data-casting-action="{{.CastingAction}}"
+             data-duration="{{.DurationLabel}}" data-duration-order="{{.DurationOrder}}"
+             data-range-feet="{{.RangeFeet}}" data-range-numeric="{{.RangeNumeric}}" data-range-special="{{.RangeSpecial}}"
+             data-components="{{range .Components}}{{.}} {{end}}">
+            <span class="browse-row-name">{{.Name}}</span>
+            {{if .Rank.Valid}}<span class="browse-row-meta">{{.Rank.String}}-Rank</span>{{end}}
+          </a>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="browse-detail-pane">
+    {{if .Selected}}{{template "jutsu_detail_card" .Selected}}{{else}}<p class="section-hint">No jutsu to show.</p>{{end}}
+  </div>
+</div>
+{{end}}

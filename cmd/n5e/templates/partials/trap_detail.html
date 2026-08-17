@@ -1,0 +1,17 @@
+{{/* Trap detail card — shared by the standalone /traps/{slug} page and the
+     character sheet's click-to-open popup, which fetches
+     /traps/{slug}?fragment=1. Call with a trapRow. */}}
+{{define "trap_detail_card"}}
+<h1>{{.Name}}</h1>
+
+<dl class="fact-list">
+  <dt>Build DC</dt><dd>{{.BuildDC.Int64}}</dd>
+  {{if .SaveDC.Valid}}<dt>Save DC</dt><dd>{{.SaveDC.Int64}}</dd>{{end}}
+  {{if .NoticeDisableDC.Valid}}<dt>Notice/Disable DC</dt><dd>{{.NoticeDisableDC.Int64}}</dd>{{end}}
+  {{if .VsAbility.Valid}}<dt>Vs. Ability</dt><dd>{{.VsAbility.String}}</dd>{{end}}
+  {{if .TimeToBuild.Valid}}<dt>Time to Build</dt><dd>{{.TimeToBuild.String}}</dd>{{end}}
+  <dt>Toolkit Required</dt><dd>{{.ToolkitRequired}}</dd>
+</dl>
+
+{{formatDescription .Description}}
+{{end}}

@@ -1,0 +1,9 @@
+{{/* Shared hover/focus tooltip chip. Call with:
+       {{template "tooltip" (dict "Trigger" .Name "Body" (formatDescription .Description))}}
+     Trigger and Body may be template.HTML (pre-formatted) or plain strings. */}}
+{{define "tooltip"}}
+<li class="tooltip" tabindex="0">
+  <span class="tooltip-trigger">{{.Trigger}}</span>
+  <span class="tooltip-content">{{.Body}}</span>
+</li>
+{{end}}

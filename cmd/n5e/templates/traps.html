@@ -1,0 +1,20 @@
+{{define "content"}}
+<h1>Traps</h1>
+<p class="section-hint">Built with a Toolkit during downtime, not purchased — see each trap's required Toolkit below. All traps begin at D-Rank; every rank increase adds +4 to the Build DC, +2 to the Save/Notice DC, and +1 damage die.</p>
+<div class="entry-list">
+  {{range .Traps}}
+  <div class="entry">
+    <h3><a href="/traps/{{.Slug}}">{{.Name}}</a></h3>
+    <dl class="fact-list fact-list-tight">
+      <div class="fact-row"><dt>Build DC</dt><dd>{{.BuildDC.Int64}}</dd></div>
+      {{if .SaveDC.Valid}}<div class="fact-row"><dt>Save DC</dt><dd>{{.SaveDC.Int64}}</dd></div>{{end}}
+      {{if .NoticeDisableDC.Valid}}<div class="fact-row"><dt>Notice/Disable DC</dt><dd>{{.NoticeDisableDC.Int64}}</dd></div>{{end}}
+      {{if .VsAbility.Valid}}<div class="fact-row"><dt>Vs. Ability</dt><dd>{{.VsAbility.String}}</dd></div>{{end}}
+      {{if .TimeToBuild.Valid}}<div class="fact-row"><dt>Time to Build</dt><dd>{{.TimeToBuild.String}}</dd></div>{{end}}
+      <div class="fact-row"><dt>Toolkit Required</dt><dd>{{.ToolkitRequired}}</dd></div>
+    </dl>
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>New Character</h1>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+<form class="creation-form" method="post" action="/characters">
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" autofocus required>
+  <button type="submit" class="btn-primary">Start Creating</button>
+</form>
+{{end}}

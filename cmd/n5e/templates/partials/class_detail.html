@@ -1,0 +1,171 @@
+{{/* Class detail card — shared by the standalone /classes/{slug} page (inside
+     its outline-column wrapper) and the character-creation Class step's
+     two-pane preview (right pane, swapped in via fetch, no outline wrapper).
+     Call with a classDetail. Note: subclass-tile switching (subclass-tabs.js)
+     wires up once at page load — inside a fetched fragment it stays inert,
+     so subclass-specific feature/option content stays collapsed there; base
+     class info (dice, proficiencies, equipment, levels, feats, general
+     features) is unaffected. */}}
+{{define "class_detail_card"}}
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{if .JutsuTier.Valid}}{{.JutsuTier.String}} jutsu tier{{end}}</p>
+
+{{if .Description.Valid}}<p class="overview">{{.Description.String}}</p>{{end}}
+
+<dl class="fact-list">
+  <dt>Hit Die</dt><dd>{{if .HitDie.Valid}}{{diceAvg (printf "d%d" .HitDie.Int64)}}{{else}}—{{end}}</dd>
+  <dt>Chakra Die</dt><dd>{{if .ChakraDie.Valid}}{{diceAvg (printf "d%d" .ChakraDie.Int64)}}{{else}}—{{end}}</dd>
+  {{if .QuickBuild.Valid}}<dt>Quick Build</dt><dd>{{.QuickBuild.String}}</dd>{{end}}
+</dl>
+
+{{if .Casting}}
+<h2>Casting</h2>
+<dl class="fact-list">
+  {{range .Casting}}
+  <dt>{{.Discipline}}</dt><dd>{{.Ability}}</dd>
+  {{end}}
+</dl>
+{{end}}
+
+{{if .Proficiencies}}
+<h2>Proficiencies</h2>
+<dl class="fact-list">
+  {{range .Proficiencies}}
+  <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
+  {{end}}
+</dl>
+{{end}}
+
+{{if .Equipment}}
+<h2>Starting Equipment</h2>
+<ul class="plain-list">
+  {{range .Equipment}}
+  <li>{{range $i, $c := .Choices}}{{if $i}} — or {{end}}{{$c}}{{end}}</li>
+  {{end}}
+</ul>
+{{end}}
+
+{{if .MulticlassRules}}
+<h2>Multiclassing</h2>
+<dl class="fact-list">
+  <dt>Ability Prerequisite</dt><dd>{{.MulticlassRules.AbilityPrereqText}}</dd>
+  <dt>Proficiencies Gained</dt><dd>{{.MulticlassRules.ProficienciesText}}</dd>
+  <dt>Jutsu per Level</dt><dd>{{.MulticlassRules.JutsuPerLevelText}}</dd>
+</dl>
+{{end}}
+
+{{if .Levels}}
+<h2>Class Levels</h2>
+<div class="table-scroll">
+<table class="data-table class-level-table">
+  <thead>
+    <tr>
+      <th>Level</th><th>Proficiency Bonus</th><th>Features</th>
+      {{range .ResourceColumns}}<th>{{.}}</th>{{end}}
+      <th>Jutsu Known</th><th>Highest Rank Known</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Levels}}
+    <tr>
+      <td>{{.Level}}</td>
+      <td>{{if .ProficiencyBonus.Valid}}+{{.ProficiencyBonus.Int64}}{{else}}—{{end}}</td>
+      <td>{{if .Features.Valid}}{{.Features.String}}{{else}}—{{end}}</td>
+      {{range .ResourceValues}}<td>{{if .}}{{diceAvg .}}{{else}}—{{end}}</td>{{end}}
+      <td>{{if .JutsuKnown.Valid}}{{.JutsuKnown.Int64}}{{else}}—{{end}}</td>
+      <td>{{if .HighestRankKnown.Valid}}{{.HighestRankKnown.String}}{{else}}—{{end}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{if .Feats}}
+<h2>Class Feats</h2>
+<ul class="tooltip-list">
+  {{range .Feats}}
+  <li class="tooltip" tabindex="0">
+    <a class="tooltip-trigger" href="/feats/{{.Slug}}">{{.Name}}</a>
+    <span class="tooltip-content">{{if .Prerequisites.Valid}}<strong>{{.Prerequisites.String}}</strong><br>{{end}}{{formatDescription .Description}}</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+
+{{range .SubclassGroups}}
+<h2>{{.DisplayName}}{{if .SelectionLevels.Valid}} <span class="entry-level">(chosen at level {{.SelectionLevels.String}})</span>{{end}}</h2>
+{{if .Description.Valid}}<p class="overview">{{.Description.String}}</p>{{end}}
+{{if .Subclasses}}
+<div class="subclass-tiles" role="group" aria-label="Select subclasses to compare">
+  {{range .Subclasses}}
+  <button type="button" class="subclass-tile" data-subclass="{{.Slug}}" aria-pressed="false">{{.Name}}</button>
+  {{end}}
+</div>
+{{range .Subclasses}}
+{{if .Description.Valid}}
+<div class="subclass-scope subclass-heading" data-subclass="{{.Slug}}" hidden>
+  <h2>{{.Name}}</h2>
+  <p class="overview">{{.Description.String}}</p>
+</div>
+{{end}}
+{{end}}
+{{end}}
+{{end}}
+
+{{if .LevelFeatures}}
+<h2>Class Features</h2>
+<div class="entry-list">
+  {{range .LevelFeatures}}
+  <div class="level-feature-group">
+    {{range .Entries}}
+    <div class="entry{{if .SubclassSlug}} subclass-scope{{end}}"{{if .SubclassSlug}} data-subclass="{{.SubclassSlug}}" hidden{{end}}>
+      {{if .SubclassSlug}}
+      <h3>{{.SubclassName}}: {{if .Level.Valid}}Level {{.Level.Int64}}: {{end}}{{.Name}}</h3>
+      {{else}}
+      <h3>{{.Name}}</h3>
+      {{if .Level.Valid}}<p class="entry-level-note">Level {{.Level.Int64}} feature</p>{{end}}
+      {{end}}
+      {{formatDescription .Description}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{range .SubclassGroups}}
+{{range .Subclasses}}
+{{if .Options}}
+{{$subName := .Name}}
+<div class="subclass-scope" data-subclass="{{.Slug}}" hidden>
+  {{range .Options}}
+  <h3 class="options-list-heading">{{.ListName}} <span class="entry-level">({{$subName}})</span></h3>
+  <div class="entry-list">
+    {{range .Options}}
+    <div class="entry">
+      <h3>{{.Name}}</h3>
+      {{if .Prerequisites.Valid}}<p class="entry-level-note">{{.Prerequisites.String}}</p>{{end}}
+      {{formatDescription .Description}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}
+
+{{range .Options}}
+<h2>{{.ListName}}</h2>
+<div class="entry-list">
+  {{range .Options}}
+  <div class="entry">
+    <h3>{{.Name}}{{if .SubclassName.Valid}} <span class="entry-level">({{.SubclassName.String}})</span>{{end}}</h3>
+    {{if .Prerequisites.Valid}}<p class="entry-level-note">{{.Prerequisites.String}}</p>{{end}}
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

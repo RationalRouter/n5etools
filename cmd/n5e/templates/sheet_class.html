@@ -1,0 +1,25 @@
+{{define "content"}}
+<h1>Add a Class</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}">← Back to sheet</a></p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+{{template "your_classes_panel" .}}
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    <div class="browse-list">
+      {{$id := .ID}}
+      {{$focus := .Focus}}
+      {{$held := .HeldSlugs}}
+      {{range .Classes}}
+      <a class="browse-row creation-picker-row {{if eq .Slug $focus}}active{{end}}{{if index $held .Slug}} held{{end}}"
+         href="/characters/{{$id}}/sheet/class?class={{.Slug}}" data-slug="{{.Slug}}">
+        <span class="browse-row-name">{{.Name}}</span>
+        {{if index $held .Slug}}<span class="browse-row-badge">yours</span>{{end}}
+      </a>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="creation-detail-pane">
+    {{if .FocusDetail}}{{template "create_class_focus" .}}{{else}}<p class="section-hint">Pick a class on the left to see its details.</p>{{end}}
+  </div>
+</div>
+{{end}}

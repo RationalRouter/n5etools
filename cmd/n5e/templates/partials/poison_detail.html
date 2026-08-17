@@ -1,0 +1,17 @@
+{{/* Poison detail card — shared by the standalone /poisons/{slug} page and
+     the character sheet's click-to-open popup, which fetches
+     /poisons/{slug}?fragment=1. Same split, and the same reason for it, as
+     partials/item_detail.html. Call with a poisonRow. */}}
+{{define "poison_detail_card"}}
+<h1>{{.Name}}</h1>
+{{if .PoisonRank.Valid}}<p class="card-epithet">{{.PoisonRank.String}}-Rank</p>{{end}}
+
+<dl class="fact-list">
+  <dt>Craft DC</dt><dd>{{.CraftDC.Int64}}</dd>
+  {{if .CostRyo.Valid}}<dt>Cost</dt><dd>{{.CostRyo.Float64}} Ryo</dd>{{end}}
+  {{if .Uses.Valid}}<dt>Uses</dt><dd>{{.Uses.Int64}}</dd>{{end}}
+  {{if .Bulk.Valid}}<dt>Bulk</dt><dd>{{.Bulk.Float64}}</dd>{{end}}
+</dl>
+
+{{formatDescription .Description}}
+{{end}}

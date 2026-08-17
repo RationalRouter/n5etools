@@ -1,0 +1,105 @@
+{{define "content"}}
+<h1>Learn Jutsu</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
+
+{{if not .Jutsu}}
+<p class="callout">Choose a class first — its available jutsu will show up here.</p>
+{{else}}
+<p class="page-subtitle">
+  {{if ge .JutsuKnown 0}}Choose up to {{.JutsuKnown}} jutsu at level {{.Level}}.{{else}}No known-jutsu limit found for this class/level — pick as many as apply.{{end}}
+  Your clan's own jutsu are in this list too, marked <span class="jutsu-source-badge">Clan</span> — the book has you take them <em>instead of</em> jutsu from the normal lists, so they come out of the same allowance.
+</p>
+<form method="post" action="/characters/{{.ID}}/create/jutsu">
+<div class="browse-layout">
+  <div class="browse-list-pane">
+    {{/* Same filter controls, in the same order, as the /jutsu library page
+         — jutsu-filter.js drives both from one implementation, keyed on the
+         "create-jutsu-" id prefix here versus "jutsu-" there. Anything added
+         to one toolbar has to be added to the other with the matching id, or
+         that control silently does nothing on this page. */}}
+    <div class="items-toolbar">
+      <input type="search" id="create-jutsu-search" placeholder="Filter jutsu…" autocomplete="off" aria-label="Filter jutsu">
+      <div class="dropdown-filter" id="create-jutsu-category-filter">
+        <button type="button" id="create-jutsu-category-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Categories ▾</button>
+        <div id="create-jutsu-category-panel" class="dropdown-panel" hidden></div>
+      </div>
+      <div class="dropdown-filter" id="create-jutsu-details-filter">
+        <button type="button" id="create-jutsu-details-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Filters ▾</button>
+        <div id="create-jutsu-details-panel" class="dropdown-panel dropdown-panel-wide" hidden>
+          <div class="dropdown-panel-section-heading">Range</div>
+          <div class="range-slider" id="create-jutsu-range-slider">
+            <div class="range-slider-track"><div class="range-slider-track-fill" id="create-jutsu-range-fill"></div></div>
+            <input type="range" id="create-jutsu-range-min" min="0" max="0" value="0" step="1" aria-label="Minimum range">
+            <input type="range" id="create-jutsu-range-max" min="0" max="0" value="0" step="1" aria-label="Maximum range">
+          </div>
+          <div class="range-slider-labels">
+            <span id="create-jutsu-range-min-label"></span>&ndash;<span id="create-jutsu-range-max-label"></span>
+          </div>
+          <label class="dropdown-panel-item range-slider-item">
+            <input type="checkbox" id="create-jutsu-range-include-special" checked>
+            Include Weapon Range / Movement Speed / Special
+          </label>
+
+          <div class="dropdown-panel-section-heading">Duration</div>
+          <div class="dropdown-panel-section-actions">
+            <button type="button" id="create-jutsu-duration-select-all">Select all</button>
+            <button type="button" id="create-jutsu-duration-deselect-all">Deselect all</button>
+          </div>
+          <div id="create-jutsu-duration-filters"></div>
+
+          <div class="dropdown-panel-section-heading">Components</div>
+          <div id="create-jutsu-component-filters"></div>
+        </div>
+      </div>
+      <div class="jutsu-select-actions">
+        <button type="button" id="create-jutsu-select-all">Select all</button>
+        <button type="button" id="create-jutsu-deselect-all">Deselect all</button>
+      </div>
+      <span class="jutsu-selected-count" id="create-jutsu-count" data-known="{{.JutsuKnown}}"></span>
+      <span class="jutsu-selected-count jutsu-clan-count" id="create-jutsu-clan-count" hidden></span>
+      <span class="jutsu-cap-hint" id="create-jutsu-cap-hint" hidden>All picks used — uncheck one to swap.</span>
+    </div>
+    <div class="source-tiles" id="create-jutsu-source-tiles">
+      {{range .SourceTiles}}
+      <button type="button" class="source-tile active" data-source="{{.Slug}}">{{.Title}}</button>
+      {{end}}
+    </div>
+    <div class="items-kind-filters" id="create-jutsu-rank-filters"></div>
+    <div class="items-kind-filters" id="create-jutsu-action-filters"></div>
+    {{/* Class/Clan. jutsu-filter.js fills this in and leaves it empty when
+         the character has no clan jutsu to separate out, so a clanless
+         character sees no pointless one-option filter. */}}
+    <div class="items-kind-filters" id="create-jutsu-origin-filters"></div>
+    <div class="browse-list" id="create-jutsu-list">
+      {{range .Jutsu}}
+      {{/* The checkbox and the link are siblings inside this wrapper, so
+           the wrapper is what the filter hides — hiding only the link would
+           leave a bare checkbox for an invisible jutsu. */}}
+      <div class="jutsu-choice-row" data-source="{{.Source}}">
+        <input type="checkbox" name="jutsu" value="{{.Slug}}" id="jutsu-{{.Slug}}" {{if .Selected}}checked{{end}}>
+        <a class="browse-row" href="/jutsu/{{.Slug}}"
+           data-slug="{{.Slug}}" data-name="{{.Name}}" data-description="{{.Description}}"
+           data-classification="{{.Classification}}"
+           data-category="{{if .CategoryGroup.Valid}}{{.CategoryGroup.String}}{{else}}{{.Classification}}{{end}}"
+           data-source="{{.SourceBook}}" data-jutsu-source="{{.Source}}" data-rank="{{.Rank.String}}"
+           data-casting-action="{{.CastingAction}}"
+           data-duration="{{.DurationLabel}}" data-duration-order="{{.DurationOrder}}"
+           data-range-feet="{{.RangeFeet}}" data-range-numeric="{{.RangeNumeric}}" data-range-special="{{.RangeSpecial}}"
+           data-components="{{range .Components}}{{.}} {{end}}">
+          <span class="browse-row-name">{{.Name}}</span>
+          {{if eq .Source "clan"}}<span class="jutsu-source-badge">Clan</span>{{end}}
+          {{if .Rank.Valid}}<span class="browse-row-meta">{{.Rank.String}}-Rank</span>{{end}}
+        </a>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  <div class="browse-detail-pane" id="creation-detail-pane">
+    {{if .FocusDetail}}{{template "jutsu_detail_card" .FocusDetail}}{{else}}<p class="section-hint">Click a jutsu to see its details.</p>{{end}}
+  </div>
+</div>
+<button type="submit" class="btn-primary creation-picker-below">Save Jutsu</button>
+</form>
+{{end}}
+{{end}}

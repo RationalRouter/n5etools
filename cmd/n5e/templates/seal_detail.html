@@ -1,0 +1,9 @@
+{{define "content"}}
+{{with .Seal}}
+<p><a href="/seals">← All Seals</a></p>
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{if .SealRank.Valid}}{{.SealRank.String}}-Rank{{end}}{{if $.AppliesTo}} · {{$.AppliesTo}} Seal{{end}}</p>
+
+{{if .Description.Valid}}{{formatDescription .Description.String}}{{else}}<p>—</p>{{end}}
+{{end}}
+{{end}}

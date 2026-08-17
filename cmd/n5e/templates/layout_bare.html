@@ -1,0 +1,39 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} — N5etools</title>
+  <link rel="stylesheet" href="/static/css/app.css?v={{assetVersion}}">
+</head>
+<body class="bare-window">
+  <main class="content companion-popup-content">
+    {{template "content" .}}
+  </main>
+  {{/* Same scroll-triggered fade-in button as layout.html's own — the
+       Class Reference popup in particular can run long (every class
+       feature plus every subclass feature, locked ones included). No
+       [hidden] attribute, same reasoning as layout.html's own copy: the
+       button needs to animate in/out via app.css's opacity/visibility
+       toggle, which display:none (what [hidden] maps to) can't do. */}}
+  <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  {{/* dice_roller: the same floating d20 FAB the main sheet uses, so a
+       puppet's rollable Attacks/Puppet Skills can actually be rolled from
+       this small popup window too. Deliberately WITHOUT dice3d.js/
+       dice3d-solids.js — the WebGL 3D tumble is the one piece of the
+       roller genuinely unsuited to "stays genuinely small" (see this
+       file's own doc comment); dice-roller.js already falls back to a
+       lightweight CSS animation whenever window.n5eDice3D isn't defined,
+       so skipping those two scripts here costs nothing but the visual
+       flourish. */}}
+  {{template "dice_roller" .}}
+  <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/back-to-top.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/dice-roller.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/character-sheet.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/companion-fields.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/companion-sheet.js?v={{assetVersion}}" defer></script>
+</body>
+</html>
+{{end}}

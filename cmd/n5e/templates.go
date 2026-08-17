@@ -1,0 +1,289 @@
+package main
+
+import (
+	"embed"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/sergio/n5e/internal/charsheet"
+)
+
+//go:embed templates/*.html templates/partials/*.html
+var templatesFS embed.FS
+
+// pageTemplates holds, for each page name, a template set combining that
+// page's own "content" definition with the shared layout and every shared
+// partial.
+//
+// Each page is parsed separately (layout.html + exactly one page file +
+// all partials), not all glob-parsed together, because html/template shares
+// {{define}} names across every file in a single parse: if home.html and
+// clans.html both defined a template named "content", parsing them together
+// would let whichever file parses last silently win for BOTH pages. Parsing
+// pairs keeps each page's "content" unambiguous. Partials are safe to glob
+// in alongside every page because each one uses its own unique {{define}}
+// name (never "content") — see templates/partials/tooltip.html for the
+// pattern new shared fragments should follow.
+var pageTemplates = map[string]*template.Template{}
+
+// dict lets templates build an ad-hoc map to pass multiple named values into
+// a {{template}} call, e.g. {{template "tooltip" (dict "Trigger" .Name "Body" .Desc)}}.
+func dict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, fmt.Errorf("dict: odd number of arguments")
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict: key %v is not a string", pairs[i])
+		}
+		m[key] = pairs[i+1]
+	}
+	return m, nil
+}
+
+// seq returns [0, 1, ..., n-1] so a template can {{range}} a fixed count
+// (e.g. one <select> per pick-slot) without a backing slice to range over.
+func seq(n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
+
+// sub is plain integer subtraction — the character sheet's Hit Dice
+// remaining display (Level - HitDiceSpent) is the only spot in this app
+// that needs arithmetic inside a template rather than in Go.
+func sub(a, b int) int {
+	return a - b
+}
+
+// add is sub's counterpart, for the one place a template needs a total of
+// two counts it already has (the Features & Traits collapsible's headline
+// number, which spans two separate slices).
+func add(a, b int) int {
+	return a + b
+}
+
+// signed renders a modifier with an explicit sign ("+3", "-1", "+0") —
+// several sheet numbers (ability/skill/save modifiers) can go negative, so
+// the manual "+{{.}}"-in-template pattern used elsewhere for always-
+// non-negative numbers (e.g. proficiency bonus) doesn't apply here.
+func signed(n int) string {
+	if n >= 0 {
+		return fmt.Sprintf("+%d", n)
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+// signedFloat is signed for a float64 — the bulk readout's Strength
+// contribution, which is the only signed number on the sheet that isn't an
+// int (bulk is a REAL column throughout). 'f' with precision -1 keeps whole
+// values whole ("+4", not "+4.0") and never switches to exponent form, the
+// same reasoning comma's doc spells out.
+func signedFloat(v float64) string {
+	s := strconv.FormatFloat(v, 'f', -1, 64)
+	if v >= 0 {
+		return "+" + s
+	}
+	return s
+}
+
+// comma renders a float64 as a thousands-separated decimal string, never
+// scientific notation. Ryo is stored as a REAL, and Go's default template
+// rendering of a float64 switches to %g-style exponent form once the value
+// gets large — a million ryo printed as "1.0018e+06" instead of
+// "1,001,800". strconv.FormatFloat with 'f' and precision -1 is the fix:
+// 'f' has no exponent form at all, and -1 asks for the shortest digit
+// string that round-trips, so whole numbers stay whole and a fractional
+// value keeps exactly the digits it needs.
+func comma(v float64) string {
+	neg := v < 0
+	if neg {
+		v = -v
+	}
+	s := strconv.FormatFloat(v, 'f', -1, 64)
+	intPart, frac := s, ""
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		intPart, frac = s[:i], s[i:]
+	}
+	var b strings.Builder
+	if neg {
+		b.WriteByte('-')
+	}
+	for i := 0; i < len(intPart); i++ {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte(intPart[i])
+	}
+	b.WriteString(frac)
+	return b.String()
+}
+
+// imageDataURL vouches for a stored portrait so it can be used as an
+// <img src>. html/template's URL filter only trusts http, https, mailto
+// and relative URLs — everything else is rewritten to "#ZgotmplZ", so a
+// data: URL interpolated normally renders as a broken image with no
+// obvious cause. The vouching is narrow on purpose: only the exact
+// "data:image/<raster>;base64," prefixes handleSheetPortrait itself
+// writes are returned as trusted, and anything else (including a data:
+// URL claiming to be SVG, which can carry script) comes back empty so the
+// template falls through to its no-portrait branch.
+func imageDataURL(s string) template.URL {
+	for _, prefix := range []string{
+		"data:image/png;base64,",
+		"data:image/jpeg;base64,",
+		"data:image/gif;base64,",
+		"data:image/webp;base64,",
+	} {
+		if strings.HasPrefix(s, prefix) {
+			return template.URL(s)
+		}
+	}
+	return ""
+}
+
+// abilityLabel expands a 3-letter ability code ("str") to its full name
+// ("Strength"), reusing classes.go's existing abilityLabels map rather than
+// a second copy of the same 6 names.
+func abilityLabel(ab string) string {
+	if label, ok := abilityLabels[ab]; ok {
+		return label
+	}
+	return ab
+}
+
+// slugID turns a slug into something safe to use as an HTML id, by replacing
+// the path separators: "jutsu/hyuga/gentle-fist" -> "jutsu-hyuga-gentle-fist".
+//
+// getElementById (which is what sheet-inventory.js's ✎ handler uses) would cope
+// with the slashes, but "#jutsu/hyuga/..." is not a valid CSS selector, so a
+// raw slug id is a trap waiting for the first querySelector to touch it.
+func slugID(slug string) string {
+	return strings.ReplaceAll(slug, "/", "-")
+}
+
+// jsonify marshals a value for embedding inside a <script type="application/
+// json"> block (e.g. the Point Buy cost table, so create-abilities.js can
+// compute a live remaining-points counter without re-deriving the 30-point/
+// 8-15 rule a second time in JS). Returns template.JS rather than a plain
+// string so html/template's contextual auto-escaper treats it as already-
+// safe script content instead of JS-escaping the JSON's own quotes.
+func jsonify(v any) (template.JS, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return template.JS(b), nil
+}
+
+// templateFuncs is shared by every page's template set, including
+// companion_sheet.html's (see below) which uses layout_bare.html instead of
+// layout.html but still needs the same helpers (formatDescription in
+// particular, for its rules-reference panels).
+var templateFuncs = template.FuncMap{
+	"formatDescription": formatDescription, "dict": dict, "diceAvg": diceAvg,
+	"jsonify": jsonify, "skillOptionPairs": skillOptionPairs, "seq": seq,
+	"jutsuKnownCount": jutsuKnownCount,
+	"abilityLabel":    abilityLabel, "signed": signed, "signedFloat": signedFloat,
+	"sub": sub, "add": add,
+	"comma": comma, "imageDataURL": imageDataURL,
+	// The six abilities in canonical order, for fieldsets nested
+	// too deep for the page's own AbilityOrder to reach without
+	// threading it through four layers of dict.
+	"abilities": func() []string { return charsheet.Abilities },
+	"slugID":    slugID,
+	// Ability codes are stored lowercase and shown uppercase.
+	// A real uppercase string rather than CSS text-transform,
+	// because <option> text is rendered by the OS on some
+	// platforms and ignores the transform there.
+	"upper":                        strings.ToUpper,
+	"assetVersion":                 func() string { return assetVersion },
+	"puppetUpgradePickIsPermanent": puppetUpgradePickIsPermanent,
+	// pathEscape: for a URL PATH segment built from a free-text name (e.g.
+	// Mastery's own skill/toolkit name, "Sleight of Hand"/"Armorsmith
+	// kit") — html/template's builtin "urlquery" uses query-string
+	// escaping (space -> "+"), which is wrong for a path segment (net/url
+	// only treats "+" as space inside a query string, not a path), so a
+	// name with a space would round-trip back as a literal "+" instead of
+	// a space via r.PathValue. url.PathEscape encodes space as %20
+	// instead, which decodes correctly either way.
+	"pathEscape": url.PathEscape,
+	// masteryBonus/masteryRankName: the two Mastery lookups a row needs to
+	// label itself, so the rank stored on a skill/proficiency row is enough
+	// on its own and neither the bonus nor the book's Shinobi Rank name has
+	// to be threaded through as extra fields on every row type that shows
+	// one (see charsheet.MasteryBonus/MasteryRankLabel).
+	"masteryBonus": charsheet.MasteryBonus,
+	"masteryRankName": func(rank int) string {
+		return charsheet.MasteryRankLabel(rank, true)
+	},
+	"hasOptionDescription": hasOptionDescription,
+}
+
+func init() {
+	for _, page := range []string{
+		"home.html",
+		"characters.html", "character_new.html", "creation_hub.html", "backups.html",
+		"create_clan.html", "create_class.html", "create_abilities.html",
+		"create_background.html", "create_equipment.html", "create_jutsu.html", "create_ambitions.html",
+		"character_sheet.html", "sheet_class.html",
+		"clans.html", "clan_detail.html",
+		"jutsu.html", "jutsu_detail.html",
+		"classes.html", "class_detail.html",
+		"feats.html", "feat_detail.html",
+		"backgrounds.html", "background_detail.html",
+		"stances.html", "stance_detail.html",
+		"seals.html", "seal_detail.html",
+		"items.html", "item_detail.html", "properties.html", "property_detail.html",
+		"traps.html", "trap_detail.html", "poisons.html", "poison_detail.html",
+		"about.html", "bugs.html", "faq.html", "technical.html",
+	} {
+		pageTemplates[page] = template.Must(
+			template.New("layout").
+				Funcs(templateFuncs).
+				ParseFS(templatesFS, "templates/layout.html", "templates/"+page, "templates/partials/*.html"))
+	}
+
+	// companion_sheet.html is the one page that opens in its own small
+	// popup window rather than the main app tab (see companions.go's
+	// handleCompanionSheet) — it uses layout_bare.html (no nav, no dice
+	// roller, none of the main sheet's box-grid/library JS) instead of
+	// layout.html, so it stays genuinely lightweight rather than just
+	// visually smaller.
+	pageTemplates["companion_sheet.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/companion_sheet.html", "templates/partials/*.html"))
+
+	// character_reference.html: the "Class Reference" popup — same bare,
+	// no-nav layout as companion_sheet.html, for the same reason (a small
+	// separate window, not a scaled-down copy of the main page).
+	pageTemplates["character_reference.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_reference.html", "templates/partials/*.html"))
+
+	// character_reference_picker.html: the multiclass Class Reference
+	// popup's "which class?" first stop — see handleCharacterReference.
+	pageTemplates["character_reference_picker.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_reference_picker.html", "templates/partials/*.html"))
+
+	// character_clan_reference.html: the "Clan Reference" popup — same
+	// bare layout again, reusing the standalone /clans/{slug} page's own
+	// clan_detail_card partial (see clan_reference.go's
+	// handleCharacterClanReference).
+	pageTemplates["character_clan_reference.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_clan_reference.html", "templates/partials/*.html"))
+}

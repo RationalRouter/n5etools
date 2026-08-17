@@ -1,0 +1,33 @@
+{{/* Background detail card — shared by the standalone /backgrounds/{slug}
+     page and the character-creation Background step's two-pane preview
+     (right pane, swapped in via fetch). Call with a backgroundDetail. */}}
+{{define "background_detail_card"}}
+<h1>{{.Name}}</h1>
+
+{{formatDescription .Description}}
+
+<dl class="fact-list">
+  {{if .FeatureName.Valid}}<dt>{{.FeatureName.String}}</dt><dd>{{.FeatureText.String}}</dd>{{end}}
+  {{if .ASIText.Valid}}<dt>Ability Score Increase</dt><dd>{{formatDescription .ASIText.String}}</dd>{{end}}
+  {{if .EquipmentText.Valid}}<dt>Equipment</dt><dd>{{.EquipmentText.String}}</dd>{{end}}
+  {{if .EquipmentPackText.Valid}}<dt>Equipment Pack</dt><dd>{{.EquipmentPackText.String}}</dd>{{end}}
+</dl>
+
+{{if .Proficiencies}}
+<h2>Proficiencies</h2>
+<dl class="fact-list">
+  {{range .Proficiencies}}
+  <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
+  {{end}}
+</dl>
+{{end}}
+
+{{if .AmbitionPrompts}}
+<h2>Ambition Prompts</h2>
+<dl class="fact-list">
+  {{range .AmbitionPrompts}}
+  <dt>{{.Kind}}</dt><dd>{{.Text}}</dd>
+  {{end}}
+</dl>
+{{end}}
+{{end}}
