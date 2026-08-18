@@ -412,11 +412,17 @@ type martialTechniqueOption struct {
 // knownMartialTechnique is one entry on the Known list — either a player
 // pick (Slug set, has a remove button, counts against the cap) or an
 // auto-granted bespoke technique (Granted true, no Slug, no remove button,
-// doesn't count against the cap).
+// doesn't count against the cap). Description is always populated (the
+// class_options row's own text for a player pick; the granting feature's
+// own description — which already contains the bespoke technique's full
+// text — for a Granted one) so the Known list can carry the same
+// .tooltip/.tooltip-content the Available list already has instead of
+// going bare once learned.
 type knownMartialTechnique struct {
-	Slug    string
-	Name    string
-	Granted bool
+	Slug        string
+	Name        string
+	Granted     bool
+	Description string
 }
 
 // passionateFlameView holds Passionate Flame's own sub-section of the
@@ -555,7 +561,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 			return nil, err
 		}
 		if pickedSet[opt.Slug] {
-			known = append(known, knownMartialTechnique{Slug: opt.Slug, Name: opt.Name})
+			known = append(known, knownMartialTechnique{Slug: opt.Slug, Name: opt.Name, Description: opt.Description})
 		} else {
 			available = append(available, opt)
 		}
@@ -568,7 +574,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 	for _, f := range grantedFeatures {
 		if names, ok := martialTechniqueAutoGrants[f.Slug]; ok {
 			for _, name := range names {
-				known = append(known, knownMartialTechnique{Name: name, Granted: true})
+				known = append(known, knownMartialTechnique{Name: name, Granted: true, Description: f.Description})
 			}
 		}
 	}

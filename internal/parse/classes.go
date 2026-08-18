@@ -176,6 +176,52 @@ var puppetToolUnitCardRe = regexp.MustCompile(
 		`(\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) ` +
 		`Senses Passive Perception (\d+) (.+)$`)
 
+// artistCreditRe strips a stray "Artist Credit: <name> on <site>" image
+// caption the flat PDF text extractor sometimes glues onto the end of a
+// feature's real prose — confirmed on Weapon Specialist's Superior Weapon
+// Flurry ("... Artist Credit: KSatoshiK on DeviantArt"). The caption always
+// belongs to a nearby illustration, never the feature's own rules text, and
+// always trails whatever block it lands in, so a trailing-anchor strip is
+// enough — no per-instance customization needed, unlike puppetToolUnitCardRe
+// above.
+var artistCreditRe = regexp.MustCompile(`\s*Artist Credit:.*$`)
+
+func stripArtistCredit(s string) string {
+	return strings.TrimSpace(artistCreditRe.ReplaceAllString(s, ""))
+}
+
+// knownClassFeatureLevelOverrides hand-confirms a small, closed list of
+// class (not subclass) features whose printed text never states the
+// feature's own gating level — the class_features counterpart of
+// subclasses.go's knownFeatureLevelOverrides, but this one WINS OVER a
+// regex match rather than only filling in when the regex finds none (see
+// flushFeature). Weapon Specialist's Weapon Flurry (2nd level) introduces
+// "the following Flurry Techniques" as a named list: Enhanced Deflection,
+// Chained Reaction [New], Chakra Strike, Perceptive Augmentation, and
+// Focused Efficiency — confirmed by their shared sort_order block sitting
+// directly between Weapon Flurry (sort_order 2) and Weapon Stance
+// (sort_order 8), and by Superior Weapon Flurry's own text naming two of
+// them by name ("Your Enhanced Deflection flurry technique...", "Your
+// Perceptive Augmentation..."). Four of the five never state a level
+// anywhere in their printed text, so ordinalLevelRe found nothing and they
+// parsed as always-on (level NULL) instead of gated to 2nd level like their
+// parent. Chakra Strike doesn't state its own gating level either — its
+// only ordinal is an internal damage-escalation clause ("...+2 Flurry Die.
+// This increases to +3 Flurry Die at 11th level."), which ordinalLevelRe
+// matched instead, parsing it as an 11th-level feature. A fallback-only
+// override (like subclasses.go's) can't fix that case, since the regex did
+// find a match — just the wrong one — so this map takes precedence over
+// any regex match for these five names.
+var knownClassFeatureLevelOverrides = map[string]map[string]int{
+	"Weapon Specialist": {
+		"Enhanced Deflection":     2,
+		"Chained Reaction [New]":  2,
+		"Chakra Strike":           2,
+		"Perceptive Augmentation": 2,
+		"Focused Efficiency":      2,
+	},
+}
+
 // quickBuildSquishes hand-confirms a PDF text-extraction artifact specific
 // to QUICK BUILD's clan-choice sentence: "Non-Clan" gets split into
 // "Non- Clan" by the same stray-space-after-hyphen bug internal/correct's
@@ -332,7 +378,7 @@ func parseClass(ls []Line) (Class, []Anomaly) {
 		if curFeature == nil {
 			return
 		}
-		curFeature.Description = strings.TrimSpace(curFeature.Description)
+		curFeature.Description = stripArtistCredit(strings.TrimSpace(curFeature.Description))
 		if curFeature.Description == "" {
 			// Decorative box title with no body — drop it.
 			curFeature = nil
@@ -364,13 +410,20 @@ func parseClass(ls []Line) (Class, []Anomaly) {
 				curFeature.Description = strings.TrimSpace(curFeature.Description[:loc[0]])
 			}
 		}
-		if m := ordinalLevelRe.FindStringSubmatch(curFeature.Description); m != nil {
-			lvl := 0
-			for _, ch := range m[1] {
-				lvl = lvl*10 + int(ch-'0')
-			}
-			if lvl >= 1 && lvl <= 20 {
+		if overrides, ok := knownClassFeatureLevelOverrides[c.Name]; ok {
+			if lvl, ok := overrides[curFeature.Name]; ok {
 				curFeature.Level = &lvl
+			}
+		}
+		if curFeature.Level == nil {
+			if m := ordinalLevelRe.FindStringSubmatch(curFeature.Description); m != nil {
+				lvl := 0
+				for _, ch := range m[1] {
+					lvl = lvl*10 + int(ch-'0')
+				}
+				if lvl >= 1 && lvl <= 20 {
+					curFeature.Level = &lvl
+				}
 			}
 		}
 		c.Features = append(c.Features, *curFeature)

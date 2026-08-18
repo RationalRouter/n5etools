@@ -136,6 +136,46 @@ func (s *server) loadCharacterReference(characterID int64, onlyClassSlug string)
 		if err := rows.Err(); err != nil {
 			return ref, err
 		}
+
+		// Class-wide option catalogs (subclass_slug IS NULL — e.g. Taijutsu
+		// Specialist's 20-entry Martial Techniques list) never surfaced here
+		// before: the loop below only ever queries subclass-scoped options.
+		// A large class-wide catalog like this one already has its own
+		// dedicated picker box on the sheet (Available/Known lists with
+		// their own tooltips), but that box only shows the Available side
+		// in full — this gives the Class Reference popup a complete,
+		// always-available fallback listing every entry, matching how a
+		// subclass's own options list is already treated below.
+		optRows, err := s.rulesDB.Query(`
+			SELECT list_name, name, description FROM class_options
+			WHERE class_slug = ? AND subclass_slug IS NULL
+			ORDER BY list_name, sort_order`, c.Slug)
+		if err != nil {
+			return ref, err
+		}
+		classBaseOpts := map[string]*subclassBaseOptions{}
+		var classBaseOptsOrder []string
+		for optRows.Next() {
+			var listName, oname, odescription string
+			if err := optRows.Scan(&listName, &oname, &odescription); err != nil {
+				optRows.Close()
+				return ref, err
+			}
+			b, ok := classBaseOpts[listName]
+			if !ok {
+				b = &subclassBaseOptions{ClassName: name, ListName: listName}
+				classBaseOpts[listName] = b
+				classBaseOptsOrder = append(classBaseOptsOrder, listName)
+			}
+			b.Options = append(b.Options, companionFeatureRef{Name: oname, Description: odescription})
+		}
+		optRows.Close()
+		if err := optRows.Err(); err != nil {
+			return ref, err
+		}
+		for _, listName := range classBaseOptsOrder {
+			ref.BaseOptions = append(ref.BaseOptions, *classBaseOpts[listName])
+		}
 	}
 
 	subRows, err := s.charDB.Query(

@@ -221,6 +221,27 @@ var customResourceGrants = map[string]customResourceGrant{
 		FullRegen:   regenFull,
 		Restriction: "Summons the Puppet Swarm",
 	},
+	// "Also, your Puppets gain a number of chakra dice (d8s) equal to your
+	// level in this class. Delegate these dice among your Puppet Tools...
+	// Your Puppet Tools recover these dice the same way as you recover
+	// your dice." That last sentence points at the character's own Hit/
+	// Chakra Dice, which this app already tracks as a fully player-managed
+	// delta (charstore.SetRestGains — the player types in how many they
+	// spend/regain, no automatic per-rest formula) rather than an
+	// automatic regen tier, so this pool gets the same regenNone/manual-
+	// edit-box treatment as Purple Lightning above, not regenFull.
+	"class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/chakra-conduits": {
+		Key:      "puppet_chakra_dice",
+		Name:     "Puppet Chakra Dice",
+		MinLevel: 14,
+		Max: func(cl map[string]int, con, prof int) int {
+			return cl["class/puppet-master"]
+		},
+		ShortRegen:  regenNone,
+		LongRegen:   regenNone,
+		FullRegen:   regenNone,
+		Restriction: "d8s, delegated among your Puppet Tools; they spend these in place of your own chakra dice",
+	},
 	// "Once per rest, when a creature is affected by a Genjutsu that you
 	// cast, you can disrupt their chakra..." Gains an additional use of
 	// either of the feature's two effects at 7th and 14th level (1 -> 2 ->

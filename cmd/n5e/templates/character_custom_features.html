@@ -1,0 +1,41 @@
+{{/* character_custom_features.html: the "Custom Features" popup — homebrew
+     or DM-granted features the player added by hand, the one thing the old
+     Core-tab Features & Traits box did that the read-only Class/Clan
+     Reference popups can't replace (those two are pure rules.db reference
+     text). Opened the same real-separate-window way as those two
+     (reference-popup.js, [data-reference-popup]). Plain POST-and-redirect
+     forms back to this same URL, matching this project's convention for
+     rarely-used, popup-scoped forms rather than the main sheet's
+     fetch-and-swap fragments. Expects {CharacterID, CharacterName,
+     CustomFeatures}. */}}
+{{define "content"}}
+<div class="character-reference-page">
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+  <h1>Custom Features</h1>
+  <p class="section-hint">Homebrew or DM-granted features — anything not already covered by Class Reference or Clan Reference.</p>
+
+  {{if .CustomFeatures}}
+  <ul class="sheet-feature-list">
+    {{range .CustomFeatures}}
+    <li>
+      <strong>{{.Name}}</strong>
+      {{if .SourceLabel}}<span class="option-picker-epithet">{{.SourceLabel}}</span>{{end}}
+      <form method="post" action="/characters/{{$.CharacterID}}/custom-features/{{.ID}}/delete" class="sheet-inline-form">
+        <button type="submit" class="sheet-delete-btn" aria-label="Delete {{.Name}}" title="Delete">&times;</button>
+      </form>
+      {{if .Description}}{{formatDescription .Description}}{{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="section-hint">No custom features yet.</p>
+  {{end}}
+
+  <form method="post" action="/characters/{{.CharacterID}}/custom-features/add" class="sheet-panel-form">
+    <input type="text" name="name" placeholder="Feature name" required>
+    <input type="text" name="source_label" placeholder="Source (e.g. Other: Magic Item)">
+    <textarea name="description" rows="2" placeholder="Description"></textarea>
+    <button type="submit">+ Add Feature</button>
+  </form>
+</div>
+{{end}}

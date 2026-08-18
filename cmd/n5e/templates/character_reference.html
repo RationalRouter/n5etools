@@ -32,7 +32,7 @@
 
   {{range .Reference.BaseOptions}}
   <section class="companion-reference subclass-scope">
-    <h2>{{.ClassName}} — {{.SubclassName}}: {{.ListName}}</h2>
+    <h2>{{.ClassName}}{{if .SubclassName}} — {{.SubclassName}}{{end}}: {{.ListName}}</h2>
     <ul class="sheet-feature-list">
       {{range .Options}}
       <li>

@@ -162,6 +162,12 @@ var choiceSlotDefs = []choiceSlotDef{
 	// Charisma Saving throws (Pick one)."
 	{FeatureSlug: "class/intelligence-operative/group/master-strategies/interrogationist/feature/perfect-mind", ChoiceIndex: 0, Kind: ChoiceSavingThrowProficiency, MinLevel: 17, Label: "Perfect Mind", Options: []string{"wis", "cha"}},
 
+	// Taijutsu Specialist base-class "Perfect Mind": "At 18th level, your
+	// intense training grants you proficiency in Intelligence or Wisdom
+	// Saving Throws (Pick one.)." This feature's Fear-immunity clause is
+	// separately handled by cmd/n5e/passive_traits.go's passiveTraitGrants.
+	{FeatureSlug: "class/taijutsu-specialist/feature/perfect-mind", ChoiceIndex: 0, Kind: ChoiceSavingThrowProficiency, MinLevel: 18, Label: "Perfect Mind", Options: []string{"int", "wis"}},
+
 	// The three pick-one ability-score increases found by the 2026-08-16
 	// full-corpus sweep (see scores.go's own doc comment for the sweep and
 	// for the three FIXED increases that need no player pick). Each
@@ -183,6 +189,15 @@ var choiceSlotDefs = []choiceSlotDef{
 	// maximum for those scores also increases by 2." The fixed Intelligence
 	// half is in scores.go; only the choice half is here.
 	{FeatureSlug: "class/weapon-specialist/group/weapon-forms/primal-weapon-form/feature/master-of-the-primal", ChoiceIndex: 0, Kind: ChoiceAbilityScoreIncrease, MinLevel: 20, Label: "Master of the Primal — permanently increase Strength or Dexterity by +2", Options: []string{"str", "dex"}, Amount: 2, RaisesMax: true},
+
+	// Phantom Blade Form "Last Step: Phantasm Stance": "Your Strength or
+	// Dexterity (your choice) and Wisdom or Intelligence scores (your
+	// choice) increase by 2. Your maximum for those scores increases by
+	// 2." TWO independent either/or picks, unlike every other Weapon Form
+	// capstone (which pairs at most one choice with a fixed half) — both
+	// live here as separate ChoiceIndex slots, no fixed half in scores.go.
+	{FeatureSlug: "class/weapon-specialist/group/weapon-forms/phantom-blade-form/feature/last-step-phantasm-stance", ChoiceIndex: 0, Kind: ChoiceAbilityScoreIncrease, MinLevel: 20, Label: "Last Step: Phantasm Stance — permanently increase Strength or Dexterity by +2", Options: []string{"str", "dex"}, Amount: 2, RaisesMax: true},
+	{FeatureSlug: "class/weapon-specialist/group/weapon-forms/phantom-blade-form/feature/last-step-phantasm-stance", ChoiceIndex: 1, Kind: ChoiceAbilityScoreIncrease, MinLevel: 20, Label: "Last Step: Phantasm Stance — permanently increase Wisdom or Intelligence by +2", Options: []string{"wis", "int"}, Amount: 2, RaisesMax: true},
 
 	// Puppet Master's 5 named free-Upgrade grants (see CLASS_AUDIT.md's
 	// Puppet Master entry). Purple Technique Proficiency and Chakra String

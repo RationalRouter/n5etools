@@ -286,4 +286,12 @@ func init() {
 		template.New("layout").
 			Funcs(templateFuncs).
 			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_clan_reference.html", "templates/partials/*.html"))
+
+	// character_custom_features.html: the "Custom Features" popup — same
+	// bare layout again, for homebrew/DM-granted features (see
+	// characters.go's handleCharacterCustomFeatures).
+	pageTemplates["character_custom_features.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_custom_features.html", "templates/partials/*.html"))
 }

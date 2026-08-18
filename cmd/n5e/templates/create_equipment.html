@@ -16,6 +16,11 @@
       <div class="equipment-choice-group">
         {{$groupIdx := .GroupIdx}}
         {{range .Options}}
+        {{/* Wrapped so create-equipment.js can tell which option's own
+             dropdowns belong to a checked radio — a sibling option's <select
+             required> must stop blocking submission the moment it isn't the
+             chosen alternative (see that file's refreshRequired). */}}
+        <div class="equipment-option">
         <label>
           <input type="radio" name="group_{{$groupIdx}}" value="{{.ChoiceIdx}}" {{if .Selected}}checked{{end}} required>
           {{.Description}}{{if gt .Quantity 1}} ({{.Quantity}}){{end}}
@@ -68,6 +73,7 @@
           {{end}}
         </div>
         {{end}}
+        </div>
         {{end}}
       </div>
       {{end}}

@@ -213,6 +213,60 @@ func TestParseClassBookSplitsPuppetToolUnitCard(t *testing.T) {
 	}
 }
 
+// Real shape from Weapon Specialist's Weapon Flurry (2nd level): its
+// "following Flurry Techniques" are printed as separate headings with no
+// gating level of their own. Enhanced Deflection never states a level at
+// all, so knownClassFeatureLevelOverrides must fill in where ordinalLevelRe
+// finds nothing. Chakra Strike DOES contain an ordinal ("...at 11th
+// level"), but it's an internal damage-escalation clause, not the
+// feature's own gate — the override must win over that match too, unlike
+// subclasses.go's fallback-only knownFeatureLevelOverrides.
+func TestParseClassBookKnownFeatureLevelOverride(t *testing.T) {
+	lines := mkLines(200,
+		"WEAPON SPECIALIST",
+		"CHARACTER INSPIRATIONS",
+		"A warrior who trains with a signature weapon.",
+		"QUICK BUILD",
+		"Put your highest score in Strength or Dexterity.",
+		"CLASS FEATURES",
+		"As a Weapon Specialist, you gain the following class features.",
+		"HIT POINTS",
+		"Hit Dice: 1d10 per Weapon Specialist level",
+		"CHAKRA POINTS",
+		"Chakra Dice: 1d8 per Weapon Specialist level",
+		"PROFICIENCIES",
+		"Armor: Light armor",
+		"EQUIPMENT",
+		"• 1 Martial weapon",
+		"JUTSU CASTING",
+		"NINJUTSU",
+		"Ninjutsu save DC = 8 + your Proficiency Bonus + your Intelligence Modifier",
+		"WEAPON FLURRY",
+		"Also, at 2nd Level, you are an unrelenting flurry of weapon attacks. Once per turn, you can use one of the following Flurry Techniques.",
+		"ENHANCED DEFLECTION",
+		"As a Reaction to taking damage, you gain DR vs the triggering creature, equal to the maximum possible result of your Flurry Die.",
+		"CHAKRA STRIKE",
+		"On your turn, you deal additional damage equal to +2 Flurry Die. This increases to +3 Flurry Die at 11th level.",
+	)
+	classes, _ := ParseClassBook(lines)
+	if len(classes) != 1 {
+		t.Fatalf("got %d classes, want 1", len(classes))
+	}
+	c := classes[0]
+	if len(c.Features) != 3 {
+		t.Fatalf("got %d features, want 3: %+v", len(c.Features), c.Features)
+	}
+	if c.Features[0].Name != "Weapon Flurry" || c.Features[0].Level == nil || *c.Features[0].Level != 2 {
+		t.Errorf("Weapon Flurry level = %+v, want 2", c.Features[0].Level)
+	}
+	if c.Features[1].Name != "Enhanced Deflection" || c.Features[1].Level == nil || *c.Features[1].Level != 2 {
+		t.Errorf("Enhanced Deflection level = %+v, want 2 via override (ordinalLevelRe finds nothing)", c.Features[1].Level)
+	}
+	if c.Features[2].Name != "Chakra Strike" || c.Features[2].Level == nil || *c.Features[2].Level != 2 {
+		t.Errorf("Chakra Strike level = %+v, want 2 via override (must beat the wrong 11th-level regex match)", c.Features[2].Level)
+	}
+}
+
 // Whole-book regression (verified 2026-07-17 against v3.12). Skips when the
 // sourcebook is absent.
 func TestParseClassBookFullCompendium(t *testing.T) {

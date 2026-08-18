@@ -309,48 +309,27 @@
     {{template "sheet_ambitions" (dict "ID" .ID "Drive" .Drive "Goal" .Goal "Fear" .Fear)}}
     </div>
 
-    {{/* Core tab's Features & Traits box, disabled 2026-08-05: by level 20 the
-         auto-derived GrantedFeatures list duplicated every class feature,
-         clan trait and subclass feature already browsable in the Class
-         Reference/Clan Reference popups, making this box long and
-         redundant on every character sheet. Wrapped in {{if false}} rather
-         than deleted — the backend (loadGrantedFeatures/
-         loadCharacterCustomFeatures in characters.go, the sheet_features
-         {{define}} below, the /sheet/features add/delete routes,
-         charstore's CustomFeature CRUD) is untouched and still fully
-         wired, including Custom Features (homebrew/DM-granted features,
-         the one thing this box did that Class/Clan Reference can't
-         replace) — flip this back to {{if true}} to restore it exactly as
-         it was, no re-implementation needed. Every "data-also-refresh"
-         elsewhere in this file that still names sheet-features is a
-         harmless no-op while this is disabled (sheet-refresh.js silently
-         skips a named block that isn't on the page). */}}
-    {{if false}}
-    <details class="sheet-feature-panel sheet-box" open data-box-id="features">
-      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Features &amp; Traits</h2>
-        {{/* Left outside the fragment below on purpose: this count can lag
-             one add/delete behind until the next full load, the same
-             accepted-gap tradeoff as the item library's "owned" dimming
-             (see sheet_inventory_full's doc comment) — the alternative,
-             swapping the whole <details> (or splitting summary/body across
-             two synced fragments) risks losing sheet-layout.js's directly-
-             bound toggle listener (not delegated — see its own comment),
-             which would silently break this box's collapse-to-resize
-             behavior for a cosmetic number. */}}
-        <span class="option-picker-epithet">{{add (len .GrantedFeatures) (len .CustomFeatures)}}</span>
-      </summary>
-      {{template "sheet_features" (dict "ID" .ID "GrantedFeatures" .GrantedFeatures "CustomFeatures" .CustomFeatures)}}
-    </details>
-    {{end}}
+    {{/* Core tab's Features & Traits box was removed 2026-08-17 — an
+         auto-derived list duplicated every class/clan/subclass feature
+         already shown, correctly level-gated per this character, by the
+         Class Reference and Clan Reference popups (reference.go/
+         clan_reference.go), and by level 20 was long enough to bury the
+         rest of the tab. Custom Features (homebrew/DM-granted, the one
+         thing this box did that those two read-only popups can't replace)
+         now has its own popup — see the Custom Features button below and
+         character_custom_features.html. loadGrantedFeatures itself is
+         untouched and still feeds Passive Traits/Resistances below, free
+         jutsu grants, and internal/features' numeric AC/proficiency/
+         ability-score/speed/mastery grants — only the display box and its
+         own add/delete-feature routes were removed. */}}
 
     {{/* Resistances/immunities/senses aren't stored anywhere — they're
-         computed fresh from GrantedFeatures on every render (see
+         computed fresh from loadGrantedFeatures on every render (see
          computePassiveTraits), the same "derive, don't store" pattern as
-         free jutsu grants. A separate box (not nested inside sheet_features)
-         so it can be resized/reordered on its own, which means it needs the
-         same also-refresh entries as sheet-features itself: the Level row
-         and both feat add/delete forms, since a passive trait only ever
-         changes when the granted-features list does. */}}
+         free jutsu grants. Its own box so it can be resized/reordered on
+         its own, which means it needs a also-refresh entry anywhere the
+         granted-features list itself could change: the Level row and both
+         feat add/delete forms. */}}
     <details class="sheet-feature-panel sheet-box" open data-box-id="passive-traits">
       <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Resistances &amp; Senses</h2></summary>
       {{template "sheet_passive_traits" (dict "PassiveTraits" .PassiveTraits)}}
@@ -394,6 +373,40 @@
     <details class="sheet-feature-panel sheet-box" open data-box-id="martial-techniques">
       <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Martial Techniques</h2></summary>
       {{template "sheet_martial_techniques" (dict "ID" .ID "MartialTechniques" .MartialTechniques)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Weapon Specialist —
+         Weapon Focus's own cap-gated weapon-type picker (any weapon in the
+         equipment catalog, not just carried inventory) plus the shared
+         Attack/Damage bonus and Flurry Die size readouts. Real DOM removal
+         via {{if}}, same treatment Martial Techniques gets above. */}}
+    {{if .WeaponFocus}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="weapon-focus">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Weapon Focus</h2></summary>
+      {{template "sheet_weapon_focus" (dict "ID" .ID "WeaponFocus" .WeaponFocus)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown once a Weapon Specialist has chosen one of the 8 Weapon
+         Forms — the Form's own auto-granted Techniques and cap-gated Styles
+         picker. Real DOM removal via {{if}}, same treatment Weapon Focus
+         gets above. */}}
+    {{if .WeaponForm}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="weapon-form">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>{{.WeaponForm.FormName}}</h2></summary>
+      {{template "sheet_weapon_form" (dict "ID" .ID "WeaponForm" .WeaponForm)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a Taijutsu Specialist at 5th level or higher —
+         Martial Defense's guard-slot armor-seal picker (see
+         cmd/n5e/martial_defense.go). Real DOM removal via {{if}}, same
+         treatment Weapon Focus gets above. */}}
+    {{if .MartialDefense}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="martial-defense">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Martial Defense</h2></summary>
+      {{template "sheet_martial_defense" (dict "ID" .ID "MartialDefense" .MartialDefense)}}
     </details>
     {{end}}
 
@@ -729,7 +742,7 @@
          load, the same "swap without refreshing everything downstream"
          shape the page-reset-bug notes elsewhere in this project warn about. */}}
     <form method="post" action="/characters/{{.ID}}/sheet/feats" id="sheet-feat-add" class="sheet-library-form"
-          data-target="sheet-feats-owned" data-also-refresh="sheet-features sheet-passive-traits sheet-vitals sheet-feature-choices sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table">
+          data-target="sheet-feats-owned" data-also-refresh="sheet-passive-traits sheet-vitals sheet-feature-choices sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table">
       {{template "sheet_library_pane" (dict "Prefix" "sheet-feat" "Field" "slug" "Groups" .FeatLibrary
                   "Placeholder" "Filter feats…" "Verb" "Take")}}
     </form>
@@ -820,6 +833,12 @@
 {{if .Sheet.ClanSlug}}
 <a href="/characters/{{.ID}}/clan-reference" class="sheet-reference-btn" data-reference-popup>Clan Reference</a>
 {{end}}
+{{/* Custom Features: same popup mechanism, for homebrew/DM-granted
+     features the player added by hand — the one thing the old inline
+     Features & Traits box did that the two read-only reference popups
+     above can't (they're pure rules.db reference text). See
+     character_custom_features.html/handleCharacterCustomFeatures. */}}
+<a href="/characters/{{.ID}}/custom-features" class="sheet-reference-btn" data-reference-popup>Custom Features</a>
 </div>
 
 </div>
@@ -1287,40 +1306,6 @@
               "Submit" "Add Item" "Target" "sheet-inventory-full"
               "AlsoRefresh" "sheet-inventory sheet-weapon-attacks sheet-other-rollables")}}
 </details>
-</div>
-{{end}}
-
-{{/* sheet_features: the Features & Traits list + "+ Add Feature" form —
-     everything inside the <details> EXCEPT its <summary> (see the doc
-     comment at that call site for why the item count there stays outside
-     this fragment). Expects {ID, GrantedFeatures, CustomFeatures}. */}}
-{{define "sheet_features"}}
-<div id="sheet-features" data-fragment="sheet_features">
-<ul class="sheet-feature-list">
-  {{range .GrantedFeatures}}
-  <li><strong>{{.Name}}</strong> <span class="option-picker-epithet">{{.SourceLabel}}</span>
-    {{if .Description}}{{formatDescription .Description}}{{end}}
-  </li>
-  {{end}}
-  {{range .CustomFeatures}}
-  <li>
-    <strong>{{.Name}}</strong> <span class="option-picker-epithet">{{.SourceLabel}}</span>
-    <form method="post" action="/characters/{{$.ID}}/sheet/features/{{.ID}}/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-features">
-      <button type="submit" class="sheet-delete-btn" aria-label="Delete {{.Name}}" title="Delete">&times;</button>
-    </form>
-    {{if .Description}}{{formatDescription .Description}}{{end}}
-  </li>
-  {{end}}
-  {{if not (or .GrantedFeatures .CustomFeatures)}}
-  <li class="section-hint">No features yet.</li>
-  {{end}}
-</ul>
-<form method="post" action="/characters/{{.ID}}/sheet/features" class="sheet-panel-form sheet-fetch-form" data-target="sheet-features">
-  <input type="text" name="name" placeholder="Feature name" required>
-  <input type="text" name="source_label" placeholder="Source (e.g. Other: Magic Item)">
-  <textarea name="description" rows="2" placeholder="Description"></textarea>
-  <button type="submit">+ Add Feature</button>
-</form>
 </div>
 {{end}}
 
@@ -1814,13 +1799,13 @@
      sheet_puppet_tactics (see that fragment's own doc comment) — a known
      pick with .Granted true is one of the ~16 bespoke techniques a
      subclass's own 3rd-level feature auto-grants for free (no delete
-     button, doesn't count against the cap, and has no Description here —
-     its full text is the granting feature's own description, findable in
-     the Class Reference popup). Unlike sheet_puppet_tactics' own ≤5-option
-     list (short enough to show
+     button, doesn't count against the cap; its Description is the granting
+     feature's own text, findable too in the Class Reference popup). Unlike
+     sheet_puppet_tactics' own ≤5-option list (short enough to show
      every remaining candidate's full text at once), 20 candidates here
-     would be a wall of text, so each unpicked option is a .tooltip trigger
-     (hover/focus reveals its description) instead. Expects {ID,
+     would be a wall of text, so both the Available AND Known entries are
+     .tooltip triggers (hover/focus reveals the full description) instead —
+     a technique loses none of its detail once learned. Expects {ID,
      MartialTechniques}. Unarmed Technique's own die progression and
      Taijutsu Stance pick (base class feature, level 1 — every Taijutsu
      Specialist, not subclass-gated) render at the top of the box.
@@ -1867,7 +1852,9 @@
       <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
     </form>
     {{end}}
-    <span class="puppet-upgrade-pick-name">{{.Name}}{{if .Granted}} (granted){{end}}</span>
+    <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}{{if .Granted}} (granted){{end}}
+      <span class="tooltip-content">{{formatDescription .Description}}</span>
+    </span>
   </div>
   {{end}}
 
@@ -1934,6 +1921,160 @@
       <button type="submit">Set</button>
     </form>
   </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_weapon_focus: Weapon Specialist's Weapon Focus feature grants a
+     level-gated pool of chosen weapon TYPES (any entry in the weapon
+     equipment catalog, not just what's carried) that all share one Attack &
+     Damage bonus, plus Flurry Die's own informational die-size readout.
+     Same Picks-list-then-radio-Add-form shape as sheet_martial_techniques
+     (see that fragment's own doc comment) — each unpicked catalog option is
+     a .tooltip trigger showing its damage dice/type rather than a wall of
+     always-visible text, since the weapon catalog is far larger than a
+     20-entry technique list. Expects {ID, WeaponFocus}. */}}
+{{define "sheet_weapon_focus"}}
+<div id="sheet-weapon-focus" data-fragment="sheet_weapon_focus">
+  <p class="section-hint">Flurry Die: {{.WeaponFocus.DieSize}}. Attack &amp; Damage Bonus: +{{.WeaponFocus.Bonus}} with every chosen weapon type below.
+    <span class="option-picker-epithet">{{.WeaponFocus.Used}}/{{.WeaponFocus.Cap}} chosen</span>
+  </p>
+
+  {{range .WeaponFocus.Known}}
+  <div class="puppet-upgrade-pick">
+    <form method="post" action="/characters/{{$.ID}}/sheet/weapon-focus/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-weapon-focus" data-also-refresh="sheet-weapon-attacks">
+      <input type="hidden" name="weapon_slug" value="{{.Slug}}">
+      <button type="submit" class="sheet-delete-btn" aria-label="Remove focus on {{.Name}}" title="Remove focus">&times;</button>
+    </form>
+    <span class="puppet-upgrade-pick-name">{{.Name}}</span>
+  </div>
+  {{end}}
+
+  {{if lt .WeaponFocus.Used .WeaponFocus.Cap}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/weapon-focus" class="sheet-panel-form sheet-fetch-form" data-target="sheet-weapon-focus" data-also-refresh="sheet-weapon-attacks">
+    <ul class="puppet-upgrade-option-list">
+      {{range .WeaponFocus.Available}}
+      <li>
+        <label class="puppet-upgrade-option tooltip">
+          <input type="radio" name="weapon_slug" value="{{.Slug}}" required> {{.Name}}
+          <span class="tooltip-content">{{.DamageDice}} {{.DamageType}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">Choose Weapon Focus</button>
+  </form>
+  {{else}}
+  <p class="section-hint">All Weapon Focus slots filled — remove one above to focus a different weapon type.</p>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_weapon_form: each of the 8 Weapon Forms grants two mechanics at
+     3rd level — a fixed pair (or trio) of bespoke Flurry Techniques with no
+     player choice (Granted, listed read-only up top) and a cap-gated pick
+     from that Form's own Styles list (class_options, subclass_slug scoped
+     to the chosen Form — see cmd/n5e/weapon_specialist.go). Same Picks-
+     list-then-radio-Add-form shape as sheet_martial_techniques for the
+     Styles half; both Known and Available entries are .tooltip triggers
+     showing the full description via formatDescription's named-entry
+     splitting. Expects {ID, WeaponForm}. */}}
+{{define "sheet_weapon_form"}}
+<div id="sheet-weapon-form" data-fragment="sheet_weapon_form">
+  {{if .WeaponForm.Techniques}}
+  <div class="sheet-subclass-detail">
+    <h3>{{.WeaponForm.FormName}} Techniques</h3>
+    <p class="section-hint">Flurry Die: {{.WeaponForm.FlurryDie}}. Learned automatically at 3rd level — always known, no cost to pick.</p>
+    {{range .WeaponForm.Techniques}}
+    <div class="puppet-upgrade-pick">
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}} (granted)
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  <div class="sheet-subclass-detail">
+    <h3>{{.WeaponForm.FormName}} Styles</h3>
+    <p class="section-hint">Choose up to {{.WeaponForm.Cap}}. Changeable any time.
+      <span class="option-picker-epithet">{{.WeaponForm.Used}}/{{.WeaponForm.Cap}} chosen</span>
+    </p>
+
+    {{range .WeaponForm.Known}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/weapon-form-style/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-weapon-form">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+
+    {{if lt .WeaponForm.Used .WeaponForm.Cap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/weapon-form-style" class="sheet-panel-form sheet-fetch-form" data-target="sheet-weapon-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .WeaponForm.Available}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Style</button>
+    </form>
+    {{else}}
+    <p class="section-hint">All Style slots filled — forget one above to learn a different Style.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* sheet_martial_defense: Martial Defense's 5th-level guard-slot system
+     infuses a fixed number of guard slots (2/3/4/5 at 5th/9th/13th/17th)
+     with an armor seal from rules.db's enhancement_seal catalog, capped by
+     tier (minor/refined/greater/superior) on the same schedule. Same Picks-
+     list-then-radio-Add-form shape as sheet_weapon_focus (see that
+     fragment's own doc comment) — no numeric AC/save bonus is computed from
+     a chosen seal (see martial_defense.go's own doc comment for why), so
+     this is a tracked pick only, with no data-also-refresh target. Expects
+     {ID, MartialDefense}. */}}
+{{define "sheet_martial_defense"}}
+<div id="sheet-martial-defense" data-fragment="sheet_martial_defense">
+  <p class="section-hint">Guard slots infuse you with taijutsu techniques that mimic an armor seal — no numeric bonus is computed here, see the seal's own text.
+    <span class="option-picker-epithet">{{.MartialDefense.Used}}/{{.MartialDefense.Cap}} filled</span>
+  </p>
+
+  {{range .MartialDefense.Known}}
+  <div class="puppet-upgrade-pick">
+    <form method="post" action="/characters/{{$.ID}}/sheet/martial-defense-seal/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-martial-defense">
+      <input type="hidden" name="seal_slug" value="{{.Slug}}">
+      <button type="submit" class="sheet-delete-btn" aria-label="Remove guard slot seal {{.Name}}" title="Remove seal">&times;</button>
+    </form>
+    <span class="puppet-upgrade-pick-name">{{.Name}}</span>
+  </div>
+  {{end}}
+
+  {{if lt .MartialDefense.Used .MartialDefense.Cap}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/martial-defense-seal" class="sheet-panel-form sheet-fetch-form" data-target="sheet-martial-defense">
+    <ul class="puppet-upgrade-option-list">
+      {{range .MartialDefense.Available}}
+      <li>
+        <label class="puppet-upgrade-option tooltip">
+          <input type="radio" name="seal_slug" value="{{.Slug}}" required> {{.Name}}
+          <span class="tooltip-content">{{.Description}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">Infuse Guard Slot</button>
+  </form>
+  {{else}}
+  <p class="section-hint">All guard slots filled — remove one above to infuse a different seal.</p>
   {{end}}
 </div>
 {{end}}
@@ -2451,11 +2592,7 @@
 </div>
 {{end}}
 
-{{/* sheet_feats: the Feats tab's "Your Feats" owned list. Expects {ID, Feats}.
-     A taken/dropped feat also always also-refreshes sheet-features, since
-     the Core tab's Features & Traits list shows the same feats merged in
-     (see mergeFeatFeatures) — two renderings of the same underlying data,
-     same reasoning as sheet_inventory/sheet_inventory_full. */}}
+{{/* sheet_feats: the Feats tab's "Your Feats" owned list. Expects {ID, Feats}. */}}
 {{define "sheet_feats"}}
 <div class="sheet-library-owned" id="sheet-feats-owned" data-fragment="sheet_feats" data-drop-into="sheet-feat-add">
   <h2>Your Feats</h2>
@@ -2471,7 +2608,7 @@
              the same reason: dropping a feat can also drop its own ability
              bonus (RemoveFeatAbilityBonus). */}}
         <form method="post" action="/characters/{{$.ID}}/sheet/feats/delete" class="sheet-inventory-form"
-              data-confirm="Remove {{.Name}}?" data-target="sheet-feats-owned" data-also-refresh="sheet-features sheet-passive-traits sheet-vitals sheet-feature-choices sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table">
+              data-confirm="Remove {{.Name}}?" data-target="sheet-feats-owned" data-also-refresh="sheet-passive-traits sheet-vitals sheet-feature-choices sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table">
           <input type="hidden" name="slug" value="{{.Slug}}">
           <button type="submit" class="sheet-delete-btn sheet-trash-btn" aria-label="Remove {{.Name}}" title="Remove {{.Name}}">🗑</button>
         </form>
@@ -2540,7 +2677,7 @@
       {{if $i}}/ {{end}}{{$c.ClassName}}
       <form method="post" action="/characters/{{$id}}/sheet/level" class="sheet-inline-form sheet-fetch-form sheet-class-level-form"
             data-target="sheet-level-row"
-            data-also-refresh="sheet-vitals sheet-squares sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table sheet-features sheet-passive-traits sheet-puppet-tab sheet-summon-tab sheet-feature-choices">
+            data-also-refresh="sheet-vitals sheet-squares sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table sheet-passive-traits sheet-puppet-tab sheet-summon-tab sheet-feature-choices">
         <input type="hidden" name="class_slug" value="{{$c.ClassSlug}}">
         <select name="level" class="sheet-class-level-select" aria-label="{{$c.ClassName}} level">
           {{range $levelOpts}}
@@ -2551,7 +2688,7 @@
       {{if $c.SubclassOptions}}
       <form method="post" action="/characters/{{$id}}/sheet/subclass" class="sheet-inline-form sheet-fetch-form sheet-subclass-form"
             data-target="sheet-level-row"
-            data-also-refresh="sheet-vitals sheet-squares sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table sheet-features sheet-passive-traits sheet-puppet-tab sheet-summon-tab sheet-feature-choices">
+            data-also-refresh="sheet-vitals sheet-squares sheet-skills sheet-saves sheet-ac sheet-weapon-attacks sheet-attack-jutsu-table sheet-passive-traits sheet-puppet-tab sheet-summon-tab sheet-feature-choices">
         <input type="hidden" name="class_slug" value="{{$c.ClassSlug}}">
         <select name="subclass_slug" class="sheet-subclass-select">
           <option value="">— choose subclass —</option>

@@ -80,10 +80,34 @@
     for (const selects of Object.values(groups)) refreshExclusion(selects);
   }
 
+  // Radio-paired dropdowns: "1 Simple Weapon" (a weapon <select>) and "1
+  // Martial Weapon" (its own weapon <select>) sit as alternative options in
+  // the same .equipment-choice-group. Every .kit-choice-select is marked
+  // required in the template regardless of which alternative is picked, so
+  // an unselected sibling option's still-empty, still-required <select>
+  // blocked submission even when its own radio was never chosen. Only the
+  // checked option's own dropdowns should count toward validation.
+  function refreshRequired() {
+    document.querySelectorAll(".equipment-choice-group").forEach((group) => {
+      group.querySelectorAll(".equipment-option").forEach((optionEl) => {
+        const radio = optionEl.querySelector('input[type="radio"]');
+        const checked = !radio || radio.checked;
+        optionEl.querySelectorAll("select.kit-choice-select").forEach((select) => {
+          select.required = checked;
+        });
+      });
+    });
+  }
+
+  document.addEventListener("change", (e) => {
+    if (e.target.matches('.equipment-choice-group input[type="radio"]')) refreshRequired();
+  });
+
   refreshAll();
+  refreshRequired();
   // creation-picker.js swaps fragments into #creation-detail-pane; watching
   // it covers the class step without that file needing to know about this
   // one. No-op on pages that have no such pane.
   const pane = document.getElementById("creation-detail-pane");
-  if (pane) new MutationObserver(refreshAll).observe(pane, { childList: true, subtree: true });
+  if (pane) new MutationObserver(() => { refreshAll(); refreshRequired(); }).observe(pane, { childList: true, subtree: true });
 })();

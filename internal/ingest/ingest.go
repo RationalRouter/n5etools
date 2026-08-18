@@ -437,8 +437,13 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	// Black/Green/Red Technique's own "pick a base chassis/framework/role"
 	// lists (Puppeteer Chassis, Puppet Frameworks, Puppet Roles) got
 	// mis-bookmarked by the source PDF as one subclass feature instead of a
-	// real option list — see subclassoptionlists.go's own doc.
+	// real option list — see subclassoptionlists.go's own doc. Weapon
+	// Specialist's 8 Weapon Forms have the identical "[Form] Styles" shape.
 	embeddedListReport, err := store.LoadEmbeddedSubclassOptionLists(db, book, "class/puppet-master")
+	if err != nil {
+		return nil, err
+	}
+	weaponFormStylesReport, err := store.LoadEmbeddedSubclassOptionLists(db, book, "class/weapon-specialist")
 	if err != nil {
 		return nil, err
 	}
@@ -455,6 +460,7 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 			{Label: "class feats", Report: featReport},
 			{Label: "puppet upgrade entries", Report: optionEntryReport},
 			{Label: "embedded subclass option lists", Report: embeddedListReport},
+			{Label: "weapon form styles", Report: weaponFormStylesReport},
 		},
 	}, nil
 }

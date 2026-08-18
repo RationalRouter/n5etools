@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
 	"github.com/sergio/n5e/internal/puppetupgrades"
 )
@@ -306,6 +307,14 @@ const (
 	ProfHalf = "half"
 	ProfFull = "full"
 )
+
+// taijutsuSpecialistClassSlug identifies the Taijutsu Specialist base class
+// for Martial Defense's unarmored-AC Proficiency Bonus term.
+const taijutsuSpecialistClassSlug = "class/taijutsu-specialist"
+
+// weaponSpecialistClassSlug identifies the Weapon Specialist base class for
+// Weapon Focus's Bukijutsu jutsu-casting bonus (see JutsuAttacks below).
+const weaponSpecialistClassSlug = "class/weapon-specialist"
 
 // ProfModes is the accepted set, in the order the sheet offers them.
 var ProfModes = []string{ProfHalf, ProfFull, ProfNone}
@@ -865,6 +874,25 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		})
 	}
 
+	// Weapon Specialist's Weapon Focus (class_features, level 1) grants a
+	// flat Attack & Damage bonus to every equipped weapon of a chosen
+	// focus type (buildAttacks in cmd/n5e/characters.go) — the book's own
+	// text extends that same bonus to Bukijutsu jutsu-casting as well.
+	// Which weapon type governs a given jutsu isn't tracked anywhere in
+	// this app, so rather than resolving per-jutsu-per-weapon-type, the
+	// bonus applies to every Bukijutsu jutsu a Weapon-Focus character
+	// casts once they've picked at least one focus type.
+	bukijutsuFocusBonus := 0
+	if level := classLevels[weaponSpecialistClassSlug]; level > 0 {
+		picks, err := charstore.ListWeaponFocus(charDB, characterID)
+		if err != nil {
+			return nil, fmt.Errorf("load weapon focus picks: %w", err)
+		}
+		if len(picks) > 0 {
+			bukijutsuFocusBonus = charstore.WeaponFocusBonus(level)
+		}
+	}
+
 	// Ninjutsu/Genjutsu/Taijutsu attack modifiers: the governing ability's
 	// modifier plus the FULL proficiency bonus, always — casting your own
 	// jutsu is never a non-proficient roll, so there is no half-proficiency
@@ -876,9 +904,13 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if picked := abilityAbbrev(overrides[AttackAbilityField(k.Kind)]); picked != "" && abilityIndex(picked) < len(Abilities) {
 			ability = picked
 		}
+		modifier := sheet.Abilities[ability].Modifier + sheet.ProficiencyBonus
+		if k.Kind == "Bukijutsu" {
+			modifier += bukijutsuFocusBonus
+		}
 		sheet.JutsuAttacks = append(sheet.JutsuAttacks, JutsuAttack{
 			Kind: k.Kind, Ability: ability,
-			Modifier: sheet.Abilities[ability].Modifier + sheet.ProficiencyBonus,
+			Modifier: modifier,
 		})
 	}
 
@@ -908,6 +940,17 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	puppetTotals, err := puppetupgrades.LoadCharacterTotals(charDB, characterID, puppetMasterLevel)
 	if err != nil {
 		return nil, fmt.Errorf("load puppet upgrade bonuses: %w", err)
+	}
+	// Martial Defense (1st level): the unarmored AC formula gets a
+	// Proficiency Bonus term for a Taijutsu Specialist. checked here rather
+	// than through grantedFeatures since computeEquippedAC needs a plain
+	// bool, not a feature-slug lookup.
+	taijutsuSpecialist := false
+	for _, c := range classes {
+		if c.Slug == taijutsuSpecialistClassSlug && c.Levels >= 1 {
+			taijutsuSpecialist = true
+			break
+		}
 	}
 	sheet.Speed += puppetTotals.Speed
 	sheet.PuppetUpgradeSources = puppetTotals.Sources
@@ -987,7 +1030,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if puppetArmorAC != nil {
 		sheet.AC = puppetArmorAC
 	} else {
-		ac, err := computeEquippedAC(rulesDB, charDB, characterID, scores, sheet.ProficiencyBonus)
+		ac, err := computeEquippedAC(rulesDB, charDB, characterID, scores, sheet.ProficiencyBonus, taijutsuSpecialist)
 		if err != nil {
 			return nil, fmt.Errorf("compute AC: %w", err)
 		}
@@ -1006,7 +1049,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 				altScores[k] = v
 			}
 			altScores["dex"] = scores[swapAbility]
-			altAC, err := computeEquippedAC(rulesDB, charDB, characterID, altScores, sheet.ProficiencyBonus)
+			altAC, err := computeEquippedAC(rulesDB, charDB, characterID, altScores, sheet.ProficiencyBonus, taijutsuSpecialist)
 			if err != nil {
 				return nil, fmt.Errorf("compute swapped AC: %w", err)
 			}
@@ -1292,12 +1335,19 @@ func PuppetWornArmorChassisSlug(rulesDB, charDB *sql.DB, characterID int64) (str
 	return slug, nil
 }
 
-func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[string]int, proficiencyBonus int) (*int, error) {
+func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[string]int, proficiencyBonus int, taijutsuSpecialist bool) (*int, error) {
 	// Unarmored is a real state with a real AC, not a missing value. This
 	// used to return nil whenever no armor was found, and the sheet showed
 	// a bare "—" — which is what every character saw, because nothing was
 	// ever marked equipped in the first place.
+	//
+	// Martial Defense (Taijutsu Specialist, 1st level) replaces the base
+	// unarmored formula with 10 + Proficiency + Dexterity Modifier — a flat
+	// Proficiency Bonus term every other class's unarmored AC doesn't get.
 	unarmored := 10 + AbilityModifier(scores["dex"])
+	if taijutsuSpecialist {
+		unarmored += proficiencyBonus
+	}
 
 	// Every equipped item is checked against the armor table rather than
 	// just the first one the database happens to return: an earlier version

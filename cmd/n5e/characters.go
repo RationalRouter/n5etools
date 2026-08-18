@@ -3634,6 +3634,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
+	focusSlugs, focusBonus, err := s.weaponFocusBonusSet(characterID)
+	if err != nil {
+		return nil, err
+	}
 	var out []attackRow
 	for _, item := range inventory {
 		if !item.Equipped || item.Slug == "" {
@@ -3707,21 +3711,31 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			}
 		}
 
+		// Weapon Specialist's Weapon Focus: a flat Attack & Damage bonus
+		// (+1/+2/+3, level-gated — see charstore.WeaponFocusBonus)
+		// automatically applied to every equipped weapon of a chosen focus
+		// type, on top of any per-weapon override above rather than
+		// replacing it.
+		weaponFocusBonus := 0
+		if focusSlugs[item.Slug] {
+			weaponFocusBonus = focusBonus
+		}
+
 		row := attackRow{
 			Name:        item.Name,
 			Slug:        item.Slug,
 			InventoryID: item.ID,
 			Ability:     strings.ToUpper(attackAbility),
 			AttackBonus: charsheet.ComposeModifier(
-				sheet.Abilities[attackAbility].Modifier, sheet.ProficiencyBonus, prof, opt.AttackBonus),
-			DamageBonus:   sheet.Abilities[damageAbility].Modifier + opt.DamageBonus,
+				sheet.Abilities[attackAbility].Modifier, sheet.ProficiencyBonus, prof, opt.AttackBonus+weaponFocusBonus),
+			DamageBonus:   sheet.Abilities[damageAbility].Modifier + opt.DamageBonus + weaponFocusBonus,
 			DamageDice:    damageDice.String,
 			DamageType:    damageType.String,
 			AttackAbility: attackAbility,
 			AttackProf:    prof,
-			AttackFlat:    opt.AttackBonus,
+			AttackFlat:    opt.AttackBonus + weaponFocusBonus,
 			DamageAbility: damageAbility,
-			DamageFlat:    opt.DamageBonus,
+			DamageFlat:    opt.DamageBonus + weaponFocusBonus,
 			Derived:       !overridden,
 		}
 		if m := damageDicePattern.FindStringSubmatch(strings.TrimSpace(damageDice.String)); m != nil {
@@ -3780,6 +3794,30 @@ type jutsuSheetRow struct {
 type jutsuUpcastOption struct {
 	Rank string
 	Cost int
+}
+
+// taijutsuMartialTechniqueFlatCost is Martial Technique's (class/taijutsu-
+// specialist/feature/martial-technique) flat per-rank Chakra cost table: a
+// Taijutsu Specialist casts any Taijutsu-classification jutsu for this fixed
+// amount instead of its printed cost_chakra, regardless of what the jutsu
+// would otherwise cost. Only D through S appear because no Taijutsu jutsu in
+// the rules DB is E-rank (confirmed against v_jutsu). A jutsu whose cost is
+// textual ("Special") is excluded by the caller rather than here — those
+// rows have no numeric cost_chakra to begin with.
+//
+// RAW also grants an opt-out ("you can choose to not use this feature when
+// you would cast a Taijutsu") and forbids stacking with other cost-reduction
+// sources while this is active. Neither is implemented: this override is
+// always-on, matching how every other always-on Group 1 feature in this
+// codebase works (e.g. Weapon Focus's always-on bonus). Documented Group 2/3
+// gap — a per-cast opt-out toggle and cost-reduction-source interaction
+// would need their own UI and are out of scope for this pass.
+var taijutsuMartialTechniqueFlatCost = map[string]int{
+	"D": 3,
+	"C": 5,
+	"B": 9,
+	"A": 14,
+	"S": 20,
 }
 
 // buildUpcastOptions enumerates every rank from baseRank through S (the
@@ -3934,16 +3972,14 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load character ambitions:", err)
 		return
 	}
+	// Only feeds Passive Traits/Resistances below (and, further down,
+	// free jutsu grants and mergeFeatFeatures) — the Core tab no longer
+	// shows this list itself; see reference.go's Class Reference popup for
+	// the player-facing "what do I have" view.
 	grantedFeatures, err := s.loadGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load granted features:", err)
-		return
-	}
-	customFeatures, err := s.loadCharacterCustomFeatures(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load custom features:", err)
 		return
 	}
 	chatLog, err := s.loadChatLog(id)
@@ -4064,6 +4100,24 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques:", err)
+		return
+	}
+	weaponFocus, err := s.loadWeaponFocusTabData(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon focus:", err)
+		return
+	}
+	weaponForm, err := s.loadWeaponFormTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon form:", err)
+		return
+	}
+	martialDefense, err := s.loadMartialDefenseTabData(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load martial defense:", err)
 		return
 	}
 	hunterTechniques, err := s.loadHunterTechniquesTabData(id, sheet)
@@ -4259,9 +4313,10 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"EligibleJutsu": eligibleJutsu, "ElementalAffinities": elementalAffinities, "ElementalAffinitySlots": elementalAffinitySlotsData,
 		"UIState": uiState,
 		"Drive":   drive, "Goal": goal, "Fear": fear,
-		"GrantedFeatures": grantedFeatures, "CustomFeatures": customFeatures,
 		"PassiveTraits": passiveTraits, "CustomResources": customResources, "PuppetTactics": puppetTactics,
-		"MartialDice": martialDice, "MartialTechniques": martialTechniques,
+		"MartialDice": martialDice, "MartialTechniques": martialTechniques, "WeaponFocus": weaponFocus,
+		"WeaponForm":                weaponForm,
+		"MartialDefense":            martialDefense,
 		"HunterTechniques":          hunterTechniques,
 		"Genjutsu":                  genjutsu,
 		"Mastery":                   mastery,
@@ -4424,6 +4479,14 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 		attackBonus[a.Kind] = a.Modifier
 		attackAbility[a.Kind] = a.Ability
 	}
+
+	// Martial Technique (1st level): a Taijutsu Specialist's Taijutsu jutsu
+	// always cost a fixed amount by rank instead of their printed cost —
+	// see taijutsuMartialTechniqueFlatCost.
+	taijutsuSpecialistLevel, err := s.taijutsuSpecialistClassLevel(characterID)
+	if err != nil {
+		return nil, err
+	}
 	options, err := charstore.ListJutsuOptions(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -4480,11 +4543,11 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 		j.Slug = slug
 		j.SourceLabel = grantLabels[slug]
 		var rank sql.NullString
-		var description, duration string
+		var description, duration, classification string
 		var costChakra, chakraPerRank sql.NullInt64
 		if err := s.rulesDB.QueryRow(
-			`SELECT name, rank, cost_text, cost_chakra, description, chakra_per_rank, duration FROM v_jutsu WHERE slug = ?`, slug,
-		).Scan(&j.Name, &rank, &j.CostText, &costChakra, &description, &chakraPerRank, &duration); err != nil {
+			`SELECT name, rank, cost_text, cost_chakra, description, chakra_per_rank, duration, classification FROM v_jutsu WHERE slug = ?`, slug,
+		).Scan(&j.Name, &rank, &j.CostText, &costChakra, &description, &chakraPerRank, &duration, &classification); err != nil {
 			continue // stale slug (rules update) — skip rather than break the whole sheet
 		}
 		j.Rank = rank.String
@@ -4493,13 +4556,30 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			v := int(costChakra.Int64)
 			j.CostChakra = &v
 		}
+		// Martial Technique's flat cost overrides the printed cost_chakra
+		// outright for a Taijutsu Specialist's own Taijutsu jutsu — "Special"
+		// cost jutsu (costChakra.Valid == false) are excluded, matching the
+		// RAW carve-out.
+		effectiveBaseCost := costChakra
+		if taijutsuSpecialistLevel > 0 && classification == "Taijutsu" && costChakra.Valid {
+			if flat, ok := taijutsuMartialTechniqueFlatCost[j.Rank]; ok {
+				v := flat
+				j.CostChakra = &v
+				effectiveBaseCost = sql.NullInt64{Int64: int64(flat), Valid: true}
+			}
+		}
 		// Only jutsu with BOTH a fixed base cost and a parsed per-rank delta
 		// get upcast options — a jutsu with no cost_chakra already has no
 		// Cast button at all (see character_sheet.html), and one whose
 		// at_higher_ranks text didn't parse to a number falls back to the
 		// sheet's existing manual chakra-edit path, same as it does today.
-		if costChakra.Valid && chakraPerRank.Valid {
-			j.UpcastOptions = buildUpcastOptions(j.Rank, int(costChakra.Int64), int(chakraPerRank.Int64))
+		// effectiveBaseCost (rather than the raw costChakra) anchors this so
+		// Martial Technique's override also lands on every upcast rank, not
+		// just the jutsu's base rank — "Upcasting still increases the cost
+		// of the jutsu as listed in its text" keeps chakraPerRank (the per-
+		// rank delta) unmodified, only the anchor moves.
+		if effectiveBaseCost.Valid && chakraPerRank.Valid {
+			j.UpcastOptions = buildUpcastOptions(j.Rank, int(effectiveBaseCost.Int64), int(chakraPerRank.Int64))
 		}
 
 		// What the jutsu's own description implies, before any override.
@@ -5174,27 +5254,6 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus)
-	case "sheet_features":
-		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load granted features for fragment:", err)
-			return
-		}
-		customFeatures, err := s.loadCharacterCustomFeatures(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load custom features for fragment:", err)
-			return
-		}
-		characterFeats, err := s.loadCharacterFeats(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load character feats for fragment:", err)
-			return
-		}
-		data["GrantedFeatures"] = mergeFeatFeatures(grantedFeatures, characterFeats)
-		data["CustomFeatures"] = customFeatures
 	case "sheet_elemental_affinities":
 		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 		if err != nil {
@@ -5242,6 +5301,30 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["MartialTechniques"] = martialTechniques
+	case "sheet_weapon_focus":
+		weaponFocus, err := s.loadWeaponFocusTabData(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load weapon focus for fragment:", err)
+			return
+		}
+		data["WeaponFocus"] = weaponFocus
+	case "sheet_weapon_form":
+		weaponForm, err := s.loadWeaponFormTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load weapon form for fragment:", err)
+			return
+		}
+		data["WeaponForm"] = weaponForm
+	case "sheet_martial_defense":
+		martialDefense, err := s.loadMartialDefenseTabData(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load martial defense for fragment:", err)
+			return
+		}
+		data["MartialDefense"] = martialDefense
 	case "sheet_hunter_techniques":
 		hunterTechniques, err := s.loadHunterTechniquesTabData(characterID, sheet)
 		if err != nil {
@@ -7017,7 +7100,6 @@ var sheetLiveFragments = map[string]bool{
 	"sheet_weapon_attacks":       true,
 	"sheet_inventory":            true,
 	"sheet_inventory_full":       true,
-	"sheet_features":             true,
 	"sheet_passive_traits":       true,
 	"sheet_feats":                true,
 	"sheet_ambitions":            true,
@@ -7027,6 +7109,9 @@ var sheetLiveFragments = map[string]bool{
 	"sheet_summon_tab":           true,
 	"sheet_puppet_tactics":       true,
 	"sheet_martial_techniques":   true,
+	"sheet_weapon_focus":         true,
+	"sheet_weapon_form":          true,
+	"sheet_martial_defense":      true,
 	"sheet_hunter_techniques":    true,
 	"sheet_genjutsu":             true,
 	"sheet_elemental_affinities": true,
@@ -7594,10 +7679,44 @@ func (s *server) handleSheetJutsuDelete(w http.ResponseWriter, r *http.Request) 
 	s.respondSheet(w, r, id, "sheet_jutsu_known")
 }
 
-// handleSheetFeatures adds one custom feature (form fields "name",
-// "source_label", "description") to the Core tab's features panel,
-// alongside the auto-seeded class/clan rows loadGrantedFeatures supplies.
-func (s *server) handleSheetFeatures(w http.ResponseWriter, r *http.Request) {
+// handleCharacterCustomFeatures serves the "Custom Features" popup — the
+// character's own homebrew/DM-granted features, opened the same real-
+// separate-window way as reference.go's Class Reference and
+// clan_reference.go's Clan Reference (reference-popup.js,
+// [data-reference-popup]). Unlike those two, this list is player-authored,
+// not derived from rules.db, so the popup is also where features are added
+// and removed — handleCustomFeatureAdd/handleCustomFeatureDelete below,
+// each a plain POST-and-redirect back to this same URL, matching this
+// project's convention for rarely-used, popup-scoped forms rather than the
+// main sheet's fetch-and-swap fragments.
+func (s *server) handleCharacterCustomFeatures(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var name string
+	if err := s.charDB.QueryRow(`SELECT name FROM characters WHERE id = ?`, id).Scan(&name); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	customFeatures, err := s.loadCharacterCustomFeatures(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load custom features for popup:", err)
+		return
+	}
+	s.render(w, "character_custom_features.html", map[string]any{
+		"Title":          name + " — Custom Features",
+		"CharacterID":    id,
+		"CharacterName":  name,
+		"CustomFeatures": customFeatures,
+	})
+}
+
+// handleCustomFeatureAdd adds one custom feature (form fields "name",
+// "source_label", "description") from the Custom Features popup.
+func (s *server) handleCustomFeatureAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
 		http.NotFound(w, r)
@@ -7619,12 +7738,12 @@ func (s *server) handleSheetFeatures(w http.ResponseWriter, r *http.Request) {
 		log.Println("add custom feature:", err)
 		return
 	}
-	s.respondSheet(w, r, id, "sheet_features")
+	http.Redirect(w, r, "/characters/"+strconv.FormatInt(id, 10)+"/custom-features", http.StatusSeeOther)
 }
 
-// handleSheetFeatureDelete removes one custom feature by ID (path value
+// handleCustomFeatureDelete removes one custom feature by ID (path value
 // "fid"), scoped to this character.
-func (s *server) handleSheetFeatureDelete(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleCustomFeatureDelete(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
 		http.NotFound(w, r)
@@ -7640,7 +7759,7 @@ func (s *server) handleSheetFeatureDelete(w http.ResponseWriter, r *http.Request
 		log.Println("delete custom feature:", err)
 		return
 	}
-	s.respondSheet(w, r, id, "sheet_features")
+	http.Redirect(w, r, "/characters/"+strconv.FormatInt(id, 10)+"/custom-features", http.StatusSeeOther)
 }
 
 // handleSheetProficiency toggles one character_proficiencies row on/off

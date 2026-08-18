@@ -1,0 +1,14 @@
+-- Pure version-bump migration: internal/store/subclassoptionlists.go and
+-- internal/ingest/ingest.go gained new logic (splitting each Weapon
+-- Specialist Weapon Form's bundled Styles prose into real class_options
+-- rows) with no accompanying schema change, so nothing here would
+-- otherwise tell an existing install's autoupdate check
+-- (internal/autoupdate) that book/class-compendium needs a real re-ingest —
+-- its ingest_schema_version only goes stale when schema.LatestMigration
+-- moves, per that package's own documented "has THIS BUILD's own
+-- parsing/schema logic moved on" signal. The DELETE is real and idempotent
+-- (clears any partial/incorrectly-tagged class/weapon-specialist rows a
+-- pre-fix build might have written, matching the classSlug-filtering bug
+-- fixed alongside this) — the actual Styles catalog is then populated by
+-- the real ingest this version bump triggers, not by this file.
+DELETE FROM class_options WHERE class_slug = 'class/weapon-specialist' AND list_name LIKE '% Styles';

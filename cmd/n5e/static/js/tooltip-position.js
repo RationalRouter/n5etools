@@ -69,6 +69,25 @@
     content.classList.remove("tooltip-content-below");
     const bounds = clipRect(tooltip);
 
+    // Shrink the box to fit inside `bounds` BEFORE computing any shift — a
+    // fixed 320px CSS max-width (app.css) can be wider than a narrow box's
+    // own available space (confirmed live: the Weapon Form box's default,
+    // un-resized width leaves only ~251px here). When content is wider than
+    // bounds, no single left offset can satisfy both edges at once — the
+    // shift math below would fix the right overflow and then immediately
+    // "re-clamp" it away to satisfy the left edge instead, silently
+    // reverting to a right-overflowing box that the container's own
+    // overflow:auto then clips, cutting text off mid-line. Capping width to
+    // whatever actually fits removes the impossible case instead of trying
+    // to clamp around it. Reset to the CSS default first so repeated hovers
+    // (a resize between them) always start fresh rather than compounding an
+    // old shrink.
+    content.style.maxWidth = "";
+    const available = bounds.right - bounds.left;
+    if (available < content.getBoundingClientRect().width) {
+      content.style.maxWidth = Math.max(120, available) + "px";
+    }
+
     // Horizontal: clamp within bounds via an explicit pixel offset instead
     // of a binary left/right class flip. A flip alone assumes the OPPOSITE
     // anchor always fits — true on a wide page, false on a narrow sheet

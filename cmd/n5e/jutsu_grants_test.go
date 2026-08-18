@@ -107,6 +107,66 @@ func TestParseJutsuGrants_NameFirstStillWorks(t *testing.T) {
 	}
 }
 
+// TestParseJutsuGrants_GainPhrasingStillWorks covers the Genjutsu Pledge
+// subclasses' 2nd-level free-jutsu features, which are printed with "you
+// gain the E-Rank Genjutsu X" rather than "you learn" — 6 of the 7 pledges
+// use this phrasing (only Corrupt Thoughts has no such grant at all).
+// Sentences pulled verbatim from subclass_features in rules.db.
+func TestParseJutsuGrants_GainPhrasingStillWorks(t *testing.T) {
+	cases := []struct {
+		name        string
+		description string
+		wantName    string
+	}{
+		{
+			name: "Beguiler - Inspired Appearance",
+			description: "When you choose this path at 2nd level, you gain the E-Rank " +
+				"Genjutsu Transform. If you already know this Genjutsu, you gain another " +
+				"E-Rank Genjutsu you qualify for. You can cast Transform at 0 Cost, as a " +
+				"Bonus Action.",
+			wantName: "Transform",
+		},
+		{
+			name: "Illusionist - Shaping Your World",
+			description: "When you choose this path at 2nd Level, you gain the E-Rank " +
+				"Genjutsu, Minor Illusion. If you already know this genjutsu, you learn a " +
+				"different E-Rank genjutsu of your choice. The genjutsu you learn this way " +
+				"does not count against your number of jutsu known.",
+			wantName: "Minor Illusion",
+		},
+		{
+			name: "Siren - Alluring Words",
+			description: "When you choose this path at 2nd level, you gain the E-Rank " +
+				"Genjutsu Affection, if you already know this Genjutsu, you gain another " +
+				"E-Rank Genjutsu you qualify for. The Genjutsu you learn this way does not " +
+				"count against your Jutsu known.",
+			wantName: "Affection",
+		},
+		{
+			name: "Time Slipper - Temporal Shift",
+			description: "When you choose this path at 2nd level, you gain the E-Rank " +
+				"Genjutsu Feather Burst, if you already know this Genjutsu, you gain " +
+				"another E-Rank Genjutsu you qualify for.",
+			wantName: "Feather Burst",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			grants := parseJutsuGrants(tc.description, 2)
+			if len(grants) != 1 {
+				t.Fatalf("parseJutsuGrants(%q) = %d grants, want 1: %+v", tc.name, len(grants), grants)
+			}
+			if grants[0].Name != tc.wantName {
+				t.Errorf("Name = %q, want %q", grants[0].Name, tc.wantName)
+			}
+			if grants[0].Level != 2 {
+				t.Errorf("Level = %d, want 2 (fallback level)", grants[0].Level)
+			}
+		})
+	}
+}
+
 // TestParseJutsuGrants_GenericRankNoSchoolIgnored confirms a "you learn
 // E-Rank jutsu" grant with no specific jutsu name and no school keyword
 // (Science-Nin's Chakra Cell Enhancement) does not get mistakenly matched

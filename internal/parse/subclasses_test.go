@@ -203,3 +203,94 @@ func TestParseSubclassesMartialTechniquesClassWide(t *testing.T) {
 		t.Errorf("Martial Techniques options = %+v", mt.Options)
 	}
 }
+
+// Real shape from Weapon Specialist's Gungnir Piercer Form: unlike its 7
+// sibling Weapon Forms, "Techniques[changed]" never states its own gating
+// level anywhere in its printed text — it launches straight into named
+// abilities instead of opening with "Starting at 3rd level, ...". buildFeature
+// must fall back to knownFeatureLevelOverrides, keyed by the subclass name,
+// only when ordinalLevelRe finds nothing to match.
+func TestParseSubclassesKnownFeatureLevelOverride(t *testing.T) {
+	c := &Class{
+		Name: "Weapon Specialist", SourcePage: 400, GroupHeading: "WEAPON FORMS",
+		SubclassLines: mkLines(400,
+			"WEAPON FORMS",
+			"Starting at 3rd level, you choose a Weapon Form.",
+			"Your choice grants you features at 3rd and 7th levels.",
+			"GUNGNIR PIERCER FORM",
+			"You wield a piercing polearm.",
+			"GUNGNIR PIERCER TECHNIQUES[CHANGED]",
+			"Fenrir's Claw. When you deal piercing damage, you can pierce through defenses.",
+			"GUNGNIR PIERCER STYLES",
+			"Starting at 3rd level, you learn a Gungnir Piercer Style.",
+		),
+	}
+	sections := []extract.OutlineNode{
+		{Title: "Weapon Forms", Children: []extract.OutlineNode{
+			{Title: "Gungnir Piercer Form", Children: []extract.OutlineNode{
+				{Title: "Gungnir Piercer Techniques[changed]"},
+				{Title: "Gungnir Piercer Styles"},
+			}},
+		}},
+	}
+	ParseSubclasses(c, sections)
+
+	if len(c.Group.Subclasses) != 1 {
+		t.Fatalf("subclasses = %+v", c.Group.Subclasses)
+	}
+	feats := c.Group.Subclasses[0].Features
+	if len(feats) != 2 {
+		t.Fatalf("features = %+v", feats)
+	}
+	if feats[0].Name != "Gungnir Piercer Techniques[changed]" ||
+		feats[0].Level == nil || *feats[0].Level != 3 {
+		t.Errorf("Gungnir Piercer Techniques[changed] level = %+v, want 3 via override", feats[0].Level)
+	}
+}
+
+// Real shape from Hunter-Nin's Blade Warden Blade's Aggression: the printed
+// text reads "Beginning at 1oth level, ..." — a lowercase "o" swapped in for
+// the digit "0" by PDF extraction, which breaks ordinalLevelRe's \d match
+// entirely. knownExtractionSquishes must correct it before the level regex
+// runs, so the feature still resolves to a real level (10) instead of NULL.
+func TestParseSubclassesLevelTypoSquish(t *testing.T) {
+	c := &Class{
+		Name: "Hunter-Nin", SourcePage: 150, GroupHeading: "HUNTERS CREEDS",
+		SubclassLines: mkLines(150,
+			"HUNTERS CREEDS",
+			"Starting at 3rd level, you choose a Hunters Creed.",
+			"Your choice grants you features at 3rd, 7th and 10th levels.",
+			"BLADE WARDEN",
+			"You wield a Warden Weapon.",
+			"WARDEN'S PROFICIENCY",
+			"When you choose this creed at 3rd level, you gain proficiency with your Warden Weapon.",
+			"BLADE'S AGGRESSION",
+			"Beginning at 1oth level, your Wardens Weapon's damage die is increased by 1 step.",
+		),
+	}
+	sections := []extract.OutlineNode{
+		{Title: "Hunters Creeds", Children: []extract.OutlineNode{
+			{Title: "Blade Warden", Children: []extract.OutlineNode{
+				{Title: "Warden's Proficiency"},
+				{Title: "Blade's Aggression"},
+			}},
+		}},
+	}
+	ParseSubclasses(c, sections)
+
+	if len(c.Group.Subclasses) != 1 {
+		t.Fatalf("subclasses = %+v", c.Group.Subclasses)
+	}
+	feats := c.Group.Subclasses[0].Features
+	if len(feats) != 2 {
+		t.Fatalf("features = %+v", feats)
+	}
+	aggression := feats[1]
+	if aggression.Name != "Blade's Aggression" ||
+		aggression.Level == nil || *aggression.Level != 10 {
+		t.Errorf("Blade's Aggression level = %+v, want 10 after squish fix", aggression.Level)
+	}
+	if strings.Contains(aggression.Description, "1oth") {
+		t.Errorf("Blade's Aggression description still contains the typo: %q", aggression.Description)
+	}
+}

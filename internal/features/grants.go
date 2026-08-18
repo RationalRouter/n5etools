@@ -13,6 +13,8 @@
 // Feats are out of scope — see this package's own doc comment.
 package features
 
+import "strings"
+
 // ProficiencyGrantKind mirrors character_proficiencies.kind (minus
 // 'language', which no feature in the audited text ever grants).
 type ProficiencyGrantKind string
@@ -129,6 +131,13 @@ var fixedProficiencyGrants = map[string][]ProficiencyGrant{
 		// (proficiency itself) always applies and is the common case.
 		{GrantSavingThrow, "con"},
 	},
+	// "At 15th level, your intense training grants you proficiency in
+	// Constitution saving throws." This feature's second clause (add
+	// Dexterity modifier to non-proficient saves) has no mechanism here to
+	// land in and is not modeled.
+	"class/taijutsu-specialist/feature/perfect-body": {
+		{GrantSavingThrow, "con"},
+	},
 }
 
 // ResolveProficiencyGrants returns every fixed skill/saving-throw
@@ -215,6 +224,21 @@ var speedGrants = []speedGrant{
 	{FeatureSlug: "clan/namikaze/feature/supernatural-speed", MinLevel: 18, Amount: 15},
 }
 
+// ironcladFeaturePrefix identifies a character who took the Ironclad
+// Taijutsu Style subclass — subclass features carry the full group-scoped
+// slug, so any granted feature under this prefix (gained once the subclass
+// is chosen at level 3) is a reliable signal, the same way acSwapGrants/
+// fixedProficiencyGrants above key purely off granted feature slugs rather
+// than a separate subclass parameter. Ironclad's own feature text overrides
+// Enhanced Movement's heavy-armor restriction outright: "While wearing
+// heavy armor, you still gain the benefits of Enhanced Movement."
+const ironcladFeaturePrefix = "class/taijutsu-specialist/group/taijutsu-style/ironclad/"
+
+// enhancedMovementFeatureSlug is the one speedGrants entry Ironclad's
+// exception applies to — Namikaze's Supernatural Speed has no such armor
+// gate to begin with, so there is nothing else for the exception to touch.
+const enhancedMovementFeatureSlug = "class/taijutsu-specialist/feature/enhanced-movement"
+
 // ResolveSpeedBonus sums every granted feature's Speed bonus at
 // characterLevel, picking each feature's own highest-reached tier (not
 // summing tiers within one feature) but summing ACROSS different features,
@@ -222,15 +246,26 @@ var speedGrants = []speedGrant{
 // unusual multiclass) stacking is the normal case elsewhere in this engine.
 // equippedArmorCategory gates Taijutsu-Specialist's grant the same way
 // ResolveACSwapAbility's does Konjiki's; "" (no armor, or armor with no
-// recorded category) counts as "not wearing Heavy Armor."
+// recorded category) counts as "not wearing Heavy Armor." An Ironclad
+// character is exempt from that gate for Enhanced Movement specifically —
+// see ironcladFeaturePrefix.
 func ResolveSpeedBonus(granted []GrantedFeatureRow, characterLevel int, equippedArmorCategory string) int {
+	isIronclad := false
+	for _, f := range granted {
+		if strings.HasPrefix(f.Slug, ironcladFeaturePrefix) {
+			isIronclad = true
+			break
+		}
+	}
+
 	bestBySlug := map[string]int{}
 	for _, f := range granted {
 		for _, g := range speedGrants {
 			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
 				continue
 			}
-			if g.RequiresNotHeavyArmor && equippedArmorCategory == "heavy" {
+			exempt := isIronclad && g.FeatureSlug == enhancedMovementFeatureSlug
+			if g.RequiresNotHeavyArmor && equippedArmorCategory == "heavy" && !exempt {
 				continue
 			}
 			if g.Amount > bestBySlug[f.Slug] {

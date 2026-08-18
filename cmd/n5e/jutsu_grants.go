@@ -17,17 +17,28 @@ import (
 // "level" and "you learn" is bounded rather than open-ended so this can't
 // jump across sentence boundaries into an unrelated jutsu mention later in
 // the same feature's (often paragraph-long) description.
+//
+// The verb also matches "gain(s)" alongside "learn(s)": 6 of the 7
+// Genjutsu Pledge subclasses' 2nd-level free-jutsu features are printed as
+// "you gain the E-Rank Genjutsu X" rather than "you learn" (e.g. "When you
+// choose this path at 2nd Level, you gain the E-Rank Genjutsu Transform" —
+// class/genjutsu-specialist/.../beguiler/feature/inspired-appearance).
+// "gain" alone is far too common in this sourcebook's prose to match
+// broadly, so the same tight "-Rank <Discipline> <Name>" shape immediately
+// following is still required — only the verb widened, not the specificity.
 var jutsuGrantWithLevelPattern = regexp.MustCompile(
-	`(?:Beginning|Starting) at (\d+)(?:st|nd|rd|th) level.{0,60}?you learns? (?:the |a )?([A-Z][A-Za-z' -]*?) ([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
+	`(?:Beginning|Starting) at (\d+)(?:st|nd|rd|th) level.{0,60}?you (?:learns?|gains?) (?:the |a )?([A-Z][A-Za-z' -]*?) ([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
 )
 
-// jutsuGrantNoLevelPattern matches the same "you learn the X (Rank)
+// jutsuGrantNoLevelPattern matches the same "you learn/gain the X (Rank)
 // (School)" shape without a level restated in the same sentence, e.g.
 // "You learn the Mending E-Rank Ninjutsu, which does not count against
 // your known" (class/puppet-master/feature/puppet-tool) — that grant's
 // level is the level the whole feature is gained at, not a separate one.
+// See jutsuGrantWithLevelPattern's comment for why "gain(s)?" is also
+// matched here, with the same specificity guardrail.
 var jutsuGrantNoLevelPattern = regexp.MustCompile(
-	`[Yy]ou learns? (?:the |a )?([A-Z][A-Za-z' -]*?) ([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
+	`[Yy]ou (?:learns?|gains?) (?:the |a )?([A-Z][A-Za-z' -]*?) ([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
 )
 
 // jutsuGrantRankFirstPattern matches a class/clan feature sentence phrased
@@ -42,8 +53,23 @@ var jutsuGrantNoLevelPattern = regexp.MustCompile(
 // than a following school keyword, since nothing follows the name here;
 // the character class includes ':' for names like "Sealing Art: String
 // Light Formation" and "Medical Release: Virtue".
+//
+// This is also the shape all 6 "gain"-phrased Genjutsu Pledge grants use —
+// e.g. "you gain the E-Rank Genjutsu Transform." (Beguiler's Inspired
+// Appearance) — see jutsuGrantWithLevelPattern's comment for why
+// "gain(s)?" is matched alongside "learn(s)?" here too. Those sentences
+// differ from the Puppet Master ones in two ways this pattern also
+// accounts for: an optional comma can sit between the school keyword and
+// the name ("the E-Rank Genjutsu, Minor Illusion." — Illusionist's Shaping
+// Your World), and the name itself is usually followed by a comma rather
+// than a period ("the E-Rank Genjutsu Doubt, if you already know this
+// Genjutsu..." — Layered Reality's Synchronous Technique), since the
+// sentence continues rather than ending there. The name's own character
+// class therefore no longer includes ',' (previously harmless only because
+// every matched name happened to be comma-free) — comma is now exclusively
+// the terminator alternative alongside the sentence-ending period.
 var jutsuGrantRankFirstPattern = regexp.MustCompile(
-	`[Yy]ou learns? (?:the |a )?([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu) ([A-Z][A-Za-z':, -]*?)\.`,
+	`[Yy]ou (?:learns?|gains?) (?:the |a )?([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu),? ([A-Z][A-Za-z':\- ]*?)[,.]`,
 )
 
 // jutsuGrantMatch is one "you learn X for free" instance pulled out of a

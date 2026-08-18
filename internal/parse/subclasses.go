@@ -89,10 +89,27 @@ type SubclassGroup struct {
 // time, the same discipline capsEntryPattern's own doc follows.
 var knownExtractionSquishes = strings.NewReplacer(
 	"Internal Radio LinkYou", "Internal Radio Link You", // Science-Nin's Combat Programming (S&B Specialist)
+	"1oth level", "10th level", // Hunter-Nin's Blade Warden Blade's Aggression: a lowercase "o" swapped in for the digit "0" breaks ordinalLevelRe's \d match entirely
+	"Natural Weapon of to summon you chose.", "Natural Weapon of the Sage Creature you chose to summon.", // Puppet Master's Green Technique Bestial Framework: garbled, ungrammatical printed sentence
 )
 
 func fixKnownExtractionSquish(s string) string {
 	return knownExtractionSquishes.Replace(s)
+}
+
+// knownFeatureLevelOverrides hand-confirms a small, closed list of subclass
+// features whose printed text never states its own gating level anywhere in
+// its description (unlike every sibling feature of the same shape), so
+// ordinalLevelRe has nothing to match against. Keyed by subclass name, then
+// feature name. Consulted by buildFeature only as a fallback when the regex
+// finds no match — a real ordinal in the text always wins. Each entry here
+// was confirmed by reading every sibling feature's own opening sentence, not
+// guessed.
+var knownFeatureLevelOverrides = map[string]map[string]int{
+	// All 7 other Weapon Forms' own "Techniques[changed]" feature opens with
+	// "Starting at 3rd level, ..."; Gungnir Piercer Form's skips straight to
+	// its named abilities and never states a level at all.
+	"Gungnir Piercer Form": {"Gungnir Piercer Techniques[changed]": 3},
 }
 
 // ordinalRe matches a bare ordinal ("2nd", "18th") — the group intros list
@@ -305,12 +322,16 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 
 	// A depth-1 node is an subclass if most of its children read as
 	// level-gated features; otherwise it is an option list.
-	buildFeature := func(n *node) ClassFeature {
+	buildFeature := func(n *node, subclassName string) ClassFeature {
 		f := ClassFeature{Name: n.title, SourcePage: n.page,
-			Description: fixKnownExtractionSquish(strings.TrimSpace(strings.Join(n.content, " ")))}
+			Description: stripArtistCredit(fixKnownExtractionSquish(strings.TrimSpace(strings.Join(n.content, " "))))}
 		if m := ordinalLevelRe.FindStringSubmatch(f.Description); m != nil {
 			lvl := atoiSafe(m[1])
 			if lvl >= 1 && lvl <= 20 {
+				f.Level = &lvl
+			}
+		} else if overrides, ok := knownFeatureLevelOverrides[subclassName]; ok {
+			if lvl, ok := overrides[f.Name]; ok {
 				f.Level = &lvl
 			}
 		}
@@ -318,7 +339,7 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 	}
 	buildOption := func(n *node) ClassOption {
 		o := ClassOption{Name: n.title, SourcePage: n.page}
-		desc := strings.TrimSpace(strings.Join(n.content, " "))
+		desc := fixKnownExtractionSquish(strings.TrimSpace(strings.Join(n.content, " ")))
 		if rest, ok := strings.CutPrefix(desc, "Prerequisite:"); ok {
 			// The prerequisite runs to the end of its printed line — the
 			// first content line — not the whole joined text.
@@ -381,7 +402,7 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 					a := Subclass{Name: ch.title, SourcePage: ch.page,
 						Description: strings.TrimSpace(strings.Join(ch.content, " "))}
 					for _, f := range ch.children {
-						a.Features = append(a.Features, buildFeature(f))
+						a.Features = append(a.Features, buildFeature(f, ch.title))
 					}
 					g.Subclasses = append(g.Subclasses, a)
 					lastSubclass = ch.title

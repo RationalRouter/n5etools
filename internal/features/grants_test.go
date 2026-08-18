@@ -89,6 +89,31 @@ func TestResolveSpeedBonus(t *testing.T) {
 		t.Errorf("taijutsu level 1 (below first tier): got %d, want 0", got)
 	}
 
+	// Ironclad's own feature text overrides Enhanced Movement's heavy-armor
+	// gate: "While wearing heavy armor, you still gain the benefits of
+	// Enhanced Movement." The exception is keyed off the presence of any
+	// granted Ironclad-subclass feature, not a separate parameter.
+	ironclad := []GrantedFeatureRow{
+		{Slug: "class/taijutsu-specialist/feature/enhanced-movement"},
+		{Slug: "class/taijutsu-specialist/group/taijutsu-style/ironclad/feature/ironclad"},
+	}
+	if got := ResolveSpeedBonus(ironclad, 6, "heavy"); got != 15 {
+		t.Errorf("ironclad level 6, heavy armor: got %d, want 15 (Ironclad keeps Enhanced Movement in heavy armor)", got)
+	}
+	if got := ResolveSpeedBonus(ironclad, 6, ""); got != 15 {
+		t.Errorf("ironclad level 6, no armor: got %d, want 15", got)
+	}
+
+	// A different Taijutsu Style subclass (no Ironclad feature granted)
+	// keeps the normal heavy-armor gate.
+	nonIronclad := []GrantedFeatureRow{
+		{Slug: "class/taijutsu-specialist/feature/enhanced-movement"},
+		{Slug: "class/taijutsu-specialist/group/taijutsu-style/stancer/feature/stancer"},
+	}
+	if got := ResolveSpeedBonus(nonIronclad, 6, "heavy"); got != 0 {
+		t.Errorf("non-ironclad level 6, heavy armor: got %d, want 0", got)
+	}
+
 	// Two different sources stack.
 	both := []GrantedFeatureRow{
 		{Slug: "clan/namikaze/feature/supernatural-speed"},

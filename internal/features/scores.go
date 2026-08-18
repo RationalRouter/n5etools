@@ -56,6 +56,15 @@ var fixedAbilityScoreGrants = map[string][]AbilityScoreGrant{
 		{Ability: "str", Amount: 2, RaisesMax: true},
 		{Ability: "con", Amount: 2, RaisesMax: true},
 	},
+	// "Your Strength and Charisma scores both increase by +2, to a maximum
+	// of 22." A differently-worded printing of the same "+2 to score and
+	// max" pattern every other L20 Weapon Form capstone uses — 20 (the
+	// standard max) + 2 = 22, so RaisesMax:true produces the stated cap
+	// exactly, not a special-cased absolute value.
+	"class/weapon-specialist/group/weapon-forms/obsidian-hammer-form/feature/obsidian-soul": {
+		{Ability: "str", Amount: 2, RaisesMax: true},
+		{Ability: "cha", Amount: 2, RaisesMax: true},
+	},
 	// "Your Intelligence score (and its maximum) is increased by +2." The
 	// feature's FURTHER conditional +2 while wearing Juggernaut Armor is a
 	// separate, equipment-gated grant — see
