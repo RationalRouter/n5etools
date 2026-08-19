@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -477,14 +479,75 @@ type martialTechniquesTabData struct {
 	Ruin             *ruinAntiChakraView
 }
 
-// loadTaijutsuStanceOptions catalogs the 9 Taijutsu Stances from
-// fighting_stances (Chapter 13 reference data, class-agnostic — also holds
-// 12 Bukijutsu stances this class's own Unarmed Technique pick has no
-// bearing on, hence the stance_type filter).
-func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
-	rows, err := s.rulesDB.Query(`
+// buildFightingStanceView assembles one granting feature's own Taijutsu
+// Stance pick view from the character's stored feature choices — shared by
+// Taijutsu Specialist's Unarmed Technique and Combat Medic's Martial
+// Competency (medical_nin.go), since a character with both grants gets two
+// INDEPENDENT stance picks (Martial Competency's own text: "You can't take
+// a stance more than once even if you gain a stance choice again" implies
+// exactly this — a second grant is a second, separate choice), not one
+// shared pick. Each caller passes its own featureSlug so the two picks are
+// stored under two different ChoiceKeys.
+func buildFightingStanceView(choices map[features.ChoiceKey]string, options []stanceOption, featureSlug string) *fightingStanceView {
+	stance := &fightingStanceView{
+		Current: choices[features.ChoiceKey{FeatureSlug: featureSlug, ChoiceIndex: 0}],
+		Options: options,
+	}
+	for _, o := range options {
+		if o.Slug == stance.Current {
+			stance.CurrentName = o.Name
+			stance.CurrentDescription = o.Description
+		}
+	}
+	return stance
+}
+
+// errInvalidStance signals storeFightingStanceChoice's slug wasn't found in
+// the options catalog it was given — distinguished from a database error so
+// callers can answer with the right HTTP status.
+var errInvalidStance = errors.New("not a valid stance")
+
+// storeFightingStanceChoice validates slug against the given options
+// catalog and records it under featureSlug's own ChoiceIndex 0 — shared by
+// every feature that grants a Fighting Stance pick (Unarmed Technique below
+// and Martial Competency in medical_nin.go's handleMedicalNinFightingStance,
+// both Taijutsu-Stance-only; Scout-Nin's Fighting Stance in scout_nin.go,
+// which offers both Taijutsu and Weapon Stances) so the validation logic
+// lives in exactly one place instead of being duplicated per granting
+// feature. options is a parameter rather than always re-deriving it from
+// loadTaijutsuStanceOptions so a caller can pass a wider stance_type filter
+// without a second, duplicated validate-and-store function.
+func (s *server) storeFightingStanceChoice(characterID int64, featureSlug string, options []stanceOption, slug string) error {
+	valid := false
+	for _, o := range options {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return errInvalidStance
+	}
+	return charstore.SetFeatureChoice(s.charDB, characterID, featureSlug, 0, slug)
+}
+
+// loadStanceOptionsByType catalogs Fighting Stances from fighting_stances
+// (Chapter 13 reference data, class-agnostic) filtered to one or more
+// stance_type values — generalizes what used to be loadTaijutsuStanceOptions's
+// own hardcoded single-type query so Scout-Nin's Fighting Stance (which
+// offers both Taijutsu Stance and Weapon Stance, per its own text: "between
+// Taijutsu Stance and Weapon Stance") can reuse the same loader instead of a
+// third, near-duplicate query.
+func (s *server) loadStanceOptionsByType(stanceTypes ...string) ([]stanceOption, error) {
+	placeholders := make([]string, len(stanceTypes))
+	args := make([]any, len(stanceTypes))
+	for i, t := range stanceTypes {
+		placeholders[i] = "?"
+		args[i] = t
+	}
+	rows, err := s.rulesDB.Query(fmt.Sprintf(`
 		SELECT slug, name, description FROM fighting_stances
-		WHERE stance_type = 'taijutsu' ORDER BY name`)
+		WHERE stance_type IN (%s) ORDER BY name`, strings.Join(placeholders, ",")), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -498,6 +561,13 @@ func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
 		options = append(options, o)
 	}
 	return options, rows.Err()
+}
+
+// loadTaijutsuStanceOptions catalogs the 9 Taijutsu Stances only — Taijutsu
+// Specialist's Unarmed Technique and Medical-Nin's Martial Competency both
+// only ever offer a Taijutsu Stance pick, never a Weapon Stance.
+func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
+	return s.loadStanceOptionsByType("taijutsu")
 }
 
 // loadMartialTechniquesTabData returns nil for a character with no
@@ -597,17 +667,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 	if err != nil {
 		return nil, err
 	}
-	stance := &fightingStanceView{
-		Current: choices[features.ChoiceKey{FeatureSlug: unarmedTechniqueFeatureSlug, ChoiceIndex: 0}],
-		Options: stanceOptions,
-	}
-	for _, o := range stanceOptions {
-		if o.Slug == stance.Current {
-			stance.CurrentName = o.Name
-			stance.CurrentDescription = o.Description
-		}
-	}
-	data.Stance = stance
+	data.Stance = buildFightingStanceView(choices, stanceOptions, unarmedTechniqueFeatureSlug)
 
 	if subclassSlug == passionateFlameSubclassSlug || subclassSlug == ruinSubclassSlug {
 		if subclassSlug == passionateFlameSubclassSlug {
@@ -752,23 +812,16 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 	options, err := s.loadTaijutsuStanceOptions()
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load stance options for fighting stance:", err)
+		log.Println("load taijutsu stance options:", err)
 		return
 	}
-	valid := false
-	for _, o := range options {
-		if o.Slug == slug {
-			valid = true
-			break
+	if err := s.storeFightingStanceChoice(id, unarmedTechniqueFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			http.Error(w, "not a valid stance", http.StatusBadRequest)
+		} else {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("set fighting stance:", err)
 		}
-	}
-	if !valid {
-		http.Error(w, "not a valid stance", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, unarmedTechniqueFeatureSlug, 0, slug); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set fighting stance:", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_martial_techniques")

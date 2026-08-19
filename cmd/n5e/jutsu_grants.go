@@ -72,6 +72,36 @@ var jutsuGrantRankFirstPattern = regexp.MustCompile(
 	`[Yy]ou (?:learns?|gains?) (?:the |a )?([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu),? ([A-Z][A-Za-z':\- ]*?)[,.]`,
 )
 
+// jutsuGrantNoRankPattern matches a "you learn/gain the [Name] Genjutsu"
+// sentence with NEITHER an explicit rank token NOR a level restated in the
+// same sentence, e.g. "you learn the Bane Genjutsu, if you do not know it
+// already" (Systematic Breakdown, Intelligence Operative). A full-corpus
+// grep confirmed this shape recurs well beyond that one instance (several
+// Hunter-Nin subclasses' own free-jutsu grants — Necrosis, Weapons of
+// Darkness, Shadow Bite, Chakra Mark, Summoning Technique — use the
+// identical rankless phrasing), so a shared regex is the right fix here
+// rather than a one-off constant for Bane alone.
+//
+// This pattern is deliberately broader than the other three (no rank token
+// required at all), so it also fires on sentences the other patterns
+// already handle correctly — for "the Mending E-Rank Ninjutsu", nothing
+// stops the non-greedy capture from swallowing "Mending E-Rank" as one
+// name, since RE2 has no lookahead to forbid it. rankTokenSuffixPattern
+// below discards any match whose captured name ends in an explicit rank
+// token, leaving this pattern to only ever contribute genuinely rank-less
+// grants that the other three patterns can't reach.
+var jutsuGrantNoRankPattern = regexp.MustCompile(
+	`[Yy]ou (?:learns?|gains?) (?:the |a )?([A-Z][A-Za-z' -]*?) (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
+)
+
+// rankTokenSuffixPattern matches a jutsuGrantNoRankPattern capture that
+// actually ends in an explicit rank token ("... E-Rank") — meaning the
+// sentence was already correctly handled by jutsuGrantNoLevelPattern (or is
+// the rank-first shape jutsuGrantRankFirstPattern owns), and this broader,
+// rank-agnostic match should be discarded rather than added as a second,
+// wrongly-named grant.
+var rankTokenSuffixPattern = regexp.MustCompile(`(?i)[EDCBAS]-Rank$`)
+
 // jutsuGrantMatch is one "you learn X for free" instance pulled out of a
 // class or clan feature's description, before the printed name is resolved
 // against the rules database.
@@ -111,6 +141,17 @@ func parseJutsuGrants(description string, fallbackLevel int) []jutsuGrantMatch {
 	}
 	for _, m := range jutsuGrantRankFirstPattern.FindAllStringSubmatch(description, -1) {
 		name := strings.TrimSpace(m[2])
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, jutsuGrantMatch{Name: name, Level: fallbackLevel})
+	}
+	for _, m := range jutsuGrantNoRankPattern.FindAllStringSubmatch(description, -1) {
+		name := strings.TrimSpace(m[1])
+		if rankTokenSuffixPattern.MatchString(name) {
+			continue // already-ranked sentence; one of the three patterns above owns it
+		}
 		if seen[name] {
 			continue
 		}
@@ -228,9 +269,27 @@ func jutsuKnownCount(jutsu []jutsuSheetRow) int {
 // so the first branch's "gain access" has no restriction left to lift.
 const waterAndOilDoMixSlug = "class/cooking-nin/group/cooking-focus/fry-cooks/feature/water-and-oil-do-mix"
 
+// heatMasterFireAccessSlug is Heat Master's "If You Can't Handle the
+// Heat..." subclass feature — near-word-for-word identical in shape to
+// Water and Oil, Do Mix above, just for a single release: "You gain the
+// Fire release Keyword and may learn Fire release Jutsu. If you already
+// have access to Fire release Jutsu, you instead learn a number of Fire
+// release Jutsu equal to half your Proficiency Bonus."
+const heatMasterFireAccessSlug = "class/cooking-nin/group/cooking-focus/heat-master/feature/if-you-cant-handle-the-heat"
+
 // hasNatureReleaseAccess reports whether a character's class or clan already
 // lets them learn jutsu carrying the given keyword — the same union
 // loadJutsuOrigins uses to badge a jutsu "class" or "clan" on the sheet.
+//
+// This is deliberately NOT used for the five elemental release keywords
+// (Fire/Water/Earth/Wind/Lightning Release) any more — see
+// natureReleaseBonusJutsuSlots' own comment for why a discipline-based
+// check can't tell "already has access" for those apart from "just gained
+// it from this same feature." It stays correct for non-elemental keywords
+// like "Medical", which jutsuEligible (jutsu_eligibility.go) never gates
+// behind an affinity in the first place — any class whose discipline list
+// includes Medical jutsu can already learn them freely, so this broad
+// class/clan check is the right (and only) test for those.
 func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bool, error) {
 	var n int
 	err := s.rulesDB.QueryRow(`
@@ -245,16 +304,37 @@ func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bo
 	return n > 0, err
 }
 
-// waterAndOilBonusJutsuSlots returns the bonus known-jutsu count Water and
-// Oil, Do Mix adds to JutsuKnownCap — half the character's proficiency
-// bonus, rounded down, gated on the feature being active AND the character
-// already having Water or Medical release access from some other source
-// (their clan's jutsu list, or another class feature). 0 if either doesn't
-// hold.
-func (s *server) waterAndOilBonusJutsuSlots(features []grantedFeatureRow, classSlug, clanSlug string, proficiencyBonus int) (int, error) {
+// natureReleaseBonusJutsuSlots implements the "if you already have access
+// to [release] Jutsu, you instead learn a number of [release] Jutsu equal
+// to half your Proficiency Bonus" shape shared by Fry Cooks' Water and Oil,
+// Do Mix and Heat Master's If You Can't Handle the Heat... — gated on the
+// named granting feature being active AND the character already having
+// access to at least one of the given keywords from some other source.
+//
+// For an elemental keyword (Fire/Water/Earth/Wind/Lightning Release), "from
+// some other source" means the character's own resolved elemental
+// affinities (elemental_affinity.go's characterElementalAffinities — clan
+// trait, the Nature Release feat, or a Professor subclass slot), NOT the
+// broad classJutsuPredicate-based hasNatureReleaseAccess check: that check
+// only tests whether a jutsu of this keyword falls within the character's
+// class DISCIPLINE (Ninjutsu/Genjutsu/Taijutsu/Bukijutsu) at all, which for
+// any Ninjutsu-casting class is true for nearly every element regardless of
+// whether that class or clan actually grants the keyword — confirmed live
+// against dist/rules.db: a clanless, featless Cooking-Nin already "passes"
+// hasNatureReleaseAccess for Fire/Water/Medical purely because Cooking-Nin
+// casts Ninjutsu and the book has plenty of Ninjutsu-classified jutsu
+// tagged with each of those keywords. Using that check here would make the
+// "gain the keyword fresh, no bonus" branch of both features unreachable
+// for any Ninjutsu-casting class — always paying out the bonus regardless
+// of whether the character actually had prior access, which is not what
+// either feature's text says. Non-elemental keywords ("Medical") have no
+// affinity-system equivalent to check, so those still go through the
+// broad class/clan check, which is accurate for them (see
+// hasNatureReleaseAccess's own comment).
+func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug, grantSlug string, keywords []string, proficiencyBonus int) (int, error) {
 	has := false
 	for _, f := range features {
-		if f.Slug == waterAndOilDoMixSlug {
+		if f.Slug == grantSlug {
 			has = true
 			break
 		}
@@ -262,16 +342,77 @@ func (s *server) waterAndOilBonusJutsuSlots(features []grantedFeatureRow, classS
 	if !has {
 		return 0, nil
 	}
-	water, err := s.hasNatureReleaseAccess(classSlug, clanSlug, "Water Release")
+
+	grantedSlugs := make(map[string]bool, len(features))
+	for _, f := range features {
+		grantedSlugs[f.Slug] = true
+	}
+	affinities, err := s.characterElementalAffinities(characterID, clanSlug, grantedSlugs)
 	if err != nil {
 		return 0, err
 	}
-	medical, err := s.hasNatureReleaseAccess(classSlug, clanSlug, "Medical")
-	if err != nil {
-		return 0, err
+	affinitySet := make(map[string]bool, len(affinities))
+	for _, a := range affinities {
+		affinitySet[a.Element] = true
 	}
-	if !water && !medical {
-		return 0, nil
+
+	for _, kw := range keywords {
+		if el := elementFromReleaseKeyword(kw); el != "" {
+			if affinitySet[el] {
+				return proficiencyBonus / 2, nil
+			}
+			continue
+		}
+		ok, err := s.hasNatureReleaseAccess(classSlug, clanSlug, kw)
+		if err != nil {
+			return 0, err
+		}
+		if ok {
+			return proficiencyBonus / 2, nil
+		}
 	}
-	return proficiencyBonus / 2, nil
+	return 0, nil
+}
+
+// waterAndOilBonusJutsuSlots returns the bonus known-jutsu count Water and
+// Oil, Do Mix adds to JutsuKnownCap — half the character's proficiency
+// bonus, rounded down, gated on Water or Medical release access from
+// elsewhere. See natureReleaseBonusJutsuSlots.
+func (s *server) waterAndOilBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug string, proficiencyBonus int) (int, error) {
+	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, waterAndOilDoMixSlug, []string{"Water Release", "Medical"}, proficiencyBonus)
+}
+
+// heatMasterBonusJutsuSlots returns the bonus known-jutsu count If You
+// Can't Handle the Heat... adds to JutsuKnownCap — half the character's
+// proficiency bonus, rounded down, gated on Fire release access from
+// elsewhere. See natureReleaseBonusJutsuSlots.
+func (s *server) heatMasterBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug string, proficiencyBonus int) (int, error) {
+	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, heatMasterFireAccessSlug, []string{"Fire Release"}, proficiencyBonus)
+}
+
+// chakraCellEnhancementFeatureSlug is Science-Nin's base 1st-level feature
+// granting bonus known-jutsu slots.
+const chakraCellEnhancementFeatureSlug = "class/science-nin/feature/chakra-cell-enhancement"
+
+// chakraCellEnhancementBonusJutsuSlots returns the bonus known-jutsu count
+// Chakra Cell Enhancement adds to JutsuKnownCap — the character's own
+// Intelligence modifier (never negative), gated purely on having the
+// granted feature at all (already level/class gated by
+// features.LoadGrantedFeatures, same as waterAndOilBonusJutsuSlots's own
+// grant check). Book text: "You learn E-Rank jutsu equal to your
+// Intelligence Modifier. You can change these jutsu over the course of a
+// rest" — same "flat cap addition, rank not separately enforced"
+// simplification waterAndOilBonusJutsuSlots already accepts for its own
+// bonus slots: this app's known-jutsu cap has no per-rank sub-limit to
+// restrict these bonus slots to E-Rank jutsu specifically against.
+func chakraCellEnhancementBonusJutsuSlots(features []grantedFeatureRow, intModifier int) int {
+	for _, f := range features {
+		if f.Slug == chakraCellEnhancementFeatureSlug {
+			if intModifier < 0 {
+				return 0
+			}
+			return intModifier
+		}
+	}
+	return 0
 }

@@ -83,6 +83,25 @@ func cleanCell(s string) string {
 	return s
 }
 
+// knownResourceCellFixes hand-corrects a small, closed list of Mastersheet
+// resource-column cells that read wrong even after cleanCell's generic
+// whitespace normalization — a stray artifact baked into the source
+// spreadsheet cell itself, not a formatting shape cleanCell already
+// handles. Confirmed directly against the shipped rules.db: Science-Nin's
+// own Creation Points column reads "18 ." at 9th level (every neighboring
+// level in the same column reads a clean integer — "16" at 8th, "20" at
+// 10th, each a flat +2 step) — strconv.Atoi silently fails on the stray
+// " ." suffix, which cmd/n5e's classLevelResourceInt treats as "no value"
+// (returns 0, nil, not an error) rather than surfacing the problem, so this
+// one level's own Creation Points budget would silently read 0 instead of
+// 18 without this fix. Keyed by (class name as printed, level, resource
+// name) so a coincidentally-matching value elsewhere in the sheet is never
+// silently rewritten; extend one confirmed instance at a time, same
+// discipline as internal/store/classoptionentries.go's own known-fix maps.
+var knownResourceCellFixes = map[[3]string]string{
+	{"Science-Nin", "9", "Creation Points"}: "18",
+}
+
 // ParseClassCharts reads the ClassChartMaster tab.
 func ParseClassCharts(path string) ([]ClassChart, []Anomaly, error) {
 	f, err := excelize.OpenFile(path)
@@ -175,6 +194,9 @@ func ParseClassCharts(path string) ([]ClassChart, []Anomaly, error) {
 			}
 			for _, rc := range resourceCols {
 				v := cleanCell(cell(row, 1+rc))
+				if fixed, ok := knownResourceCellFixes[[3]string{name, wantLevel, headers[rc]}]; ok {
+					v = fixed
+				}
 				if v == "" || v == "-" {
 					continue
 				}

@@ -397,7 +397,7 @@ func TestComputeAppliesChoiceGatedFeatureGrant(t *testing.T) {
 	}
 	if _, err := rulesDB.Exec(`
 		INSERT INTO class_features (slug, class_slug, name, level, description) VALUES
-		('class/scout-nin/feature/canny-1-st-level', 'class/scout-nin', 'Canny', 1, 'choose a skill')`); err != nil {
+		('class/scout-nin/feature/canny', 'class/scout-nin', 'Canny', 1, 'choose a skill')`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -429,7 +429,7 @@ func TestComputeAppliesChoiceGatedFeatureGrant(t *testing.T) {
 
 	if _, err := charDB.Exec(
 		`INSERT INTO character_feature_choices (character_id, feature_slug, choice_index, value)
-		 VALUES (?, 'class/scout-nin/feature/canny-1-st-level', 0, 'Stealth')`, id,
+		 VALUES (?, 'class/scout-nin/feature/canny', 0, 'Stealth')`, id,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -45,6 +45,23 @@ func jutsuElement(keywords string) string {
 	return ""
 }
 
+// elementFromReleaseKeyword maps a jutsu-keyword-column string like "Fire
+// Release" back to the bare element name ("Fire") the tables in this file
+// use, or "" if the keyword doesn't name one of the five elements (e.g.
+// "Medical" — see jutsu_grants.go's natureReleaseBonusJutsuSlots, the only
+// caller, for why that distinction matters there). Exact match rather than
+// jutsuElement's strings.Contains, since this is checking a single
+// already-isolated keyword string, not scanning a jutsu's whole
+// comma-joined keywords column for one.
+func elementFromReleaseKeyword(keyword string) string {
+	for _, el := range elementNames {
+		if keyword == elementReleaseKeyword(el) {
+			return el
+		}
+	}
+	return ""
+}
+
 // jutsuNeedsAnyAffinity reports the "Any Nature Release" keyword some
 // jutsu use (e.g. a Puppet Master upgrade note, or a versatile technique) —
 // satisfied by having at least one affinity at all, not one specific
@@ -105,6 +122,23 @@ var clanComboSecondReleaseFeature = map[string]string{
 	"clan/yuki":     "clan/yuki/feature/ice-release",
 }
 
+// subclassFlatAffinity: subclass features whose own text grants one element
+// outright, no player choice involved — the same "flat grant, no picker
+// needed" shape clanFlatAffinity models for clans, keyed by the granting
+// feature slug instead of a clan slug. 5 of Ninjutsu Specialist's 11
+// Ninjutsu Focus subclasses open their own 2nd-level feature with "you gain
+// the ability to learn ninjutsu with the [X] Release Keyword" — Trace
+// Talent, Hijutsu Elitist, Summoner, Scribe Master, and The Professor grant
+// no such flat element (The Professor's own 3 elemental picks are already
+// handled by professorAffinitySlots above).
+var subclassFlatAffinity = map[string]string{
+	"class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/fire-release":           "Fire",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/lightning-release": "Lightning",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/earth-release":         "Earth",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/storm-terror/feature/wind-release":           "Wind",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/tsunami/feature/water-release":               "Water",
+}
+
 // natureReleaseFeatSlug: the Nature Release feat ("You select one of the 5
 // Following Nature Releases... You can take this feat more than once, each
 // time selecting a different nature release"). Repeated takes aren't
@@ -114,21 +148,50 @@ var clanComboSecondReleaseFeature = map[string]string{
 // Only a single pick is supported here as a result.
 const natureReleaseFeatSlug = "feat/nature-release"
 
+// affinityFeatureSlot is one "gain an independent Nature Release pick,
+// gated on a specific granted feature" slot — shared shape between
+// Ninjutsu Specialist's Professor subclass (professorAffinitySlots, 3
+// slots) and Elemental Scout's own single Elemental Knowledge pick
+// (elementalScoutAffinitySlots below).
+type affinityFeatureSlot struct {
+	SlotKey      string
+	FeatureSlug  string
+	FeatureLabel string
+}
+
 // professorAffinitySlots: Ninjutsu Specialist's "The Professor" subclass
 // grants an independent elemental pick from each of these three features,
 // in order — "Versatile Release" (2nd level, one pick), "Twin Cast" (6th,
 // a second pick, must differ from the first), "Soshikage" (14th, a third,
 // must differ from both). Gated on loadGrantedFeatures rather than a
 // hand-checked level number, same reasoning as the clan combo grant above.
-var professorAffinitySlots = []struct {
-	SlotKey      string
-	FeatureSlug  string
-	FeatureLabel string
-}{
+var professorAffinitySlots = []affinityFeatureSlot{
 	{"versatile-release", "class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/versatile-release", "Versatile Release"},
 	{"twin-cast", "class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/twin-cast", "Twin Cast"},
 	{"soshikage", "class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/soshikage", "Soshikage"},
 }
+
+// elementalScoutAffinitySlots: Elemental Scout's own single 3rd-level
+// Elemental Knowledge pick ("Select one Nature Release... You gain the
+// ability to cast Jutsu with the corresponding Keyword") — same shape as
+// professorAffinitySlots' own per-feature slots, sized 1 instead of 3, no
+// "must differ from an earlier pick" constraint since there's only one.
+// Elemental Knowledge's own "if you could already cast jutsu with the
+// selected keyword, you learn one jutsu with the corresponding keyword"
+// bonus-jutsu clause, and its "spend a Superiority Die to lend your Nature
+// Release to an ally's jutsu" clause, are not modeled — the pick itself
+// (and the resistance it feeds, see scout_nin.go's
+// scoutNinElementalResistanceEntry) is this stage's whole scope.
+var elementalScoutAffinitySlots = []affinityFeatureSlot{
+	{"elemental-knowledge", scoutNinElementalKnowledgeFeatureSlug, "Elemental Knowledge"},
+}
+
+// allAffinityFeatureSlots combines every "gain an independent Nature
+// Release pick, gated on a class feature" slot in the game, across every
+// class that has one — resolveElementalAffinities/elementalAffinitySlots/
+// elementalAffinitySlotKeys all iterate this single combined list rather
+// than each hand-listing every source.
+var allAffinityFeatureSlots = append(append([]affinityFeatureSlot{}, professorAffinitySlots...), elementalScoutAffinitySlots...)
 
 // elementalAffinity is one resolved element the character currently has,
 // with the feature/trait/feat name it came from (for the library panel's
@@ -165,6 +228,11 @@ func resolveElementalAffinities(clanSlug string, hasNatureReleaseFeat bool, gran
 	if el, ok := clanFlatAffinity[clanSlug]; ok {
 		out = append(out, elementalAffinity{Element: el, Source: "Clan trait"})
 	}
+	for slug, el := range subclassFlatAffinity {
+		if grantedFeatureSlugs[slug] {
+			out = append(out, elementalAffinity{Element: el, Source: "Class feature"})
+		}
+	}
 	if pair, ok := clanComboAffinityOptions[clanSlug]; ok {
 		if picked := picks["clan"]; picked == pair[0] || picked == pair[1] {
 			out = append(out, elementalAffinity{Element: picked, Source: "Clan trait"})
@@ -179,7 +247,7 @@ func resolveElementalAffinities(clanSlug string, hasNatureReleaseFeat bool, gran
 			out = append(out, elementalAffinity{Element: picked, Source: "Nature Release feat"})
 		}
 	}
-	for _, slot := range professorAffinitySlots {
+	for _, slot := range allAffinityFeatureSlots {
 		if grantedFeatureSlugs[slot.FeatureSlug] {
 			if picked := picks[slot.SlotKey]; picked != "" {
 				out = append(out, elementalAffinity{Element: picked, Source: slot.FeatureLabel})
@@ -223,7 +291,7 @@ func elementalAffinitySlots(clanSlug string, hasNatureReleaseFeat bool, grantedF
 			Options: append([]string(nil), elementNames...), Current: picks[natureReleaseFeatSlug],
 		})
 	}
-	for _, slot := range professorAffinitySlots {
+	for _, slot := range allAffinityFeatureSlots {
 		if grantedFeatureSlugs[slot.FeatureSlug] {
 			out = append(out, elementalAffinitySlot{
 				SlotKey: slot.SlotKey, Label: slot.FeatureLabel,
@@ -239,7 +307,7 @@ func elementalAffinitySlots(clanSlug string, hasNatureReleaseFeat bool, grantedF
 // form field.
 var elementalAffinitySlotKeys = func() map[string]bool {
 	set := map[string]bool{"clan": true, natureReleaseFeatSlug: true}
-	for _, slot := range professorAffinitySlots {
+	for _, slot := range allAffinityFeatureSlots {
 		set[slot.SlotKey] = true
 	}
 	return set

@@ -2271,6 +2271,34 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
   border-color: var(--gold-hover);
 }
 
+/* Exoskeleton donned/doffed toggle (Elemental Innovationist) — same
+   specificity fix as .sheet-inspiration-toggle above (qualified with
+   `.sheet-inline-form button` so it beats the generic button rule on every
+   shared property), gold-on-dark for "on" for the same "this is live"
+   consistency reason. */
+.sheet-inline-form button.sheet-exoskeleton-toggle {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.sheet-inline-form button.sheet-exoskeleton-toggle.sheet-exoskeleton-on {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+  box-shadow: 0 0 0.5rem rgba(212, 175, 55, 0.35);
+}
+.sheet-inline-form button.sheet-exoskeleton-toggle.sheet-exoskeleton-on:hover {
+  color: var(--gold-hover);
+  border-color: var(--gold-hover);
+}
+
 /* 1.5rem, not the 0.6rem the Level form's own controls use: this is the gap
    between two DIFFERENT things (the Level control and the class/subclass
    line, part 10), not between a label and its own input, so it needs the
@@ -2346,6 +2374,7 @@ span.sheet-vitals-display { cursor: default; }
   font-size: 1rem;
 }
 .sheet-base-temp-hp-box input[type="number"] { width: 4rem; }
+.sheet-ccd-mending-split-box input[type="number"] { width: 4rem; }
 
 /* Full-width row, not a fourth 130px vitals box like HP/Temp HP/Chakra —
    it holds a label plus two buttons, so it needs the width and a row
@@ -4210,6 +4239,13 @@ summary.companion-card-header::before {
    doesn't visually promise an interaction it doesn't have. */
 #sheet-puppet-tactics .puppet-upgrade-pick { cursor: default; }
 #sheet-puppet-tactics .puppet-upgrade-pick:hover .puppet-upgrade-pick-name { color: inherit; }
+/* Refined Ninjutsu/Ninjutsu Master's own pick rows reference the
+   character's own already-known jutsu, with no separate detail popup (its
+   full text is already reachable from the Known Jutsu/Attacks & Jutsu
+   sections elsewhere on the sheet) — same "don't visually promise an
+   interaction it doesn't have" override as Puppet Tactics above. */
+.ninjutsu-jutsu-pick { cursor: default; }
+.ninjutsu-jutsu-pick:hover .puppet-upgrade-pick-name { color: inherit; }
 /* .sheet-delete-btn is position:absolute, meant to sit at its own row's
    top-right corner — every other place that uses it wraps it in a
    .sheet-feature-list li (position:relative there, see that rule). This is

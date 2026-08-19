@@ -83,6 +83,34 @@ var knownMissingPeriodFixes = strings.NewReplacer(
 	"if the creature acquires them while you are connected DEFENSIVE MANIPULATION", "if the creature acquires them while you are connected. DEFENSIVE MANIPULATION",
 	"to maintain concentration of this Upgrade RIBBON DANCE", "to maintain concentration of this Upgrade. RIBBON DANCE",
 	"Shinobi Cross TRACING ATTACK", "Shinobi Cross. TRACING ATTACK",
+	// Science-Nin's Scientific Ninja Tools Minor tier repeats the identical
+	// "You regain all expended uses when you complete a short or long rest"
+	// closing sentence for 5 of its 6 elemental amplifiers, every time with
+	// no terminal period before the next tool's own ALL-CAPS name — the same
+	// systemic gap as the 4 fixes above, just recurring across one field
+	// instead of one-off. Confirmed by sweeping every Scientific Ninja Tools
+	// tier's own raw text for a caps-run+"Keyword:" header shape with no
+	// sentence-ending punctuation immediately before it.
+	"or long rest GEO AMPLIFIER", "or long rest. GEO AMPLIFIER",
+	"or long rest CRYO AMPLIFIER", "or long rest. CRYO AMPLIFIER",
+	"or long rest ELECTRO AMPLIFIER", "or long rest. ELECTRO AMPLIFIER",
+	"or long rest EXPLOSIVE AMPLIFIER", "or long rest. EXPLOSIVE AMPLIFIER",
+	"or long rest SCUBA EQUIPMENT", "or long rest. SCUBA EQUIPMENT",
+	"any physical deformities ENHANCED NINJA TABI", "any physical deformities. ENHANCED NINJA TABI",
+	"instead of 10 HOLOGRAPHIC CLOAK", "instead of 10. HOLOGRAPHIC CLOAK",
+	"besides take the move action VOICE CHANGER AND AMPLIFIER", "besides take the move action. VOICE CHANGER AND AMPLIFIER",
+	// Supreme tier's own Neuroadaptable Headgear entry loses its terminal
+	// period the same way, swallowing Mass Chakra Absorption into it.
+	"do You cast Geas as an Action MASS CHAKRA ABSORPTION", "do You cast Geas as an Action. MASS CHAKRA ABSORPTION",
+	// Refined tier's "A.N. Ts" (a stylized rendering of "A.N.Ts", i.e.
+	// "ants" — small sentry turrets) carries a stray extraction space that
+	// makes "Ts" itself look like a one-word Title-Case entry name sitting
+	// right before its own following sentence ("A.N. Ts. As an action...") —
+	// namedEntryPattern's real, working shape, just tripped by punctuation
+	// that was never meant to end a sentence there. Closing the space
+	// removes the false sentence boundary without changing what the text
+	// says.
+	"A.N. Ts", "A.N.Ts",
 )
 
 // LoadClassOptionEntries splits every class_options row under classSlug
@@ -93,11 +121,11 @@ var knownMissingPeriodFixes = strings.NewReplacer(
 // "Puppet Weapon Types" list (already one class_options row per option:
 // Drone/Ogre/Sentinel) produces zero entries per row, not a spurious split.
 //
-// Scoped to one class at a time (called with "class/puppet-master" only,
-// for now) rather than every class's class_options — every other class's
-// option rows are already one-row-per-choice with no bundling problem
-// observed, so generalizing this loader is a safe, separate future change,
-// not attempted here.
+// Scoped to one class at a time (called with "class/puppet-master" and
+// "class/science-nin" — every other class's option rows are already
+// one-row-per-choice with no bundling problem observed, so generalizing
+// this loader to every class remains a separate future change, not
+// attempted here.
 func LoadClassOptionEntries(db *sql.DB, book SourceBook, classSlug string) (*LoadReport, error) {
 	tx, err := db.Begin()
 	if err != nil {

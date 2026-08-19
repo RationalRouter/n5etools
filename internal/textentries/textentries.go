@@ -162,7 +162,31 @@ var namedEntryStoplist = map[string]bool{
 // own "Prerequisite:" text (confirmed: "Improved Architecture I (Blue)").
 // Widened past capsProseEntryPattern's own character class to also accept
 // "!" inside the parenthetical, for "(NEW!)".
-var capsEntryPattern = regexp.MustCompile(`(?:^|(?:[.!?;]\)?|\)) )(?:[AI] )?((?:\p{Lu}[\p{Lu}\d\-’']+: )?\p{Lu}[\p{Lu}\d\-’']+(?: \p{Lu}[\p{Lu}\d\-’']+){0,4}(?: \(\p{Lu}[\p{Lu}\d\-’'!]*\))?) (\p{Lu}[\p{L}]*:)`)
+//
+// A sixth gap, found across Science-Nin's Explosive Modifications (B.I.M)
+// and E.I.Ps lists: several entries are named with a period-separated
+// initialism ("BLINDING B.I.M", "DOUBLE-TAP E.I.P") — a word shape every
+// caps-word class above rejects outright, since none of them allow a
+// period inside a run (periods are reserved for the sentence-boundary
+// anchor). Confirmed against the raw class_options text: every one of
+// Explosive Modifications' 6 tiers and E.I.Ps' 5 tiers bundles several
+// such names, and without this the whole tier silently produces zero
+// split entries (falls below the caller's 2-match threshold), not just a
+// mis-split name. dottedAcronymWord below matches exactly this narrow
+// shape — 2-5 single uppercase letters joined by bare periods, no
+// trailing period — as an alternative to the ordinary caps-word wherever
+// a NAME word can appear (the main word and each repeated word; not the
+// leading category-label prefix or the trailing "Keyword:", where no
+// dotted acronym has been observed). Kept narrow rather than allowing
+// periods generally inside the existing caps-word class: a general
+// allowance risks swallowing a genuine sentence-ending period plus the
+// next real sentence's capitalized first word into one over-long name,
+// exactly the false-positive shape this whole pattern's anchor rules exist
+// to avoid.
+var dottedAcronymWord = `\p{Lu}(?:\.\p{Lu}){1,4}`
+var capsNameWord = `(?:\p{Lu}[\p{Lu}\d\-’']+|` + dottedAcronymWord + `)`
+var capsEntryPattern = regexp.MustCompile(`(?:^|(?:[.!?;]\)?|\)) )(?:[AI] )?((?:\p{Lu}[\p{Lu}\d\-’']+: )?` + capsNameWord + `(?: ` + capsNameWord + `){0,4}(?: \(\p{Lu}[\p{Lu}\d\-’'!]*\))?) (\p{Lu}[\p{L}]*:)`)
+var dottedAcronymWordExact = regexp.MustCompile(`^` + dottedAcronymWord + `$`)
 
 // tableCaptionWord catches a real shape found in Puppet Master's Armorer's
 // Upgrades: a data table's own caption ("ELEMENTAL REACTOR TABLE") sitting
@@ -246,6 +270,15 @@ func TitleCase(s string) string {
 			continue
 		}
 		if romanNumeralWord.MatchString(w) {
+			words[i] = strings.ToUpper(w)
+			continue
+		}
+		if dottedAcronymWordExact.MatchString(w) {
+			// A dotted initialism ("B.I.M", "E.I.P") stays fully
+			// capitalized — the generic first-letter-only rule below would
+			// otherwise render it "B.i.m", losing the acronym shape the
+			// book itself prints. See capsEntryPattern's own doc for why
+			// this word shape needs its own detection.
 			words[i] = strings.ToUpper(w)
 			continue
 		}

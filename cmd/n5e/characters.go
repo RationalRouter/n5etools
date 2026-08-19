@@ -3206,14 +3206,19 @@ func (s *server) computeJutsuKnown(classes []characterClassLevel) (known int, hi
 }
 
 // jutsuKnownCapForCharacter is the sheet-facing known-jutsu cap: the
-// classes[]-aggregated computeJutsuKnown, plus any Water and Oil bonus
-// slots the primary class/clan combo grants (that bonus is a narrow
-// clan+class feature check, not a core multiclass rule, so it deliberately
-// stays scoped to the primary class only). Shared by handleCharacterSheet
-// and the sheet_jutsu_known/sheet_attack_jutsu_table fragment refresh,
-// which used to each run their own copy of this off the primary class's
-// level alone — wrong the moment a character has a second class, since
-// sheet.Level is the character's TOTAL level, not that class's own.
+// classes[]-aggregated computeJutsuKnown, plus any Water and Oil/Heat
+// Master bonus slots the primary class/clan combo grants (that bonus is a
+// narrow clan+class feature check, not a core multiclass rule, so it
+// deliberately stays scoped to the primary class only — the two never
+// stack in practice, since a character can only take one Cooking Focus),
+// plus Science-Nin's own Chakra Cell Enhancement bonus (Intelligence
+// modifier, gated purely on the granted feature so it applies regardless
+// of which class slot Science-Nin occupies in a multiclass). Shared by
+// handleCharacterSheet and the sheet_jutsu_known/sheet_attack_jutsu_table
+// fragment refresh, which used to each run their own copy of this off the
+// primary class's level alone — wrong the moment a character has a second
+// class, since sheet.Level is the character's TOTAL level, not that
+// class's own.
 func (s *server) jutsuKnownCapForCharacter(characterID int64, sheet *charsheet.Sheet, grantedFeatures []grantedFeatureRow) (int, error) {
 	classes, err := s.loadCharacterClassLevels(characterID)
 	if err != nil {
@@ -3229,11 +3234,16 @@ func (s *server) jutsuKnownCapForCharacter(characterID int64, sheet *charsheet.S
 	if known < 0 {
 		return -1, nil
 	}
-	bonus, err := s.waterAndOilBonusJutsuSlots(grantedFeatures, classes[0].Slug, sheet.ClanSlug, sheet.ProficiencyBonus)
+	waterAndOilBonus, err := s.waterAndOilBonusJutsuSlots(characterID, grantedFeatures, classes[0].Slug, sheet.ClanSlug, sheet.ProficiencyBonus)
 	if err != nil {
 		return -1, err
 	}
-	return known + bonus, nil
+	heatMasterBonus, err := s.heatMasterBonusJutsuSlots(characterID, grantedFeatures, classes[0].Slug, sheet.ClanSlug, sheet.ProficiencyBonus)
+	if err != nil {
+		return -1, err
+	}
+	chakraCellBonus := chakraCellEnhancementBonusJutsuSlots(grantedFeatures, sheet.Abilities["int"].Modifier)
+	return known + waterAndOilBonus + heatMasterBonus + chakraCellBonus, nil
 }
 
 // ---- Ambitions step ---------------------------------------------------
@@ -3906,6 +3916,11 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.ensureScienceNinAutoGrants(id, sheet); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("ensure science-nin auto grants:", err)
+		return
+	}
 	inventory, err := s.loadCharacterInventory(id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4126,10 +4141,46 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load hunter techniques:", err)
 		return
 	}
+	cookingNin, err := s.loadCookingNinTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking-nin:", err)
+		return
+	}
 	genjutsu, err := s.loadGenjutsuTabData(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu:", err)
+		return
+	}
+	medicalNin, err := s.loadMedicalNinTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load medical-nin:", err)
+		return
+	}
+	scoutNin, err := s.loadScoutNinTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load scout-nin:", err)
+		return
+	}
+	intelligenceOperative, err := s.loadIntelligenceOperativeTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load intelligence operative:", err)
+		return
+	}
+	ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load ninjutsu specialist:", err)
+		return
+	}
+	scienceNin, err := s.loadScienceNinTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load science-nin:", err)
 		return
 	}
 
@@ -4247,6 +4298,12 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	elementalAffinities := resolveElementalAffinities(sheet.ClanSlug, hasNatureReleaseFeat, grantedFeatureSlugs, elementalAffinityPicks)
 	elementalAffinitySlotsData := elementalAffinitySlots(sheet.ClanSlug, hasNatureReleaseFeat, grantedFeatureSlugs, elementalAffinityPicks)
+	// Elemental Resistance (Elemental Scout, 6th level) isn't in the
+	// static passiveTraitGrants table computePassiveTraits already
+	// resolved above — its Target is the character's own Elemental
+	// Knowledge pick, only known once elementalAffinityPicks is loaded.
+	passiveTraits = mergePassiveResistance(passiveTraits,
+		scoutNinElementalResistanceEntry(grantedFeatures, elementalAffinityPicks["elemental-knowledge"]))
 	affinitySet := map[string]bool{}
 	for _, a := range elementalAffinities {
 		affinitySet[a.Element] = true
@@ -4318,7 +4375,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"WeaponForm":                weaponForm,
 		"MartialDefense":            martialDefense,
 		"HunterTechniques":          hunterTechniques,
+		"CookingNin":                cookingNin,
 		"Genjutsu":                  genjutsu,
+		"MedicalNin":                medicalNin,
+		"ScoutNin":                  scoutNin,
+		"IntelligenceOperative":     intelligenceOperative,
+		"NinjutsuSpecialist":        ninjutsuSpecialist,
+		"ScienceNin":                scienceNin,
 		"Mastery":                   mastery,
 		"PendingFeatureChoices":     pendingFeatureChoices,
 		"PendingASI":                pendingASI,
@@ -5205,6 +5268,11 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 		}
 		data["MartialDice"] = martialDice
 	case "sheet_weapon_attacks":
+		if err := s.ensureScienceNinAutoGrants(characterID, sheet); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("ensure science-nin auto grants for fragment:", err)
+			return
+		}
 		inventory, err := s.loadCharacterInventory(characterID)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
@@ -5333,6 +5401,14 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["HunterTechniques"] = hunterTechniques
+	case "sheet_cooking_nin":
+		cookingNin, err := s.loadCookingNinTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load cooking-nin for fragment:", err)
+			return
+		}
+		data["CookingNin"] = cookingNin
 	case "sheet_genjutsu":
 		genjutsu, err := s.loadGenjutsuTabData(characterID, sheet)
 		if err != nil {
@@ -5341,6 +5417,46 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["Genjutsu"] = genjutsu
+	case "sheet_medical_nin":
+		medicalNin, err := s.loadMedicalNinTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load medical-nin for fragment:", err)
+			return
+		}
+		data["MedicalNin"] = medicalNin
+	case "sheet_scout_nin":
+		scoutNin, err := s.loadScoutNinTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load scout-nin for fragment:", err)
+			return
+		}
+		data["ScoutNin"] = scoutNin
+	case "sheet_intelligence_operative":
+		intelligenceOperative, err := s.loadIntelligenceOperativeTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load intelligence operative for fragment:", err)
+			return
+		}
+		data["IntelligenceOperative"] = intelligenceOperative
+	case "sheet_ninjutsu_specialist":
+		ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load ninjutsu specialist for fragment:", err)
+			return
+		}
+		data["NinjutsuSpecialist"] = ninjutsuSpecialist
+	case "sheet_science_nin":
+		scienceNin, err := s.loadScienceNinTabData(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load science-nin for fragment:", err)
+			return
+		}
+		data["ScienceNin"] = scienceNin
 	case "sheet_mastery":
 		mastery, err := s.loadMasteryData(characterID, sheet)
 		if err != nil {
@@ -5408,7 +5524,18 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load granted features for passive traits fragment:", err)
 			return
 		}
-		data["PassiveTraits"] = computePassiveTraits(grantedFeatures, sheet.Level)
+		traits := computePassiveTraits(grantedFeatures, sheet.Level)
+		// Elemental Resistance (Elemental Scout, 6th level) — see the main
+		// sheet render's identical merge for why this can't live in the
+		// static passiveTraitGrants table itself.
+		elementalPicks, err := charstore.ListElementalAffinities(s.charDB, characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load elemental affinity picks for passive traits fragment:", err)
+			return
+		}
+		traits = mergePassiveResistance(traits, scoutNinElementalResistanceEntry(grantedFeatures, elementalPicks["elemental-knowledge"]))
+		data["PassiveTraits"] = traits
 	case "sheet_feats":
 		characterFeats, err := s.loadCharacterFeats(characterID)
 		if err != nil {
@@ -7086,37 +7213,43 @@ func (s *server) handleSheetInventoryAddCustom(w http.ResponseWriter, r *http.Re
 // ask for an arbitrary template and so the set of blocks that are allowed
 // to refresh independently stays visible in one place.
 var sheetLiveFragments = map[string]bool{
-	"sheet_vitals":               true,
-	"sheet_squares":              true,
-	"sheet_skills":               true,
-	"sheet_ryo":                  true,
-	"sheet_tools_skills":         true,
-	"sheet_languages":            true,
-	"sheet_jutsu_known":          true,
-	"sheet_attack_jutsu_table":   true,
-	"sheet_ac":                   true,
-	"sheet_attack_mods":          true,
-	"sheet_saves":                true,
-	"sheet_weapon_attacks":       true,
-	"sheet_inventory":            true,
-	"sheet_inventory_full":       true,
-	"sheet_passive_traits":       true,
-	"sheet_feats":                true,
-	"sheet_ambitions":            true,
-	"sheet_level_row":            true,
-	"sheet_companions":           true,
-	"sheet_puppet_tab":           true,
-	"sheet_summon_tab":           true,
-	"sheet_puppet_tactics":       true,
-	"sheet_martial_techniques":   true,
-	"sheet_weapon_focus":         true,
-	"sheet_weapon_form":          true,
-	"sheet_martial_defense":      true,
-	"sheet_hunter_techniques":    true,
-	"sheet_genjutsu":             true,
-	"sheet_elemental_affinities": true,
-	"sheet_mastery":              true,
-	"sheet_feature_choices":      true,
+	"sheet_vitals":                 true,
+	"sheet_squares":                true,
+	"sheet_skills":                 true,
+	"sheet_ryo":                    true,
+	"sheet_tools_skills":           true,
+	"sheet_languages":              true,
+	"sheet_jutsu_known":            true,
+	"sheet_attack_jutsu_table":     true,
+	"sheet_ac":                     true,
+	"sheet_attack_mods":            true,
+	"sheet_saves":                  true,
+	"sheet_weapon_attacks":         true,
+	"sheet_inventory":              true,
+	"sheet_inventory_full":         true,
+	"sheet_passive_traits":         true,
+	"sheet_feats":                  true,
+	"sheet_ambitions":              true,
+	"sheet_level_row":              true,
+	"sheet_companions":             true,
+	"sheet_puppet_tab":             true,
+	"sheet_summon_tab":             true,
+	"sheet_puppet_tactics":         true,
+	"sheet_martial_techniques":     true,
+	"sheet_weapon_focus":           true,
+	"sheet_weapon_form":            true,
+	"sheet_martial_defense":        true,
+	"sheet_hunter_techniques":      true,
+	"sheet_cooking_nin":            true,
+	"sheet_genjutsu":               true,
+	"sheet_medical_nin":            true,
+	"sheet_scout_nin":              true,
+	"sheet_intelligence_operative": true,
+	"sheet_ninjutsu_specialist":    true,
+	"sheet_science_nin":            true,
+	"sheet_elemental_affinities":   true,
+	"sheet_mastery":                true,
+	"sheet_feature_choices":        true,
 }
 
 // handleSheetFragment re-renders one live block of the sheet on request.

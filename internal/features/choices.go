@@ -155,8 +155,12 @@ var choiceSlotDefs = []choiceSlotDef{
 	{FeatureSlug: "clan/non-clan/feature/self-taught-skills", ChoiceIndex: 2, Kind: ChoiceSkillProficiency, MinLevel: 15, Label: "Self-Taught Skills — 15th level"},
 
 	// Scout-Nin "Canny": "Choose any one skill. You gain proficiency in this
-	// skill."
-	{FeatureSlug: "class/scout-nin/feature/canny-1-st-level", ChoiceIndex: 0, Kind: ChoiceSkillProficiency, MinLevel: 1, Label: "Canny"},
+	// skill." Slug is "canny", not "canny-1-st-level" -- the level used to be
+	// glued into the printed feature NAME ("Canny (1 St Level)"), a
+	// PDF-extraction artifact now fixed by internal/parse/classes.go's
+	// levelSuffixRe/stripLevelSuffix, which strips it into the feature's
+	// Level and renames the slug to match (see migration 0051).
+	{FeatureSlug: "class/scout-nin/feature/canny", ChoiceIndex: 0, Kind: ChoiceSkillProficiency, MinLevel: 1, Label: "Canny"},
 
 	// Interrogationist "Perfect Mind": "You gain proficiency in Wisdom or
 	// Charisma Saving throws (Pick one)."

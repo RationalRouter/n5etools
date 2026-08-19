@@ -54,14 +54,14 @@ func TestResolveChoiceSlotsUsesOwningClassLevel(t *testing.T) {
 func TestPendingAndResolveChoiceGrants(t *testing.T) {
 	slots := []ChoiceSlot{
 		{FeatureSlug: "clan/non-clan/feature/self-taught-skills", ChoiceIndex: 0, Kind: ChoiceSkillProficiency},
-		{FeatureSlug: "class/scout-nin/feature/canny-1-st-level", ChoiceIndex: 0, Kind: ChoiceSkillProficiency},
+		{FeatureSlug: "class/scout-nin/feature/canny", ChoiceIndex: 0, Kind: ChoiceSkillProficiency},
 	}
 	resolved := map[ChoiceKey]string{
 		{FeatureSlug: "clan/non-clan/feature/self-taught-skills", ChoiceIndex: 0}: "Stealth",
 	}
 
 	pending := PendingChoiceSlots(slots, resolved)
-	if len(pending) != 1 || pending[0].FeatureSlug != "class/scout-nin/feature/canny-1-st-level" {
+	if len(pending) != 1 || pending[0].FeatureSlug != "class/scout-nin/feature/canny" {
 		t.Fatalf("got pending %+v, want only the unresolved Canny slot", pending)
 	}
 

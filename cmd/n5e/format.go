@@ -172,7 +172,15 @@ func formatNamedEntries(raw string, entries []entryMatch) template.HTML {
 // "Cost: 16 Creation Points Drain: 15 CCD Chakra" even ate the SECOND
 // field's own "Drain" keyword as if it were one of the first field's unit
 // words. Enumerating the real unit words rules both mistakes out at once.
-var statLineFieldPattern = regexp.MustCompile(`^(?:Cost|Drain): \d+(?:-\d+)?(?: (?:Creation|Points?|CCD|Chakra))*`)
+//
+// The range separator accepts a hyphen, en dash, or em dash ([-–—], same
+// class internal/parse's own heading/label patterns already use) — a few
+// Grenadier B.I.M entries' own "Cost: X-Y Creation Points" range came
+// through PDF extraction with an en dash instead of a hyphen ("Cost:
+// 8–12 Creation Points"), which a hyphen-only pattern stops matching mid-
+// field: the badge silently truncated to "Cost: 8" and the stray
+// "–12 Creation Points" spilled into the entry's own prose body instead.
+var statLineFieldPattern = regexp.MustCompile(`^(?:Cost|Drain): \d+(?:[-–—]\d+)?(?: (?:Creation|Points?|CCD|Chakra))*`)
 
 // splitLeadingStatLine peels a leading run of "Cost: ..."/"Drain: ..."
 // fields off the front of a caps-entry's body — e.g. Science-Nin's

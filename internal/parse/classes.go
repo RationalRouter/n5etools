@@ -190,6 +190,47 @@ func stripArtistCredit(s string) string {
 	return strings.TrimSpace(artistCreditRe.ReplaceAllString(s, ""))
 }
 
+// levelSuffixRe matches a gating level accidentally glued onto the end of a
+// feature's own printed NAME instead of surfacing as separate level data —
+// a PDF-extraction artifact confirmed on Scout-Nin's Deft Explorer sub-tiers,
+// whose raw names read "CANNY (1 ST LEVEL)", "MOBILE (6TH LEVEL)", "TIRELESS
+// (11 TH LEVEL)" (an inconsistent stray space sometimes splits the digit from
+// its ordinal suffix, the same "extra space" artifact class documented
+// elsewhere in this package, e.g. quickBuildSquishes). tidyName's own casing
+// pass then produces "Canny (1 St Level)" / "Mobile (6Th Level)" / "Tireless
+// (11 Th Level)" — level and level_override both NULL, since nothing ever
+// reads a level out of a feature's NAME. Matched case-insensitively against
+// the already-tidied name so it catches the suffix regardless of exactly
+// where tidyName's casing pass lands.
+//
+// stripLevelSuffix (below) must run in flushFeature, on the fully assembled
+// Name, not at the moment a heading first creates curFeature: confirmed
+// against the real book text that Canny's and Tireless's own headings are
+// split across two PDF lines by a column wrap ("CANNY (1" / "ST LEVEL)"),
+// so the parenthetical isn't complete until the wrapped-heading-join step
+// a few lines below appends the second line. Mobile's own heading happens
+// to land on one line, so it worked even with an earlier version of this
+// fix that only checked at creation time — that gave false confidence the
+// fix was complete; only running it against the REAL sourcebook PDF (not
+// just a same-shaped hand-written fixture) surfaced the two-line case.
+var levelSuffixRe = regexp.MustCompile(`(?i)\s*\(\s*(\d{1,2})\s*(?:st|nd|rd|th)\s*Level\s*\)\s*$`)
+
+// stripLevelSuffix removes a trailing "(<n>th Level)" parenthetical from a
+// feature's fully-assembled name and returns the gating level it encoded.
+// Returns the name unchanged and ok=false when no such suffix is present, or
+// the parsed number falls outside a plausible character level (1-20).
+func stripLevelSuffix(name string) (clean string, level int, ok bool) {
+	m := levelSuffixRe.FindStringSubmatchIndex(name)
+	if m == nil {
+		return name, 0, false
+	}
+	lvl := atoiSafe(name[m[2]:m[3]])
+	if lvl < 1 || lvl > 20 {
+		return name, 0, false
+	}
+	return strings.TrimSpace(name[:m[0]]), lvl, true
+}
+
 // knownClassFeatureLevelOverrides hand-confirms a small, closed list of
 // class (not subclass) features whose printed text never states the
 // feature's own gating level — the class_features counterpart of
@@ -219,6 +260,57 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 		"Chakra Strike":           2,
 		"Perceptive Augmentation": 2,
 		"Focused Efficiency":      2,
+	},
+	// Rejuvenating Rest's own text opens "Also, at Level 1 you use your
+	// medical skills to revitalize wounded allies during a short rest...
+	// This amount of extra healing increases to 2d6 at 7th level, 3d6 at
+	// 11th, and 4d6 at 17th Level." The feature itself is 1st level; its
+	// only ordinals are the escalation tiers, and ordinalLevelRe matched
+	// the first one it found ("7th level") instead, same failure shape as
+	// Weapon Specialist's Chakra Strike above.
+	"Medical-Nin": {
+		"Rejuvenating Rest": 1,
+	},
+	// Shinobi Adept (2nd level) presents its 10-option catalog as separate
+	// named class_features with no level text anywhere in their own printed
+	// prose — the catalog's only level is on the introducing feature itself
+	// ("You can choose between two of the following features..."). Nothing
+	// for ordinalLevelRe to find, so all 10 parsed as always-on (level NULL)
+	// and were blanket-granted from 1st level regardless of picker state.
+	// Tag each option to Shinobi Adept's own 2nd level; a later cap+catalog
+	// picker (2 known at 2nd -> 4 at 13th) narrows this further on top.
+	// Signature Jutsu (7th level) has the identical shape for its own
+	// 3-option effect catalog. Combat/Control/Mobility/Skill/Support are
+	// Jack of All, Master of None's 5 generalizations (5th level unlock) —
+	// each one's own prose states only a LATER numeric tier bump ("...
+	// increases to +2 at 11th level"), which ordinalLevelRe matches instead
+	// of the feature's real 5th-level unlock, the same failure shape as
+	// Weapon Specialist's Chakra Strike above; the override wins over that
+	// wrong match.
+	// Map keys use the curly apostrophe (’) the book's own text stream
+	// prints, not a straight one — tidyName never normalizes it (see
+	// subclasses.go's normTitle, which folds curly to straight only for its
+	// own bookmark-matching use, not for stored feature names), so a
+	// straight-apostrophe key here would silently never match.
+	"Scout-Nin": {
+		"Shinobi’s Tactics":          2,
+		"Shinobi’s General Literacy": 2,
+		"Shinobi’s Tool Competency":  2,
+		"Shinobi’s Precision":        2,
+		"Shinobi’s Edge":             2,
+		"Shinobi’s Drive":            2,
+		"Shinobi’s Focus":            2,
+		"Hidden Technique":           2,
+		"Aggressive Technique":       2,
+		"Tactical Technique":         2,
+		"Signature Power":            7,
+		"Signature Ramping":          7,
+		"Signature Control":          7,
+		"Combat":                     5,
+		"Control":                    5,
+		"Mobility":                   5,
+		"Skill":                      5,
+		"Support":                    5,
 	},
 }
 
@@ -378,7 +470,7 @@ func parseClass(ls []Line) (Class, []Anomaly) {
 		if curFeature == nil {
 			return
 		}
-		curFeature.Description = stripArtistCredit(strings.TrimSpace(curFeature.Description))
+		curFeature.Description = stripArtistCredit(fixKnownExtractionSquish(strings.TrimSpace(curFeature.Description)))
 		if curFeature.Description == "" {
 			// Decorative box title with no body — drop it.
 			curFeature = nil
@@ -408,6 +500,13 @@ func parseClass(ls []Line) (Class, []Anomaly) {
 					TraitsText:          strings.TrimSpace(m[12]),
 				}
 				curFeature.Description = strings.TrimSpace(curFeature.Description[:loc[0]])
+			}
+		}
+		if clean, lvl, ok := stripLevelSuffix(curFeature.Name); ok {
+			curFeature.Name = clean
+			if curFeature.Level == nil {
+				lvl := lvl
+				curFeature.Level = &lvl
 			}
 		}
 		if overrides, ok := knownClassFeatureLevelOverrides[c.Name]; ok {

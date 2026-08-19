@@ -143,6 +143,62 @@ func TestLoadClassOptionEntriesFixesKnownGaps(t *testing.T) {
 		[]string{"Kill Command", "Improved Architecture II (Blue)"})
 }
 
+// TestLoadClassOptionEntriesFixesScienceNinKnownGaps covers Science-Nin's
+// own real-corpus anchor gaps in the Scientific Ninja Tools catalog: the
+// Minor tier's repeated "...complete a short or long rest NEXT_NAME" missing
+// terminal period (5 of 6 elemental amplifiers share this exact shape), and
+// the Refined tier's "A.N. Ts" stray-space glitch, which otherwise makes
+// namedEntryPattern misread the bare word "Ts" as its own one-word entry
+// name sitting between Autonomous Ninja Tools and Enhanced Biotic Amplifier.
+func TestLoadClassOptionEntriesFixesScienceNinKnownGaps(t *testing.T) {
+	db := testDB(t)
+	mustExec(t, db, `INSERT INTO classes (slug, name) VALUES ('class/science-nin', 'Science-Nin')`)
+	mustExec(t, db, `INSERT INTO class_options (slug, class_slug, list_name, name, description, sort_order)
+		VALUES ('class/science-nin/option/scientific-ninja-tools/minor', 'class/science-nin',
+		        'Scientific Ninja Tools', 'Minor',
+		        'AERO AMPLIFIER Cost: 2 Creation Point Drain: 5 CCD Chakra You can use this amplifier a number of times equal to your Intelligence modifier (a minimum of once). You regain all expended uses when you complete a short or long rest GEO AMPLIFIER Cost: 2 Creation Point Drain: 5 CCD Chakra You integrate a booster in your body that enhances your jutsus that deal Earth damage.',
+		        0)`)
+	mustExec(t, db, `INSERT INTO class_options (slug, class_slug, list_name, name, description, sort_order)
+		VALUES ('class/science-nin/option/scientific-ninja-tools/refined', 'class/science-nin',
+		        'Scientific Ninja Tools', 'Refined',
+		        'AUTONOMOUS NINJA TOOLS Cost: 4 Creation Points Drain: 5 CCD Chakra You learn how to craft small sentry turrets shaped like globes that can adhere to any surface, called A.N. Ts. As an action or bonus action you can spend the Drain of this upgrade. ENHANCED BIOTIC AMPLIFIER Prerequisite: Biotic Amplifier Cost: 4 Creation Points Drain: 5 CCD Chakra You fine tune your biotic amplifier.',
+		        1)`)
+
+	if _, err := LoadClassOptionEntries(db, SourceBook{Slug: "book/class-compendium", Version: "3.12"}, "class/science-nin"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertEntryNames := func(classOptionSlug string, want []string) {
+		t.Helper()
+		rows, err := db.Query(`SELECT name FROM class_option_entries WHERE class_option_slug = ? ORDER BY sort_order`, classOptionSlug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var got []string
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, name)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("%s: names = %v, want %v", classOptionSlug, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("%s: names[%d] = %q, want %q", classOptionSlug, i, got[i], want[i])
+			}
+		}
+	}
+
+	assertEntryNames("class/science-nin/option/scientific-ninja-tools/minor",
+		[]string{"Aero Amplifier", "Geo Amplifier"})
+	assertEntryNames("class/science-nin/option/scientific-ninja-tools/refined",
+		[]string{"Autonomous Ninja Tools", "Enhanced Biotic Amplifier"})
+}
+
 func TestLoadClassOptionEntriesRerunIsStable(t *testing.T) {
 	db := testDB(t)
 	seedPuppetMasterOptionFixture(t, db)

@@ -151,6 +151,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/speed", s.handleSheetSpeed)
 	mux.HandleFunc("POST /characters/{id}/sheet/rest", s.handleSheetRest)
 	mux.HandleFunc("POST /characters/{id}/sheet/resource/{key}", s.handleSheetCustomResource)
+	mux.HandleFunc("POST /characters/{id}/sheet/ccd-mending-pct", s.handleSetCCDMendingPct)
 	mux.HandleFunc("POST /characters/{id}/sheet/ability", s.handleSheetAbility)
 	mux.HandleFunc("POST /characters/{id}/sheet/inventory", s.handleSheetInventoryAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/inventory/{rowID}/update", s.handleSheetInventoryUpdate)
@@ -247,6 +248,26 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/puppet-fighting-stance", s.handlePuppetFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/hand-wraps-of-passion", s.handleHandWrapsOfPassion)
 	mux.HandleFunc("POST /characters/{id}/sheet/anti-chakra-wavelength", s.handleAntiChakraWavelength)
+	mux.HandleFunc("POST /characters/{id}/sheet/food-for-the-soul", s.handleFoodForTheSoul)
+	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine", s.handleMedicalDoctrineAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine/delete", s.handleMedicalDoctrineDelete)
+	mux.HandleFunc("POST /characters/{id}/sheet/medical-nin-fighting-stance", s.handleMedicalNinFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-fighting-stance", s.handleScoutNinFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/shinobi-adept", s.handleScoutNinPickAdd(charstore.ScoutNinPickShinobiAdept,
+		func(d *scoutNinTabData) int { return d.ShinobiAdeptUsed },
+		func(d *scoutNinTabData) int { return d.ShinobiAdeptCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableShinobiAdept }))
+	mux.HandleFunc("POST /characters/{id}/sheet/shinobi-adept/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickShinobiAdept))
+	mux.HandleFunc("POST /characters/{id}/sheet/jack-of-all", s.handleScoutNinPickAdd(charstore.ScoutNinPickJackOfAll,
+		func(d *scoutNinTabData) int { return d.JackOfAllUsed },
+		func(d *scoutNinTabData) int { return d.JackOfAllCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableJackOfAll }))
+	mux.HandleFunc("POST /characters/{id}/sheet/jack-of-all/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickJackOfAll))
+	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-maneuvers", s.handleScoutNinPickAdd(charstore.ScoutNinPickManeuvers,
+		func(d *scoutNinTabData) int { return d.ManeuversUsed },
+		func(d *scoutNinTabData) int { return d.ManeuversCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableManeuvers }))
+	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-maneuvers/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickManeuvers))
 	mux.HandleFunc("POST /characters/{id}/sheet/hunter-patterns", s.handleHunterPickAdd(charstore.HunterPickPattern,
 		func(d *hunterTechniquesTabData) int { return d.PatternsUsed },
 		func(d *hunterTechniquesTabData) int { return d.PatternsCap },
@@ -284,6 +305,360 @@ func (s *server) routes() http.Handler {
 		func(d *genjutsuTabData) []genjutsuPickOption { return d.AvailableIllusionMastery }))
 	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-illusion-mastery/delete", s.handleGenjutsuPickDelete(charstore.GenjutsuPickIllusionMastery))
 	mux.HandleFunc("GET /genjutsu-picks/{category}/{slug...}", s.handleGenjutsuPickDetail)
+	mux.HandleFunc("POST /characters/{id}/sheet/intelligence-operative-plans", s.handleIntelligenceOperativePickAdd(charstore.IntelligenceOperativePickPlan,
+		func(d *intelligenceOperativeTabData) int { return d.PlansUsed },
+		func(d *intelligenceOperativeTabData) int { return d.PlansCap },
+		func(d *intelligenceOperativeTabData) []intelligenceOperativePickOption { return d.AvailablePlans }))
+	mux.HandleFunc("POST /characters/{id}/sheet/intelligence-operative-plans/delete", s.handleIntelligenceOperativePickDelete(charstore.IntelligenceOperativePickPlan))
+	mux.HandleFunc("POST /characters/{id}/sheet/operative-traps", s.handleIntelligenceOperativePickAdd(charstore.IntelligenceOperativePickOperativeTrap,
+		func(d *intelligenceOperativeTabData) int { return d.OperativeTrapsUsed },
+		func(d *intelligenceOperativeTabData) int { return d.OperativeTrapsCap },
+		func(d *intelligenceOperativeTabData) []intelligenceOperativePickOption {
+			return d.AvailableOperativeTraps
+		}))
+	mux.HandleFunc("POST /characters/{id}/sheet/operative-traps/delete", s.handleIntelligenceOperativePickDelete(charstore.IntelligenceOperativePickOperativeTrap))
+	mux.HandleFunc("GET /intelligence-operative-picks/{category}/{slug...}", s.handleIntelligenceOperativePickDetail)
+	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-molding", s.handleNinjutsuMoldingAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-molding/delete", s.handleNinjutsuMoldingDelete)
+	mux.HandleFunc("GET /ninjutsu-molding/{slug...}", s.handleNinjutsuMoldingDetail)
+	mux.HandleFunc("POST /characters/{id}/sheet/refined-ninjutsu", s.handleNinjutsuJutsuPickAdd(charstore.NinjutsuPickRefined,
+		func(d *ninjutsuSpecialistTabData) int { return d.RefinedUsed },
+		func(d *ninjutsuSpecialistTabData) int { return d.RefinedCap },
+		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableRefined }))
+	mux.HandleFunc("POST /characters/{id}/sheet/refined-ninjutsu/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickRefined))
+	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-master", s.handleNinjutsuJutsuPickAdd(charstore.NinjutsuPickMaster,
+		func(d *ninjutsuSpecialistTabData) int { return d.MasterUsed },
+		func(d *ninjutsuSpecialistTabData) int { return d.MasterCap },
+		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableMaster }))
+	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-master/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickMaster))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools", s.handleScienceNinToolAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools/delete", s.handleScienceNinToolDelete)
+	mux.HandleFunc("GET /science-nin-tools/{slug...}", s.handleScienceNinToolDetail)
+	mux.HandleFunc("POST /characters/{id}/sheet/exoskeleton", s.handleSheetExoskeletonToggle)
+	// Every closure below guards its own subclass-data pointer (nil
+	// whenever the character lacks that subclass's own granting feature —
+	// see loadScienceNinSubclassData) before dereferencing it: a Science-Nin
+	// with a different (or no) subclass yet still has a non-nil
+	// scienceNinToolsTabData (from the base Scientific Ninja Tools budget
+	// alone), so handleScienceNinSubclassPickAdd's own nil check on data
+	// itself isn't enough to rule out a nil ElementalInnovationist/
+	// Grenadier/MadScientist/Ninjaneer underneath it.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickEIP,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.EIPUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.EIPCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableEIPs
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickEIP))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickWOW,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.WOWUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.WOWCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableWOW
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickWOW))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perma-perk", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickPermaPerk,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil || d.ElementalInnovationist.PermaPerk == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailablePermaPerk
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perma-perk/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickPermaPerk))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-bim", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickBIM,
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return d.Grenadier.BIMUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return d.Grenadier.BIMCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Grenadier == nil {
+				return nil
+			}
+			return d.Grenadier.AvailableBIM
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-bim/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickBIM))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-inversion-serum", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickInversionSerum,
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return d.MadScientist.SerumUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return d.MadScientist.SerumCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.MadScientist == nil {
+				return nil
+			}
+			return d.MadScientist.AvailableSerums
+		},
+		true))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-inversion-serum/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickInversionSerum))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-arsenal-mod", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickArsenalMod,
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.ArsenalModUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.ArsenalModCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Ninjaneer == nil {
+				return nil
+			}
+			return d.Ninjaneer.AvailableArsenalMods
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-arsenal-mod/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickArsenalMod))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perfected-weapon", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickPerfectedWeapon,
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.PerfectedWeaponUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.PerfectedWeaponCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Ninjaneer == nil {
+				return nil
+			}
+			return d.Ninjaneer.AvailablePerfectedWeapons
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perfected-weapon/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickPerfectedWeapon))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-shinobi-ware-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickShinobiWareUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.UpgradeUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.UpgradeCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableUpgrades
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-shinobi-ware-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickShinobiWareUpgrade))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-evolved-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickEvolvedUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.EvolvedUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.EvolvedCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableEvolved
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-evolved-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickEvolvedUpgrade))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSpywareProgram,
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return d.Spyware.ProgramUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return d.Spyware.ProgramCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Spyware == nil {
+				return nil
+			}
+			return d.Spyware.AvailablePrograms
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSpywareProgram))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-quick-hack", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickQuickHack,
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil || d.Spyware.QuickHack == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Spyware == nil {
+				return nil
+			}
+			return d.Spyware.AvailableQuickHack
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-quick-hack/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickQuickHack))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-air-treck-enhancement", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickAirTreckEnhancement,
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return d.StormRider.EnhancementUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return d.StormRider.EnhancementCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.StormRider == nil {
+				return nil
+			}
+			return d.StormRider.AvailableEnhancements
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-air-treck-enhancement/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickAirTreckEnhancement))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-regalia", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickRegalia,
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil || d.StormRider.Regalia == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.StormRider == nil {
+				return nil
+			}
+			return d.StormRider.AvailableRegalia
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-regalia/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickRegalia))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-technobi-mechanization", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickTechnobiMechanization,
+		func(d *scienceNinToolsTabData) int {
+			if d.Technobi == nil {
+				return 0
+			}
+			return d.Technobi.MechanizationUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Technobi == nil {
+				return 0
+			}
+			return d.Technobi.MechanizationCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Technobi == nil {
+				return nil
+			}
+			return d.Technobi.AvailableMechanizations
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-technobi-mechanization/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickTechnobiMechanization))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSNBUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.SNBSpecialist == nil {
+				return 0
+			}
+			return d.SNBSpecialist.UpgradeUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.SNBSpecialist == nil {
+				return 0
+			}
+			return d.SNBSpecialist.UpgradeCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.SNBSpecialist == nil {
+				return nil
+			}
+			return d.SNBSpecialist.AvailableUpgrades
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSNBUpgrade))
+	mux.HandleFunc("GET /science-nin-picks/{category}/{slug...}", s.handleScienceNinSubclassPickDetail)
 	mux.HandleFunc("GET /clans", s.handleClans)
 	mux.HandleFunc("GET /clans/{slug...}", s.handleClanDetail)
 	mux.HandleFunc("GET /jutsu", s.handleJutsuList)

@@ -426,6 +426,71 @@
     </details>
     {{end}}
 
+    {{/* Only shown for a character with real levels in Intelligence
+         Operative — two independent cap-gated catalog picks (Plans, base
+         class; Operative Traps, Tactical Strategist only), each gating its
+         own sub-section on its own Cap being > 0. Brave Orders and every
+         activation-gate pool layered on top of it (Checkmate, Tsume,
+         Momentary Pause, Converging Timelines, Day Ahead, Omniscient
+         Clairvoyance, Sapphire Insights, War Cry, In Perfect Sync, Tactical
+         Scheme) are separate tiles in the Special Resources row above
+         (customResourceGrants), not shown here. Real DOM removal via
+         {{if}}, same treatment Hunter Techniques gets above. */}}
+    {{if .IntelligenceOperative}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="intelligence-operative">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Intelligence Operative</h2></summary>
+      {{template "sheet_intelligence_operative" (dict "ID" .ID "IntelligenceOperative" .IntelligenceOperative)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Ninjutsu
+         Specialist — Efficient Molding's own cap+catalog pick (level 3)
+         plus Refined Ninjutsu (level 1) and Ninjutsu Master (level 20),
+         both of which pick from the character's own known jutsu rather
+         than a rules catalog. Chakra Recovery, Jutsu Breaker, and
+         Efficient Molding's own separate "uses per rest" pool are Special
+         Resources tiles above (customResourceGrants), not shown here. Real
+         DOM removal via {{if}}, same treatment Intelligence Operative
+         gets above. */}}
+    {{if .NinjutsuSpecialist}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="ninjutsu-specialist">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Ninjutsu Specialist</h2></summary>
+      {{template "sheet_ninjutsu_specialist" (dict "ID" .ID "NinjutsuSpecialist" .NinjutsuSpecialist)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Science-Nin who has
+         reached 2nd level — Scientific Ninja Tools' own Creation Points
+         budget spent across a 6-tier catalog (Minor through Mastercraft).
+         Every subclass's own tiered upgrade catalog (S.N.B Upgrades,
+         Shinobi-Ware Upgrades, ...) and the Chakra Containment Device pool
+         itself are separate, later additions — CCD is a Special Resources
+         tile above (customResourceGrants), not shown here. Real DOM
+         removal via {{if}}, same treatment Ninjutsu Specialist gets
+         above. */}}
+    {{if .ScienceNin}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="science-nin">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Science-Nin</h2></summary>
+      {{template "sheet_science_nin" (dict "ID" .ID "ScienceNin" .ScienceNin)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Cooking-Nin — the
+         Cooking Die's own size readout (the Cooking Tool's damage die, and
+         the base die nearly every Snack/Aura effect scales off of) plus
+         Food For the Soul's re-editable ability-score pick (2nd level+).
+         The class's own spendable pools (Shinobi Snacks, Wandering Aroma,
+         War and Food, subclass bonus Auras, and the rest) are separate
+         tiles in the Special Resources row above (customResourceGrants),
+         not shown here. Real DOM removal via {{if}}, same treatment Hunter
+         Techniques gets above. */}}
+    {{if .CookingNin}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="cooking-nin">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Cooking</h2></summary>
+      {{template "sheet_cooking_nin" (dict "ID" .ID "CookingNin" .CookingNin)}}
+    </details>
+    {{end}}
+
     {{/* Only shown for a character with real levels in Genjutsu Specialist —
          Actualization Die's own size readout (its count lives in Special
          Resources above, customResourceGrants) plus the two subclass
@@ -439,6 +504,41 @@
     <details class="sheet-feature-panel sheet-box" open data-box-id="genjutsu">
       <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Genjutsu Specialist</h2></summary>
       {{template "sheet_genjutsu" (dict "ID" .ID "Genjutsu" .Genjutsu)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Medical-Nin — three
+         size/bonus-only readouts (Chakra Scalpel damage, Channeled Healing
+         bonus, Rejuvenating Rest extra dice), Medical Doctrine's own
+         cap-gated 4-option catalog pick (1@3rd -> 2@13th), and, for a
+         Combat Medic only, Martial Competency's Taijutsu Stance pick (the
+         same mechanic Taijutsu Specialist's own Unarmed Technique grants,
+         generalized in taijutsu.go rather than duplicated). The class's own
+         spendable pools (Chakra Scalpel Charges, Preserve/Take Life, Yin
+         Motes, and the rest) are separate tiles in the Special Resources
+         row above (customResourceGrants), not shown here. Real DOM removal
+         via {{if}}, same treatment Hunter Techniques/Genjutsu get above. */}}
+    {{if .MedicalNin}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="medical-nin">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Medical-Nin</h2></summary>
+      {{template "sheet_medical_nin" (dict "ID" .ID "MedicalNin" .MedicalNin)}}
+    </details>
+    {{end}}
+
+    {{/* Only shown for a character with real levels in Scout-Nin — the base
+         class's own Fighting Stance pick (1st level, Taijutsu Stance OR
+         Weapon Stance), Shinobi Adept's cap-gated 10-option catalog pick
+         (2@2nd -> 4@13th), Jack of All, Master of None's cap-gated
+         5-option catalog pick (1 -> 2@9th/3@20th for Tactical Scout only),
+         and Deft Explorer's Mobile sub-tier (6th level, automatic — a
+         computed swim/climb/wall/water-walk speed readout). Superiority
+         Dice's own count/size readout is a Special Resources tile above
+         (customResourceGrants), not shown here. Real DOM removal via
+         {{if}}, same treatment Hunter Techniques/Medical-Nin get above. */}}
+    {{if .ScoutNin}}
+    <details class="sheet-feature-panel sheet-box" open data-box-id="scout-nin">
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Scout-Nin</h2></summary>
+      {{template "sheet_scout_nin" (dict "ID" .ID "ScoutNin" .ScoutNin)}}
     </details>
     {{end}}
 
@@ -2197,6 +2297,757 @@
 </div>
 {{end}}
 
+{{/* sheet_intelligence_operative: Intelligence Operative's two independent
+     cap-gated catalog picks — Plans (base class) and Operative Traps
+     (Tactical Strategist only). Each sub-section renders only when its own
+     Cap is > 0, same "don't leave other characters looking at an empty
+     box" reasoning sheet_hunter_techniques already uses. Known Plans/Traps
+     are real popup links (.sheet-popup-trigger) to hunter_pick_detail_card
+     (reused as-is), so a locked-in pick's full text stays reachable after
+     it drops out of the tooltipped Available list. Brave Orders and every
+     activation-gate pool this class grants are Special Resources tiles
+     above (customResourceGrants), not shown here. Expects
+     {ID, IntelligenceOperative}. */}}
+{{define "sheet_intelligence_operative"}}
+<div id="sheet-intelligence-operative" data-fragment="sheet_intelligence_operative">
+  {{if gt .IntelligenceOperative.PlansCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Plans <span class="option-picker-epithet">{{.IntelligenceOperative.PlansUsed}}/{{.IntelligenceOperative.PlansCap}} chosen</span></h3>
+    <p class="section-hint">Freely re-editable on a long rest — this app doesn't enforce that timing.</p>
+    {{range .IntelligenceOperative.KnownPlans}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/intelligence-operative-plans/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-intelligence-operative">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/intelligence-operative-picks/plan/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .IntelligenceOperative.PlansUsed .IntelligenceOperative.PlansCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/intelligence-operative-plans" class="sheet-panel-form sheet-fetch-form" data-target="sheet-intelligence-operative">
+      <ul class="puppet-upgrade-option-list">
+        {{range .IntelligenceOperative.AvailablePlans}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Plan</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .IntelligenceOperative.OperativeTrapsCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Operative Traps <span class="option-picker-epithet">{{.IntelligenceOperative.OperativeTrapsUsed}}/{{.IntelligenceOperative.OperativeTrapsCap}} chosen</span></h3>
+    <p class="section-hint">Uses set tracked in Special Resources above (Operative Traps Set).</p>
+    {{range .IntelligenceOperative.KnownOperativeTraps}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/operative-traps/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-intelligence-operative">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/intelligence-operative-picks/operative-trap/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .IntelligenceOperative.OperativeTrapsUsed .IntelligenceOperative.OperativeTrapsCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/operative-traps" class="sheet-panel-form sheet-fetch-form" data-target="sheet-intelligence-operative">
+      <ul class="puppet-upgrade-option-list">
+        {{range .IntelligenceOperative.AvailableOperativeTraps}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Trap</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_ninjutsu_specialist: Ninjutsu Specialist's three independent
+     cap-gated picks — Efficient Molding (a rules-catalog pick, level 3,
+     reusing the puppet-upgrade-option-list picker shape) and Refined
+     Ninjutsu (level 1) / Ninjutsu Master (level 20), both of which pick
+     from the character's own known jutsu (knownJutsuOption) rather than a
+     rules catalog. Refined/Master's own Known rows have no popup link
+     (.ninjutsu-jutsu-pick in app.css turns off the hover-highlight that
+     would otherwise promise one) — the jutsu's own full text is already
+     reachable from the Known Jutsu/Attacks & Jutsu sections elsewhere on
+     the sheet. Each sub-section renders only when its own Cap is > 0.
+     Chakra Recovery, Jutsu Breaker, and Efficient Molding's own separate
+     "uses per rest" pool are Special Resources tiles above
+     (customResourceGrants), not shown here. Expects
+     {ID, NinjutsuSpecialist}. */}}
+{{define "sheet_ninjutsu_specialist"}}
+<div id="sheet-ninjutsu-specialist" data-fragment="sheet_ninjutsu_specialist">
+  {{if gt .NinjutsuSpecialist.MoldingCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Efficient Molding <span class="option-picker-epithet">{{.NinjutsuSpecialist.MoldingUsed}}/{{.NinjutsuSpecialist.MoldingCap}} chosen</span></h3>
+    <p class="section-hint">Freely re-editable when you level up in this class — this app doesn't enforce that timing.</p>
+    {{range .NinjutsuSpecialist.KnownMolding}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/ninjutsu-molding/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/ninjutsu-molding/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .NinjutsuSpecialist.MoldingUsed .NinjutsuSpecialist.MoldingCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/ninjutsu-molding" class="sheet-panel-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+      <ul class="puppet-upgrade-option-list">
+        {{range .NinjutsuSpecialist.AvailableMolding}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Molding</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .NinjutsuSpecialist.RefinedCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Refined Ninjutsu <span class="option-picker-epithet">{{.NinjutsuSpecialist.RefinedUsed}}/{{.NinjutsuSpecialist.RefinedCap}} chosen</span></h3>
+    <p class="section-hint">Excludes jutsu with the Combination keyword. Freely re-editable on a long rest — this app doesn't enforce that timing.</p>
+    {{range .NinjutsuSpecialist.KnownRefined}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/refined-ninjutsu/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .NinjutsuSpecialist.RefinedUsed .NinjutsuSpecialist.RefinedCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/refined-ninjutsu" class="sheet-panel-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+      <ul class="puppet-upgrade-option-list">
+        {{range .NinjutsuSpecialist.AvailableRefined}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Refined Ninjutsu</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .NinjutsuSpecialist.MasterCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Ninjutsu Master <span class="option-picker-epithet">{{.NinjutsuSpecialist.MasterUsed}}/{{.NinjutsuSpecialist.MasterCap}} chosen</span></h3>
+    <p class="section-hint">C-Rank or lower. You always deal maximum damage with the chosen jutsu — apply this by hand when you cast it, it isn't automated.</p>
+    {{range .NinjutsuSpecialist.KnownMaster}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/ninjutsu-master/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .NinjutsuSpecialist.MasterUsed .NinjutsuSpecialist.MasterCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/ninjutsu-master" class="sheet-panel-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+      <ul class="puppet-upgrade-option-list">
+        {{range .NinjutsuSpecialist.AvailableMaster}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Ninjutsu Master</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_science_nin: Science-Nin's Scientific Ninja Tools pick — a
+     Creation Points budget spent across a 6-tier catalog (Minor through
+     Mastercraft), rather than a flat per-pick slot count the way every
+     other cap+catalog picker on this sheet works. Known Tools are real
+     popup links (.sheet-popup-trigger) to hunter_pick_detail_card (reused
+     as-is), so a locked-in pick's full text stays reachable after it drops
+     out of the Available list. Each Available option's own tooltip and
+     inline epithet both show its Tier and Cost so a player can plan their
+     remaining budget before spending it — unlike a flat slot cap, the
+     "can I still afford this" question isn't answered by the header count
+     alone. The Chakra Containment Device pool itself is a Special
+     Resources tile above (customResourceGrants), not shown here. Expects
+     {ID, ScienceNin}. */}}
+{{define "sheet_science_nin"}}
+<div id="sheet-science-nin" data-fragment="sheet_science_nin">
+  {{if .ScienceNin.Exoskeleton}}
+  <div class="sheet-subclass-detail">
+    <form method="post" action="/characters/{{$.ID}}/sheet/exoskeleton" class="sheet-inline-form sheet-toggle-form" data-target="sheet-science-nin" data-also-refresh="sheet-ac">
+      <input type="hidden" name="on" value="{{if .ScienceNin.Exoskeleton.Donned}}0{{else}}1{{end}}">
+      <button type="submit" class="sheet-exoskeleton-toggle{{if .ScienceNin.Exoskeleton.Donned}} sheet-exoskeleton-on{{end}}" data-toggle-class="sheet-exoskeleton-on">Exoskeleton: {{if .ScienceNin.Exoskeleton.Donned}}Donned{{else}}Doffed{{end}}</button>
+    </form>
+    <p class="section-hint">While donned and light or medium armor is equipped, Intelligence may substitute for Dexterity in your AC — whichever is higher is used automatically.</p>
+  </div>
+  {{end}}
+  <div class="sheet-subclass-detail">
+    <h3>Scientific Ninja Tools <span class="option-picker-epithet">{{.ScienceNin.CreationPointsUsed}}/{{.ScienceNin.CreationPointsCap}} Creation Points spent</span></h3>
+    <p class="section-hint">Freely learned or forgotten at any time — this app doesn't enforce a rest/level-up gate on this pick.</p>
+    {{range .ScienceNin.KnownTools}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-tools/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}</span>
+    </div>
+    {{end}}
+    {{if lt .ScienceNin.CreationPointsUsed .ScienceNin.CreationPointsCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScienceNin.AvailableTools}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Buy Tool</button>
+    </form>
+    {{end}}
+  </div>
+  {{if .ScienceNin.ElementalInnovationist}}
+  {{$ei := .ScienceNin.ElementalInnovationist}}
+  <div class="sheet-subclass-detail">
+    <h3>E.I.Ps <span class="option-picker-epithet">{{$ei.EIPUsed}}/{{$ei.EIPCap}} known</span></h3>
+    {{range $ei.KnownEIPs}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-eip/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/eip/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $ei.EIPUsed $ei.EIPCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-eip" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ei.AvailableEIPs}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Fit Perk</button>
+    </form>
+    {{end}}
+  </div>
+  {{if $ei.WOWCap}}
+  <div class="sheet-subclass-detail">
+    <h3>W.O.W <span class="option-picker-epithet">{{$ei.WOWUsed}}/{{$ei.WOWCap}} known</span></h3>
+    {{range $ei.KnownWOW}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-wow/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/wow/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt $ei.WOWUsed $ei.WOWCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-wow" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ei.AvailableWOW}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Forge Weapon</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{if or $ei.PermaPerk $ei.AvailablePermaPerk}}
+  <div class="sheet-subclass-detail">
+    <h3>Perma Perk</h3>
+    <p class="section-hint">One known E.I.P (never Wonder E.I.P) made permanent — usable without CCD chakra or an Exoskeleton.</p>
+    {{if $ei.PermaPerk}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-perma-perk/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$ei.PermaPerk.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Clear Perma Perk" title="Clear">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/eip/{{$ei.PermaPerk.Slug}}">{{$ei.PermaPerk.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-perma-perk" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ei.AvailablePermaPerk}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Set Perma Perk</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+  {{if .ScienceNin.Grenadier}}
+  {{$gr := .ScienceNin.Grenadier}}
+  <div class="sheet-subclass-detail">
+    <h3>B.I.M <span class="option-picker-epithet">{{$gr.BIMUsed}}/{{$gr.BIMCap}} held</span></h3>
+    <p class="section-hint">Cost badges are informational — Creation Points spent installing/upgrading B.I.Ms aren't tracked separately from the bandolier's own held count.</p>
+    {{range $gr.KnownBIM}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-bim/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Discard {{.Name}}" title="Discard">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/bim/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $gr.BIMUsed $gr.BIMCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-bim" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $gr.AvailableBIM}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Load Bandolier</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .ScienceNin.MadScientist}}
+  {{$ms := .ScienceNin.MadScientist}}
+  <div class="sheet-subclass-detail">
+    <h3>Inversion Serums <span class="option-picker-epithet">{{$ms.SerumUsed}}/{{$ms.SerumCap}} held</span></h3>
+    <p class="section-hint">Each serum is paid from one CCD half (Mending or Maiming) when created — see the Mending/Maiming CCD tiles above.</p>
+    {{range $ms.KnownSerums}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-inversion-serum/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Discard {{.Name}}" title="Discard">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/inversion-serum/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}} · {{if eq .Pool "mending"}}Mending{{else}}Maiming{{end}}</span>
+    </div>
+    {{end}}
+    {{if lt $ms.SerumUsed $ms.SerumCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-inversion-serum" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ms.AvailableSerums}}
+        {{if .FixedPool}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}|{{.FixedPool}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · {{if eq .FixedPool "mending"}}Mending{{else}}Maiming{{end}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{else}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}|mending" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Mending{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}|maiming" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Maiming{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+        {{end}}
+      </ul>
+      <button type="submit">Brew Serum</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .ScienceNin.Ninjaneer}}
+  {{$nj := .ScienceNin.Ninjaneer}}
+  <div class="sheet-subclass-detail">
+    <h3>Arsenal Modifications <span class="option-picker-epithet">{{$nj.ArsenalModUsed}}/{{$nj.ArsenalModCap}} slots</span></h3>
+    <p class="section-hint">Cost badges are informational — Creation Points spent installing modifications aren't tracked separately from Upgrade Slots.</p>
+    {{range $nj.KnownArsenalMods}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-arsenal-mod/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/arsenal-mod/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $nj.ArsenalModUsed $nj.ArsenalModCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-arsenal-mod" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $nj.AvailableArsenalMods}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Modification</button>
+    </form>
+    {{end}}
+  </div>
+  {{if $nj.PerfectedWeaponCap}}
+  <div class="sheet-subclass-detail">
+    <h3>Perfected Weapons <span class="option-picker-epithet">{{$nj.PerfectedWeaponUsed}}/{{$nj.PerfectedWeaponCap}} held</span></h3>
+    <p class="section-hint">Restricted to Minor-tier Arsenal Modifications, granted free of Creation Points — one per Perfected Weapon.</p>
+    {{range $nj.KnownPerfectedWeapons}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-perfected-weapon/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/perfected-weapon/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt $nj.PerfectedWeaponUsed $nj.PerfectedWeaponCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-perfected-weapon" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $nj.AvailablePerfectedWeapons}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Perfect Weapon</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+  {{if .ScienceNin.ShinobiWare}}
+  {{$sw := .ScienceNin.ShinobiWare}}
+  <div class="sheet-subclass-detail">
+    <h3>Shinobi-Ware Upgrades <span class="option-picker-epithet">{{$sw.UpgradeUsed}}/{{$sw.UpgradeCap}} slots</span></h3>
+    <p class="section-hint">Cost badges are informational — Creation Points spent installing an upgrade aren't tracked separately from Upgrade Slots.</p>
+    {{range $sw.KnownUpgrades}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-shinobi-ware-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/shinobi-ware-upgrade/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $sw.UpgradeUsed $sw.UpgradeCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-shinobi-ware-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sw.AvailableUpgrades}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Upgrade</button>
+    </form>
+    {{end}}
+  </div>
+  {{if $sw.EvolvedCap}}
+  <div class="sheet-subclass-detail">
+    <h3>Glorious Evolution <span class="option-picker-epithet">{{$sw.EvolvedUsed}}/{{$sw.EvolvedCap}} evolved</span></h3>
+    <p class="section-hint">Slot-free upgrades — don't count against Upgrade Slots above. Higher tiers unlock at 9th and 14th level.</p>
+    {{range $sw.KnownEvolved}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-evolved-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/evolved-upgrade/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $sw.EvolvedUsed $sw.EvolvedCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-evolved-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sw.AvailableEvolved}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Evolve Upgrade</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+  {{if .ScienceNin.Spyware}}
+  {{$sp := .ScienceNin.Spyware}}
+  <div class="sheet-subclass-detail">
+    <h3>Spyware Programs <span class="option-picker-epithet">{{$sp.ProgramUsed}}/{{$sp.ProgramCap}} held</span></h3>
+    {{range $sp.KnownPrograms}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-spyware-program/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Uninstall {{.Name}}" title="Uninstall">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/spyware-program/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $sp.ProgramUsed $sp.ProgramCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-spyware-program" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sp.AvailablePrograms}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Program</button>
+    </form>
+    {{end}}
+  </div>
+  {{if or $sp.QuickHack $sp.AvailableQuickHack}}
+  <div class="sheet-subclass-detail">
+    <h3>Quick Hack</h3>
+    <p class="section-hint">One known Program made always-prepared — no cast needed to ready it.</p>
+    {{if $sp.QuickHack}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-quick-hack/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$sp.QuickHack.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Clear Quick Hack" title="Clear">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/spyware-program/{{$sp.QuickHack.Slug}}">{{$sp.QuickHack.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-quick-hack" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sp.AvailableQuickHack}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Set Quick Hack</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+  {{if .ScienceNin.StormRider}}
+  {{$sr := .ScienceNin.StormRider}}
+  <div class="sheet-subclass-detail">
+    <h3>A.T. Enhancements <span class="option-picker-epithet">{{$sr.EnhancementUsed}}/{{$sr.EnhancementCap}} slots</span></h3>
+    <p class="section-hint">Cost badges are informational — Creation Points spent installing an enhancement aren't tracked separately from enhancement slots.</p>
+    {{range $sr.KnownEnhancements}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-air-treck-enhancement/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/air-treck-enhancement/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $sr.EnhancementUsed $sr.EnhancementCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-air-treck-enhancement" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sr.AvailableEnhancements}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Enhancement</button>
+    </form>
+    {{end}}
+  </div>
+  {{if or $sr.Regalia $sr.AvailableRegalia}}
+  <div class="sheet-subclass-detail">
+    <h3>Regalia</h3>
+    <p class="section-hint">One permanent Regalia, worn alongside your A. Ts.</p>
+    {{if $sr.Regalia}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-regalia/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$sr.Regalia.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove Regalia" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/regalia/{{$sr.Regalia.Slug}}">{{$sr.Regalia.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-regalia" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sr.AvailableRegalia}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Regalia</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+  {{if .ScienceNin.Technobi}}
+  {{$tb := .ScienceNin.Technobi}}
+  <div class="sheet-subclass-detail">
+    <h3>Technobi Mechanizations <span class="option-picker-epithet">{{$tb.MechanizationUsed}}/{{$tb.MechanizationCap}} held</span></h3>
+    {{range $tb.KnownMechanizations}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-technobi-mechanization/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Discard {{.Name}}" title="Discard">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/technobi-mechanization/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $tb.MechanizationUsed $tb.MechanizationCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-technobi-mechanization" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $tb.AvailableMechanizations}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Mechanization</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .ScienceNin.SNBSpecialist}}
+  {{$snb := .ScienceNin.SNBSpecialist}}
+  <div class="sheet-subclass-detail">
+    <h3>S.N.B Upgrades <span class="option-picker-epithet">{{$snb.UpgradeUsed}}/{{$snb.UpgradeCap}} slots</span></h3>
+    <p class="section-hint">Installed into your Scientific Ninja Beast. Cost badges are informational — Creation Points spent installing an upgrade aren't tracked separately from Upgrade Slots.</p>
+    {{range $snb.KnownUpgrades}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-snb-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/snb-upgrade/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $snb.UpgradeUsed $snb.UpgradeCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-snb-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $snb.AvailableUpgrades}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}{{if .Epithet}} · {{.Epithet}}{{end}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Install Upgrade</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_cooking_nin: Cooking-Nin's Cooking Die size readout plus Food For
+     the Soul's freely re-editable ability-score pick (2nd level+, blank
+     until the player has chosen one). The class's own spendable pools
+     (Shinobi Snacks, Wandering Aroma, War and Food, the subclass bonus
+     Auras, and the rest) are separate tiles in the Special Resources row
+     (customResourceGrants), not here. Expects {ID, CookingNin}. */}}
+{{define "sheet_cooking_nin"}}
+<div id="sheet-cooking-nin" data-fragment="sheet_cooking_nin">
+  {{if .CookingNin.CookingDieSize}}
+  <p class="section-hint">Cooking Dice: {{.CookingNin.CookingDieSize}} — your Cooking Tool's damage die, and the base die used by Shinobi Snacks, Auras, and other Cooking-Nin features.</p>
+  {{end}}
+  {{if .CookingNin.FoodForTheSoul}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/food-for-the-soul" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+    <label class="sheet-vitals-label">Food For the Soul
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— none chosen —</option>
+        {{range .CookingNin.FoodForTheSoul.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.FoodForTheSoul.Current}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .CookingNin.FoodForTheSoul.Current}}{{range .CookingNin.FoodForTheSoul.Options}}{{if eq .Value $.CookingNin.FoodForTheSoul.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose an ability score above to see what it does.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+  {{end}}
+</div>
+{{end}}
+
 {{/* hunter_pick_detail_card: the popup body for a Known Hunters Pattern,
      Hunters Exploit, or Defensive Tactic (handleHunterPickDetail, GET
      /hunter-techniques/{category}/{slug}?fragment=1) — reached by clicking
@@ -2359,6 +3210,228 @@
         {{end}}
       </ul>
       <button type="submit">Learn Option</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_medical_nin: Medical-Nin's three size/bonus-only readouts
+     (Chakra Scalpel damage, Channeled Healing bonus, Rejuvenating Rest
+     extra dice — each blank until the character reaches that column's own
+     starting level), Medical Doctrine's cap-gated 4-option catalog pick,
+     and, for a Combat Medic only, Martial Competency's own Taijutsu Stance
+     pick (same markup as sheet_martial_techniques' Stance section, reused
+     via taijutsu.go's buildFightingStanceView/storeFightingStanceChoice —
+     see medical_nin.go's handleMedicalNinFightingStance). The class's own
+     spendable pools (Chakra Scalpel Charges, Preserve/Take Life, Yin
+     Motes, Competent Combatant's double-modifier uses, Passive
+     Regeneration, Natural Healing Dice, Shaman's Hex Marks, Transfigured
+     Technique) are separate tiles in the Special Resources row above
+     (customResourceGrants), not shown here. Expects {ID, MedicalNin}. */}}
+{{define "sheet_medical_nin"}}
+<div id="sheet-medical-nin" data-fragment="sheet_medical_nin">
+  {{if .MedicalNin.ChakraScalpelDamageDie}}
+  <p class="section-hint">Chakra Scalpel Damage: {{.MedicalNin.ChakraScalpelDamageDie}} + Wisdom Modifier, Slashing, in place of an attack while Chakra Scalpel is active.</p>
+  {{end}}
+  {{if .MedicalNin.ChanneledHealingBonus}}
+  <p class="section-hint">Channeled Healing: {{.MedicalNin.ChanneledHealingBonus}} bonus healing, once per turn, from a D-Rank+ Medical Jutsu that restores hit points.</p>
+  {{end}}
+  {{if .MedicalNin.RejuvenatingRestDice}}
+  <p class="section-hint">Rejuvenating Rest: an extra {{.MedicalNin.RejuvenatingRestDice}} healed by you or a friendly creature you touch, at the end of a short or long rest.</p>
+  {{end}}
+
+  {{if .MedicalNin.Stance}}
+  <div class="sheet-subclass-detail">
+    <h3>Fighting Stance</h3>
+    <form method="post" action="/characters/{{$.ID}}/sheet/medical-nin-fighting-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-medical-nin">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .MedicalNin.Stance.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.MedicalNin.Stance.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .MedicalNin.Stance.Current}}{{.MedicalNin.Stance.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
+  {{if gt .MedicalNin.DoctrineCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Medical Doctrine <span class="option-picker-epithet">{{.MedicalNin.DoctrineUsed}}/{{.MedicalNin.DoctrineCap}} chosen</span></h3>
+    {{range .MedicalNin.KnownDoctrines}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/medical-doctrine/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-medical-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .MedicalNin.DoctrineUsed .MedicalNin.DoctrineCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/medical-doctrine" class="sheet-panel-form sheet-fetch-form" data-target="sheet-medical-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .MedicalNin.AvailableDoctrine}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Doctrine</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* sheet_scout_nin: the subclass Maneuvers Known cap+catalog pick (scoped
+     to the character's own chosen Scouting Technique subclass —
+     ManeuversCap is 0, hiding the section, for a character with no
+     subclass chosen yet), Scout-Nin's own base-class Fighting Stance pick
+     (Taijutsu Stance OR Weapon Stance, same markup as sheet_martial_techniques'
+     Stance section, reused via taijutsu.go's buildFightingStanceView/
+     storeFightingStanceChoice — see scout_nin.go's handleScoutNinFightingStance),
+     Shinobi Adept's and Jack of All, Master of None's cap-gated catalog
+     picks (same "Known"/"Available" markup as sheet_medical_nin's Medical
+     Doctrine section), and Deft Explorer's Mobile sub-tier readout (6th
+     level, automatic — swim/climb/wall/water-walk speed all equal Speed).
+     Superiority Dice's own count/size readout, and Elemental Scout's own
+     Chakra Sphere/Repelling Burst, Ghastly Leech, Willpower Surge, and
+     Tricksters Words uses, are all Special Resources tiles above
+     (customResourceGrants), not shown here. Expects {ID, ScoutNin}. */}}
+{{define "sheet_scout_nin"}}
+<div id="sheet-scout-nin" data-fragment="sheet_scout_nin">
+  {{if gt .ScoutNin.ManeuversCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>{{.ScoutNin.ManeuversListName}} <span class="option-picker-epithet">{{.ScoutNin.ManeuversUsed}}/{{.ScoutNin.ManeuversCap}} known</span></h3>
+    {{range .ScoutNin.KnownManeuvers}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/scout-nin-maneuvers/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.ManeuversUsed .ScoutNin.ManeuversCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/scout-nin-maneuvers" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableManeuvers}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Maneuver</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if .ScoutNin.MobileActive}}
+  <p class="section-hint">Mobile: your swim, climb, wall-walking, and water-walking speed all equal your Speed ({{.ScoutNin.Speed}} ft.).</p>
+  {{end}}
+
+  {{if .ScoutNin.Stance}}
+  <div class="sheet-subclass-detail">
+    <h3>Fighting Stance</h3>
+    <form method="post" action="/characters/{{$.ID}}/sheet/scout-nin-fighting-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .ScoutNin.Stance.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.ScoutNin.Stance.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ScoutNin.Stance.Current}}{{.ScoutNin.Stance.CurrentDescription}}{{else}}Choose a Taijutsu Stance or Weapon Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.ShinobiAdeptCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Shinobi Adept <span class="option-picker-epithet">{{.ScoutNin.ShinobiAdeptUsed}}/{{.ScoutNin.ShinobiAdeptCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownShinobiAdept}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/shinobi-adept/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.ShinobiAdeptUsed .ScoutNin.ShinobiAdeptCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/shinobi-adept" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableShinobiAdept}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.JackOfAllCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Jack of All, Master of None <span class="option-picker-epithet">{{.ScoutNin.JackOfAllUsed}}/{{.ScoutNin.JackOfAllCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownJackOfAll}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/jack-of-all/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.JackOfAllUsed .ScoutNin.JackOfAllCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/jack-of-all" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableJackOfAll}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Generalization</button>
     </form>
     {{end}}
   </div>
@@ -2844,10 +3917,23 @@
        already follows; nothing renders when .CustomResources is empty. */}}
   {{range .CustomResources}}
   <div class="sheet-edit-box" data-endpoint="/characters/{{$.ID}}/sheet/resource/{{.Key}}" data-field="delta" data-target="sheet-vitals">
-    <span class="sheet-vitals-label" {{if .Restriction}}title="{{.Restriction}}"{{end}}>{{.Name}}</span>
+    <span class="sheet-vitals-label" {{if .Restriction}}title="{{.Restriction}}"{{end}}>{{.Name}}{{if .DieSize}} ({{.DieSize}}){{end}}</span>
     <button type="button" class="sheet-vitals-display" data-role="display">{{.Current}} / {{.Max}}</button>
     <input type="text" class="sheet-vitals-edit-input" data-role="edit" placeholder="+2 or -5" inputmode="numeric" hidden>
   </div>
+  {{/* Mending's own share of the base CCD total (Maiming gets the
+       remainder) — only present once Biotic Mastery has actually split the
+       CCD into these two named pools, so gating on the "ccd_mending" key
+       here needs no separate flag threaded down from Go. */}}
+  {{if eq .Key "ccd_mending"}}
+  <div class="sheet-ccd-mending-split-box">
+    <span class="sheet-vitals-label" title="Mending's percentage share of your Chakra Containment Device total — Maiming gets the remainder. The book changes this during a Long Rest, in intervals of 5.">Mending Split</span>
+    <form method="post" action="/characters/{{$.ID}}/sheet/ccd-mending-pct" class="sheet-inline-form sheet-fetch-form" data-target="sheet-vitals">
+      <input type="number" name="pct" value="{{$.Sheet.CCDMendingPct}}" min="0" max="100" step="5">
+      <button type="submit">Set %</button>
+    </form>
+  </div>
+  {{end}}
   {{end}}
   {{/* Taijutsu Specialist's Martial Dice pool — resets at the start of
        every turn, not on a rest, so it deliberately does NOT go through
@@ -3447,12 +4533,16 @@
      Releases do I have" panel — see cmd/n5e/elemental_affinity.go for the
      curated clan/feat/subclass tables this is computed from. Slots is only
      ever non-empty for a combo clan's 1st-level choice, the Nature Release
-     feat, or a reached Professor subclass slot — a flat single-affinity
-     clan (e.g. Uchiha) needs no picker at all, just the read-only list
-     below. Each resolved affinity's own Source is shown via the same
+     feat, a reached Professor subclass slot, or Elemental Scout's own
+     Elemental Knowledge pick (3rd level) — a flat single-affinity clan
+     (e.g. Uchiha) needs no picker at all, just the read-only list below.
+     Each resolved affinity's own Source is shown via the same
      .tooltip/.tooltip-trigger/.tooltip-content chip the Resistances &
      Senses panel uses, for the same "hover to see where this came from"
-     reason. Expects {ID, ElementalAffinities, ElementalAffinitySlots}. */}}
+     reason. data-also-refresh="sheet-passive-traits" on the picker form:
+     Elemental Scout's own pick also feeds Elemental Resistance (6th level)
+     once reached — see scout_nin.go's scoutNinElementalResistanceEntry.
+     Expects {ID, ElementalAffinities, ElementalAffinitySlots}. */}}
 {{define "sheet_elemental_affinities"}}
 <div class="sheet-elemental-affinities" id="sheet-elemental-affinities" data-fragment="sheet_elemental_affinities">
   <h3>Elemental Affinities</h3>
@@ -3469,7 +4559,7 @@
   <p class="section-hint">No elemental affinities yet.</p>
   {{end}}
   {{range .ElementalAffinitySlots}}
-  <form method="post" action="/characters/{{$.ID}}/sheet/elemental-affinity" class="sheet-inline-form sheet-fetch-form" data-target="sheet-elemental-affinities">
+  <form method="post" action="/characters/{{$.ID}}/sheet/elemental-affinity" class="sheet-inline-form sheet-fetch-form" data-target="sheet-elemental-affinities" data-also-refresh="sheet-passive-traits">
     <input type="hidden" name="slot_key" value="{{.SlotKey}}">
     <label class="sheet-elemental-affinity-slot">
       {{.Label}}

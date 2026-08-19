@@ -153,6 +153,26 @@ func TestFindEntriesDoesNotSplitOnWeaponStatBlockSelfReference(t *testing.T) {
 	}
 }
 
+// Real shape from Science-Nin's Explosive Modifications / Minor tier
+// (queried directly from the shipped rules.db) — a dotted initialism name
+// ("BLINDING B.I.M") that the ordinary caps-word class rejects outright
+// (periods aren't in its character class), silently dropping the whole
+// tier below the caller's 2-match split threshold. See capsEntryPattern's
+// own doc for the full root-cause explanation.
+func TestFindEntriesSplitsDottedAcronymName(t *testing.T) {
+	raw := "BLINDING B.I.M Cost: 2-6 Creation Points You throw your B.I.M and it emits a blinding white light. ELECTRIC B.I.M Cost: 2-8 Creation Points You throw a B.I.M and it unleashes a discharge of electricity."
+	entries := FindEntries(raw)
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2: %+v", len(entries), entries)
+	}
+	if name := raw[entries[0].NameStart:entries[0].NameEnd]; name != "BLINDING B.I.M" {
+		t.Errorf("entry 0 name = %q, want BLINDING B.I.M", name)
+	}
+	if name := raw[entries[1].NameStart:entries[1].NameEnd]; name != "ELECTRIC B.I.M" {
+		t.Errorf("entry 1 name = %q, want ELECTRIC B.I.M", name)
+	}
+}
+
 func TestTitleCase(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"CHAKRA DISRUPTION BLADE", "Chakra Disruption Blade"},
@@ -160,6 +180,7 @@ func TestTitleCase(t *testing.T) {
 		{"ARMORY: NEEDLE WAVE", "Armory: Needle Wave"},
 		{"STURDY (RENAMED)", "Sturdy (Renamed)"},
 		{"SELF-DESTRUCT", "Self-Destruct"},
+		{"BLINDING B.I.M", "Blinding B.I.M"},
 	}
 	for _, c := range cases {
 		if got := TitleCase(c.in); got != c.want {

@@ -189,6 +189,54 @@ func ResolveACSwapAbility(granted []GrantedFeatureRow, equippedArmorCategory str
 	return ""
 }
 
+// flatACBonusGrant is one feature that adds a flat, always-on bonus to AC
+// derived from an ability modifier — distinct from acSwapGrants' "substitute
+// an ability for Dexterity in the formula" shape above, and from speedGrant's
+// flat integer (this one scales off the character's own ability score).
+// Divisor lets a "half of X modifier, rounded down" grant (Arbiter Scout's
+// Absolute Authority) share this table with a future full-modifier grant
+// (Divisor 1) instead of needing its own separate mechanism.
+type flatACBonusGrant struct {
+	Ability string // 3-letter code
+	Divisor int    // 1 for the full modifier, 2 for "half, rounded down"
+}
+
+var flatACBonusGrants = map[string]flatACBonusGrant{
+	// "You and allied creatures within 30 feet of you, can add Half of your
+	// Charisma Modifier (Rounded Down) to their AC." Only the character's
+	// own half is reachable here — no companion/ally AC mechanism exists in
+	// this app to extend the 30-foot-radius half to.
+	"class/scout-nin/group/scouting-technique/arbiter-scout/feature/absolute-authority": {Ability: "cha", Divisor: 2},
+}
+
+// ResolveFlatACBonus sums every granted feature's flat AC bonus from
+// abilityMods (the character's own already-computed ability MODIFIERS, not
+// raw scores — this package never re-derives a modifier from a score itself,
+// same boundary ResolveSpeedBonus/ResolveACSwapAbility already draw).
+// floorDivRoundDown, not Go's truncating "/", matches "rounded down" for a
+// negative modifier too (e.g. a -3 Charisma modifier's half is -2, not -1).
+func ResolveFlatACBonus(granted []GrantedFeatureRow, abilityMods map[string]int) int {
+	total := 0
+	for _, f := range granted {
+		g, ok := flatACBonusGrants[f.Slug]
+		if !ok {
+			continue
+		}
+		total += floorDivRoundDown(abilityMods[g.Ability], g.Divisor)
+	}
+	return total
+}
+
+// floorDivRoundDown is integer division that rounds toward negative
+// infinity (floor), unlike Go's "/" operator, which truncates toward zero.
+func floorDivRoundDown(a, b int) int {
+	q := a / b
+	if a%b != 0 && (a < 0) != (b < 0) {
+		q--
+	}
+	return q
+}
+
 // speedGrant is one level threshold of a feature's Speed bonus. Amount is
 // the TOTAL bonus effective from MinLevel on, not a delta — the source text
 // itself states each tier as a running total (e.g. Taijutsu-Specialist's
@@ -206,12 +254,23 @@ type speedGrant struct {
 // speedGrants is intentionally a slice, not a map keyed by slug: several
 // entries share one slug, one per level tier.
 var speedGrants = []speedGrant{
-	// Scout-Nin's Mobility also states a further increase "at 11th level" —
-	// the same level the feature itself is already gained at, which reads
-	// as a book error with no legible intended threshold. Only the base
-	// +10 (unambiguous) is modeled; see the project plan for this class of
-	// gap.
-	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 11, Amount: 10},
+	// Scout-Nin's Mobility (one of Jack of All, Master of None's 5
+	// Generalizations, granted starting 5th level): "+10 bonus to your
+	// speed... increases to +15... at 11th level." The MinLevel 11 tier
+	// used to be the only one modeled, back when Mobility's own
+	// class_features row was still mistagged level=11 (a separate data bug,
+	// fixed by migration 0051_scout_nin_null_level_features.sql) — that made
+	// this entry's threshold coincidentally match the row's own
+	// (wrong) blanket-grant level instead of representing the real
+	// "+15 at 11th" tier. Now that the row is correctly tagged level=5, both
+	// tiers are modeled: +10 from 5th, +15 from 11th. Like every other
+	// Jack of All Generalization, this bonus applies once the class_features
+	// row itself is granted (blanket, not gated on the player having
+	// specifically picked Mobility over Combat/Control/Skill/Support in the
+	// cap+catalog pick — see cmd/n5e/scout_nin.go's own doc comment for why
+	// that boundary matches this codebase's existing precedent).
+	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 5, Amount: 10},
+	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 11, Amount: 15},
 
 	{FeatureSlug: "class/taijutsu-specialist/feature/enhanced-movement", MinLevel: 2, Amount: 10, RequiresNotHeavyArmor: true},
 	{FeatureSlug: "class/taijutsu-specialist/feature/enhanced-movement", MinLevel: 6, Amount: 15, RequiresNotHeavyArmor: true},

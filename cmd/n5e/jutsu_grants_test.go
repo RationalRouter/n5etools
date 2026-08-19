@@ -167,6 +167,46 @@ func TestParseJutsuGrants_GainPhrasingStillWorks(t *testing.T) {
 	}
 }
 
+// TestParseJutsuGrants_NoRankPhrasing covers Systematic Breakdown
+// (Intelligence Operative, Interrogationist), whose free-jutsu grant states
+// neither a rank token nor a restated level — "you learn the Bane
+// Genjutsu, if you do not know it already." — a shape none of the other
+// three patterns can match.
+func TestParseJutsuGrants_NoRankPhrasing(t *testing.T) {
+	description := "Also, at 3rd level, Genjutsu you cast targeting a creature marked " +
+		"by your Exploit Weakness, can use your Charisma Modifier instead of Wisdom. " +
+		"Finally, you learn the Bane Genjutsu, if you do not know it already."
+
+	grants := parseJutsuGrants(description, 3)
+	if len(grants) != 1 {
+		t.Fatalf("parseJutsuGrants(systematic-breakdown) = %d grants, want 1: %+v", len(grants), grants)
+	}
+	if grants[0].Name != "Bane" {
+		t.Errorf("Name = %q, want %q", grants[0].Name, "Bane")
+	}
+	if grants[0].Level != 3 {
+		t.Errorf("Level = %d, want 3 (fallback level)", grants[0].Level)
+	}
+}
+
+// TestParseJutsuGrants_NoRankPatternDoesNotDoubleMatchRankedGrants confirms
+// the new rank-agnostic pattern doesn't add a second, wrongly-named grant
+// for a sentence one of the other three patterns already resolves
+// correctly — the case that motivates rankTokenSuffixPattern.
+func TestParseJutsuGrants_NoRankPatternDoesNotDoubleMatchRankedGrants(t *testing.T) {
+	description := "Beginning at 1st level, you craft a Puppet Tool to carry out your " +
+		"orders and protect you. You learn the Mending E-Rank Ninjutsu, which does " +
+		"not count against your known."
+
+	grants := parseJutsuGrants(description, 1)
+	if len(grants) != 1 {
+		t.Fatalf("parseJutsuGrants(puppet-tool) = %d grants, want 1: %+v", len(grants), grants)
+	}
+	if grants[0].Name != "Mending" {
+		t.Errorf("Name = %q, want %q (not a garbled \"Mending E-Rank\")", grants[0].Name, "Mending")
+	}
+}
+
 // TestParseJutsuGrants_GenericRankNoSchoolIgnored confirms a "you learn
 // E-Rank jutsu" grant with no specific jutsu name and no school keyword
 // (Science-Nin's Chakra Cell Enhancement) does not get mistakenly matched

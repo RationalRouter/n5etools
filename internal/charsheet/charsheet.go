@@ -316,6 +316,48 @@ const taijutsuSpecialistClassSlug = "class/taijutsu-specialist"
 // Weapon Focus's Bukijutsu jutsu-casting bonus (see JutsuAttacks below).
 const weaponSpecialistClassSlug = "class/weapon-specialist"
 
+// ninjutsuSpecialistClassSlug identifies the Ninjutsu Specialist base class
+// for Stone Crusher's Stone Adept HP bonus below.
+const ninjutsuSpecialistClassSlug = "class/ninjutsu-specialist"
+
+// scienceNinClassSlug identifies the Science-Nin base class for Yhprum's Law
+// (skill-check half-proficiency floor) below. Kept as its own package-level
+// const rather than importing cmd/n5e's own scienceNinSlug: cmd/n5e imports
+// this package, so the reverse would be a cycle.
+const scienceNinClassSlug = "class/science-nin"
+
+// shinobiWareFullMetalShinobiFeatureSlug is Shinobi-Ware's 3rd-level
+// unarmored-AC formula override — see computeEquippedAC's shinobiWare
+// parameter.
+const shinobiWareFullMetalShinobiFeatureSlug = "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/full-metal-shinobi"
+
+// elementalInnovationistExoskeletonFeatureSlug is Elemental Innovationist's
+// 3rd-level Exoskeleton feature, which lets Intelligence substitute for
+// Dexterity in the armored AC formula while donned (sheet.ExoskeletonDonned)
+// and light or medium armor is equipped — see the ResolveACSwapAbility call
+// site in Compute below.
+const elementalInnovationistExoskeletonFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/exoskeleton"
+
+// stoneAdeptFeatureSlug: Stone Crusher's 2nd-level "Increase your maximum
+// hit points by 2. Each time you gain a level in this class, you increase
+// your hit point maximum by 1." — a flat HP bonus equal to the character's
+// own Ninjutsu Specialist level once granted (2 at 2nd level, +1 per level
+// after == the level number itself for level >= 2).
+const stoneAdeptFeatureSlug = "class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/stone-adept"
+
+// ninjutsuStoneAdeptHPBonus returns Stone Adept's flat Max HP bonus, or 0 if
+// the character doesn't have the feature — granted is already level-gated
+// by features.LoadGrantedFeatures, so a granted Stone Adept always implies
+// classLevels[ninjutsuSpecialistClassSlug] >= 2.
+func ninjutsuStoneAdeptHPBonus(granted []features.GrantedFeatureRow, classLevels map[string]int) int {
+	for _, f := range granted {
+		if f.Slug == stoneAdeptFeatureSlug {
+			return classLevels[ninjutsuSpecialistClassSlug]
+		}
+	}
+	return 0
+}
+
 // ProfModes is the accepted set, in the order the sheet offers them.
 var ProfModes = []string{ProfHalf, ProfFull, ProfNone}
 
@@ -590,14 +632,26 @@ type Sheet struct {
 	ACProf    string // one of ProfModes, "none" unless overridden
 	ACBonus   int    // flat extra, 0 unless overridden
 
-	CurrentHP              int
-	TempHP                 int
-	BaseTempHP             int
-	CurrentChakra          int
-	TempChakra             int
-	HitDiceSpent           int
-	ChakraDiceSpent        int
-	Inspiration            bool
+	CurrentHP       int
+	TempHP          int
+	BaseTempHP      int
+	CurrentChakra   int
+	TempChakra      int
+	HitDiceSpent    int
+	ChakraDiceSpent int
+	Inspiration     bool
+	// ExoskeletonDonned is Elemental Innovationist's Exoskeleton
+	// donned/doffed state (migration 0043_exoskeleton_donned.sql) — no
+	// equipment row backs the Exoskeleton, so this is a plain toggle rather
+	// than an equipped-item check.
+	ExoskeletonDonned bool
+	// CCDMendingPct is Mad Scientist's Biotic Mastery split ratio —
+	// Mending's percentage share of the base Chakra Containment Device
+	// total, Maiming getting the remainder (migration
+	// 0045_ccd_mending_pct.sql). Meaningless (but harmless) for every
+	// character without Biotic Mastery granted; cmd/n5e/custom_resources.go
+	// only reads it when that feature is present.
+	CCDMendingPct          int
 	Ryo                    float64
 	Appearance             string
 	Backstory              string
@@ -615,18 +669,18 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	sheet := &Sheet{CharacterID: characterID}
 
 	var baseStr, baseDex, baseCon, baseInt, baseWis, baseCha int
-	var inspiration int
+	var inspiration, exoskeletonDonned int
 	var clanSlug, appearance, backstory, alliesOrgs, additionalFeatures, treasure, notes, portrait sql.NullString
 	err := charDB.QueryRow(`
 		SELECT name, clan_slug, base_str, base_dex, base_con, base_int, base_wis, base_cha,
 		       current_hp, temp_hp, base_temp_hp, current_chakra, temp_chakra,
-		       hit_dice_spent, chakra_dice_spent, inspiration, ryo,
+		       hit_dice_spent, chakra_dice_spent, inspiration, exoskeleton_donned, ccd_mending_pct, ryo,
 		       appearance, backstory, allies_organizations, additional_features_text, treasure,
 		       notes, portrait
 		FROM characters WHERE id = ?`, characterID,
 	).Scan(&sheet.Name, &clanSlug, &baseStr, &baseDex, &baseCon, &baseInt, &baseWis, &baseCha,
 		&sheet.CurrentHP, &sheet.TempHP, &sheet.BaseTempHP, &sheet.CurrentChakra, &sheet.TempChakra,
-		&sheet.HitDiceSpent, &sheet.ChakraDiceSpent, &inspiration, &sheet.Ryo,
+		&sheet.HitDiceSpent, &sheet.ChakraDiceSpent, &inspiration, &exoskeletonDonned, &sheet.CCDMendingPct, &sheet.Ryo,
 		&appearance, &backstory, &alliesOrgs, &additionalFeatures, &treasure,
 		&notes, &portrait)
 	if err == sql.ErrNoRows {
@@ -637,6 +691,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	}
 	sheet.ClanSlug = clanSlug.String
 	sheet.Inspiration = inspiration != 0
+	sheet.ExoskeletonDonned = exoskeletonDonned != 0
 	sheet.Appearance = appearance.String
 	sheet.Backstory = backstory.String
 	sheet.AlliesOrganizations = alliesOrgs.String
@@ -822,12 +877,26 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		masteryRanks[name] = EffectiveMasteryRank(rank, sheet.Level)
 	}
 	sheet.MasteryRanks = masteryRanks
+	// Yhprum's Law (Science-Nin, 7th level): "You can add half your
+	// Proficiency bonus, rounded down, to any Skill check you make that
+	// doesn't already include it" — the same universal half-proficiency
+	// floor SavingThrowModifier already grants every saving throw, extended
+	// here to skill checks for this one class. CheckModifier alone never
+	// awards a bonus to a skill the character isn't proficient in; this is
+	// the only class-specific override of that rule, so it's applied
+	// directly against classLevels rather than through a curated grant
+	// table shaped for something reusable across classes.
+	yhprumsLaw := classLevels[scienceNinClassSlug] >= 7
 	for name, ability := range SkillAbility {
 		proficient := profSkills[name]
 		rank := masteryRanks[name]
+		modifier := CheckModifier(sheet.Abilities[ability].Modifier, sheet.ProficiencyBonus, proficient) + MasteryBonus(rank)
+		if yhprumsLaw && !proficient {
+			modifier += sheet.ProficiencyBonus / 2
+		}
 		sheet.Skills = append(sheet.Skills, SkillEntry{
 			Name: name, Ability: ability, Proficient: proficient, MasteryRank: rank,
-			Modifier: CheckModifier(sheet.Abilities[ability].Modifier, sheet.ProficiencyBonus, proficient) + MasteryBonus(rank),
+			Modifier: modifier,
 		})
 	}
 	sort.Slice(sheet.Skills, func(i, j int) bool {
@@ -952,6 +1021,22 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			break
 		}
 	}
+	// Full-Metal Shinobi (Shinobi-Ware, 3rd level): the same shape as
+	// Martial Defense above — an unarmored AC formula override, this one
+	// dropping Dexterity entirely in favor of Proficiency Bonus +
+	// Intelligence Modifier. grantedFeatures is already level/subclass
+	// gated (features.LoadGrantedFeatures), so a granted slug here always
+	// implies the character actually has 3+ levels of Shinobi-Ware.
+	shinobiWare := false
+	exoskeletonGranted := false
+	for _, f := range grantedFeatures {
+		switch f.Slug {
+		case shinobiWareFullMetalShinobiFeatureSlug:
+			shinobiWare = true
+		case elementalInnovationistExoskeletonFeatureSlug:
+			exoskeletonGranted = true
+		}
+	}
 	sheet.Speed += puppetTotals.Speed
 	sheet.PuppetUpgradeSources = puppetTotals.Sources
 	if puppetupgrades.ChassisHasMobile(wornChassisSlug) {
@@ -1001,7 +1086,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			chakraSum += FixedGain(c.ChakraDie, first)
 		}
 	}
-	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP
+	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels)
 	sheet.MaxChakraAuto = chakraSum + sheet.Level*sheet.Abilities["con"].Modifier
 	sheet.MaxHP, sheet.MaxHPPinned = sheet.MaxHPAuto, false
 	sheet.MaxChakra, sheet.MaxChakraPinned = sheet.MaxChakraAuto, false
@@ -1030,7 +1115,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if puppetArmorAC != nil {
 		sheet.AC = puppetArmorAC
 	} else {
-		ac, err := computeEquippedAC(rulesDB, charDB, characterID, scores, sheet.ProficiencyBonus, taijutsuSpecialist)
+		ac, err := computeEquippedAC(rulesDB, charDB, characterID, scores, sheet.ProficiencyBonus, taijutsuSpecialist, shinobiWare)
 		if err != nil {
 			return nil, fmt.Errorf("compute AC: %w", err)
 		}
@@ -1043,18 +1128,45 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		// assuming Dexterity is definitely part of the formula being
 		// replaced (unarmored always uses it; some armor's own printed
 		// formula might not).
-		if swapAbility := features.ResolveACSwapAbility(grantedFeatures, armorCategory); swapAbility != "" && sheet.AC != nil {
+		swapAbility := features.ResolveACSwapAbility(grantedFeatures, armorCategory)
+		// Exoskeleton (Elemental Innovationist, 3rd level): "Your Exoskeleton
+		// can only be worn alongside light and medium armor... While donned,
+		// you may use Intelligence to calculate your armor class" — the same
+		// swap-and-keep-the-better shape as Konjiki's own light/medium-armor
+		// gate above, except also gated on the player's own donned toggle
+		// (sheet.ExoskeletonDonned), since nothing else marks the Exoskeleton
+		// as "worn" the way an equipped armor row would. Only consulted when
+		// no other swap already applies — no book precedent exists for
+		// stacking two ability-substitution sources at once.
+		if swapAbility == "" && exoskeletonGranted && sheet.ExoskeletonDonned && (armorCategory == "light" || armorCategory == "medium") {
+			swapAbility = "int"
+		}
+		if swapAbility != "" && sheet.AC != nil {
 			altScores := make(map[string]int, len(scores))
 			for k, v := range scores {
 				altScores[k] = v
 			}
 			altScores["dex"] = scores[swapAbility]
-			altAC, err := computeEquippedAC(rulesDB, charDB, characterID, altScores, sheet.ProficiencyBonus, taijutsuSpecialist)
+			altAC, err := computeEquippedAC(rulesDB, charDB, characterID, altScores, sheet.ProficiencyBonus, taijutsuSpecialist, shinobiWare)
 			if err != nil {
 				return nil, fmt.Errorf("compute swapped AC: %w", err)
 			}
 			if altAC != nil && *altAC > *sheet.AC {
 				sheet.AC = altAC
+			}
+		}
+		// Arbiter Scout's Absolute Authority: a flat AC bonus (half Charisma
+		// Modifier, rounded down) stacked on top of whichever formula just
+		// ran — unlike the ability-swap grant above, this is additive, not
+		// an alternate formula to compare against. Skipped when a Puppet
+		// Tool is worn as armor (the puppetArmorAC branch above), same as
+		// the ability-swap check, since the character isn't using their own
+		// AC formula at all while it's worn.
+		if sheet.AC != nil {
+			bonus := features.ResolveFlatACBonus(grantedFeatures, map[string]int{"cha": sheet.Abilities["cha"].Modifier})
+			if bonus != 0 {
+				v := *sheet.AC + bonus
+				sheet.AC = &v
 			}
 		}
 	}
@@ -1335,7 +1447,7 @@ func PuppetWornArmorChassisSlug(rulesDB, charDB *sql.DB, characterID int64) (str
 	return slug, nil
 }
 
-func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[string]int, proficiencyBonus int, taijutsuSpecialist bool) (*int, error) {
+func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[string]int, proficiencyBonus int, taijutsuSpecialist, shinobiWare bool) (*int, error) {
 	// Unarmored is a real state with a real AC, not a missing value. This
 	// used to return nil whenever no armor was found, and the sheet showed
 	// a bare "—" — which is what every character saw, because nothing was
@@ -1347,6 +1459,17 @@ func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[st
 	unarmored := 10 + AbilityModifier(scores["dex"])
 	if taijutsuSpecialist {
 		unarmored += proficiencyBonus
+	}
+	// Full-Metal Shinobi (Shinobi-Ware, 3rd level): "Your AC calculation
+	// while unarmored is now 10 + your Proficiency Bonus + Intelligence
+	// Modifier" — a full replacement of the formula above, not an addition
+	// on top of it; Dexterity drops out entirely. No book precedent for a
+	// character somehow qualifying for both this and Martial Defense at
+	// once (two different base classes' own 1st/3rd-level features), so
+	// this simply wins if it ever happens rather than picking the higher
+	// of the two.
+	if shinobiWare {
+		unarmored = 10 + proficiencyBonus + AbilityModifier(scores["int"])
 	}
 
 	// Every equipped item is checked against the armor table rather than

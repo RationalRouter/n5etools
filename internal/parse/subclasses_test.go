@@ -204,6 +204,59 @@ func TestParseSubclassesMartialTechniquesClassWide(t *testing.T) {
 	}
 }
 
+// Real shape from Science-Nin's "S.N.B Upgrades" bookmark node: its own
+// upgrade entries have no level gate of their own, but their bundled prose
+// mentions a level number in scaling text ("this bonus increases to +2 at
+// 9th level") — enough to trip isSubclass's >=50%-level-gated heuristic and
+// misclassify the whole node as an 11th subclass instead of S.N.B
+// Specialist's own upgrade catalog. ParseSubclasses must route it into
+// c.OptionLists, scoped to S.N.B Specialist (the subclass printed right
+// before it), not into c.Group.Subclasses.
+func TestParseSubclassesSNBUpgradesNotAPhantomSubclass(t *testing.T) {
+	c := &Class{
+		Name: "Science-Nin", SourcePage: 200, GroupHeading: "SCIENTIFIC INQUIRY",
+		SubclassLines: mkLines(200,
+			"SCIENTIFIC INQUIRY",
+			"Starting at 3rd level, you choose a Scientific Inquiry.",
+			"S.N.B SPECIALIST",
+			"You build a Scientific Ninja Beast.",
+			"SCIENTIFIC NINJA BEAST",
+			"When you choose this inquiry at 3rd level, you gain a companion.",
+			"S.N.B UPGRADES",
+			"MINOR",
+			"ARMORED EXTERIOR Cost: 2 Creation Points. Your S.N.B's AC increases. This bonus increases at 9th level.",
+			"REFINED",
+			"ENHANCED SIZE Cost: 4 Creation Points. Your S.N.B's size increases. This upgrade improves further at 9th level.",
+		),
+	}
+	sections := []extract.OutlineNode{
+		{Title: "Scientific Inquiry", Children: []extract.OutlineNode{
+			{Title: "S.N.B Specialist", Children: []extract.OutlineNode{
+				{Title: "Scientific Ninja Beast"},
+			}},
+			{Title: "S.N.B Upgrades", Children: []extract.OutlineNode{
+				{Title: "Minor"},
+				{Title: "Refined"},
+			}},
+		}},
+	}
+	ParseSubclasses(c, sections)
+
+	if len(c.Group.Subclasses) != 1 || c.Group.Subclasses[0].Name != "S.N.B Specialist" {
+		t.Fatalf("subclasses = %+v, want only S.N.B Specialist", c.Group.Subclasses)
+	}
+	if len(c.OptionLists) != 1 {
+		t.Fatalf("option lists = %+v", c.OptionLists)
+	}
+	up := c.OptionLists[0]
+	if up.Name != "S.N.B Upgrades" || up.SubclassName != "S.N.B Specialist" {
+		t.Errorf("S.N.B Upgrades list = %+v, want SubclassName \"S.N.B Specialist\"", up)
+	}
+	if len(up.Options) != 2 || up.Options[0].Name != "Minor" || up.Options[1].Name != "Refined" {
+		t.Errorf("S.N.B Upgrades options = %+v", up.Options)
+	}
+}
+
 // Real shape from Weapon Specialist's Gungnir Piercer Form: unlike its 7
 // sibling Weapon Forms, "Techniques[changed]" never states its own gating
 // level anywhere in its printed text — it launches straight into named

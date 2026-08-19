@@ -78,19 +78,23 @@ type SubclassGroup struct {
 }
 
 // knownExtractionSquishes hand-confirms a small, closed list of PDF
-// text-extraction artifacts where a space was lost at a text-run boundary
-// (a real extraction-layer information loss, not something a general regex
-// can safely recover — a blind "insert a space at every lowercase-to-
-// uppercase transition" rule would also mangle real compound proper nouns
-// like "TenTen" or "DeviantArt" credit lines, both confirmed present
-// elsewhere in this same corpus). Each entry here was found by sweeping
-// every prose column in rules.db for this shape and hand-verifying against
-// the source PDF page, not guessed — extend one confirmed instance at a
-// time, the same discipline capsEntryPattern's own doc follows.
+// text-extraction artifacts — most commonly a lost space at a text-run
+// boundary (a real extraction-layer information loss, not something a
+// general regex can safely recover — a blind "insert a space at every
+// lowercase-to-uppercase transition" rule would also mangle real compound
+// proper nouns like "TenTen" or "DeviantArt" credit lines, both confirmed
+// present elsewhere in this same corpus), but also a lost WORD where one
+// confirmed (Cooking-Nin's Shinobi Snacks drops "modifier" outright, not
+// just a space around it). Each entry here was found by sweeping every
+// prose column in rules.db for this shape and hand-verifying against the
+// source PDF page or a sibling feature's own matching text, not guessed —
+// extend one confirmed instance at a time, the same discipline
+// capsEntryPattern's own doc follows.
 var knownExtractionSquishes = strings.NewReplacer(
 	"Internal Radio LinkYou", "Internal Radio Link You", // Science-Nin's Combat Programming (S&B Specialist)
 	"1oth level", "10th level", // Hunter-Nin's Blade Warden Blade's Aggression: a lowercase "o" swapped in for the digit "0" breaks ordinalLevelRe's \d match entirely
 	"Natural Weapon of to summon you chose.", "Natural Weapon of the Sage Creature you chose to summon.", // Puppet Master's Green Technique Bestial Framework: garbled, ungrammatical printed sentence
+	"equal to your proficiency bonus plus your Intelligence.", "equal to your proficiency bonus plus your Intelligence modifier.", // Cooking-Nin's Shinobi Snacks: the word "modifier" is dropped after "Intelligence" — confirmed by this same feature's own War and Food (7th level), which spells out "equal to your intelligence modifier" for the identical recreate-Snacks effect
 )
 
 func fixKnownExtractionSquish(s string) string {
@@ -398,7 +402,25 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 			}
 			g.SelectionLevels = selectionLevels(intro)
 			for _, ch := range root.children {
-				if isSubclass(ch) {
+				// Science-Nin's "S.N.B Upgrades" bookmark node is a
+				// Minor/Refined/Greater/Superior/Supreme/Mastercraft upgrade
+				// catalog for the Scientific Ninja Beast companion, not a
+				// real 11th subclass of the Scientific Inquiry group — but
+				// isSubclass's own heuristic (>=50% of children reading as
+				// level-gated prose) misclassifies it as one, since several
+				// bundled upgrade entries mention a level number in their
+				// own scaling text ("this bonus increases to +2 at 9th
+				// level") despite the upgrade itself having no level gate.
+				// Every other subclass's own analogous upgrade catalog (e.g.
+				// Shinobi-Ware's "Shinobi-Ware Upgrades") correctly lands as
+				// class_options scoped to its subclass instead of a second
+				// subclass row — forced into the option-list branch below so
+				// it's attributed to S.N.B Specialist, the subclass printed
+				// immediately before it in the bookmark outline, the same
+				// "option list belongs to the subclass printed right before
+				// it" rule every other subclass's catalog already uses.
+				misclassifiedAsSubclass := c.Name == "Science-Nin" && ch.title == "S.N.B Upgrades"
+				if isSubclass(ch) && !misclassifiedAsSubclass {
 					a := Subclass{Name: ch.title, SourcePage: ch.page,
 						Description: strings.TrimSpace(strings.Join(ch.content, " "))}
 					for _, f := range ch.children {
@@ -419,6 +441,27 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 					// PDF-layout artifact, not a rules fact. Confirmed
 					// against the shipped rules.db: all 20 rows had
 					// subclass_slug = .../passionate-flame before this fix.
+					subclassName = ""
+				}
+				if c.Name == "Ninjutsu Specialist" && ch.title == "Efficient Molding" {
+					// Efficient Molding is granted by Efficient Molding, a
+					// base class feature (3rd level) with no subclass gate
+					// -- same PDF-outline-bookmarking artifact as Martial
+					// Techniques above, just bookmarked right after
+					// Tsunami's own section instead. Confirmed against the
+					// shipped rules.db: all 17 rows had subclass_slug =
+					// .../tsunami before this fix.
+					subclassName = ""
+				}
+				if c.Name == "Intelligence Operative" && ch.title == "Plans" {
+					// Plans is granted by Master Planner, a base class feature
+					// (2nd level) with no subclass gate -- same PDF-outline-
+					// bookmarking artifact as Martial Techniques/Efficient
+					// Molding above, bookmarked right after Tactical
+					// Strategist's own section instead. Confirmed against the
+					// shipped rules.db: all 21 rows had subclass_slug =
+					// .../tactical-strategist before this fix, despite every
+					// Plan's own text being subclass-agnostic ("Base Plan: ...").
 					subclassName = ""
 				}
 				list := OptionList{Name: ch.title, SubclassName: subclassName,

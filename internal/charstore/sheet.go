@@ -95,6 +95,44 @@ func SetInspiration(charDB *sql.DB, characterID int64, on bool) error {
 	return err
 }
 
+// SetExoskeletonDonned sets Elemental Innovationist's Exoskeleton
+// donned/doffed toggle — same shape as SetInspiration, since no equipment
+// row exists to hang an "equipped" flag off of (see migration
+// 0043_exoskeleton_donned.sql).
+func SetExoskeletonDonned(charDB *sql.DB, characterID int64, on bool) error {
+	val := 0
+	if on {
+		val = 1
+	}
+	_, err := charDB.Exec(
+		`UPDATE characters SET exoskeleton_donned = ?, updated_at = datetime('now') WHERE id = ?`,
+		val, characterID,
+	)
+	return err
+}
+
+// SetCCDMendingPct sets Mad Scientist's Biotic Mastery split ratio —
+// Mending's percentage share of the base Chakra Containment Device total,
+// Maiming getting the remainder (see migration 0045_ccd_mending_pct.sql).
+// Clamped to [0,100] and rounded down to the nearest multiple of 5 before
+// writing, mirroring the column's own CHECK constraint rather than relying
+// on a bad value simply failing the INSERT — a clamped write is more useful
+// to the player than a swallowed error from a stray form value.
+func SetCCDMendingPct(charDB *sql.DB, characterID int64, pct int) error {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	pct -= pct % 5
+	_, err := charDB.Exec(
+		`UPDATE characters SET ccd_mending_pct = ?, updated_at = datetime('now') WHERE id = ?`,
+		pct, characterID,
+	)
+	return err
+}
+
 // SetBio replaces the Bio tab's five free-text fields.
 func SetBio(charDB *sql.DB, characterID int64, appearance, backstory, alliesOrgs, additionalFeatures, treasure string) error {
 	_, err := charDB.Exec(`

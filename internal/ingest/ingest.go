@@ -434,6 +434,16 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	if err != nil {
 		return nil, err
 	}
+	// Science-Nin's own tiered gadget/upgrade catalogs (Scientific Ninja
+	// Tools, S.N.B Upgrades, ...) bundle several individually-named entries
+	// into one class_options description field the same way Puppet Master's
+	// upgrade tiers do — split into class_option_entries so a picker can
+	// address one named tool/upgrade at a time instead of the whole tier's
+	// bundled text.
+	scienceNinOptionEntryReport, err := store.LoadClassOptionEntries(db, book, "class/science-nin")
+	if err != nil {
+		return nil, err
+	}
 	// Black/Green/Red Technique's own "pick a base chassis/framework/role"
 	// lists (Puppeteer Chassis, Puppet Frameworks, Puppet Roles) got
 	// mis-bookmarked by the source PDF as one subclass feature instead of a
@@ -459,6 +469,7 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 			{Label: "", Report: loadReport},
 			{Label: "class feats", Report: featReport},
 			{Label: "puppet upgrade entries", Report: optionEntryReport},
+			{Label: "science-nin tool/upgrade entries", Report: scienceNinOptionEntryReport},
 			{Label: "embedded subclass option lists", Report: embeddedListReport},
 			{Label: "weapon form styles", Report: weaponFormStylesReport},
 		},

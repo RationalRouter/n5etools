@@ -267,6 +267,87 @@ func TestParseClassBookKnownFeatureLevelOverride(t *testing.T) {
 	}
 }
 
+// Scout-Nin's Deft Explorer glues its own sub-tier level straight into the
+// heading text ("CANNY (1 ST LEVEL)", with a stray space splitting the digit
+// from its ordinal suffix, and "TIRELESS (11 TH LEVEL)"), rather than
+// stating the level anywhere ordinalLevelRe can find it in prose.
+// levelSuffixRe/stripLevelSuffix must strip the parenthetical from the name
+// and set Level from it. Shinobi Adept's own catalog options carry no level
+// text anywhere at all — those go through knownClassFeatureLevelOverrides
+// instead (checked in the same fixture since both bugs share one root
+// cause: NULL-level rows that LoadGrantedFeatures blanket-grants).
+//
+// Canny's and Tireless's own headings are reproduced here split across TWO
+// lines ("CANNY (1" / "ST LEVEL)"), matching the real book's column-wrap
+// artifact confirmed against the actual sourcebook PDF — an earlier version
+// of this fix only checked for the suffix at the moment a heading first
+// creates its ClassFeature, which caught a single-line heading (Mobile's
+// own "MOBILE (6TH LEVEL)" happens to land on one line) but silently missed
+// both of these, since the parenthetical isn't complete until the
+// wrapped-heading-join step (a few lines below in classes.go) appends the
+// second line. A single-line fixture would not have caught that gap.
+func TestParseClassBookScoutNinNullLevelFixes(t *testing.T) {
+	lines := mkLines(90,
+		"SCOUT-NIN",
+		"CHARACTER INSPIRATIONS",
+		"A shinobi who scouts ahead of the squad.",
+		"QUICK BUILD",
+		"Put your highest score in Dexterity or Wisdom.",
+		"CLASS FEATURES",
+		"As a Scout-Nin, you gain the following class features.",
+		"HIT POINTS",
+		"Hit Dice: 1d10 per Scout-Nin level",
+		"CHAKRA POINTS",
+		"Chakra Dice: 1d8 per Scout-Nin level",
+		"PROFICIENCIES",
+		"Armor: Light armor",
+		"EQUIPMENT",
+		"• 1 Simple weapon",
+		"JUTSU CASTING",
+		"NINJUTSU",
+		"Ninjutsu save DC = 8 + your Proficiency Bonus + your Wisdom Modifier",
+		"DEFT EXPLORER",
+		"Beginning at 1st level you are an unsurpassed generalist. You gain the Canny benefit below, and an additional benefit at 6th and 11th level.",
+		"CANNY (1",
+		"ST LEVEL)",
+		"Choose any one skill. You gain proficiency in this skill.",
+		"TIRELESS (11",
+		"TH LEVEL)",
+		"Once per long rest you can spend a full turn Action recollecting yourself.",
+		"SHINOBI ADEPT",
+		"Starting at 2nd level, you can choose between two of the following features.",
+		"SHINOBI’S TACTICS",
+		"Opponents have a harder time locating you while hidden.",
+	)
+	classes, _ := ParseClassBook(lines)
+	if len(classes) != 1 {
+		t.Fatalf("got %d classes, want 1", len(classes))
+	}
+	c := classes[0]
+	if len(c.Features) != 5 {
+		t.Fatalf("got %d features, want 5: %+v", len(c.Features), c.Features)
+	}
+	if c.Features[0].Name != "Deft Explorer" || c.Features[0].Level == nil || *c.Features[0].Level != 1 {
+		t.Errorf("Deft Explorer = %+v", c.Features[0])
+	}
+	// The parenthetical is stripped from the name and moves into Level.
+	if c.Features[1].Name != "Canny" || c.Features[1].Level == nil || *c.Features[1].Level != 1 {
+		t.Errorf("Canny = %+v, want name %q level 1", c.Features[1], "Canny")
+	}
+	if c.Features[2].Name != "Tireless" || c.Features[2].Level == nil || *c.Features[2].Level != 11 {
+		t.Errorf("Tireless = %+v, want name %q level 11", c.Features[2], "Tireless")
+	}
+	if c.Features[3].Name != "Shinobi Adept" || c.Features[3].Level == nil || *c.Features[3].Level != 2 {
+		t.Errorf("Shinobi Adept = %+v", c.Features[3])
+	}
+	// Shinobi Adept's own catalog option has no level text anywhere in its
+	// prose; knownClassFeatureLevelOverrides tags it to the introducing
+	// feature's 2nd level instead of leaving it NULL (blanket-granted).
+	if c.Features[4].Name != "Shinobi’s Tactics" || c.Features[4].Level == nil || *c.Features[4].Level != 2 {
+		t.Errorf("Shinobi's Tactics = %+v, want level 2 via override", c.Features[4])
+	}
+}
+
 // Whole-book regression (verified 2026-07-17 against v3.12). Skips when the
 // sourcebook is absent.
 func TestParseClassBookFullCompendium(t *testing.T) {
@@ -326,17 +407,22 @@ func TestParseClassBookFullCompendium(t *testing.T) {
 			totOpts += len(l.Options)
 		}
 	}
-	if totArch != 92 {
-		t.Errorf("total subclasses = %d, want 92", totArch)
+	// Science-Nin's "S.N.B Upgrades" bookmark node no longer counts as a
+	// 91st+1 subclass with its own 6 features — it's routed into an option
+	// list (6 options) scoped to S.N.B Specialist instead, see
+	// TestParseSubclassesSNBUpgradesNotAPhantomSubclass and
+	// 0048_snb_upgrades_phantom_subclass.sql.
+	if totArch != 91 {
+		t.Errorf("total subclasses = %d, want 91", totArch)
 	}
-	if totArchFeat != 652 {
-		t.Errorf("total subclass features = %d, want 652", totArchFeat)
+	if totArchFeat != 646 {
+		t.Errorf("total subclass features = %d, want 646", totArchFeat)
 	}
-	if totLists != 37 {
-		t.Errorf("total option lists = %d, want 37", totLists)
+	if totLists != 38 {
+		t.Errorf("total option lists = %d, want 38", totLists)
 	}
-	if totOpts != 394 {
-		t.Errorf("total options = %d, want 394", totOpts)
+	if totOpts != 400 {
+		t.Errorf("total options = %d, want 400", totOpts)
 	}
 
 	// The closing class-feat sections (verified 2026-07-18 against v3.12).

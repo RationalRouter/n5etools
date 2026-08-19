@@ -131,6 +131,14 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 	"class/intelligence-operative/group/master-strategies/precognitive/feature/precognition": {
 		{Category: traitCondition, Target: "Surprised", Level: levelImmunity},
 	},
+	// Sibling grant to Precognition above: "you and allied creatures within
+	// 30 feet of you cannot be surprised..." Only the self-immunity half is
+	// modeled, same "allies too" simplification Precognition's own entry
+	// already draws — no aura mechanism exists to extend a condition to
+	// nearby allies.
+	"class/intelligence-operative/group/master-strategies/calculated-strategist/feature/nothing-is-a-surprise": {
+		{Category: traitCondition, Target: "Surprised", Level: levelImmunity},
+	},
 	"class/medical-nin/group/tenets-of-medicine/black-medicine/feature/toxic-tongue": {
 		{Category: traitDamage, Target: "Poison", Level: levelResistance},
 		{Category: traitCondition, Target: "Poisoned", Level: levelImmunity},
@@ -343,4 +351,29 @@ func computePassiveTraits(features []grantedFeatureRow, characterLevel int) Pass
 	sort.Slice(out.Immunities, func(i, k int) bool { return out.Immunities[i].Target < out.Immunities[k].Target })
 	sort.Slice(out.Senses, func(i, k int) bool { return out.Senses[i].Sense < out.Senses[k].Sense })
 	return out
+}
+
+// mergePassiveResistance folds one dynamically-resolved resistance entry
+// (e.g. Elemental Resistance's own grant, keyed to the player's own
+// Elemental Knowledge pick rather than a fixed value — see scout_nin.go's
+// scoutNinElementalResistanceEntry) into an already-computed
+// PassiveTraitSummary. Not representable in the static passiveTraitGrants
+// table computePassiveTraits itself resolves, since that table's Target is
+// always a fixed string, not a per-character pick. A no-op if entry is nil
+// (nothing to add). Merges into an existing same-Target entry's Sources
+// rather than creating a duplicate row if some other grant already covers
+// the same element.
+func mergePassiveResistance(summary PassiveTraitSummary, entry *PassiveTraitEntry) PassiveTraitSummary {
+	if entry == nil {
+		return summary
+	}
+	for i, r := range summary.Resistances {
+		if r.Target == entry.Target {
+			summary.Resistances[i].Sources = append(summary.Resistances[i].Sources, entry.Sources...)
+			return summary
+		}
+	}
+	summary.Resistances = append(summary.Resistances, *entry)
+	sort.Slice(summary.Resistances, func(i, k int) bool { return summary.Resistances[i].Target < summary.Resistances[k].Target })
+	return summary
 }

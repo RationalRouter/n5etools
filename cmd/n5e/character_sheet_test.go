@@ -1781,7 +1781,7 @@ func TestWaterAndOilBonusJutsuSlots(t *testing.T) {
 
 	features := []grantedFeatureRow{{Slug: waterAndOilDoMixSlug, Name: "Water and Oil, Do Mix"}}
 
-	bonus, err := s.waterAndOilBonusJutsuSlots(features, "class/cooking-nin", "clan/hanami", 5)
+	bonus, err := s.waterAndOilBonusJutsuSlots(1, features, "class/cooking-nin", "clan/hanami", 5)
 	if err != nil {
 		t.Fatalf("waterAndOilBonusJutsuSlots (has access): %v", err)
 	}
@@ -1789,7 +1789,7 @@ func TestWaterAndOilBonusJutsuSlots(t *testing.T) {
 		t.Errorf("bonus = %d, want 2 (half of proficiency bonus 5, rounded down)", bonus)
 	}
 
-	bonus, err = s.waterAndOilBonusJutsuSlots(features, "class/cooking-nin", "", 5)
+	bonus, err = s.waterAndOilBonusJutsuSlots(1, features, "class/cooking-nin", "", 5)
 	if err != nil {
 		t.Fatalf("waterAndOilBonusJutsuSlots (no clan): %v", err)
 	}
@@ -1797,12 +1797,47 @@ func TestWaterAndOilBonusJutsuSlots(t *testing.T) {
 		t.Errorf("bonus = %d, want 0 (no Water or Medical release access from any source)", bonus)
 	}
 
-	noFeature, err := s.waterAndOilBonusJutsuSlots(nil, "class/cooking-nin", "clan/hanami", 5)
+	noFeature, err := s.waterAndOilBonusJutsuSlots(1, nil, "class/cooking-nin", "clan/hanami", 5)
 	if err != nil {
 		t.Fatalf("waterAndOilBonusJutsuSlots (no feature): %v", err)
 	}
 	if noFeature != 0 {
 		t.Errorf("bonus = %d, want 0 (character doesn't have the feature)", noFeature)
+	}
+
+	// Regression: a Ninjutsu-casting class's own broad discipline list
+	// includes plenty of jutsu tagged an elemental release keyword — that
+	// must NOT by itself count as "already has access" for an ELEMENTAL
+	// keyword (unlike "Medical" above, which has no affinity system and so
+	// stays gated on the broad class/clan check). Seeding class_casting so
+	// class/cooking-nin casts Ninjutsu, plus a Ninjutsu-classified,
+	// Fire-Release-tagged jutsu reachable by that discipline, reproduces
+	// the exact shape confirmed live against dist/rules.db where Heat
+	// Master's own bonus was always paying out — this must stay 0 without
+	// a real elemental affinity (clan trait, Nature Release feat, or
+	// Professor slot) granting Fire from somewhere else.
+	mustExecRules(`INSERT INTO class_casting (class_slug, discipline, ability) VALUES ('class/cooking-nin', 'ninjutsu', 'int')`)
+	mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/fireball', 'Fireball', 'Ninjutsu', 'E', '1 Action', '30 ft', 'Instant', 'HS', 'Cost: 1 Chakra', 'Ninjutsu, Fire Release', 'test jutsu')`)
+	mustExecRules(`INSERT INTO jutsu_keywords (jutsu_slug, keyword) VALUES ('jutsu/fireball', 'Fire Release')`)
+
+	heatMasterFeatures := []grantedFeatureRow{{Slug: heatMasterFireAccessSlug, Name: "If You Can't Handle the Heat"}}
+	fireBonus, err := s.heatMasterBonusJutsuSlots(1, heatMasterFeatures, "class/cooking-nin", "", 5)
+	if err != nil {
+		t.Fatalf("heatMasterBonusJutsuSlots (no elemental affinity): %v", err)
+	}
+	if fireBonus != 0 {
+		t.Errorf("bonus = %d, want 0 (class discipline alone isn't real Fire release access, only an elemental affinity is)", fireBonus)
+	}
+
+	// A real Fire affinity (an Uchiha clan trait) DOES trigger the bonus.
+	mustExecRules(`INSERT INTO clans (slug, name) VALUES ('clan/uchiha', 'Uchiha Clan')`)
+	fireBonus, err = s.heatMasterBonusJutsuSlots(1, heatMasterFeatures, "class/cooking-nin", "clan/uchiha", 5)
+	if err != nil {
+		t.Fatalf("heatMasterBonusJutsuSlots (Uchiha Fire affinity): %v", err)
+	}
+	if fireBonus != 2 {
+		t.Errorf("bonus = %d, want 2 (half of proficiency bonus 5, rounded down, via a real clan Fire affinity)", fireBonus)
 	}
 }
 
