@@ -3213,7 +3213,14 @@ func (s *server) computeJutsuKnown(classes []characterClassLevel) (known int, hi
 // stack in practice, since a character can only take one Cooking Focus),
 // plus Science-Nin's own Chakra Cell Enhancement bonus (Intelligence
 // modifier, gated purely on the granted feature so it applies regardless
-// of which class slot Science-Nin occupies in a multiclass). Shared by
+// of which class slot Science-Nin occupies in a multiclass), plus the flat
+// +1 several clans' own clan_traits rows grant outright
+// (clanBonusDRankJutsuSlots), plus Sarutobi's own escalating Advanced
+// Nature Proficiency clan feature
+// (sarutobiAdvancedNatureProficiencyBonusJutsuSlots), plus White Technique
+// Weaver's own escalating Chakra String Augments subclass feature
+// (whiteTechniqueChakraStringBonusJutsuSlots, scoped to the character's own
+// Puppet Master class level). Shared by
 // handleCharacterSheet and the sheet_jutsu_known/sheet_attack_jutsu_table
 // fragment refresh, which used to each run their own copy of this off the
 // primary class's level alone — wrong the moment a character has a second
@@ -3243,7 +3250,14 @@ func (s *server) jutsuKnownCapForCharacter(characterID int64, sheet *charsheet.S
 		return -1, err
 	}
 	chakraCellBonus := chakraCellEnhancementBonusJutsuSlots(grantedFeatures, sheet.Abilities["int"].Modifier)
-	return known + waterAndOilBonus + heatMasterBonus + chakraCellBonus, nil
+	clanBonus := clanBonusDRankJutsuSlots(sheet.ClanSlug)
+	sarutobiBonus := sarutobiAdvancedNatureProficiencyBonusJutsuSlots(grantedFeatures, sheet.Level)
+	puppetMasterLevel, err := s.puppetMasterClassLevel(characterID)
+	if err != nil {
+		return -1, err
+	}
+	whiteTechniqueBonus := whiteTechniqueChakraStringBonusJutsuSlots(grantedFeatures, puppetMasterLevel)
+	return known + waterAndOilBonus + heatMasterBonus + chakraCellBonus + clanBonus + sarutobiBonus + whiteTechniqueBonus, nil
 }
 
 // ---- Ambitions step ---------------------------------------------------
@@ -3565,6 +3579,13 @@ type attackRow struct {
 	// only exists because a weapon is equipped, so "delete this attack"
 	// can only sensibly mean "drop this weapon".
 	InventoryID int64
+	// CritRangeThreshold: the lowest d20 result that counts as a critical
+	// hit for THIS attack roll — 0 means no widening (default 20), same
+	// "0 means untouched" shape companionAttackRow's own field
+	// (puppets.go) already uses. Weapon Specialist's Critical Focus
+	// (class_features level 7, +1/+2/+3 ranks at 7/11/17) is the only
+	// source right now — see weaponSpecialistCritRangeThreshold.
+	CritRangeThreshold int
 
 	// The composition behind AttackBonus/DamageBonus, so the row's "Adjust"
 	// form can show what is actually selected. AttackAbility/DamageAbility are
@@ -3587,14 +3608,25 @@ type customAttackRow struct {
 	charstore.CustomAttack
 	AttackTotal int
 	DamageTotal int
+	// CritRangeThreshold: same shape as attackRow's own field of the same
+	// name — 0 means no widening (default 20). Callers pass the character's
+	// current Weapon Specialist Critical Focus threshold (see
+	// weaponSpecialistCritRangeThreshold) for a "weapon"-kind list and 0 for
+	// "jutsu"/"item" lists, since the book text grants the widening to
+	// weapons (and Bukijutsu jutsu casts, which this custom-attack list
+	// does not distinguish from other jutsu kinds and so is left untouched
+	// here).
+	CritRangeThreshold int
 }
 
 // composeCustomAttacks resolves each row's ability + proficiency + flat parts
 // against the character as they are now, so a level-up or an ability change
 // moves every custom attack by itself. A row with no ability chosen composes
 // to exactly its flat number, which is what every row written before this
-// existed does.
-func composeCustomAttacks(list []charstore.CustomAttack, sheet *charsheet.Sheet) []customAttackRow {
+// existed does. critRangeThreshold is applied unconditionally to every row
+// in list — pass 0 for a list that shouldn't widen (see CritRangeThreshold's
+// own doc comment above).
+func composeCustomAttacks(list []charstore.CustomAttack, sheet *charsheet.Sheet, critRangeThreshold int) []customAttackRow {
 	out := make([]customAttackRow, 0, len(list))
 	for _, a := range list {
 		row := customAttackRow{
@@ -3602,11 +3634,53 @@ func composeCustomAttacks(list []charstore.CustomAttack, sheet *charsheet.Sheet)
 			AttackTotal: charsheet.ComposeModifier(
 				sheet.Abilities[a.AttackAbility].Modifier, sheet.ProficiencyBonus,
 				a.AttackProf, a.AttackBonus),
-			DamageTotal: sheet.Abilities[a.DamageAbility].Modifier + a.DamageBonus,
+			DamageTotal:        sheet.Abilities[a.DamageAbility].Modifier + a.DamageBonus,
+			CritRangeThreshold: critRangeThreshold,
 		}
 		out = append(out, row)
 	}
 	return out
+}
+
+// weaponSpecialistCritFocusRank returns Weapon Specialist's own Critical
+// Focus class feature rank (class_features row
+// 'class/weapon-specialist/feature/critical-focus', level 7: "all weapons
+// you are proficient in gain +1 rank of the Critical property which now
+// applies to Bukijutsu you cast. This increases to +2 ranks at 11th level
+// and +3 at 17th level") for the given Weapon Specialist class level — 0
+// below 7th. The weapon_properties table's own "Critical" row converts each
+// rank into a flat +1 widening of the crit threat range (max +3), so this
+// rank feeds directly into a CritRangeThreshold of 20-rank.
+func weaponSpecialistCritFocusRank(level int) int {
+	switch {
+	case level >= 17:
+		return 3
+	case level >= 11:
+		return 2
+	case level >= 7:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// weaponSpecialistCritRangeThreshold resolves Critical Focus into the
+// lowest d20 result that counts as a critical hit for this character's own
+// weapon attacks right now — 0 means no widening (attackRow/customAttackRow
+// both treat 0 as "use the default 20"). Applies unconditionally to every
+// equipped/custom weapon attack once the character has the rank — the book
+// text says "all weapons you are proficient in", not gated to a Weapon
+// Focus pick the way weaponFocusBonusSet's flat bonus is.
+func (s *server) weaponSpecialistCritRangeThreshold(characterID int64) (int, error) {
+	level, err := s.weaponSpecialistClassLevel(characterID)
+	if err != nil || level == 0 {
+		return 0, err
+	}
+	rank := weaponSpecialistCritFocusRank(level)
+	if rank == 0 {
+		return 0, nil
+	}
+	return 20 - rank, nil
 }
 
 var damageDicePattern = regexp.MustCompile(`^(\d*)d(\d+)$`)
@@ -3645,6 +3719,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		return nil, err
 	}
 	focusSlugs, focusBonus, err := s.weaponFocusBonusSet(characterID)
+	if err != nil {
+		return nil, err
+	}
+	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
 	if err != nil {
 		return nil, err
 	}
@@ -3732,10 +3810,11 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		}
 
 		row := attackRow{
-			Name:        item.Name,
-			Slug:        item.Slug,
-			InventoryID: item.ID,
-			Ability:     strings.ToUpper(attackAbility),
+			Name:               item.Name,
+			Slug:               item.Slug,
+			InventoryID:        item.ID,
+			CritRangeThreshold: critRangeThreshold,
+			Ability:            strings.ToUpper(attackAbility),
 			AttackBonus: charsheet.ComposeModifier(
 				sheet.Abilities[attackAbility].Modifier, sheet.ProficiencyBonus, prof, opt.AttackBonus+weaponFocusBonus),
 			DamageBonus:   sheet.Abilities[damageAbility].Modifier + opt.DamageBonus + weaponFocusBonus,
@@ -3972,9 +4051,15 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load custom item attacks:", err)
 		return
 	}
-	customWeaponRows := composeCustomAttacks(customWeaponAttacks, sheet)
-	customJutsuRows := composeCustomAttacks(customJutsuAttacks, sheet)
-	customItemRows := composeCustomAttacks(customItemAttacks, sheet)
+	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon specialist crit range threshold:", err)
+		return
+	}
+	customWeaponRows := composeCustomAttacks(customWeaponAttacks, sheet, critRangeThreshold)
+	customJutsuRows := composeCustomAttacks(customJutsuAttacks, sheet, 0)
+	customItemRows := composeCustomAttacks(customItemAttacks, sheet, 0)
 	concentration, err := s.loadConcentrationView(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4098,7 +4183,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	// Taken feats belong in the Core tab's Features & Traits list too, in
 	// the same level order as everything else there.
 	grantedFeatures = mergeFeatFeatures(grantedFeatures, characterFeats)
-	passiveTraits := computePassiveTraits(grantedFeatures, sheet.Level)
+	patternRows, err := s.hunterNinPatternPassiveRows(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load hunter-nin pattern rows:", err)
+		return
+	}
+	passiveTraits := computePassiveTraits(append(grantedFeatures, patternRows...), sheet.Level)
 	customResources, err := s.loadCustomResources(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -5291,8 +5382,14 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load custom weapon attacks for fragment:", err)
 			return
 		}
+		critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load weapon specialist crit range threshold for fragment:", err)
+			return
+		}
 		data["Attacks"] = attacks
-		data["CustomWeaponAttacks"] = composeCustomAttacks(customWeaponAttacks, sheet)
+		data["CustomWeaponAttacks"] = composeCustomAttacks(customWeaponAttacks, sheet, critRangeThreshold)
 	case "sheet_other_rollables":
 		customItemAttacks, err := charstore.ListCustomAttacks(s.charDB, characterID, "item")
 		if err != nil {
@@ -5300,7 +5397,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load custom item attacks for fragment:", err)
 			return
 		}
-		data["CustomItemAttacks"] = composeCustomAttacks(customItemAttacks, sheet)
+		data["CustomItemAttacks"] = composeCustomAttacks(customItemAttacks, sheet, 0)
 	case "sheet_inventory", "sheet_inventory_full":
 		inventory, err := s.loadCharacterInventory(characterID)
 		if err != nil {
@@ -5524,7 +5621,13 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load granted features for passive traits fragment:", err)
 			return
 		}
-		traits := computePassiveTraits(grantedFeatures, sheet.Level)
+		patternRows, err := s.hunterNinPatternPassiveRows(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load hunter-nin pattern rows for passive traits fragment:", err)
+			return
+		}
+		traits := computePassiveTraits(append(grantedFeatures, patternRows...), sheet.Level)
 		// Elemental Resistance (Elemental Scout, 6th level) — see the main
 		// sheet render's identical merge for why this can't live in the
 		// static passiveTraitGrants table itself.
@@ -5637,7 +5740,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 				log.Println("load custom jutsu attacks for fragment:", err)
 				return
 			}
-			data["CustomJutsuAttacks"] = composeCustomAttacks(customJutsuAttacks, sheet)
+			data["CustomJutsuAttacks"] = composeCustomAttacks(customJutsuAttacks, sheet, 0)
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

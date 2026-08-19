@@ -11,7 +11,9 @@ import (
 // clan (origin non-empty, see loadJutsuOrigins), AND if it names an
 // element, the character needs a matching affinity for it (or, for the rare
 // "Any Nature Release" keyword, just needs to have at least one affinity at
-// all — see jutsuNeedsAnyAffinity).
+// all — see jutsuNeedsAnyAffinity). A jutsu naming more than one element (a
+// combo-affinity clan's own jutsu) is eligible on a match against ANY one of
+// them, not all — see jutsuElements.
 func jutsuEligible(origin, keywords string, affinities map[string]bool, hasAnyAffinity bool) bool {
 	if origin == "" {
 		return false
@@ -19,8 +21,13 @@ func jutsuEligible(origin, keywords string, affinities map[string]bool, hasAnyAf
 	if jutsuNeedsAnyAffinity(keywords) {
 		return hasAnyAffinity
 	}
-	if el := jutsuElement(keywords); el != "" {
-		return affinities[el]
+	if els := jutsuElements(keywords); len(els) > 0 {
+		for _, el := range els {
+			if affinities[el] {
+				return true
+			}
+		}
+		return false
 	}
 	return true
 }

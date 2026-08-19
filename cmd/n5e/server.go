@@ -245,6 +245,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-defense-seal", s.handleMartialDefenseSealAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-defense-seal/delete", s.handleMartialDefenseSealDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/fighting-stance", s.handleFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/weapon-stance", s.handleWeaponStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/puppet-fighting-stance", s.handlePuppetFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/hand-wraps-of-passion", s.handleHandWrapsOfPassion)
 	mux.HandleFunc("POST /characters/{id}/sheet/anti-chakra-wavelength", s.handleAntiChakraWavelength)

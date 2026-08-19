@@ -133,8 +133,8 @@ var fixedProficiencyGrants = map[string][]ProficiencyGrant{
 	},
 	// "At 15th level, your intense training grants you proficiency in
 	// Constitution saving throws." This feature's second clause (add
-	// Dexterity modifier to non-proficient saves) has no mechanism here to
-	// land in and is not modeled.
+	// Dexterity modifier to non-proficient saves) is modeled separately, in
+	// nonProficientSaveBonusGrants below.
 	"class/taijutsu-specialist/feature/perfect-body": {
 		{GrantSavingThrow, "con"},
 	},
@@ -149,6 +149,34 @@ func ResolveProficiencyGrants(granted []GrantedFeatureRow) []ProficiencyGrant {
 		out = append(out, fixedProficiencyGrants[f.Slug]...)
 	}
 	return out
+}
+
+// nonProficientSaveBonusGrants covers a feature whose text adds a fixed
+// ability modifier to every saving throw the character is NOT already
+// proficient in — distinct from fixedProficiencyGrants' "gain proficiency"
+// shape above, which changes which saves get the proficiency bonus rather
+// than adding a flat modifier to the ones that don't. Value is a 3-letter
+// ability code.
+var nonProficientSaveBonusGrants = map[string]string{
+	// "Additionally, whenever you make a saving throw, with an ability you
+	// are not proficient in, add your Dexterity Modifier to the saving
+	// throw." The Constitution-save-proficiency half of this same feature is
+	// modeled above, in fixedProficiencyGrants.
+	"class/taijutsu-specialist/feature/perfect-body": "dex",
+}
+
+// ResolveNonProficientSaveBonusAbility returns the 3-letter ability code to
+// add to every saving throw the character isn't proficient in, or "" if no
+// granted feature applies. If more than one grant applies (a homebrew
+// multi-source combination the book never anticipated), the first found
+// wins, the same precedent ResolveACSwapAbility already sets.
+func ResolveNonProficientSaveBonusAbility(granted []GrantedFeatureRow) string {
+	for _, f := range granted {
+		if ability, ok := nonProficientSaveBonusGrants[f.Slug]; ok {
+			return ability
+		}
+	}
+	return ""
 }
 
 // acSwapGrant is one feature that lets its ability substitute for Dexterity
@@ -189,16 +217,21 @@ func ResolveACSwapAbility(granted []GrantedFeatureRow, equippedArmorCategory str
 	return ""
 }
 
-// flatACBonusGrant is one feature that adds a flat, always-on bonus to AC
-// derived from an ability modifier — distinct from acSwapGrants' "substitute
-// an ability for Dexterity in the formula" shape above, and from speedGrant's
-// flat integer (this one scales off the character's own ability score).
-// Divisor lets a "half of X modifier, rounded down" grant (Arbiter Scout's
-// Absolute Authority) share this table with a future full-modifier grant
-// (Divisor 1) instead of needing its own separate mechanism.
+// flatACBonusGrant is one feature that adds a flat, always-on bonus to AC —
+// either derived from an ability modifier (Ability set, Divisor applied) or
+// a plain integer (Flat set, Ability left ""). Distinct from acSwapGrants'
+// "substitute an ability for Dexterity in the formula" shape above, and from
+// speedGrant's flat integer (that one is Speed, not AC). Divisor lets a
+// "half of X modifier, rounded down" grant (Arbiter Scout's Absolute
+// Authority) share this table with a future full-modifier grant (Divisor 1)
+// instead of needing its own separate mechanism. ArmorCategory reuses
+// acSwapGrant's "light_or_medium" gate value for a grant conditioned on the
+// character's currently equipped armor.
 type flatACBonusGrant struct {
-	Ability string // 3-letter code
-	Divisor int    // 1 for the full modifier, 2 for "half, rounded down"
+	Ability       string // 3-letter code; "" means Flat applies instead
+	Divisor       int    // 1 for the full modifier, 2 for "half, rounded down"
+	Flat          int    // used when Ability == ""
+	ArmorCategory string // "" (always applies), or "light_or_medium"
 }
 
 var flatACBonusGrants = map[string]flatACBonusGrant{
@@ -207,19 +240,34 @@ var flatACBonusGrants = map[string]flatACBonusGrant{
 	// own half is reachable here — no companion/ally AC mechanism exists in
 	// this app to extend the 30-foot-radius half to.
 	"class/scout-nin/group/scouting-technique/arbiter-scout/feature/absolute-authority": {Ability: "cha", Divisor: 2},
+	// "+1 Bonus to AC, if integrated into Light or Medium Armor." The other
+	// two bullets of this same feature (Chakra damage resistance; adding the
+	// unarmed combat die to Chakra Control checks) are modeled elsewhere
+	// (passiveTraitGrants) or left manual (a die-roll bonus has no flat-
+	// modifier home here) — see this feature's audit notes.
+	"class/taijutsu-specialist/group/taijutsu-style/ruin/feature/battle-ready-catalyst": {Flat: 1, ArmorCategory: "light_or_medium"},
 }
 
 // ResolveFlatACBonus sums every granted feature's flat AC bonus from
 // abilityMods (the character's own already-computed ability MODIFIERS, not
 // raw scores — this package never re-derives a modifier from a score itself,
-// same boundary ResolveSpeedBonus/ResolveACSwapAbility already draw).
+// same boundary ResolveSpeedBonus/ResolveACSwapAbility already draw) and
+// equippedArmorCategory ("", "light", "medium", or "heavy" — same values
+// ResolveACSwapAbility takes), gating any ArmorCategory-restricted grant.
 // floorDivRoundDown, not Go's truncating "/", matches "rounded down" for a
 // negative modifier too (e.g. a -3 Charisma modifier's half is -2, not -1).
-func ResolveFlatACBonus(granted []GrantedFeatureRow, abilityMods map[string]int) int {
+func ResolveFlatACBonus(granted []GrantedFeatureRow, abilityMods map[string]int, equippedArmorCategory string) int {
 	total := 0
 	for _, f := range granted {
 		g, ok := flatACBonusGrants[f.Slug]
 		if !ok {
+			continue
+		}
+		if g.ArmorCategory == "light_or_medium" && equippedArmorCategory != "light" && equippedArmorCategory != "medium" {
+			continue
+		}
+		if g.Ability == "" {
+			total += g.Flat
 			continue
 		}
 		total += floorDivRoundDown(abilityMods[g.Ability], g.Divisor)
@@ -281,6 +329,14 @@ var speedGrants = []speedGrant{
 	{FeatureSlug: "clan/namikaze/feature/supernatural-speed", MinLevel: 1, Amount: 5},
 	{FeatureSlug: "clan/namikaze/feature/supernatural-speed", MinLevel: 11, Amount: 10},
 	{FeatureSlug: "clan/namikaze/feature/supernatural-speed", MinLevel: 18, Amount: 15},
+
+	// "Starting at 6th Level... you gain a +10-speed increase." No armor
+	// restriction in the book text, unlike Enhanced Movement above — a
+	// single flat tier, matching Namikaze's Supernatural Speed's shape. This
+	// same feature's other clause (add Strength or Constitution Modifier to
+	// initiative) is left unmodeled; no per-class initiative-bonus
+	// automation exists anywhere in this app.
+	{FeatureSlug: "class/weapon-specialist/group/weapon-forms/battle-dancer-form/feature/relentless", MinLevel: 6, Amount: 10},
 }
 
 // ironcladFeaturePrefix identifies a character who took the Ironclad

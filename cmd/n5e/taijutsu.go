@@ -20,13 +20,11 @@ import (
 // turn (not a rest-tier resource, so it deliberately does NOT go through
 // customResourceGrants — see that file's own doc comment) and a cap on how
 // many Martial Techniques (class_options, list_name "Martial Techniques") a
-// character can know at once. Each Taijutsu Style has its own techniques
-// (subclass_slug set on every row, not a single class-wide pool as an
-// earlier version of this comment assumed) — 20 ingested so far, all under
-// Passionate Flame, since the other Styles' own techniques haven't been
-// ingested yet. loadMartialTechniquesTabData's own query matches
-// subclass_slug IS NULL too, so a genuinely class-wide entry (if one is
-// ever ingested) is still picked up. Two Talent & Focus
+// character can know at once. All 20 Martial Techniques rows ingested so
+// far are class-wide (subclass_slug IS NULL), not tied to any one Taijutsu
+// Style. loadMartialTechniquesTabData's own query also matches a specific
+// subclass_slug, so a genuinely per-Style entry is still picked up if one
+// is ever ingested. Two Talent & Focus
 // subclass features layer curated overlays on top of both: Unnatural
 // Talent (+1/+2/+3 Martial Dice at 3rd/10th/17th Taijutsu level — the
 // "Unnatural Talent Martial Dice Chart" text is misfiled at the tail of
@@ -606,14 +604,11 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 		return nil, err
 	}
 
-	// Despite the "class-wide catalog" framing this box's own doc comment
-	// still uses (a holdover from before any Style's own Martial Techniques
-	// had actually been ingested), every row ingested so far carries a real
-	// subclass_slug (each Style has its own techniques, not one shared
-	// pool) — subclass_slug IS NULL matched zero rows for every character,
-	// making "Learn Technique" permanently empty regardless of picks or
-	// cap. Matching NULL too keeps this correct if a genuinely class-wide
-	// entry is ever ingested later.
+	// All 20 Martial Techniques rows ingested so far are class-wide
+	// (subclass_slug IS NULL), matching CLASS_AUDIT.md's documented fix for
+	// what had mistagged these rows to Passionate Flame. Matching a specific
+	// subclass_slug too keeps this correct if a genuinely per-Style entry is
+	// ever ingested later.
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_options
 		WHERE class_slug = ? AND list_name = 'Martial Techniques'

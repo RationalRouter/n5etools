@@ -9,6 +9,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/features"
 )
 
 // Weapon Specialist's Weapon Focus feature (class_features, level 1) is the
@@ -24,11 +25,16 @@ import (
 // internal/puppetupgrades established) or Group 3 with no receiving
 // field/catalog:
 //
-//   - Weapon Stance (Chapter 13 "Weapon Stances" catalog) has zero
-//     class_options rows in rules.db — confirmed via a direct query, not
-//     assumed. Building this picker needs a new ingestion pass; deferred,
-//     same "explicit, not silently dropped" treatment CLASS_AUDIT.md gives
-//     Puppet Master's Life-Like Puppetry.
+//   - Weapon Stance (2nd level, base class) IS implemented, alongside
+//     Weapon Focus in the same sheet_weapon_focus box below — it picks
+//     from fighting_stances WHERE stance_type='bukijutsu' (12 rows, the
+//     same table Taijutsu Stance already consumes for stance_type=
+//     'taijutsu'), reusing taijutsu.go's own stanceOption/
+//     fightingStanceView/storeFightingStanceChoice machinery via
+//     loadStanceOptionsByType("bukijutsu"). An earlier pass's claim that
+//     this had "zero structured data" was checking class_options, which is
+//     the wrong table for Chapter 13 reference catalogs — fighting_stances
+//     is class-agnostic and had the 12 Weapon Stance rows the whole time.
 //   - The Weapon Specialist Bonus Trait Chart (the trait Weapon Focus also
 //     grants, alongside its numeric bonus) maps onto existing weapon
 //     PROPERTY names (Blocking, Deadly, Disarm, ...), but this app doesn't
@@ -41,6 +47,12 @@ import (
 //     audit pass, the project-wide boundary already drawn for how many
 //     attacks a turn grants and where a crit range is tracked.
 const weaponSpecialistSlug = "class/weapon-specialist"
+
+// weaponStanceFeatureSlug identifies Weapon Stance (class_features, 2nd
+// level, base class — not subclass-gated) as the granting feature for
+// storeFightingStanceChoice's own ChoiceKey, same role
+// unarmedTechniqueFeatureSlug plays for Taijutsu Stance.
+const weaponStanceFeatureSlug = "class/weapon-specialist/feature/weapon-stance"
 
 // weaponSpecialistClassLevel returns the character's own Weapon Specialist
 // class level, or 0 if they have none — mirrors taijutsuSpecialistClassLevel.
@@ -182,6 +194,11 @@ type weaponFocusTabData struct {
 	DieSize   string
 	Known     []weaponFocusOption
 	Available []weaponFocusOption
+	// Stance is Weapon Stance's own pick (2nd level, base class — every
+	// Weapon Specialist at that level, not subclass-gated), nil below
+	// level 2 same as every other level-gated sub-section elsewhere on the
+	// sheet.
+	Stance *fightingStanceView
 }
 
 // loadWeaponFocusTabData returns nil for a character with no Weapon
@@ -218,14 +235,28 @@ func (s *server) loadWeaponFocusTabData(characterID int64) (*weaponFocusTabData,
 		}
 	}
 
-	return &weaponFocusTabData{
+	data := &weaponFocusTabData{
 		Cap:       charstore.WeaponFocusSlotCap(level),
 		Used:      len(known),
 		Bonus:     charstore.WeaponFocusBonus(level),
 		DieSize:   flurryDieSize(level),
 		Known:     known,
 		Available: available,
-	}, nil
+	}
+
+	if level >= 2 {
+		choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+		if err != nil {
+			return nil, err
+		}
+		stanceOptions, err := s.loadStanceOptionsByType("bukijutsu")
+		if err != nil {
+			return nil, err
+		}
+		data.Stance = buildFightingStanceView(choices, stanceOptions, weaponStanceFeatureSlug)
+	}
+
+	return data, nil
 }
 
 // weaponFocusBonusSet returns the character's chosen Weapon Focus weapon
@@ -322,6 +353,51 @@ func (s *server) handleWeaponFocusDelete(w http.ResponseWriter, r *http.Request)
 	if err := charstore.RemoveWeaponFocus(s.charDB, id, slug); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("remove weapon focus:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_weapon_focus")
+}
+
+// handleWeaponStance records Weapon Stance's own pick — 2nd level, base
+// class (not subclass-gated), freely re-editable same boundary as Unarmed
+// Technique's Taijutsu Stance in taijutsu.go. Reuses
+// storeFightingStanceChoice/loadStanceOptionsByType exactly the way
+// medical_nin.go's handleMedicalNinFightingStance and scout_nin.go's
+// handleScoutNinFightingStance already do for their own granting features.
+func (s *server) handleWeaponStance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("stance_slug"))
+	level, err := s.weaponSpecialistClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon specialist level for weapon stance:", err)
+		return
+	}
+	if level < 2 {
+		http.Error(w, "character has not reached Weapon Stance yet", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadStanceOptionsByType("bukijutsu")
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon stance options:", err)
+		return
+	}
+	if err := s.storeFightingStanceChoice(id, weaponStanceFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			http.Error(w, "not a valid stance", http.StatusBadRequest)
+		} else {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("set weapon stance:", err)
+		}
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_weapon_focus")

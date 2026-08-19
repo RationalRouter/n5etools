@@ -932,7 +932,7 @@ func TestComposedAttackTracksAbilityScore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		composed := composeCustomAttacks(list, sheet)
+		composed := composeCustomAttacks(list, sheet, 0)
 		if len(composed) != 1 {
 			t.Fatalf("got %d custom attacks, want 1", len(composed))
 		}
@@ -974,7 +974,7 @@ func TestComposedAttackKeepsLegacyFlatNumbers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	composed := composeCustomAttacks(list, sheet)
+	composed := composeCustomAttacks(list, sheet, 0)
 	if len(composed) != 1 {
 		t.Fatalf("got %d custom attacks, want 1", len(composed))
 	}

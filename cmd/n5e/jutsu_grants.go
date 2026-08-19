@@ -185,6 +185,25 @@ func normalizeJutsuGrantName(s string) string {
 	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
+// jutsuGrantNameAliases maps a normalized grant shorthand name (as it
+// appears inside feature prose) to the jutsu slug it actually refers to,
+// for the rare case where the two don't match after normalizeJutsuGrantName
+// — a small, individually hand-verified list, not a blanket prefix-strip
+// rule, the same discipline internal/parse/subclasses.go's
+// knownExtractionSquishes already uses. A blanket "strip any X Release:/X:
+// prefix" rule was considered and rejected: a corpus check found 900 of
+// 1818 jutsu rows have a colon in their name, many different "X Release:"
+// families sharing bare suffixes, so that shortcut risks ambiguous
+// collisions across unrelated jutsu.
+var jutsuGrantNameAliases = map[string]string{
+	// Necrotic Hand's Medical Proficiency (class/hunter-nin/group/
+	// hunters-creeds/necrotic-hand/feature/medical-proficiency, 3rd level)
+	// grants "the Necrosis Ninjutsu", but the jutsu's own printed name is
+	// "Medical Release: Necrosis" — confirmed the only jutsu row in
+	// rules.db whose name contains "Necrosis".
+	"necrosis": "jutsu/medical-release-necrosis",
+}
+
 // loadGrantedJutsuLabels finds every jutsu a character's class, subclass, or
 // clan features grant for free at their current level — "Beginning at 1st
 // level, as a Puppet Master you learn the Chakra Hands E-Rank Ninjutsu for
@@ -229,7 +248,13 @@ func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Shee
 			if grant.Level > sheet.Level {
 				continue
 			}
-			slug, ok := index[normalizeJutsuGrantName(grant.Name)]
+			normalized := normalizeJutsuGrantName(grant.Name)
+			slug, ok := index[normalized]
+			if !ok {
+				if aliasSlug, aliasOK := jutsuGrantNameAliases[normalized]; aliasOK {
+					slug, ok = aliasSlug, true
+				}
+			}
 			if !ok {
 				continue // rules update renamed/removed the jutsu — skip rather than invent a row
 			}
@@ -415,4 +440,127 @@ func chakraCellEnhancementBonusJutsuSlots(features []grantedFeatureRow, intModif
 		}
 	}
 	return 0
+}
+
+// clanBonusDRankJutsuKnown: clans whose own clan_traits row grants a flat,
+// always-on increase to known jutsu — "You know 1 additional [Clan]
+// D-Rank [Hi]jutsu" (e.g. clan/aburame's Parasitic Technique) — with no
+// player choice involved. clan_traits carries no feature slug (its
+// primary key is clan_slug+name, not a slug column the way clan_features
+// has), so this can't be gated off a grantedFeatureRow the way
+// waterAndOilBonusJutsuSlots/heatMasterBonusJutsuSlots/
+// chakraCellEnhancementBonusJutsuSlots all are above — it's keyed
+// directly off the clan slug instead, the same "clan-slug-keyed flat
+// grant, no picker needed" shape clanFlatAffinity (elemental_affinity.go)
+// already uses for clan_traits rows that grant an element outright.
+// Confirmed against dist/rules.db: every clan below has an identically
+// shaped clan_traits row. Same "flat cap addition, rank not separately
+// enforced" simplification chakraCellEnhancementBonusJutsuSlots documents
+// above — the extra slot is unrestricted, filled from whatever eligible
+// jutsu list the character already draws from (which for every clan
+// below already includes that clan's own jutsu list, per each clan's
+// separate always-on "Clan Jutsu" feature).
+var clanBonusDRankJutsuKnown = map[string]int{
+	"clan/aburame":         1,
+	"clan/hoshi":           1,
+	"clan/hyuga":           1,
+	"clan/jugo":            1,
+	"clan/kashu":           1,
+	"clan/nara":            1,
+	"clan/shikigami":       1,
+	"clan/synthetic-human": 1,
+	"clan/uzumaki":         1,
+	"clan/yamanaka":        1,
+}
+
+// clanBonusDRankJutsuSlots returns the bonus known-jutsu count a
+// character's clan_traits row adds to JutsuKnownCap.
+func clanBonusDRankJutsuSlots(clanSlug string) int {
+	return clanBonusDRankJutsuKnown[clanSlug]
+}
+
+// sarutobiAdvancedNatureProficiencyFeatureSlug is Sarutobi's 1st-level clan
+// feature granting escalating bonus known-jutsu slots at 1st, 3rd, 7th, and
+// 15th level.
+const sarutobiAdvancedNatureProficiencyFeatureSlug = "clan/sarutobi/feature/advanced-nature-proficiency"
+
+// sarutobiAdvancedNatureProficiencyBonusJutsuSlots returns the bonus
+// known-jutsu count Advanced Nature Proficiency adds to JutsuKnownCap: one
+// slot at 1st level, plus one more (cumulative) at 3rd, 7th, and 15th level.
+// Gated on the character's TOTAL level, not any one class's own level,
+// since this is a clan feature (see jutsuKnownCapForCharacter's own comment
+// on sheet.Level). Book text restricts each slot's rank (the 1st-level slot
+// must be a D-Rank jutsu carrying a Nature Release keyword chosen via the
+// sibling Advanced Nature Transformation clan feature, then C/B/A-Rank at
+// 3rd/7th/15th) — not separately enforced, the same "flat cap addition,
+// rank not separately enforced" simplification chakraCellEnhancementBonusJutsuSlots
+// already accepts, since this app's known-jutsu cap has no per-rank
+// sub-limit. The Nature Release prerequisite needs no separate access
+// check either: Advanced Nature Transformation is itself an always-granted
+// 1st-level Sarutobi feature, so every Sarutobi carrying this feature
+// already has it.
+func sarutobiAdvancedNatureProficiencyBonusJutsuSlots(features []grantedFeatureRow, totalLevel int) int {
+	has := false
+	for _, f := range features {
+		if f.Slug == sarutobiAdvancedNatureProficiencyFeatureSlug {
+			has = true
+			break
+		}
+	}
+	if !has {
+		return 0
+	}
+	bonus := 1
+	if totalLevel >= 3 {
+		bonus++
+	}
+	if totalLevel >= 7 {
+		bonus++
+	}
+	if totalLevel >= 15 {
+		bonus++
+	}
+	return bonus
+}
+
+// whiteTechniqueChakraStringAugmentsFeatureSlug is White Technique Weaver's
+// 2nd-level subclass feature granting escalating bonus known-jutsu slots at
+// Puppet Master levels 2, 6, 10, and 14.
+const whiteTechniqueChakraStringAugmentsFeatureSlug = "class/puppet-master/group/puppet-techniques/white-technique-weaver/feature/chakra-string-augments"
+
+// whiteTechniqueChakraStringBonusJutsuSlots returns the bonus known-jutsu
+// count Chakra String Augments adds to JutsuKnownCap: two additional jutsu
+// of a rank the character qualifies for, plus one more (cumulative) at
+// Puppet Master levels 6, 10, and 14 — for a cap of 5. Gated on the
+// character's own Puppet Master class level specifically, not sheet.Level,
+// the same "scoped to the granting class's own level" rule
+// waterAndOilBonusJutsuSlots/heatMasterBonusJutsuSlots already follow,
+// since the book's "at 6th, 10th, and 14th levels" means levels in this
+// class. Book text: "you gain two additional Jutsu of a rank you qualify
+// for, not counting against your known. You gain 1 more jutsu this way at
+// 6th, 10th, and 14th levels" — not separately enforced by rank, the same
+// "flat cap addition, rank not separately enforced" simplification
+// chakraCellEnhancementBonusJutsuSlots already accepts.
+func whiteTechniqueChakraStringBonusJutsuSlots(features []grantedFeatureRow, puppetMasterLevel int) int {
+	has := false
+	for _, f := range features {
+		if f.Slug == whiteTechniqueChakraStringAugmentsFeatureSlug {
+			has = true
+			break
+		}
+	}
+	if !has {
+		return 0
+	}
+	bonus := 2
+	if puppetMasterLevel >= 6 {
+		bonus++
+	}
+	if puppetMasterLevel >= 10 {
+		bonus++
+	}
+	if puppetMasterLevel >= 14 {
+		bonus++
+	}
+	return bonus
 }

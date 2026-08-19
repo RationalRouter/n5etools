@@ -112,6 +112,35 @@ func (s *server) hunterNinClassLevel(characterID int64) (int, error) {
 	return level, err
 }
 
+// hunterNinPatternPassiveRows returns synthetic grantedFeatureRow entries for
+// the character's picked Hunters Patterns that carry an unconditional passive
+// trait (Horror Films' Fear immunity, Illicit Literature's Charmed immunity —
+// see passiveTraitGrants). Hunters Patterns are class_options catalog rows,
+// not class/subclass/clan features, so they never appear in
+// loadGrantedFeatures' output on their own; callers that want
+// computePassiveTraits to see them must append this slice at the call site,
+// the same "append, don't merge into the stored list" treatment
+// mergeFeatFeatures gives feats. Level/SourceLabel/Description are left zero
+// — computePassiveTraits only reads Slug (against passiveTraitGrants) and
+// Name (for the Sources tooltip).
+func (s *server) hunterNinPatternPassiveRows(characterID int64) ([]grantedFeatureRow, error) {
+	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickPattern)
+	if err != nil {
+		return nil, err
+	}
+	names := map[string]string{
+		"class/hunter-nin/option/hunters-patterns/horror-films":       "Horror Films",
+		"class/hunter-nin/option/hunters-patterns/illicit-literature": "Illicit Literature",
+	}
+	var rows []grantedFeatureRow
+	for _, slug := range picks {
+		if name, ok := names[slug]; ok {
+			rows = append(rows, grantedFeatureRow{Slug: slug, Name: name, SourceLabel: "Hunters Pattern"})
+		}
+	}
+	return rows, nil
+}
+
 // hunterNinSubclassSlug resolves the character's own chosen Hunter's Creed,
 // if any — mirrors taijutsuSpecialistSubclassSlug/puppetMasterSubclassSlug
 // exactly.

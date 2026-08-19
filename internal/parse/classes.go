@@ -312,6 +312,26 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 		"Skill":                      5,
 		"Support":                    5,
 	},
+	// Ability Score Improvement/Feat states no level anywhere in its own
+	// text beyond "When you reach 4th and again at 8th..." -- the ordinal
+	// regex has no foothold on that phrasing, so the row parsed as always-on
+	// (level NULL) instead of 4th level, the same failure shape as the
+	// other entries in this map. Actualized Alteration/Duplicity/
+	// Perception/Perfection/Power are Real World Conversion's own 5-option
+	// catalog (class_features row "real-world-conversion" is correctly
+	// level=5, "Starting at 5th level... Select one Conversion of your
+	// choice") -- none of the 5 options states a level anywhere in its own
+	// prose, so each is tagged to the introducing feature's own 5th level,
+	// matching the Shinobi Adept/Signature Jutsu catalog-option precedent
+	// above.
+	"Genjutsu Specialist": {
+		"Ability Score Improvement/Feat": 4,
+		"Actualized Alteration":          5,
+		"Actualized Duplicity":           5,
+		"Actualized Perception":          5,
+		"Actualized Perfection":          5,
+		"Actualized Power":               5,
+	},
 }
 
 // quickBuildSquishes hand-confirms a PDF text-extraction artifact specific

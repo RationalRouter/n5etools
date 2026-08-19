@@ -1126,7 +1126,8 @@
         <span class="option-picker-epithet">{{.Ability}}{{if not .Derived}} · adjusted{{end}}</span></th>
       <td>
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
-                data-modifier="{{.AttackBonus}}" data-label="{{.Name}} Attack">{{signed .AttackBonus}}</button>
+                data-modifier="{{.AttackBonus}}" data-label="{{.Name}} Attack"
+                data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackBonus}}</button>
       </td>
       <td>
         {{if .DamageSides}}
@@ -2036,6 +2037,28 @@
      20-entry technique list. Expects {ID, WeaponFocus}. */}}
 {{define "sheet_weapon_focus"}}
 <div id="sheet-weapon-focus" data-fragment="sheet_weapon_focus">
+  {{if .WeaponFocus.Stance}}
+  <div class="sheet-subclass-detail">
+    <h3>Weapon Stance</h3>
+    <form method="post" action="/characters/{{$.ID}}/sheet/weapon-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-weapon-focus">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .WeaponFocus.Stance.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.WeaponFocus.Stance.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .WeaponFocus.Stance.Current}}{{.WeaponFocus.Stance.CurrentDescription}}{{else}}Choose a Weapon Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
   <p class="section-hint">Flurry Die: {{.WeaponFocus.DieSize}}. Attack &amp; Damage Bonus: +{{.WeaponFocus.Bonus}} with every chosen weapon type below.
     <span class="option-picker-epithet">{{.WeaponFocus.Used}}/{{.WeaponFocus.Cap}} chosen</span>
   </p>
@@ -2155,7 +2178,7 @@
       <input type="hidden" name="seal_slug" value="{{.Slug}}">
       <button type="submit" class="sheet-delete-btn" aria-label="Remove guard slot seal {{.Name}}" title="Remove seal">&times;</button>
     </form>
-    <span class="puppet-upgrade-pick-name">{{.Name}}</span>
+    <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}<span class="tooltip-content">{{.Description}}</span></span>
   </div>
   {{end}}
 
@@ -3091,6 +3114,12 @@
   {{end}}
   {{if .Genjutsu.VisceralLanguageDie}}
   <p class="section-hint">Visceral Language: {{.Genjutsu.VisceralLanguageDie}} psychic damage or temporary hit points per use.</p>
+  {{end}}
+  {{if gt .Genjutsu.PassiveGenjutsuDetection 0}}
+  <p class="section-hint">Passive Genjutsu Detection: {{.Genjutsu.PassiveGenjutsuDetection}}.</p>
+  {{end}}
+  {{if .Genjutsu.KeywordDCBonus}}
+  <p class="section-hint">{{.Genjutsu.KeywordDCBonusLabel}}: +{{.Genjutsu.KeywordDCBonus}}.</p>
   {{end}}
 
   {{if gt .Genjutsu.MiragesCap 0}}
@@ -4368,7 +4397,8 @@
        character as they are right now (see composeCustomAttacks). */}}
   <td>
     <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
-            data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack">{{signed .AttackTotal}}</button>
+            data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
+            data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
   </td>
   <td>
     {{if .DamageDice}}

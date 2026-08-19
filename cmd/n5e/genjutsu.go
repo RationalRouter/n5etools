@@ -42,8 +42,12 @@ import (
 const genjutsuSpecialistSlug = "class/genjutsu-specialist"
 
 const (
-	corruptThoughtsSubclassSlug = "class/genjutsu-specialist/group/genjutsu-pledges/corrupt-thoughts"
-	sirenSubclassSlug           = "class/genjutsu-specialist/group/genjutsu-pledges/siren"
+	corruptThoughtsSubclassSlug    = "class/genjutsu-specialist/group/genjutsu-pledges/corrupt-thoughts"
+	sirenSubclassSlug              = "class/genjutsu-specialist/group/genjutsu-pledges/siren"
+	timeSlipperSubclassSlug        = "class/genjutsu-specialist/group/genjutsu-pledges/time-slipper"
+	illusionistSubclassSlug        = "class/genjutsu-specialist/group/genjutsu-pledges/illusionist"
+	beguilerSubclassSlug           = "class/genjutsu-specialist/group/genjutsu-pledges/beguiler"
+	mistyDistortionistSubclassSlug = "class/genjutsu-specialist/group/genjutsu-pledges/misty-distortionist"
 )
 
 // genjutsuInceptionMirageAutoGrants: the Genjutsu Inception option_slug ->
@@ -169,6 +173,22 @@ func visceralLanguageDie(genjutsuLevel int) string {
 		return "2d6"
 	default:
 		return "1d6"
+	}
+}
+
+// genjutsuKeywordDCBonus: the shared +1/+2/+3-at-2nd/10th/19th Genjutsu Save
+// DC keyword bonus four subclasses (Beguiler, Illusionist, Misty
+// Distortionist, Siren) each grant against their own specific keyword —
+// only ever called from inside the genjutsuLevel >= 2 gate those subclasses'
+// features first unlock at, so the default +1 case is always safe.
+func genjutsuKeywordDCBonus(genjutsuLevel int) int {
+	switch {
+	case genjutsuLevel >= 19:
+		return 3
+	case genjutsuLevel >= 10:
+		return 2
+	default:
+		return 1
 	}
 }
 
@@ -306,6 +326,11 @@ type genjutsuTabData struct {
 
 	VisceralLanguageDie string
 
+	PassiveGenjutsuDetection int
+
+	KeywordDCBonus      int
+	KeywordDCBonusLabel string
+
 	MiragesCap       int
 	MiragesUsed      int
 	KnownMirages     []knownGenjutsuPick
@@ -345,8 +370,9 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data := &genjutsuTabData{ActualizationDieSize: actualizationDieSize(genjutsuLevel)}
 
+	var subclassSlug string
 	if genjutsuLevel >= 2 {
-		subclassSlug, _, err := s.genjutsuSpecialistSubclassSlug(characterID)
+		subclassSlug, _, err = s.genjutsuSpecialistSubclassSlug(characterID)
 		if err != nil {
 			return nil, err
 		}
@@ -355,6 +381,15 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 			data.ViciousMockeryDamageDie, data.ViciousMockeryPenaltyDie = viciousMockeryDice(genjutsuLevel)
 		case sirenSubclassSlug:
 			data.VisceralLanguageDie = visceralLanguageDie(genjutsuLevel)
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Auditory-keyword Genjutsu DC"
+		case illusionistSubclassSlug:
+			illusionsMod, _ := charsheet.SkillModifier(sheet, "Illusions")
+			data.PassiveGenjutsuDetection = 10 + illusionsMod
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Non-damaging Genjutsu DC"
+		case beguilerSubclassSlug:
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Visual-keyword Genjutsu DC"
+		case mistyDistortionistSubclassSlug:
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Inhaled-keyword Genjutsu DC"
 		}
 	}
 
@@ -379,6 +414,9 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 	data.MiragesCap, err = s.malleableMiragesCap(genjutsuLevel)
 	if err != nil {
 		return nil, err
+	}
+	if subclassSlug == timeSlipperSubclassSlug && genjutsuLevel >= 2 {
+		data.MiragesCap++
 	}
 	if data.MiragesCap > 0 {
 		mirageCatalog, err := s.loadGenjutsuOptionCatalog("Malleable Mirages")
@@ -411,6 +449,15 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 			if n, ok := inceptionNameBySlug[slug]; ok {
 				knownInceptionNames[strings.ToLower(n)] = true
 			}
+		}
+		if subclassSlug == timeSlipperSubclassSlug && genjutsuLevel >= 2 {
+			// Temporal Technique's bonus Mirage slot unlocks every
+			// Temporal-Stopwatch-prerequisite Mirage even without the
+			// player actually having picked Temporal Stopwatch as their
+			// own Genjutsu Inception — level-based restrictions on those
+			// entries (e.g. "10th level") still apply via
+			// genjutsuMiragePrereqMet's own level check.
+			knownInceptionNames["temporal stopwatch"] = true
 		}
 		knownMirageNames := make(map[string]bool, len(miragePicks))
 		for _, slug := range miragePicks {

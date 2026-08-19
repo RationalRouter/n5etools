@@ -95,6 +95,7 @@ var knownExtractionSquishes = strings.NewReplacer(
 	"1oth level", "10th level", // Hunter-Nin's Blade Warden Blade's Aggression: a lowercase "o" swapped in for the digit "0" breaks ordinalLevelRe's \d match entirely
 	"Natural Weapon of to summon you chose.", "Natural Weapon of the Sage Creature you chose to summon.", // Puppet Master's Green Technique Bestial Framework: garbled, ungrammatical printed sentence
 	"equal to your proficiency bonus plus your Intelligence.", "equal to your proficiency bonus plus your Intelligence modifier.", // Cooking-Nin's Shinobi Snacks: the word "modifier" is dropped after "Intelligence" — confirmed by this same feature's own War and Food (7th level), which spells out "equal to your intelligence modifier" for the identical recreate-Snacks effect
+	"IRON CLAD SHIELD Armor Name AC Bulk Properties Iron Clad Shield +1 1 Bulk Blocking, Light martial die", "martial die", // Taijutsu Specialist's Ironclad Technique (L20): the L3 Ironclad feature's own truncated "Iron Clad Shield" stat block table resurfaced glued mid-sentence into this unrelated feature's text
 )
 
 func fixKnownExtractionSquish(s string) string {

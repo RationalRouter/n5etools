@@ -934,12 +934,22 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// skill Mastery gets, and folded into the modifier the same way
 	// SkillEntry already folds MasteryBonus in.
 	saveMasteryRanks := features.ResolveSaveMasteryRanks(grantedFeatures)
+	// Perfect Body (Taijutsu Specialist, 15th level): "whenever you make a
+	// saving throw, with an ability you are not proficient in, add your
+	// Dexterity Modifier to the saving throw" — additive on top of the
+	// normal non-proficient roll, not a substitution, so it's folded into
+	// the modifier here rather than through SavingThrowModifier itself.
+	nonProficientSaveBonusAbility := features.ResolveNonProficientSaveBonusAbility(grantedFeatures)
 	for _, ab := range Abilities {
 		proficient := profSaves[ab]
 		masteryRank := EffectiveMasteryRank(saveMasteryRanks[ab], sheet.Level)
+		modifier := SavingThrowModifier(sheet.Abilities[ab].Modifier, sheet.ProficiencyBonus, proficient) + MasteryBonus(masteryRank)
+		if !proficient && nonProficientSaveBonusAbility != "" {
+			modifier += sheet.Abilities[nonProficientSaveBonusAbility].Modifier
+		}
 		sheet.Saves = append(sheet.Saves, SaveEntry{
 			Ability: ab, Proficient: proficient, MasteryRank: masteryRank,
-			Modifier: SavingThrowModifier(sheet.Abilities[ab].Modifier, sheet.ProficiencyBonus, proficient) + MasteryBonus(masteryRank),
+			Modifier: modifier,
 		})
 	}
 
@@ -1155,15 +1165,16 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 				sheet.AC = altAC
 			}
 		}
-		// Arbiter Scout's Absolute Authority: a flat AC bonus (half Charisma
-		// Modifier, rounded down) stacked on top of whichever formula just
-		// ran — unlike the ability-swap grant above, this is additive, not
-		// an alternate formula to compare against. Skipped when a Puppet
-		// Tool is worn as armor (the puppetArmorAC branch above), same as
-		// the ability-swap check, since the character isn't using their own
-		// AC formula at all while it's worn.
+		// Arbiter Scout's Absolute Authority (half Charisma Modifier) and
+		// Battle Ready Catalyst's flat +1 in light/medium armor: both stack
+		// on top of whichever formula just ran — unlike the ability-swap
+		// grant above, these are additive, not an alternate formula to
+		// compare against. Skipped when a Puppet Tool is worn as armor (the
+		// puppetArmorAC branch above), same as the ability-swap check, since
+		// the character isn't using their own AC formula at all while it's
+		// worn.
 		if sheet.AC != nil {
-			bonus := features.ResolveFlatACBonus(grantedFeatures, map[string]int{"cha": sheet.Abilities["cha"].Modifier})
+			bonus := features.ResolveFlatACBonus(grantedFeatures, map[string]int{"cha": sheet.Abilities["cha"].Modifier}, armorCategory)
 			if bonus != 0 {
 				v := *sheet.AC + bonus
 				sheet.AC = &v

@@ -224,3 +224,69 @@ func TestParseJutsuGrants_GenericRankNoSchoolIgnored(t *testing.T) {
 		t.Fatalf("parseJutsuGrants(chakra-cell-enhancement) = %d grants, want 0: %+v", len(grants), grants)
 	}
 }
+
+// TestParseJutsuGrants_NecroticHandAliasResolves covers Necrotic Hand's
+// Medical Proficiency (class/hunter-nin/group/hunters-creeds/necrotic-hand/
+// feature/medical-proficiency, 3rd level), whose free-jutsu grant names the
+// shorthand "Necrosis" — the jutsu's own printed name in the rules database
+// is "Medical Release: Necrosis" (jutsu/medical-release-necrosis), so the
+// parsed grant name only resolves via jutsuGrantNameAliases, not a direct
+// jutsuNameIndex lookup. Sentence pulled verbatim from subclass_features in
+// rules.db.
+func TestParseJutsuGrants_NecroticHandAliasResolves(t *testing.T) {
+	description := "At 3rd level, you gain proficiency in Medicine and Medicine Kits. " +
+		"You can make any checks using the aforementioned skills with Intelligence or " +
+		"Wisdom. Also, you have learned to take the teachings of the medical core of " +
+		"your village or from your direct master and blend it into your assassination " +
+		"techniques. You learn the Necrosis Ninjutsu. When you do, it loses the " +
+		"Medical Keyword."
+
+	grants := parseJutsuGrants(description, 3)
+	if len(grants) != 1 {
+		t.Fatalf("parseJutsuGrants(necrotic-hand medical-proficiency) = %d grants, want 1: %+v", len(grants), grants)
+	}
+	if grants[0].Name != "Necrosis" {
+		t.Errorf("Name = %q, want %q", grants[0].Name, "Necrosis")
+	}
+
+	normalized := normalizeJutsuGrantName(grants[0].Name)
+	slug, ok := jutsuGrantNameAliases[normalized]
+	if !ok {
+		t.Fatalf("jutsuGrantNameAliases[%q] missing, want jutsu/medical-release-necrosis", normalized)
+	}
+	if slug != "jutsu/medical-release-necrosis" {
+		t.Errorf("jutsuGrantNameAliases[%q] = %q, want %q", normalized, slug, "jutsu/medical-release-necrosis")
+	}
+}
+
+// TestWhiteTechniqueChakraStringBonusJutsuSlots covers White Technique
+// Weaver's Chakra String Augments: +2 bonus known-jutsu slots at Puppet
+// Master 2nd level, escalating by +1 at 6th, 10th, and 14th, for a cap of
+// 5 — gated on the character's own Puppet Master class level, not total
+// character level.
+func TestWhiteTechniqueChakraStringBonusJutsuSlots(t *testing.T) {
+	granted := []grantedFeatureRow{{Slug: whiteTechniqueChakraStringAugmentsFeatureSlug}}
+
+	cases := []struct {
+		puppetMasterLevel int
+		want              int
+	}{
+		{2, 2},
+		{5, 2},
+		{6, 3},
+		{9, 3},
+		{10, 4},
+		{13, 4},
+		{14, 5},
+		{20, 5},
+	}
+	for _, tc := range cases {
+		if got := whiteTechniqueChakraStringBonusJutsuSlots(granted, tc.puppetMasterLevel); got != tc.want {
+			t.Errorf("whiteTechniqueChakraStringBonusJutsuSlots(level %d) = %d, want %d", tc.puppetMasterLevel, got, tc.want)
+		}
+	}
+
+	if got := whiteTechniqueChakraStringBonusJutsuSlots(nil, 14); got != 0 {
+		t.Errorf("whiteTechniqueChakraStringBonusJutsuSlots(no feature) = %d, want 0", got)
+	}
+}

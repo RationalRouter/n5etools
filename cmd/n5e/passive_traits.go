@@ -94,6 +94,9 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 		{Category: traitDamage, Target: "Poison", Level: levelResistance},
 		{Category: traitDamage, Target: "Poison", Level: levelImmunity, MinLevel: 18},
 	},
+	"clan/tsuchigumo/feature/tsuchigumo-senses": {
+		{Category: traitCondition, Target: "Surprised", Level: levelImmunity},
+	},
 	"clan/vesper/feature/immortal": {
 		{Category: traitCondition, Target: "Charmed", Level: levelImmunity},
 	},
@@ -183,6 +186,18 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 		{Category: traitDamage, Target: "Piercing", Level: levelResistance, MinLevel: 14},
 		{Category: traitDamage, Target: "Slashing", Level: levelResistance, MinLevel: 14},
 	},
+
+	// Hunters Patterns. These slugs are class_options catalog rows, not
+	// class/subclass/clan features, so they never appear in
+	// loadGrantedFeatures's own output — they only reach computePassiveTraits
+	// when hunter_nin.go appends synthetic grantedFeatureRow entries for the
+	// character's picks alongside the normal granted-features list.
+	"class/hunter-nin/option/hunters-patterns/horror-films": {
+		{Category: traitCondition, Target: "Fear", Level: levelImmunity},
+	},
+	"class/hunter-nin/option/hunters-patterns/illicit-literature": {
+		{Category: traitCondition, Target: "Charmed", Level: levelImmunity},
+	},
 }
 
 // senseGrant is a curated always-on darkvision/tremorsense/blindsight grant,
@@ -223,6 +238,9 @@ var senseGrants = map[string][]senseGrant{
 	},
 	"class/hunter-nin/group/hunters-creeds/blade-warden/feature/superior-offense": {
 		{Sense: "Blindsight", Feet: 30},
+	},
+	"clan/konjiki/feature/blood-of-the-earth": {
+		{Sense: "Tremorsense", Feet: 60, MinLevel: 11},
 	},
 }
 

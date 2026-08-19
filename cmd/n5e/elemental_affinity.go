@@ -36,6 +36,13 @@ func elementReleaseKeyword(element string) string {
 // names none (a non-elemental jutsu) — "Any Nature Release" is reported as
 // "" too (handled separately by jutsuElementRequirementMet, since it's
 // satisfied by ANY affinity rather than one specific element).
+//
+// A jutsu naming more than one element (every combo-affinity clan's own
+// jutsu keywords both elements, e.g. Bakuton's "Earth Release, Lightning
+// Release, Ninjutsu") only ever reports the first one found in elementNames
+// order — jutsuEligible must not gate on this return value alone, since a
+// combo-affinity clan trait explicitly grants either half of the pair as
+// sufficient to use the clan's own jutsu; see jutsuElements for the full set.
 func jutsuElement(keywords string) string {
 	for _, el := range elementNames {
 		if strings.Contains(keywords, elementReleaseKeyword(el)) {
@@ -43,6 +50,23 @@ func jutsuElement(keywords string) string {
 		}
 	}
 	return ""
+}
+
+// jutsuElements returns every element a jutsu's keywords name, in
+// elementNames order — nil if it names none. Combo-affinity clans (Bakuton,
+// Futton, Jiton, Keton, Namikaze, Ranton, Senju, Shakuton, Yoton, Yuki) grant
+// two elements together and their own clan_jutsu rows name both in the
+// keywords column; jutsuEligible treats a match on any one of them as
+// sufficient, matching the clan traits' own printed text ("They do not need
+// both Nature Release's to use their Clan jutsu").
+func jutsuElements(keywords string) []string {
+	var els []string
+	for _, el := range elementNames {
+		if strings.Contains(keywords, elementReleaseKeyword(el)) {
+			els = append(els, el)
+		}
+	}
+	return els
 }
 
 // elementFromReleaseKeyword maps a jutsu-keyword-column string like "Fire
@@ -186,12 +210,40 @@ var elementalScoutAffinitySlots = []affinityFeatureSlot{
 	{"elemental-knowledge", scoutNinElementalKnowledgeFeatureSlug, "Elemental Knowledge"},
 }
 
+// ryuBloodOfTheDragonAffinitySlots: Ryu Clan's own 1st-level Blood of the
+// Dragon trait ("Choose between Earth, Wind, Fire, Water and Lightning
+// Release. You gain the ability to learn and cast jutsu with the chosen
+// nature release...") — same shape as elementalScoutAffinitySlots' single
+// slot: choose 1 of the 5 with no combo pairing, gated on the clan's own
+// 1st-level feature slug. Modeled here (an affinityFeatureSlot) rather than
+// added to clanFlatAffinity/clanComboAffinityOptions, since unlike those two
+// maps this element is a player pick, not a fixed grant or a two-element
+// choice. The trait's own "all of your Ryu Clan jutsu gains your chosen
+// keyword" clause is not modeled — the pick itself (which is what unlocks
+// normal elemental jutsu of the chosen element) is this slot's whole scope.
+var ryuBloodOfTheDragonAffinitySlots = []affinityFeatureSlot{
+	{"blood-of-the-dragon", "clan/ryu/feature/blood-of-the-dragon", "Blood of the Dragon"},
+}
+
+// primalWeaponAffinitySlots: Weapon Specialist's Primal Weapon Form
+// subclass, 3rd-level Primal Weapon Techniques feature ("Select one nature
+// release keyword... You gain the ability to learn jutsu with the select
+// nature release") — same shape as ryuBloodOfTheDragonAffinitySlots' single
+// slot: choose 1 of the 5 with no combo pairing, gated on the subclass's own
+// 3rd-level feature slug. The feature's own "if you select a Nature Release
+// you already have, you can instead learn one Jutsu of the chosen nature
+// release" bonus-jutsu clause is not modeled, matching
+// elementalScoutAffinitySlots' identical precedent.
+var primalWeaponAffinitySlots = []affinityFeatureSlot{
+	{"primal-weapon-techniques", "class/weapon-specialist/group/weapon-forms/primal-weapon-form/feature/primal-weapon-techniques-changed", "Primal Weapon Techniques"},
+}
+
 // allAffinityFeatureSlots combines every "gain an independent Nature
 // Release pick, gated on a class feature" slot in the game, across every
 // class that has one — resolveElementalAffinities/elementalAffinitySlots/
 // elementalAffinitySlotKeys all iterate this single combined list rather
 // than each hand-listing every source.
-var allAffinityFeatureSlots = append(append([]affinityFeatureSlot{}, professorAffinitySlots...), elementalScoutAffinitySlots...)
+var allAffinityFeatureSlots = append(append(append(append([]affinityFeatureSlot{}, professorAffinitySlots...), elementalScoutAffinitySlots...), ryuBloodOfTheDragonAffinitySlots...), primalWeaponAffinitySlots...)
 
 // elementalAffinity is one resolved element the character currently has,
 // with the feature/trait/feat name it came from (for the library panel's

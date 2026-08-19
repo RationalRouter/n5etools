@@ -29,6 +29,33 @@ func TestJutsuElement(t *testing.T) {
 	}
 }
 
+// jutsuElements must report BOTH elements a combo-affinity clan's own jutsu
+// names (e.g. Bakuton's "Earth Release, Lightning Release, Ninjutsu") — a
+// single-match jutsuElement would only ever see the first, Earth.
+func TestJutsuElements(t *testing.T) {
+	cases := []struct {
+		keywords string
+		want     []string
+	}{
+		{"Earth Release, Lightning Release, Ninjutsu", []string{"Earth", "Lightning"}},
+		{"Fire Release, Ninjutsu", []string{"Fire"}},
+		{"Ninjutsu", nil},
+	}
+	for _, c := range cases {
+		got := jutsuElements(c.keywords)
+		if len(got) != len(c.want) {
+			t.Errorf("jutsuElements(%q) = %v, want %v", c.keywords, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("jutsuElements(%q) = %v, want %v", c.keywords, got, c.want)
+				break
+			}
+		}
+	}
+}
+
 func TestJutsuEligible(t *testing.T) {
 	affinities := map[string]bool{"Fire": true}
 	cases := []struct {
@@ -44,11 +71,30 @@ func TestJutsuEligible(t *testing.T) {
 		{"mismatched element blocks", "class", "Water Release, Ninjutsu", false, false},
 		{"Any Nature Release needs at least one affinity", "clan", "Any Nature Release", true, true},
 		{"Any Nature Release blocks with none", "clan", "Any Nature Release", false, false},
+		{"combo clan jutsu blocks when neither half is held", "clan", "Earth Release, Lightning Release, Ninjutsu", false, false},
 	}
 	for _, c := range cases {
 		if got := jutsuEligible(c.origin, c.keywords, affinities, c.hasAny); got != c.want {
 			t.Errorf("%s: jutsuEligible() = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// A combo-affinity clan (e.g. Bakuton, Earth+Lightning) grants its own jutsu
+// on EITHER half of the pair — a character who picked Lightning, not Earth,
+// at 1st level must still be able to learn the clan's own jutsu, since
+// jutsuElement alone would only ever check Earth (first in elementNames) and
+// wrongly block them.
+func TestJutsuEligibleComboAffinityEitherHalf(t *testing.T) {
+	bakutonKeywords := "Earth Release, Lightning Release, Ninjutsu"
+	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Lightning": true}, false) {
+		t.Error("holding only the second-checked element (Lightning) should still pass")
+	}
+	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Earth": true}, false) {
+		t.Error("holding only the first-checked element (Earth) should pass")
+	}
+	if jutsuEligible("clan", bakutonKeywords, map[string]bool{"Fire": true}, false) {
+		t.Error("holding neither half of the pair should block")
 	}
 }
 
