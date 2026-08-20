@@ -155,12 +155,26 @@ var clanComboSecondReleaseFeature = map[string]string{
 // Talent, Hijutsu Elitist, Summoner, Scribe Master, and The Professor grant
 // no such flat element (The Professor's own 3 elemental picks are already
 // handled by professorAffinitySlots above).
+//
+// waterAndOilDoMixSlug (Fry Cooks) and heatMasterFireAccessSlug (Heat
+// Master) — both consts defined in jutsu_grants.go — are the identical
+// "you gain the [X] Release Keyword" shape, just for Cooking-Nin's own
+// Cooking Focus subclasses. Without an entry here, jutsuEligible
+// (jutsu_eligibility.go) has no Water/Fire affinity to find for a Fry
+// Cook/Heat Master with no other elemental source, so the feature's own
+// "can add Jutsu with this Keyword to your Jutsu known list" clause was
+// silently unreachable — see natureReleaseBonusJutsuSlots' own
+// grantedSlugs-exclusion fix in jutsu_grants.go for the companion half of
+// this bug (the bonus-known-jutsu-count clause, a separate payload of the
+// same two features).
 var subclassFlatAffinity = map[string]string{
 	"class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/fire-release":           "Fire",
 	"class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/lightning-release": "Lightning",
 	"class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/earth-release":         "Earth",
 	"class/ninjutsu-specialist/group/ninjutsu-focus/storm-terror/feature/wind-release":           "Wind",
 	"class/ninjutsu-specialist/group/ninjutsu-focus/tsunami/feature/water-release":               "Water",
+	waterAndOilDoMixSlug:     "Water",
+	heatMasterFireAccessSlug: "Fire",
 }
 
 // natureReleaseFeatSlug: the Nature Release feat ("You select one of the 5
@@ -238,12 +252,60 @@ var primalWeaponAffinitySlots = []affinityFeatureSlot{
 	{"primal-weapon-techniques", "class/weapon-specialist/group/weapon-forms/primal-weapon-form/feature/primal-weapon-techniques-changed", "Primal Weapon Techniques"},
 }
 
+// natureEnhancedCombatAffinitySlots: Taijutsu Specialist's Nin-Tai subclass,
+// 3rd-level Nature Enhanced Combat feature ("Select one Nature Release...
+// You gain the ability to learn and cast jutsu with the corresponding
+// keyword.") — same shape as ryuBloodOfTheDragonAffinitySlots'/
+// primalWeaponAffinitySlots' single slot: choose 1 of the 5 with no combo
+// pairing, gated on the subclass's own 3rd-level feature slug. Without this
+// slot, jutsuEligible (jutsu_eligibility.go) has no affinity to check for a
+// Nin-Tai character with no other elemental source, so this pick is what
+// actually unlocks the class's own elemental Ninjutsu access — not merely
+// a display/informational addition.
+var natureEnhancedCombatAffinitySlots = []affinityFeatureSlot{
+	{"nature-enhanced-combat", "class/taijutsu-specialist/group/taijutsu-style/nin-tai/feature/nature-enhanced-combat", "Nature Enhanced Combat"},
+}
+
+// gastrochemistAffinitySlots: Cooking-Nin's Gastrochemist subclass grants two
+// independent elemental picks from two different features — Nature's Blend
+// (2nd level) and Many Colored Blend (13th level) — same "choose 1 of the 5,
+// no combo pairing" shape as ryuBloodOfTheDragonAffinitySlots/
+// primalWeaponAffinitySlots, just two slots instead of one, with no
+// code-enforced "must differ" constraint (matching professorAffinitySlots'
+// own precedent, whose printed "must differ" text isn't actually filtered in
+// its Options list either). Nature's Blend's own "may only cast [jutsu of
+// this release] while wielding your Gastrochemist weapon" clause isn't
+// modeled — no equipped-weapon gate exists anywhere in this app.
+var gastrochemistAffinitySlots = []affinityFeatureSlot{
+	{"natures-blend", "class/cooking-nin/group/cooking-focus/gastrochemist/feature/natures-blend", "Nature's Blend"},
+	{"many-colored-blend", "class/cooking-nin/group/cooking-focus/gastrochemist/feature/many-colored-blend", "Many Colored Blend"},
+}
+
+// greenTechniqueAffinitySlots: Puppet Master's Green Technique Marionettist
+// subclass, 2nd-level Green Technique Proficiency feature ("...select one
+// nature release, picking from Earth, Wind, Fire, Water, or Lightning. You
+// gain this nature release, and learn one ninjutsu of D-Rank...") — same
+// shape as ryuBloodOfTheDragonAffinitySlots'/primalWeaponAffinitySlots'/
+// natureEnhancedCombatAffinitySlots' single slot: choose 1 of the 5 with no
+// combo pairing, gated on the subclass's own 2nd-level feature slug. Without
+// this slot, jutsuEligible (jutsu_eligibility.go) has no affinity to find for
+// a Green Technique character with no other elemental source. The feature's
+// own "Alternatively, you can choose to not take a nature release" branch
+// needs no code of its own — picks already tolerates an empty/unpicked
+// value, which is exactly that branch — and its "learn one ninjutsu of
+// D-Rank" bonus grant (either branch) is not modeled, matching
+// elementalScoutAffinitySlots'/primalWeaponAffinitySlots' identical
+// precedent for a feature's own bonus-jutsu clause.
+var greenTechniqueAffinitySlots = []affinityFeatureSlot{
+	{"green-technique-proficiency", "class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/green-technique-proficiency", "Green Technique Proficiency"},
+}
+
 // allAffinityFeatureSlots combines every "gain an independent Nature
 // Release pick, gated on a class feature" slot in the game, across every
 // class that has one — resolveElementalAffinities/elementalAffinitySlots/
 // elementalAffinitySlotKeys all iterate this single combined list rather
 // than each hand-listing every source.
-var allAffinityFeatureSlots = append(append(append(append([]affinityFeatureSlot{}, professorAffinitySlots...), elementalScoutAffinitySlots...), ryuBloodOfTheDragonAffinitySlots...), primalWeaponAffinitySlots...)
+var allAffinityFeatureSlots = append(append(append(append(append(append(append([]affinityFeatureSlot{}, professorAffinitySlots...), elementalScoutAffinitySlots...), ryuBloodOfTheDragonAffinitySlots...), primalWeaponAffinitySlots...), natureEnhancedCombatAffinitySlots...), gastrochemistAffinitySlots...), greenTechniqueAffinitySlots...)
 
 // elementalAffinity is one resolved element the character currently has,
 // with the feature/trait/feat name it came from (for the library panel's

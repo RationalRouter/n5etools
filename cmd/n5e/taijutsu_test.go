@@ -40,12 +40,43 @@ func TestUnarmedDamageDieSize(t *testing.T) {
 		level int
 		want  string
 	}{
-		{1, "d6"}, {5, "d6"}, {6, "d8"}, {10, "d8"}, {11, "d10"}, {20, "d10"},
+		{0, ""}, {1, "d6"}, {5, "d6"}, {6, "d8"}, {10, "d8"}, {11, "d10"}, {20, "d10"},
 	}
 	for _, c := range cases {
-		if got := unarmedDamageDieSize(c.level); got != c.want {
-			t.Errorf("unarmedDamageDieSize(%d) = %q, want %q", c.level, got, c.want)
+		if got := unarmedDamageDieSize(c.level, nil, ""); got != c.want {
+			t.Errorf("unarmedDamageDieSize(%d, nil, \"\") = %q, want %q", c.level, got, c.want)
 		}
+	}
+}
+
+// TestUnarmedDamageDieSizeStanceOverride exercises the stance-conditional
+// override stanceUnarmedDieGrants adds on top of the level-based
+// progression above: a matching "X Fist Expert" feat only applies while the
+// character's CURRENT Fighting Stance matches, and never lowers a
+// level-based die that's already bigger.
+func TestUnarmedDamageDieSizeStanceOverride(t *testing.T) {
+	dragonFistExpert := []grantedFeatureRow{{Slug: "feat/dragon-fist-expert"}}
+
+	cases := []struct {
+		name       string
+		level      int
+		features   []grantedFeatureRow
+		stanceSlug string
+		want       string
+	}{
+		{"no real level, no feat, no stance: hidden", 0, nil, "", ""},
+		{"no real level, feat but wrong stance selected: hidden", 0, dragonFistExpert, "stance/wolf-fist-stance", ""},
+		{"no real level, feat and matching stance: d8", 0, dragonFistExpert, "stance/dragon-fist-stance", "d8"},
+		{"level 1 (base d6), feat and matching stance: overridden to d8", 1, dragonFistExpert, "stance/dragon-fist-stance", "d8"},
+		{"level 11 (base d10), feat and matching stance: d10 wins (larger)", 11, dragonFistExpert, "stance/dragon-fist-stance", "d10"},
+		{"level 6 (base d8), feat but no stance selected: base d8 only", 6, dragonFistExpert, "", "d8"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := unarmedDamageDieSize(c.level, c.features, c.stanceSlug); got != c.want {
+				t.Errorf("unarmedDamageDieSize(%d, %v, %q) = %q, want %q", c.level, c.features, c.stanceSlug, got, c.want)
+			}
+		})
 	}
 }
 
@@ -130,6 +161,10 @@ func TestMartialDiceMax(t *testing.T) {
 		{"unnatural talent at 10th: +2", withUnnaturalTalent, 10, 5},
 		{"unnatural talent at 17th: +3", withUnnaturalTalent, 17, 7},
 		{"unnatural talent at 20th: +3 (capped, same tier as 17th)", withUnnaturalTalent, 20, 8},
+		{"martial arts training, no real level: base 1 die", []grantedFeatureRow{{Slug: martialArtsTrainingFeatSlug}}, 0, 1},
+		{"training + expert, no real level: 2 dice", []grantedFeatureRow{{Slug: martialArtsTrainingFeatSlug}, {Slug: martialArtsExpertFeatSlug}}, 0, 2},
+		{"training + expert + specialist, no real level: 3 dice", []grantedFeatureRow{{Slug: martialArtsTrainingFeatSlug}, {Slug: martialArtsExpertFeatSlug}, {Slug: martialArtsSpecialistFeatSlug}}, 0, 3},
+		{"enthusiast alone grants no dice", []grantedFeatureRow{{Slug: martialArtsEnthusiastFeatSlug}}, 0, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -163,6 +198,8 @@ func TestMartialTechniqueCap(t *testing.T) {
 		{"talented legacy at 14th: +1", withTalentedLegacy, 14, 7},
 		{"talented legacy at 19th (still +1, base already 7)", withTalentedLegacy, 19, 8},
 		{"talented legacy at 20th: +2 total", withTalentedLegacy, 20, 9},
+		{"martial arts training, no real level: base cap 1", []grantedFeatureRow{{Slug: martialArtsTrainingFeatSlug}}, 0, 1},
+		{"training + expert + specialist, no real level: cap 3", []grantedFeatureRow{{Slug: martialArtsTrainingFeatSlug}, {Slug: martialArtsExpertFeatSlug}, {Slug: martialArtsSpecialistFeatSlug}}, 0, 3},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -338,5 +375,126 @@ func TestLoadMartialTechniquesTabData(t *testing.T) {
 	}
 	if len(data.Available) != 1 {
 		t.Fatalf("Available = %+v, want 1 remaining after learning the other", data.Available)
+	}
+}
+
+// TestLoadMartialTechniquesTabDataArchetypeFeatsNoRealLevel exercises the
+// class-level gate widened to also open for the archetype-training feats —
+// a character with zero real Taijutsu Specialist levels but Martial Arts
+// Training + Martial Arts Expert + Iron Fist Expert must still get a
+// rendered Martial Techniques box (2 Martial Dice, cap 2, a Fighting Stance
+// picker stored under Martial Arts Training's own slug rather than Unarmed
+// Technique's), and picking the matching Iron Fist Stance must apply Iron
+// Fist Expert's stance-conditional Unarmed Damage die override even though
+// this character has no real Unarmed Technique feature at all.
+func TestLoadMartialTechniquesTabDataArchetypeFeatsNoRealLevel(t *testing.T) {
+	s := testServer(t)
+	seedTaijutsuLevelResources(t, s)
+
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO fighting_stances (slug, name, stance_type, description) VALUES
+		('stance/iron-fist-stance', 'Iron Fist Stance', 'taijutsu', 'Your unarmed strikes deal extra damage.'),
+		('stance/blade-stance', 'Blade Stance', 'bukijutsu', 'Not a Taijutsu Stance — should never be offered here.')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Guy', 16, 14, 14, 8, 10, 12)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_feats (character_id, feat_slug, source) VALUES
+		(1, ?, 'other'), (1, ?, 'other'), (1, 'feat/iron-fist-expert', 'other')`,
+		martialArtsTrainingFeatSlug, martialArtsExpertFeatSlug,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dice, err := s.loadMartialDice(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dice == nil {
+		t.Fatal("loadMartialDice returned nil for a character with archetype-training feats and no real Taijutsu Specialist levels")
+	}
+	if dice.Max != 2 {
+		t.Errorf("Martial Dice Max = %d, want 2 (1 from Training + 1 from Expert)", dice.Max)
+	}
+
+	data, err := s.loadMartialTechniquesTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data == nil {
+		t.Fatal("loadMartialTechniquesTabData returned nil for a character with archetype-training feats and no real Taijutsu Specialist levels")
+	}
+	if data.Cap != 2 {
+		t.Errorf("Cap = %d, want 2 (1 from Training + 1 from Expert)", data.Cap)
+	}
+	if data.Stance == nil {
+		t.Fatal("Stance view is nil for a character with Martial Arts Training")
+	}
+	if data.UnarmedDamageDie != "" {
+		t.Errorf("UnarmedDamageDie = %q, want \"\" before any stance is picked", data.UnarmedDamageDie)
+	}
+
+	// Pick the Iron Fist Stance — stored under Martial Arts Training's own
+	// slug (taijutsuStanceFeatureSlug), not Unarmed Technique's, since this
+	// character has no real Taijutsu Specialist levels.
+	if err := charstore.SetFeatureChoice(s.charDB, 1, martialArtsTrainingFeatSlug, 0, "stance/iron-fist-stance"); err != nil {
+		t.Fatal(err)
+	}
+	data, err = s.loadMartialTechniquesTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.Stance.Current != "stance/iron-fist-stance" {
+		t.Errorf("Stance.Current = %q, want stance/iron-fist-stance after picking it", data.Stance.Current)
+	}
+	if data.UnarmedDamageDie != "d8" {
+		t.Errorf("UnarmedDamageDie = %q, want d8 (Iron Fist Expert's own stance-conditional grant)", data.UnarmedDamageDie)
+	}
+}
+
+// TestLoadMartialTechniquesTabDataNoLevelNoFeat confirms the box stays
+// hidden (nil) for a character with neither real Taijutsu Specialist levels
+// nor any archetype-training feat — the widened gate must not open
+// unconditionally.
+func TestLoadMartialTechniquesTabDataNoLevelNoFeat(t *testing.T) {
+	s := testServer(t)
+	seedTaijutsuLevelResources(t, s)
+
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Ino', 8, 12, 10, 12, 14, 15)`); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dice, err := s.loadMartialDice(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dice != nil {
+		t.Errorf("loadMartialDice = %+v, want nil for a character with no levels and no archetype feat", dice)
+	}
+
+	data, err := s.loadMartialTechniquesTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data != nil {
+		t.Errorf("loadMartialTechniquesTabData = %+v, want nil for a character with no levels and no archetype feat", data)
 	}
 }

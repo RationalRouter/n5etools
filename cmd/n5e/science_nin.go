@@ -70,6 +70,220 @@ const scienceNinExoskeletonFeatureSlug = "class/science-nin/group/scientific-inq
 // Trecks are built by the character, not bought.
 const airTrecksWeaponSlug = "weapon/air-trecks"
 
+// scienceNinInfusedGeniusFeatureSlug is Infused Genius, an 11th-level BASE
+// class feature (unlike the ElementalInnovationist/Grenadier/... fields
+// further down this file, none of which apply here — every Science-Nin
+// subclass reaches this one on the same base-class progression). See
+// loadScienceNinTabData for where it's populated.
+const scienceNinInfusedGeniusFeatureSlug = "class/science-nin/feature/infused-genius"
+
+// scienceNinMixedStudiesFeatureSlug is Mixed Studies, an 18th-level BASE
+// class feature: "You gain the 3rd Level features of another Scientific
+// Inquiry. You cannot select the one you chose at 3rd Level." Like Infused
+// Genius above, every subclass reaches it on the same base-class
+// progression.
+const scienceNinMixedStudiesFeatureSlug = "class/science-nin/feature/mixed-studies"
+
+// Mixed Studies second-3rd-level-feature slugs. Every one of Science-Nin's
+// ten real Scientific Inquiries grants exactly two 3rd-level features
+// (confirmed against rules.db's own v_subclass_features) — one of each
+// pair already has its own named constant, in this file or
+// science_nin_subclasses.go/custom_resources.go, because something else in
+// this codebase keys off it (a catalog picker, an AC override, a custom-
+// resource pool). These eight are the pair's OTHER half: nothing else in
+// this app reads them, they exist purely so mixedStudiesInquiryOptions
+// (below) doesn't embed bare literal strings.
+const (
+	scienceNinExplosiveTendenciesFeatureSlug  = "class/science-nin/group/scientific-inquiry/grenadier/feature/explosive-tendencies"
+	scienceNinOrdnanceTrainingFeatureSlug     = "class/science-nin/group/scientific-inquiry/mech-crafter/feature/ordnance-training"
+	scienceNinAdaptiveMovementFeatureSlug     = "class/science-nin/group/scientific-inquiry/mech-crafter/feature/adaptive-movement"
+	scienceNinScientificNinjaBeastFeatureSlug = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/scientific-ninja-beast"
+	// scienceNinFullMetalShinobiFeatureSlug mirrors internal/charsheet's own
+	// unexported shinobiWareFullMetalShinobiFeatureSlug — same cross-package
+	// duplication scienceNinExoskeletonFeatureSlug above already established
+	// (that package can't be imported back into this one).
+	scienceNinFullMetalShinobiFeatureSlug = "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/full-metal-shinobi"
+	scienceNinGhostInTheShellFeatureSlug  = "class/science-nin/group/scientific-inquiry/spyware/feature/ghost-in-the-shell"
+	scienceNinWingRoadFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/wing-road"
+	scienceNinSENTsFeatureSlug            = "class/science-nin/group/scientific-inquiry/technobi/feature/s-e-n-ts"
+)
+
+// mixedStudiesInquiryOption is one of the ten real Scientific Inquiries
+// Mixed Studies can copy from, paired with the two feature slugs
+// v_subclass_features grants that Inquiry's own holders at 3rd level.
+type mixedStudiesInquiryOption struct {
+	SubclassSlug string
+	Name         string
+	FeatureSlugs [2]string
+}
+
+// mixedStudiesInquiryOptions: Science-Nin's ten real Scientific Inquiries.
+// "S.N.B Upgrades" is a phantom 11th subclasses row left over from a
+// since-fixed ingest bug (0048_snb_upgrades_phantom_subclass.sql) and is
+// never a legal Mixed Studies pick, even against a rules.db copy still
+// carrying the stale row — this list is hand-curated rather than read live
+// from the subclasses table specifically to exclude it unconditionally,
+// the same "known static list, no DB round trip needed" precedent
+// scienceNinRegaliaOptions (science_nin_subclasses.go) already sets.
+//
+// Mech Crafter is included despite its own Titan companion staying
+// unbuilt: Mixed Studies only ever grants a subclass's PRINTED 3rd-level
+// feature rows into the granted-features list — the same bare display a
+// native 3rd-level Mech Crafter already gets, with no further automation
+// either way. mergeMixedStudiesFeatures (below) is the only reader of
+// FeatureSlugs; loadScienceNinTabData's own Mixed Studies picker only
+// needs SubclassSlug/Name.
+var mixedStudiesInquiryOptions = []mixedStudiesInquiryOption{
+	{"class/science-nin/group/scientific-inquiry/elemental-innovationist", "Elemental Innovationist", [2]string{scienceNinExoskeletonFeatureSlug, scienceNinEIPFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/grenadier", "Grenadier", [2]string{scienceNinExplosiveTendenciesFeatureSlug, scienceNinBIMFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/mad-scientist", "Mad Scientist", [2]string{madScientistBioticMasteryFeatureSlug, scienceNinInversionSerumsFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/mech-crafter", "Mech Crafter", [2]string{scienceNinOrdnanceTrainingFeatureSlug, scienceNinAdaptiveMovementFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/ninjaneer", "Ninjaneer", [2]string{scienceNinArsenalFeatureSlug, scienceNinPerfectedWeaponFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/s-n-b-specialist", "S.N.B Specialist", [2]string{scienceNinScientificNinjaBeastFeatureSlug, scienceNinSNBUpgradesFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/shinobi-ware", "Shinobi-Ware", [2]string{scienceNinFullMetalShinobiFeatureSlug, scienceNinEdgeRunnerFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/spyware", "Spyware", [2]string{scienceNinGhostInTheShellFeatureSlug, scienceNinCruelAngelsThesisFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/storm-rider", "Storm Rider", [2]string{scienceNinAirTrecksFeatureSlug, scienceNinWingRoadFeatureSlug}},
+	{"class/science-nin/group/scientific-inquiry/technobi", "Technobi", [2]string{scienceNinBestLaidTrapFeatureSlug, scienceNinSENTsFeatureSlug}},
+}
+
+// scienceNinSubclassSlug resolves the character's own chosen Scientific
+// Inquiry, if any — mirrors medicalNinSubclassSlug/hunterNinSubclassSlug
+// exactly. Used by Mixed Studies to exclude the character's own native
+// 3rd-level subclass from the Available list ("You cannot select the one
+// you chose at 3rd Level").
+func (s *server) scienceNinSubclassSlug(characterID int64) (slug, name string, err error) {
+	subRows, err := s.charDB.Query(
+		`SELECT subclass_slug FROM character_subclasses WHERE character_id = ?`, characterID)
+	if err != nil {
+		return "", "", err
+	}
+	var subclassSlugs []string
+	for subRows.Next() {
+		var sc string
+		if err := subRows.Scan(&sc); err != nil {
+			subRows.Close()
+			return "", "", err
+		}
+		subclassSlugs = append(subclassSlugs, sc)
+	}
+	subRows.Close()
+	if err := subRows.Err(); err != nil {
+		return "", "", err
+	}
+
+	for _, sc := range subclassSlugs {
+		var n, classSlug string
+		if err := s.rulesDB.QueryRow(`
+			SELECT sc.name, g.class_slug FROM subclasses sc
+			JOIN subclass_groups g ON g.slug = sc.group_slug
+			WHERE sc.slug = ?`, sc,
+		).Scan(&n, &classSlug); err != nil {
+			continue // a stale/removed subclass slug just isn't a match
+		}
+		if classSlug == scienceNinSlug {
+			return sc, n, nil
+		}
+	}
+	return "", "", nil
+}
+
+// mergeMixedStudiesFeatures appends synthetic granted-feature rows for a
+// Mixed Studies pick (base class, 18th level) onto an already-loaded
+// granted-features list — the chosen OTHER Scientific Inquiry's own two
+// 3rd-level feature rows, looked up live against rules.db for Name/
+// Description rather than hand-transcribed, same restraint this file's own
+// header doc already applies to the Scientific Ninja Tools catalog.
+// SourceLabel reads "Mixed Studies: <Inquiry>" rather than "Subclass:
+// <Inquiry>" so the Core tab's Features & Traits panel doesn't read as
+// though the character actually took that subclass.
+//
+// Called from BOTH loadGrantedFeatures choke points — this one
+// (loadGrantedFeatures, characters.go) and internal/charsheet.Compute's own
+// independent copy of this same function — rather than appended only at
+// display call sites the way hunterNinPatternPassiveRows is: these ARE
+// real subclass_features rows, and every one of science_nin_subclasses.go's
+// own catalog pickers, internal/charsheet's AC overrides, and
+// custom_resources.go's Biotic Mastery CCD split all gate purely on a
+// slug's PRESENCE in the granted-features list (see
+// science_nin_subclasses.go's own header doc) — folding the injection into
+// loadGrantedFeatures itself is what reaches every one of those consumers
+// without having to touch each call site individually.
+//
+// A no-op when the character has no Mixed Studies pick stored, or doesn't
+// currently qualify for the real Mixed Studies feature itself (a delevel
+// below 18 drops the bonus the same way every other subclass section here
+// already disappears once its own gating feature stops matching). Whatever
+// the picked Inquiry's own 3rd-level mechanics still depend on (Mech
+// Crafter's Titan, S.N.B Specialist's own companion) stays exactly as
+// unbuilt as it already is for a native holder — this only widens who can
+// reach the mechanics that already exist, it builds nothing new.
+func (s *server) mergeMixedStudiesFeatures(characterID int64, granted []grantedFeatureRow) ([]grantedFeatureRow, error) {
+	hasMixedStudies := false
+	for _, f := range granted {
+		if f.Slug == scienceNinMixedStudiesFeatureSlug {
+			hasMixedStudies = true
+			break
+		}
+	}
+	if !hasMixedStudies {
+		return granted, nil
+	}
+	picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickMixedStudiesInquiry)
+	if err != nil {
+		return nil, err
+	}
+	if len(picks) == 0 {
+		return granted, nil
+	}
+	var opt *mixedStudiesInquiryOption
+	for i, o := range mixedStudiesInquiryOptions {
+		if o.SubclassSlug == picks[0].OptionSlug {
+			opt = &mixedStudiesInquiryOptions[i]
+			break
+		}
+	}
+	if opt == nil {
+		return granted, nil // stale pick pointing at a since-renamed/removed subclass slug
+	}
+	for _, slug := range opt.FeatureSlugs {
+		var name, description string
+		if err := s.rulesDB.QueryRow(`SELECT name, description FROM v_subclass_features WHERE slug = ?`, slug).Scan(&name, &description); err != nil {
+			if err == sql.ErrNoRows {
+				continue
+			}
+			return nil, err
+		}
+		granted = append(granted, grantedFeatureRow{
+			Slug:        slug,
+			Name:        name,
+			Description: description,
+			SourceLabel: "Mixed Studies: " + opt.Name,
+			Level:       18,
+		})
+	}
+	return granted, nil
+}
+
+// mixedStudiesInquiryDescription builds the Mixed Studies picker's own
+// rollover-tooltip text for one Inquiry option — both of its own 3rd Level
+// features' names and full body text, read live from rules.db rather than
+// hand-transcribed (same restraint this file's own header doc already
+// applies to the Scientific Ninja Tools catalog). Also reused by
+// handleScienceNinSubclassPickDetail's "mixed-studies" branch
+// (science_nin_subclasses.go) for the click-to-open popup, so the tooltip
+// and the popup never drift apart.
+func (s *server) mixedStudiesInquiryDescription(opt mixedStudiesInquiryOption) string {
+	var parts []string
+	for _, slug := range opt.FeatureSlugs {
+		var name, description string
+		if err := s.rulesDB.QueryRow(`SELECT name, description FROM v_subclass_features WHERE slug = ?`, slug).Scan(&name, &description); err != nil {
+			continue
+		}
+		parts = append(parts, name+": "+description)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
 // ensureAirTrecksGranted grants the Air Trecks weapon into a Storm Rider's
 // own inventory the first time their sheet is loaded after gaining the
 // feature — equipped from the start, and with its attack/damage ability
@@ -274,6 +488,19 @@ type scienceNinToolsTabData struct {
 	// sheet gets.
 	Exoskeleton *scienceNinExoskeletonData
 
+	// InfusedGenius is non-nil only once the character has the 11th-level
+	// Infused Genius feature — a BASE-class pick (every subclass reaches
+	// it), unlike every field below which is gated on one specific
+	// subclass's own granting feature.
+	InfusedGenius *scienceNinInfusedGeniusData
+
+	// MixedStudies is non-nil only once the character has the 18th-level
+	// Mixed Studies feature — another BASE-class pick, same shape as
+	// InfusedGenius above. See mergeMixedStudiesFeatures for how the picked
+	// Inquiry's own 3rd Level feature rows actually reach the rest of the
+	// sheet (AC overrides, subclass catalog pickers, ...) once chosen here.
+	MixedStudies *scienceNinMixedStudiesData
+
 	// ElementalInnovationist/Grenadier/MadScientist/Ninjaneer/ShinobiWare/
 	// Spyware/StormRider/Technobi/SNBSpecialist are each non-nil only for a
 	// character with that subclass's own 3rd-level granting feature
@@ -299,6 +526,53 @@ type scienceNinToolsTabData struct {
 // 0043_exoskeleton_donned.sql.
 type scienceNinExoskeletonData struct {
 	Donned bool
+}
+
+// scienceNinInfusedGeniusData backs Infused Genius (11th level, base
+// class): "You can select one Scientific Ninja Tool of Creation Point Cost
+// 8 or lower... Twice per long rest the holder of this weapon or wearer of
+// the armor can use the tool... at no chakra cost. You can have a number
+// of Infused Tools equal to your Intelligence modifier." Available/Known
+// are restricted to the character's own already-known Scientific Ninja
+// Tools (scienceNinToolsTabData.KnownTools, filtered to Cost <= 8) — the
+// same "restricted to already-known subset via cross-reference" shape
+// Perma Perk/Quick Hack (science_nin_subclasses.go) already use for their
+// own overlays. Known/Available both use scienceNinSubclassOption's shape
+// (Slug/Name/Tier) purely so this reuses handleScienceNinSubclassPickAdd/
+// Delete, the same generic factory every subclass catalog in
+// science_nin_subclasses.go shares — no new picker mechanism.
+//
+// WHICH weapon/armor a given Infused Tool is attached to, and "the
+// holder/wearer (not just you) can use it," both stay fully manual — no
+// item-slot binding or other-creature action economy exists anywhere in
+// this app. Only the cap-gated pick itself (which tools are Infused) is
+// tracked here; the twice-per-long-rest USE budget is a separate
+// customResourceGrants pool (custom_resources.go, Key "infused_tools").
+type scienceNinInfusedGeniusData struct {
+	Cap       int
+	Used      int
+	Known     []knownScienceNinPick
+	Available []scienceNinSubclassOption
+}
+
+// scienceNinMixedStudiesData backs Mixed Studies (18th level, base class):
+// a single-slot, freely re-picked choice of another Scientific Inquiry
+// (see mixedStudiesInquiryOptions), reusing knownScienceNinPick/
+// scienceNinSubclassOption's shape — same "cap 1, freely re-picked" shape
+// Regalia/Perma Perk/Quick Hack already use — purely so this reuses
+// handleScienceNinSubclassPickAdd/Delete, the same generic factory every
+// other catalog in this file/science_nin_subclasses.go shares. Picking a
+// different Inquiry means deleting the current pick first, same "trust the
+// player" boundary every other pick in this package draws.
+//
+// Available excludes the character's own native 3rd-level subclass (the
+// book's own "You cannot select the one you chose at 3rd Level"). What the
+// picked Inquiry's own 3rd-level feature rows actually DO once chosen is
+// resolved by mergeMixedStudiesFeatures, not here — this struct only backs
+// the picker UI itself.
+type scienceNinMixedStudiesData struct {
+	Picked    *knownScienceNinPick
+	Available []scienceNinSubclassOption
 }
 
 // loadScienceNinTabData returns nil for a character with no Science-Nin
@@ -334,6 +608,21 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 			break
 		}
 	}
+	// Future of Shinobi: Shinobi-Ware (20th level, Shinobi-Ware subclass):
+	// "You also double your maximum creation points." Applied here, before
+	// anything below reads data.CreationPointsCap, so both the sheet's own
+	// display and handleScienceNinToolAdd's server-side spend-budget check
+	// (which calls this same function) see the doubled cap from the one
+	// field both read — no second, separate doubling exists anywhere else.
+	// The capstone's own extra upgrade-slot bonus (+Intelligence modifier,
+	// Shinobi-Ware Upgrades only) is applied in
+	// loadScienceNinSubclassData/science_nin_subclasses.go instead.
+	for _, f := range granted {
+		if f.Slug == scienceNinFutureOfShinobiShinobiWareFeatureSlug {
+			data.CreationPointsCap *= 2
+			break
+		}
+	}
 	// Elemental Innovationist/Grenadier/Mad Scientist/Ninjaneer's own
 	// subclass catalogs — see cmd/n5e/science_nin_subclasses.go.
 	if err := s.loadScienceNinSubclassData(characterID, sheet, level, granted, data); err != nil {
@@ -365,6 +654,73 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 		default:
 			data.AvailableTools = append(data.AvailableTools, o)
 		}
+	}
+
+	for _, f := range granted {
+		if f.Slug != scienceNinInfusedGeniusFeatureSlug {
+			continue
+		}
+		ig := &scienceNinInfusedGeniusData{}
+		if intMod := sheet.Abilities["int"].Modifier; intMod > 0 {
+			ig.Cap = intMod
+		}
+		infusedPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickInfusedTool)
+		if err != nil {
+			return nil, err
+		}
+		infusedSet := make(map[string]bool, len(infusedPicks))
+		for _, p := range infusedPicks {
+			infusedSet[p.OptionSlug] = true
+		}
+		ig.Used = len(infusedPicks)
+		for _, t := range data.KnownTools {
+			if t.Cost > 8 {
+				continue // Infused Genius: "Cost 8 or lower" only
+			}
+			if infusedSet[t.Slug] {
+				ig.Known = append(ig.Known, knownScienceNinPick{Slug: t.Slug, Name: t.Name, Tier: t.Tier})
+				continue
+			}
+			ig.Available = append(ig.Available, scienceNinSubclassOption{Slug: t.Slug, Name: t.Name, Tier: t.Tier})
+		}
+		data.InfusedGenius = ig
+		break
+	}
+
+	for _, f := range granted {
+		if f.Slug != scienceNinMixedStudiesFeatureSlug {
+			continue
+		}
+		ms := &scienceNinMixedStudiesData{}
+		nativeSlug, _, err := s.scienceNinSubclassSlug(characterID)
+		if err != nil {
+			return nil, err
+		}
+		msPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickMixedStudiesInquiry)
+		if err != nil {
+			return nil, err
+		}
+		pickedSlug := ""
+		if len(msPicks) > 0 {
+			pickedSlug = msPicks[0].OptionSlug
+		}
+		for _, opt := range mixedStudiesInquiryOptions {
+			if opt.SubclassSlug == nativeSlug {
+				continue // "You cannot select the one you chose at 3rd Level"
+			}
+			if opt.SubclassSlug == pickedSlug {
+				pick := knownScienceNinPick{Slug: opt.SubclassSlug, Name: opt.Name}
+				ms.Picked = &pick
+				continue
+			}
+			ms.Available = append(ms.Available, scienceNinSubclassOption{
+				Slug:        opt.SubclassSlug,
+				Name:        opt.Name,
+				Description: s.mixedStudiesInquiryDescription(opt),
+			})
+		}
+		data.MixedStudies = ms
+		break
 	}
 
 	return data, nil

@@ -195,6 +195,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/feats", s.handleSheetFeatAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/feats/delete", s.handleSheetFeatDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/feats/ability-choice", s.handleSheetFeatAbilityChoice)
+	mux.HandleFunc("POST /characters/{id}/sheet/feats/skill-or-tool-choice", s.handleSheetFeatSkillOrToolChoice)
 	mux.HandleFunc("GET /characters/{id}/custom-features", s.handleCharacterCustomFeatures)
 	mux.HandleFunc("POST /characters/{id}/custom-features/add", s.handleCustomFeatureAdd)
 	mux.HandleFunc("POST /characters/{id}/custom-features/{fid}/delete", s.handleCustomFeatureDelete)
@@ -242,17 +243,31 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/weapon-focus/delete", s.handleWeaponFocusDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/weapon-form-style", s.handleWeaponFormStyleAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/weapon-form-style/delete", s.handleWeaponFormStyleDelete)
+	mux.HandleFunc("POST /characters/{id}/sheet/stalking-predator", s.handleStalkingPredator)
+	mux.HandleFunc("POST /characters/{id}/sheet/superior-weapon-flurry", s.handleSuperiorWeaponFlurryAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/superior-weapon-flurry/delete", s.handleSuperiorWeaponFlurryDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-defense-seal", s.handleMartialDefenseSealAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-defense-seal/delete", s.handleMartialDefenseSealDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/fighting-stance", s.handleFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/stancer-mixed-martial-arts-stance", s.handleStancerMixedMartialArtsStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/stancer-stance-blending-stance", s.handleStancerStanceBlendingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/weapon-stance", s.handleWeaponStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/puppet-fighting-stance", s.handlePuppetFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/puppet-transformer-weapon-type", s.handlePuppetTransformerWeaponType)
+	mux.HandleFunc("POST /characters/{id}/sheet/puppet-green-technique-jutsu", s.handlePuppetGreenTechniqueJutsu)
+	mux.HandleFunc("POST /characters/{id}/sheet/puppet-thread-savant-jutsu", s.handlePuppetThreadSavantJutsu)
+	mux.HandleFunc("POST /characters/{id}/sheet/puppet-always-prepared-upgrade", s.handlePuppetAlwaysPreparedUpgrade)
 	mux.HandleFunc("POST /characters/{id}/sheet/hand-wraps-of-passion", s.handleHandWrapsOfPassion)
 	mux.HandleFunc("POST /characters/{id}/sheet/anti-chakra-wavelength", s.handleAntiChakraWavelength)
 	mux.HandleFunc("POST /characters/{id}/sheet/food-for-the-soul", s.handleFoodForTheSoul)
+	mux.HandleFunc("POST /characters/{id}/sheet/fast-and-furious", s.handleFastAndFurious)
+	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement", s.handleCookingNinBlendEnhancementAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement/delete", s.handleCookingNinBlendEnhancementDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine", s.handleMedicalDoctrineAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine/delete", s.handleMedicalDoctrineDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-nin-fighting-stance", s.handleMedicalNinFightingStance)
+	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant", s.handleExpertCombatantAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant/delete", s.handleExpertCombatantDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-fighting-stance", s.handleScoutNinFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/shinobi-adept", s.handleScoutNinPickAdd(charstore.ScoutNinPickShinobiAdept,
 		func(d *scoutNinTabData) int { return d.ShinobiAdeptUsed },
@@ -269,6 +284,40 @@ func (s *server) routes() http.Handler {
 		func(d *scoutNinTabData) int { return d.ManeuversCap },
 		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableManeuvers }))
 	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-maneuvers/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickManeuvers))
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-technique", s.handleScoutNinPickAdd(charstore.ScoutNinPickSignatureTechnique,
+		func(d *scoutNinTabData) int { return d.SignatureTechniqueUsed },
+		func(d *scoutNinTabData) int { return d.SignatureTechniqueCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableSignatureTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-technique/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickSignatureTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/mobile-savant", s.handleScoutNinPickAdd(charstore.ScoutNinPickMobileSavant,
+		func(d *scoutNinTabData) int { return d.MobileSavantUsed },
+		func(d *scoutNinTabData) int { return d.MobileSavantCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableMobileSavant }))
+	mux.HandleFunc("POST /characters/{id}/sheet/mobile-savant/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickMobileSavant))
+	mux.HandleFunc("POST /characters/{id}/sheet/tactical-superiority", s.handleScoutNinPickAdd(charstore.ScoutNinPickTacticalSuperiority,
+		func(d *scoutNinTabData) int { return d.TacticalSuperiorityUsed },
+		func(d *scoutNinTabData) int { return d.TacticalSuperiorityCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableTacticalSuperiority }))
+	mux.HandleFunc("POST /characters/{id}/sheet/tactical-superiority/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickTacticalSuperiority))
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-maneuver", s.handleScoutNinPickAdd(charstore.ScoutNinPickSignatureManeuver,
+		func(d *scoutNinTabData) int { return d.SignatureManeuverUsed },
+		func(d *scoutNinTabData) int { return d.SignatureManeuverCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableSignatureManeuver }))
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-maneuver/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickSignatureManeuver))
+	mux.HandleFunc("POST /characters/{id}/sheet/supreme-clones", s.handleScoutNinPickAdd(charstore.ScoutNinPickSupremeClones,
+		func(d *scoutNinTabData) int { return d.SupremeClonesUsed },
+		func(d *scoutNinTabData) int { return d.SupremeClonesCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableSupremeClones }))
+	mux.HandleFunc("POST /characters/{id}/sheet/supreme-clones/delete", s.handleScoutNinPickDelete(charstore.ScoutNinPickSupremeClones))
+	mux.HandleFunc("POST /characters/{id}/sheet/change-of-heart", s.handleChangeOfHeart)
+	mux.HandleFunc("POST /characters/{id}/sheet/paragons-presence", s.handleParagonsPresence)
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-jutsu", s.handleSignatureJutsuJutsu)
+	mux.HandleFunc("POST /characters/{id}/sheet/signature-jutsu-effect", s.handleSignatureJutsuEffect)
+	mux.HandleFunc("POST /characters/{id}/sheet/lethal-precision", s.handleHunterPickAdd(charstore.HunterPickLethalPrecision,
+		func(d *hunterTechniquesTabData) int { return d.LethalPrecisionUsed },
+		func(d *hunterTechniquesTabData) int { return d.LethalPrecisionCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableLethalPrecision }))
+	mux.HandleFunc("POST /characters/{id}/sheet/lethal-precision/delete", s.handleHunterPickDelete(charstore.HunterPickLethalPrecision))
 	mux.HandleFunc("POST /characters/{id}/sheet/hunter-patterns", s.handleHunterPickAdd(charstore.HunterPickPattern,
 		func(d *hunterTechniquesTabData) int { return d.PatternsUsed },
 		func(d *hunterTechniquesTabData) int { return d.PatternsCap },
@@ -284,6 +333,63 @@ func (s *server) routes() http.Handler {
 		func(d *hunterTechniquesTabData) int { return d.DefensiveTacticsCap },
 		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableDefensiveTactics }))
 	mux.HandleFunc("POST /characters/{id}/sheet/defensive-tactics/delete", s.handleHunterPickDelete(charstore.HunterPickDefensiveTactic))
+	// The 8 Hunter's Creeds' own subclass-exclusive picks — see
+	// hunterTechniquesTabData's own doc comment (hunter_nin.go). Arsenal
+	// Item's add route is its own handler (handleHunterArsenalItemAdd), not
+	// the shared handleHunterPickAdd factory, since picking one of 3
+	// specific items also learns a jutsu; its delete route stays the
+	// generic handleHunterPickDelete, which does NOT forget that learned
+	// jutsu — matching every other "forget a pick" route on this sheet,
+	// none of which cascade into unrelated tables.
+	mux.HandleFunc("POST /characters/{id}/sheet/warden-weapon", s.handleHunterPickAdd(charstore.HunterPickWardenWeapon,
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponUsed },
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableWardenWeapon }))
+	mux.HandleFunc("POST /characters/{id}/sheet/warden-weapon/delete", s.handleHunterPickDelete(charstore.HunterPickWardenWeapon))
+	mux.HandleFunc("POST /characters/{id}/sheet/warden-weapon-property", s.handleHunterPickAdd(charstore.HunterPickWardenWeaponProperty,
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponPropertyUsed },
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponPropertyCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableWardenWeaponProperty }))
+	mux.HandleFunc("POST /characters/{id}/sheet/warden-weapon-property/delete", s.handleHunterPickDelete(charstore.HunterPickWardenWeaponProperty))
+	mux.HandleFunc("POST /characters/{id}/sheet/medical-technique", s.handleHunterPickAdd(charstore.HunterPickMedicalTechnique,
+		func(d *hunterTechniquesTabData) int { return d.MedicalTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.MedicalTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableMedicalTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/medical-technique/delete", s.handleHunterPickDelete(charstore.HunterPickMedicalTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/shadow-technique", s.handleHunterPickAdd(charstore.HunterPickShadowTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ShadowTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ShadowTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableShadowTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/shadow-technique/delete", s.handleHunterPickDelete(charstore.HunterPickShadowTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/arsenal-item", s.handleHunterArsenalItemAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/arsenal-item/delete", s.handleHunterPickDelete(charstore.HunterPickArsenalItem))
+	mux.HandleFunc("POST /characters/{id}/sheet/toxic-technique", s.handleHunterPickAdd(charstore.HunterPickToxicTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ToxicTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ToxicTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableToxicTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/toxic-technique/delete", s.handleHunterPickDelete(charstore.HunterPickToxicTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/vice-technique", s.handleHunterPickAdd(charstore.HunterPickViceTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ViceTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ViceTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableViceTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/vice-technique/delete", s.handleHunterPickDelete(charstore.HunterPickViceTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/void-technique", s.handleHunterPickAdd(charstore.HunterPickVoidTechnique,
+		func(d *hunterTechniquesTabData) int { return d.VoidTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.VoidTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableVoidTechnique }))
+	mux.HandleFunc("POST /characters/{id}/sheet/void-technique/delete", s.handleHunterPickDelete(charstore.HunterPickVoidTechnique))
+	mux.HandleFunc("POST /characters/{id}/sheet/prosthetic-attachment", s.handleHunterPickAdd(charstore.HunterPickProstheticAttachment,
+		func(d *hunterTechniquesTabData) int { return d.ProstheticAttachmentUsed },
+		func(d *hunterTechniquesTabData) int { return d.ProstheticAttachmentCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableProstheticAttachment }))
+	mux.HandleFunc("POST /characters/{id}/sheet/prosthetic-attachment/delete", s.handleHunterPickDelete(charstore.HunterPickProstheticAttachment))
+	// Wolf Technique's add route is its own handler (handleHunterWolfTechniqueAdd),
+	// not the shared handleHunterPickAdd factory, since picking one always
+	// also learns the matching jutsu (same reason Arsenal Item above uses
+	// its own handler) — its delete route stays the generic
+	// handleHunterPickDelete, which does NOT forget that learned jutsu.
+	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique", s.handleHunterWolfTechniqueAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique/delete", s.handleHunterPickDelete(charstore.HunterPickWolfTechnique))
 	mux.HandleFunc("GET /hunter-techniques/{category}/{slug...}", s.handleHunterPickDetail)
 	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-mirages", s.handleGenjutsuPickAdd(charstore.GenjutsuPickMirage,
 		func(d *genjutsuTabData) int { return d.MiragesUsed },
@@ -306,6 +412,16 @@ func (s *server) routes() http.Handler {
 		func(d *genjutsuTabData) []genjutsuPickOption { return d.AvailableIllusionMastery }))
 	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-illusion-mastery/delete", s.handleGenjutsuPickDelete(charstore.GenjutsuPickIllusionMastery))
 	mux.HandleFunc("GET /genjutsu-picks/{category}/{slug...}", s.handleGenjutsuPickDetail)
+	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-twisted-casting", s.handleGenjutsuJutsuPickAdd(charstore.GenjutsuPickTwistedCasting,
+		func(d *genjutsuTabData) int { return d.TwistedCastingUsed },
+		func(d *genjutsuTabData) int { return d.TwistedCastingCap },
+		func(d *genjutsuTabData) []knownJutsuOption { return d.AvailableTwistedCasting }))
+	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-twisted-casting/delete", s.handleGenjutsuJutsuPickDelete(charstore.GenjutsuPickTwistedCasting))
+	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-psyche-breaker", s.handleGenjutsuJutsuPickAdd(charstore.GenjutsuPickPsycheBreaker,
+		func(d *genjutsuTabData) int { return d.PsycheBreakerUsed },
+		func(d *genjutsuTabData) int { return d.PsycheBreakerCap },
+		func(d *genjutsuTabData) []knownJutsuOption { return d.AvailablePsycheBreaker }))
+	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-psyche-breaker/delete", s.handleGenjutsuJutsuPickDelete(charstore.GenjutsuPickPsycheBreaker))
 	mux.HandleFunc("POST /characters/{id}/sheet/intelligence-operative-plans", s.handleIntelligenceOperativePickAdd(charstore.IntelligenceOperativePickPlan,
 		func(d *intelligenceOperativeTabData) int { return d.PlansUsed },
 		func(d *intelligenceOperativeTabData) int { return d.PlansCap },
@@ -336,6 +452,31 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools/delete", s.handleScienceNinToolDelete)
 	mux.HandleFunc("GET /science-nin-tools/{slug...}", s.handleScienceNinToolDetail)
 	mux.HandleFunc("POST /characters/{id}/sheet/exoskeleton", s.handleSheetExoskeletonToggle)
+	// Infused Genius (11th level, BASE class — unlike every subclass-gated
+	// closure below, InfusedGenius applies to any Science-Nin regardless of
+	// subclass) reuses the same generic handleScienceNinSubclassPickAdd/
+	// Delete factory those closures share.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-infused-tool", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickInfusedTool,
+		func(d *scienceNinToolsTabData) int {
+			if d.InfusedGenius == nil {
+				return 0
+			}
+			return d.InfusedGenius.Used
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.InfusedGenius == nil {
+				return 0
+			}
+			return d.InfusedGenius.Cap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.InfusedGenius == nil {
+				return nil
+			}
+			return d.InfusedGenius.Available
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-infused-tool/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickInfusedTool))
 	// Every closure below guards its own subclass-data pointer (nil
 	// whenever the character lacks that subclass's own granting feature —
 	// see loadScienceNinSubclassData) before dereferencing it: a Science-Nin
@@ -386,6 +527,27 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickWOW))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ascended-wow", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickAscendedWoW,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil || d.ElementalInnovationist.DesignatedWoW == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableDesignatedWoW
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ascended-wow/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickAscendedWoW))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perma-perk", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickPermaPerk,
 		func(d *scienceNinToolsTabData) int {
 			if d.ElementalInnovationist == nil || d.ElementalInnovationist.PermaPerk == nil {
@@ -428,6 +590,27 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-bim/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickBIM))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-bim-specialist", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickBIMSpecialist,
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil || d.Grenadier.DesignatedBIM == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Grenadier == nil {
+				return nil
+			}
+			return d.Grenadier.AvailableDesignatedBIM
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-bim-specialist/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickBIMSpecialist))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-inversion-serum", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickInversionSerum,
 		func(d *scienceNinToolsTabData) int {
 			if d.MadScientist == nil {
@@ -449,6 +632,27 @@ func (s *server) routes() http.Handler {
 		},
 		true))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-inversion-serum/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickInversionSerum))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-sheep-and-shepherd", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSheepAndShepherdSerum,
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil || d.MadScientist.DesignatedSerum == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.MadScientist == nil {
+				return nil
+			}
+			return d.MadScientist.AvailableDesignatedSerum
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-sheep-and-shepherd/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSheepAndShepherdSerum))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-arsenal-mod", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickArsenalMod,
 		func(d *scienceNinToolsTabData) int {
 			if d.Ninjaneer == nil {
@@ -512,6 +716,29 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-shinobi-ware-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickShinobiWareUpgrade))
+	// In His Image's Shinjutsu Upgrade pick is permanent ("You can not
+	// change this later") — no delete route is wired for it, unlike every
+	// other pick in this file.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-shinjutsu-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickShinjutsuUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil || d.ShinobiWare.ShinjutsuUpgrade == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableShinjutsuUpgrade
+		},
+		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-evolved-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickEvolvedUpgrade,
 		func(d *scienceNinToolsTabData) int {
 			if d.ShinobiWare == nil {
@@ -598,16 +825,18 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-air-treck-enhancement/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickAirTreckEnhancement))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-regalia", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickRegalia,
 		func(d *scienceNinToolsTabData) int {
-			if d.StormRider == nil || d.StormRider.Regalia == nil {
+			if d.StormRider == nil {
 				return 0
 			}
-			return 1
+			return d.StormRider.RegaliaUsed
 		},
 		func(d *scienceNinToolsTabData) int {
 			if d.StormRider == nil {
 				return 0
 			}
-			return 1
+			// 1 normally, 2 once Sky Keeper (20th level) is also granted —
+			// see loadScienceNinSubclassData's own RegaliaCap computation.
+			return d.StormRider.RegaliaCap
 		},
 		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
 			if d.StormRider == nil {
@@ -659,6 +888,48 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSNBUpgrade))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade-permanent", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSNBUpgradePermanent,
+		func(d *scienceNinToolsTabData) int {
+			if d.SNBSpecialist == nil {
+				return 0
+			}
+			return d.SNBSpecialist.PermanentUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.SNBSpecialist == nil {
+				return 0
+			}
+			return d.SNBSpecialist.PermanentCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.SNBSpecialist == nil {
+				return nil
+			}
+			return d.SNBSpecialist.AvailablePermanent
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade-permanent/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSNBUpgradePermanent))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-mixed-studies", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickMixedStudiesInquiry,
+		func(d *scienceNinToolsTabData) int {
+			if d.MixedStudies == nil || d.MixedStudies.Picked == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.MixedStudies == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.MixedStudies == nil {
+				return nil
+			}
+			return d.MixedStudies.Available
+		},
+		false))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-mixed-studies/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickMixedStudiesInquiry))
 	mux.HandleFunc("GET /science-nin-picks/{category}/{slug...}", s.handleScienceNinSubclassPickDetail)
 	mux.HandleFunc("GET /clans", s.handleClans)
 	mux.HandleFunc("GET /clans/{slug...}", s.handleClanDetail)

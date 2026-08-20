@@ -15,6 +15,30 @@ const (
 	// the "picks from a different, no-longer-current subclass stay stored
 	// but don't count against the cap" case, not this package.
 	ScoutNinPickManeuvers ScoutNinPickCategory = "maneuvers"
+	// ScoutNinPickSignatureTechnique is base-class-wide (Signature
+	// Technique, 10th/18th level) over its own 3-option catalog (Hidden/
+	// Aggressive/Tactical Technique).
+	ScoutNinPickSignatureTechnique ScoutNinPickCategory = "signature_technique"
+	// ScoutNinPickMobileSavant is Pathfinder Scout's own 3rd/6th/9th/14th
+	// level pick over its 4-jutsu catalog — option_slugs are jutsu slugs,
+	// not class_features slugs, unlike every other category here.
+	ScoutNinPickMobileSavant ScoutNinPickCategory = "mobile_savant"
+	// ScoutNinPickTacticalSuperiority is Tactical Scout's own 6th/14th/20th
+	// level cross-subclass Maneuver pick — option_slugs are drawn from
+	// several OTHER subclasses' own Maneuvers catalogs, not the
+	// character's own chosen subclass.
+	ScoutNinPickTacticalSuperiority ScoutNinPickCategory = "tactical_superiority"
+	// ScoutNinPickSignatureManeuver is Tactical Scout's own 3rd/9th level
+	// pick of an already-known Tactical-keyword Maneuver — option_slugs
+	// always overlap with a subset of that character's own ScoutNinPickManeuvers
+	// picks.
+	ScoutNinPickSignatureManeuver ScoutNinPickCategory = "signature_maneuver"
+	// ScoutNinPickSupremeClones is Cloning Scout's own flat 20th-level
+	// pick of an already-known Maneuver — like ScoutNinPickSignatureManeuver,
+	// option_slugs always overlap with a subset of that character's own
+	// ScoutNinPickManeuvers picks, but with no keyword restriction and no
+	// escalating cap (always exactly 1 slot).
+	ScoutNinPickSupremeClones ScoutNinPickCategory = "supreme_clones"
 )
 
 // AddScoutNinPick records one catalog pick within its own category. A

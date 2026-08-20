@@ -30,6 +30,49 @@ const (
 	ScienceNinPickRegalia               ScienceNinSubclassPickCategory = "regalia"
 	ScienceNinPickTechnobiMechanization ScienceNinSubclassPickCategory = "technobi_mechanization"
 	ScienceNinPickSNBUpgrade            ScienceNinSubclassPickCategory = "snb_upgrade"
+
+	// ScienceNinPickMixedStudiesInquiry is base-class Mixed Studies (18th
+	// level) — a single-slot pick, added by
+	// 0051_science_nin_mixed_studies_pick.sql. option_slug holds the chosen
+	// OTHER Scientific Inquiry's own subclass slug rather than a
+	// class_options/class_option_entries reference like every category
+	// above — see cmd/n5e/science_nin.go's handleMixedStudiesPickAdd.
+	ScienceNinPickMixedStudiesInquiry ScienceNinSubclassPickCategory = "mixed_studies_inquiry"
+
+	// ScienceNinPickInfusedTool is Infused Genius (11th level, base class) —
+	// added by 0053_science_nin_infused_genius.sql. Unlike every category
+	// above, its option_slug is shared with the base Scientific Ninja Tools
+	// catalog (character_science_nin_tools) rather than pointing at a
+	// catalog of its own — see cmd/n5e/science_nin.go's InfusedGenius field.
+	ScienceNinPickInfusedTool ScienceNinSubclassPickCategory = "infused_tool"
+
+	// The four categories below — added by
+	// 0055_science_nin_more_pick_categories.sql — each restrict a cap-gated
+	// pick to a subset of a character's own already-known picks in a
+	// sibling category above (bim/inversion_serum/shinobi_ware_upgrade/
+	// snb_upgrade), the same "restricted to already-known subset via
+	// cross-reference" shape perma_perk/quick_hack/infused_tool already
+	// use. See each field's own doc in
+	// cmd/n5e/science_nin_subclasses.go's scienceNinGrenadierData/
+	// scienceNinMadScientistData/scienceNinShinobiWareData/
+	// scienceNinSNBSpecialistData.
+	ScienceNinPickBIMSpecialist         ScienceNinSubclassPickCategory = "bim_specialist"
+	ScienceNinPickSheepAndShepherdSerum ScienceNinSubclassPickCategory = "sheep_and_shepherd_serum"
+	// ScienceNinPickShinjutsuUpgrade is PERMANENT once made ("You can not
+	// change this later") — unlike every other category in this table, no
+	// delete route is wired for it (see server.go).
+	ScienceNinPickShinjutsuUpgrade    ScienceNinSubclassPickCategory = "shinjutsu_upgrade"
+	ScienceNinPickSNBUpgradePermanent ScienceNinSubclassPickCategory = "snb_upgrade_permanent"
+
+	// ScienceNinPickAscendedWoW is Elemental Innovationist's own Elemental
+	// Innovation (17th level) — added by
+	// 0058_science_nin_ascended_wow.sql. Same "restricted to already-known
+	// subset via cross-reference" shape as ScienceNinPickBIMSpecialist
+	// above (any known 'wow' pick qualifies, no exclusion clause): one
+	// designated Ascended W.o.W, cap 1. See
+	// cmd/n5e/science_nin_subclasses.go's
+	// scienceNinElementalInnovationistData.DesignatedWoW.
+	ScienceNinPickAscendedWoW ScienceNinSubclassPickCategory = "ascended_wow"
 )
 
 // ScienceNinSubclassPick is one stored pick, along with its own pool

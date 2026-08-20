@@ -271,22 +271,31 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 	"Medical-Nin": {
 		"Rejuvenating Rest": 1,
 	},
-	// Shinobi Adept (2nd level) presents its 10-option catalog as separate
+	// Shinobi Adept (2nd level) presents its 7-option catalog as separate
 	// named class_features with no level text anywhere in their own printed
 	// prose — the catalog's only level is on the introducing feature itself
 	// ("You can choose between two of the following features..."). Nothing
-	// for ordinalLevelRe to find, so all 10 parsed as always-on (level NULL)
+	// for ordinalLevelRe to find, so all 7 parsed as always-on (level NULL)
 	// and were blanket-granted from 1st level regardless of picker state.
 	// Tag each option to Shinobi Adept's own 2nd level; a later cap+catalog
 	// picker (2 known at 2nd -> 4 at 13th) narrows this further on top.
 	// Signature Jutsu (7th level) has the identical shape for its own
-	// 3-option effect catalog. Combat/Control/Mobility/Skill/Support are
-	// Jack of All, Master of None's 5 generalizations (5th level unlock) —
-	// each one's own prose states only a LATER numeric tier bump ("...
-	// increases to +2 at 11th level"), which ordinalLevelRe matches instead
-	// of the feature's real 5th-level unlock, the same failure shape as
-	// Weapon Specialist's Chakra Strike above; the override wins over that
-	// wrong match.
+	// 3-option effect catalog. Hidden Technique/Aggressive Technique/
+	// Tactical Technique have the SAME shape, but belong to a different
+	// introducing feature — Signature Technique (10th level: "select one of
+	// the following... Beginning at 18th level, you can instead gain the
+	// benefit of two of these options"), NOT Shinobi Adept. They were
+	// originally tagged level 2 here (grouped in with Shinobi Adept's own 7
+	// by mistake, since all 10 rows shared the identical NULL-level bug and
+	// happened to get swept together) — migration
+	// 0057_scout_nin_signature_technique_level.sql repairs the already-
+	// shipped rows to level 10 to match this correction. Combat/Control/
+	// Mobility/Skill/Support are Jack of All, Master of None's 5
+	// generalizations (5th level unlock) — each one's own prose states only
+	// a LATER numeric tier bump ("...increases to +2 at 11th level"), which
+	// ordinalLevelRe matches instead of the feature's real 5th-level
+	// unlock, the same failure shape as Weapon Specialist's Chakra Strike
+	// above; the override wins over that wrong match.
 	// Map keys use the curly apostrophe (’) the book's own text stream
 	// prints, not a straight one — tidyName never normalizes it (see
 	// subclasses.go's normTitle, which folds curly to straight only for its
@@ -300,9 +309,9 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 		"Shinobi’s Edge":             2,
 		"Shinobi’s Drive":            2,
 		"Shinobi’s Focus":            2,
-		"Hidden Technique":           2,
-		"Aggressive Technique":       2,
-		"Tactical Technique":         2,
+		"Hidden Technique":           10,
+		"Aggressive Technique":       10,
+		"Tactical Technique":         10,
 		"Signature Power":            7,
 		"Signature Ramping":          7,
 		"Signature Control":          7,

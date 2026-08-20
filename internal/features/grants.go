@@ -285,6 +285,29 @@ func floorDivRoundDown(a, b int) int {
 	return q
 }
 
+// passivePerceptionBonusGrants covers a feature whose text adds a fixed
+// bonus to passive Wisdom (Perception) specifically — Perceptive ("+5
+// bonuses to your passive Wisdom (Perception) and passive Intelligence
+// (Investigation) scores") and Elite Awareness ("+5 bonuses to your passive
+// perception and Insight"). Only the Perception half of each feat's clause
+// is modeled: sheet.PassivePerception (internal/charsheet) is the only
+// passive-score field that exists — no PassiveInsight/PassiveInvestigation
+// field exists anywhere in the sheet to feed the other half.
+var passivePerceptionBonusGrants = map[string]int{
+	"feat/perceptive":      5,
+	"feat/elite-awareness": 5,
+}
+
+// ResolvePassivePerceptionBonus sums every granted feature's flat bonus to
+// passive Wisdom (Perception) from passivePerceptionBonusGrants.
+func ResolvePassivePerceptionBonus(granted []GrantedFeatureRow) int {
+	total := 0
+	for _, f := range granted {
+		total += passivePerceptionBonusGrants[f.Slug]
+	}
+	return total
+}
+
 // speedGrant is one level threshold of a feature's Speed bonus. Amount is
 // the TOTAL bonus effective from MinLevel on, not a delta — the source text
 // itself states each tier as a running total (e.g. Taijutsu-Specialist's
@@ -337,6 +360,41 @@ var speedGrants = []speedGrant{
 	// initiative) is left unmodeled; no per-class initiative-bonus
 	// automation exists anywhere in this app.
 	{FeatureSlug: "class/weapon-specialist/group/weapon-forms/battle-dancer-form/feature/relentless", MinLevel: 6, Amount: 10},
+
+	// Future of Shinobi: Sky Keeper (20th level, Storm Rider): "your
+	// movement speed is increased by +60 feet." The same capstone's flying-
+	// speed/hover and difficult-terrain clauses have no field anywhere in
+	// this app to land in (no flying-speed or hover field exists) and stay
+	// Group 3, same restraint already documented on the Regalia cap-2 half
+	// of this capstone (cmd/n5e/science_nin_subclasses.go's
+	// scienceNinStormRiderData).
+	{FeatureSlug: "class/science-nin/group/scientific-inquiry/storm-rider/feature/the-future-of-shinobi-sky-keeper", MinLevel: 20, Amount: 60},
+
+	// Feats — mergeFeatFeatures (cmd/n5e/characters.go) folds every
+	// character_feats row into the same granted-features list this function
+	// reads, keyed by the feat's own slug, so these resolve with no other
+	// code change. Each is a flat, un-tiered bonus available from 1st level,
+	// with no armor restriction in the feat's own text.
+	{FeatureSlug: "feat/maneuverable", MinLevel: 1, Amount: 10},
+	{FeatureSlug: "feat/mobile", MinLevel: 1, Amount: 10},
+	// Slipstream: "Your speed increases by 10 feet. You increase your
+	// movement speed by an additional 5 feet for each jutsu with the Wind
+	// Release keyword you are concentrating on." Only the flat +10 base is
+	// modeled here; the per-Wind-Release-jutsu-concentrated-on addition is
+	// conditional and left as reference text — this app has no
+	// concentration-tracking mechanism to key it off of.
+	{FeatureSlug: "feat/fushin/slipstream", MinLevel: 1, Amount: 10},
+	// Superior Speed: "Your speed Increased by 10 feet." The feat's other
+	// clause ("+2 Speed Die") is a separate resource pool, not a Speed bonus
+	// — see cmd/n5e/custom_resources.go's "feat/namikaze/superior-speed"
+	// entry, keyed to the same "speed_die" Key as the base clan grant.
+	{FeatureSlug: "feat/namikaze/superior-speed", MinLevel: 1, Amount: 10},
+	{FeatureSlug: "feat/class/martial-arts-expert", MinLevel: 1, Amount: 5},
+	{FeatureSlug: "feat/class/martial-arts-training", MinLevel: 1, Amount: 5},
+	// Elite Agility: "Increase your initiative by +5 and your movement speed
+	// by +10." Only the Speed half is modeled here — the Initiative half is
+	// modeled in initiativeBonusGrants below instead.
+	{FeatureSlug: "feat/elite-agility", MinLevel: 1, Amount: 10},
 }
 
 // ironcladFeaturePrefix identifies a character who took the Ironclad
@@ -381,6 +439,57 @@ func ResolveSpeedBonus(granted []GrantedFeatureRow, characterLevel int, equipped
 			}
 			exempt := isIronclad && g.FeatureSlug == enhancedMovementFeatureSlug
 			if g.RequiresNotHeavyArmor && equippedArmorCategory == "heavy" && !exempt {
+				continue
+			}
+			if g.Amount > bestBySlug[f.Slug] {
+				bestBySlug[f.Slug] = g.Amount
+			}
+		}
+	}
+	total := 0
+	for _, amount := range bestBySlug {
+		total += amount
+	}
+	return total
+}
+
+// initiativeBonusGrant is one level threshold of a feature's flat Initiative
+// bonus, same "Amount is the running total for that tier, not a delta" shape
+// speedGrant uses — pick each feature's own highest-reached tier, then sum
+// across distinct features.
+type initiativeBonusGrant struct {
+	FeatureSlug string
+	MinLevel    int
+	Amount      int
+}
+
+// initiativeBonusGrants is intentionally a slice, not a map keyed by slug:
+// First in Line has two level tiers sharing one slug.
+var initiativeBonusGrants = []initiativeBonusGrant{
+	// First in Line (Cooking-Nin, Entremetier Chef): "Whenever you would roll
+	// initiative add a +5 to your result. Starting at 11th level, this
+	// becomes a +10." Only the flat bonus is modeled here — the same
+	// feature's "Advantage on attacks against creatures that have not acted
+	// this combat" clause stays Group 2/3 unmodeled; no "has this creature
+	// acted yet" combat-state tracking exists anywhere in this app to key it
+	// off of.
+	{FeatureSlug: "class/cooking-nin/group/cooking-focus/entremetier-chef/feature/first-in-line", MinLevel: 5, Amount: 5},
+	{FeatureSlug: "class/cooking-nin/group/cooking-focus/entremetier-chef/feature/first-in-line", MinLevel: 11, Amount: 10},
+	// Elite Agility: "Increase your initiative by +5..." The Speed half of
+	// this same feat is modeled in speedGrants above.
+	{FeatureSlug: "feat/elite-agility", MinLevel: 1, Amount: 5},
+}
+
+// ResolveInitiativeBonus sums every granted feature's flat Initiative bonus
+// at characterLevel, picking each feature's own highest-reached tier (not
+// summing tiers within one feature) but summing across different features —
+// same resolution shape as ResolveSpeedBonus, minus that function's
+// armor-category gate, which no Initiative grant here needs.
+func ResolveInitiativeBonus(granted []GrantedFeatureRow, characterLevel int) int {
+	bestBySlug := map[string]int{}
+	for _, f := range granted {
+		for _, g := range initiativeBonusGrants {
+			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
 				continue
 			}
 			if g.Amount > bestBySlug[f.Slug] {

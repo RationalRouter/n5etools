@@ -295,3 +295,165 @@ func TestLoadGenjutsuTabData(t *testing.T) {
 		t.Errorf("KnownMirages = %+v, want a non-Granted Mental Placebo entry", data.KnownMirages)
 	}
 }
+
+// TestLoadGenjutsuTabDataArchetypeFeats covers Illusionist Training/Expert/
+// Specialist letting a character with zero real Genjutsu Specialist levels
+// see and use a small slice of the class's own mechanics. No feats rows
+// exist in the seeded rules.db — loadCharacterFeats degrades to using the
+// slug alone (feat.Name = slug) when a feats-table row is missing, which is
+// all archFeats.* keys off, so that's not seeded here.
+func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
+	s := testServer(t)
+	seedGenjutsuLevelResources(t, s)
+
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Konohamaru', 8, 12, 12, 10, 15, 16)`); err != nil {
+		t.Fatal(err)
+	}
+	addFeat := func(slug string) {
+		t.Helper()
+		if _, err := s.charDB.Exec(
+			`INSERT INTO character_feats (character_id, feat_slug) VALUES (1, ?)`, slug,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No class levels, no feats: the whole tab must stay nil, same as any
+	// other non-Genjutsu-Specialist character.
+	if data, err := s.loadGenjutsuTabData(1, sheet); err != nil || data != nil {
+		t.Fatalf("loadGenjutsuTabData with no levels/feats = %+v, %v, want nil, nil", data, err)
+	}
+
+	// Illusionist Training alone: 1 Mirage slot (qualifying as if 2nd
+	// level — Reality-Marble/Temporal-Stopwatch-gated Mirages stay blocked,
+	// Basic Mirage is open), no Inception, 1 Conversion slot, d4 die.
+	addFeat(illusionistTrainingFeatSlug)
+	data, err := s.loadGenjutsuTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data == nil {
+		t.Fatal("loadGenjutsuTabData returned nil for a character holding Illusionist Training")
+	}
+	if data.ActualizationDieSize != "d4" {
+		t.Errorf("ActualizationDieSize = %q, want d4 (Illusionist Training, no real levels)", data.ActualizationDieSize)
+	}
+	if data.MiragesCap != 1 {
+		t.Errorf("MiragesCap = %d, want 1 (Illusionist Training's own single Mirage slot)", data.MiragesCap)
+	}
+	if data.InceptionCap != 0 {
+		t.Errorf("InceptionCap = %d, want 0 — Illusionist Training grants no Inception access", data.InceptionCap)
+	}
+	if data.ConversionCap != 1 {
+		t.Errorf("ConversionCap = %d, want 1 (Illusionist Training's own single Conversion slot)", data.ConversionCap)
+	}
+	availableNames := map[string]bool{}
+	for _, o := range data.AvailableMirages {
+		availableNames[o.Name] = true
+	}
+	if !availableNames["Basic Mirage"] {
+		t.Errorf("AvailableMirages = %+v, want Basic Mirage (no prerequisite) available", data.AvailableMirages)
+	}
+	if availableNames["Persistent Genjutsu"] || availableNames["Mental Placebo"] || availableNames["Fast Forward Fate"] {
+		t.Errorf("AvailableMirages = %+v, want Inception/level-gated Mirages still blocked", data.AvailableMirages)
+	}
+
+	// Add Illusionist Expert: a second Mirage slot, a second Conversion
+	// slot, still no Inception (Expert never grants one).
+	addFeat(illusionistExpertFeatSlug)
+	data, err = s.loadGenjutsuTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.MiragesCap != 2 {
+		t.Errorf("MiragesCap = %d, want 2 (Training + Expert)", data.MiragesCap)
+	}
+	if data.ConversionCap != 2 {
+		t.Errorf("ConversionCap = %d, want 2 (Training + Expert)", data.ConversionCap)
+	}
+	if data.InceptionCap != 0 {
+		t.Errorf("InceptionCap = %d, want 0 — Illusionist Expert grants no Inception access either", data.InceptionCap)
+	}
+
+	// Add Illusionist Specialist: a third Mirage slot (qualifying as if
+	// 5th level now), ConversionCap unchanged (Specialist's third benefit
+	// is an Inception pick, not a second Conversion), and exactly 1
+	// Inception slot, qualifying as if 9th level.
+	addFeat(illusionistSpecialistFeatSlug)
+	data, err = s.loadGenjutsuTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.MiragesCap != 3 {
+		t.Errorf("MiragesCap = %d, want 3 (Training + Expert + Specialist)", data.MiragesCap)
+	}
+	if data.ConversionCap != 2 {
+		t.Errorf("ConversionCap = %d, want 2 — Specialist doesn't add a third Conversion slot", data.ConversionCap)
+	}
+	if data.InceptionCap != 1 {
+		t.Errorf("InceptionCap = %d, want 1 (Illusionist Specialist's own Inception pick)", data.InceptionCap)
+	}
+	if len(data.AvailableInception) != 2 {
+		t.Errorf("AvailableInception = %+v, want both seeded Inceptions available", data.AvailableInception)
+	}
+
+	// Fast Forward Fate needs Temporal Stopwatch AND 10th level — even at
+	// Specialist's own effective 5th level (from mirageLevel), 10th level
+	// is still out of reach.
+	availableNames = map[string]bool{}
+	for _, o := range data.AvailableMirages {
+		availableNames[o.Name] = true
+	}
+	if availableNames["Fast Forward Fate"] {
+		t.Error("Fast Forward Fate should still be blocked — Specialist's own Mirage qualification tops out at 5th level, not 10th")
+	}
+
+	// Picking Reality Marble as this Specialist's one Genjutsu Inception
+	// must auto-grant Persistent Genjutsu for free, exactly like a real 9th
+	// level (or higher) Genjutsu Specialist gets — Specialist's own text
+	// states "as if you were a 9th level Genjutsu Specialist".
+	if err := charstore.AddGenjutsuPick(s.charDB, 1, charstore.GenjutsuPickInception, "class/genjutsu-specialist/option/genjutsu-inception/reality-marble"); err != nil {
+		t.Fatal(err)
+	}
+	data, err = s.loadGenjutsuTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundGranted := false
+	for _, k := range data.KnownMirages {
+		if k.Name == "Persistent Genjutsu" && k.Granted {
+			foundGranted = true
+		}
+	}
+	if !foundGranted {
+		t.Errorf("KnownMirages = %+v, want Persistent Genjutsu auto-granted for a Specialist-feat character with Reality Marble picked", data.KnownMirages)
+	}
+	if data.MiragesUsed != 0 {
+		t.Errorf("MiragesUsed = %d, want 0 — the free grant must not count against the feat-derived cap", data.MiragesUsed)
+	}
+}
+
+// TestMirageExhibitionBonus covers Mirage Exhibition's own text: 1
+// unconditional bonus Mirage slot, plus 1 more each at 5th and 17th
+// Genjutsu Specialist level — only ever alongside real levels, since the
+// feat's own prerequisite requires at least 4.
+func TestMirageExhibitionBonus(t *testing.T) {
+	cases := []struct {
+		level int
+		want  int
+	}{
+		{4, 1}, {5, 2}, {16, 2}, {17, 3}, {20, 3},
+	}
+	for _, c := range cases {
+		if got := mirageExhibitionMirageBonus(c.level); got != c.want {
+			t.Errorf("mirageExhibitionMirageBonus(%d) = %d, want %d", c.level, got, c.want)
+		}
+	}
+}

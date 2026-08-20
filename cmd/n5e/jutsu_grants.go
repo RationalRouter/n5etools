@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/features"
 )
 
 // jutsuGrantWithLevelPattern matches a class/clan feature sentence that
@@ -72,7 +73,7 @@ var jutsuGrantRankFirstPattern = regexp.MustCompile(
 	`[Yy]ou (?:learns?|gains?) (?:the |a )?([EDCBAS])-Rank (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu),? ([A-Z][A-Za-z':\- ]*?)[,.]`,
 )
 
-// jutsuGrantNoRankPattern matches a "you learn/gain the [Name] Genjutsu"
+// jutsuGrantNoRankPattern matches a "you learn/gain/add the [Name] Genjutsu"
 // sentence with NEITHER an explicit rank token NOR a level restated in the
 // same sentence, e.g. "you learn the Bane Genjutsu, if you do not know it
 // already" (Systematic Breakdown, Intelligence Operative). A full-corpus
@@ -81,6 +82,18 @@ var jutsuGrantRankFirstPattern = regexp.MustCompile(
 // Darkness, Shadow Bite, Chakra Mark, Summoning Technique — use the
 // identical rankless phrasing), so a shared regex is the right fix here
 // rather than a one-off constant for Bane alone.
+//
+// The verb also matches "add(s)?" alongside "learn(s)?"/"gain(s)?" —
+// Scout-Nin's Tajū Kage Bunshin (class/scout-nin/group/scouting-technique/
+// cloning-scout/feature/taju-kage-bunshin) is phrased "you add the Shadow
+// Clone Technique Ninjutsu to your known jutsu list", rank-less like the
+// rest of this pattern's matches, and "add" wasn't previously covered by
+// any of the four regexes' verb alternations. A corpus-wide re-scan with
+// "adds?" included confirmed this feature is the only new match across
+// class_features/subclass_features/clan_features — the one other
+// "add...jutsu list" phrasing in the book (clan/kurama/feature/
+// genjutsu-conversions) doesn't have a capitalized jutsu name immediately
+// following "add", so it still doesn't match.
 //
 // This pattern is deliberately broader than the other three (no rank token
 // required at all), so it also fires on sentences the other patterns
@@ -91,7 +104,7 @@ var jutsuGrantRankFirstPattern = regexp.MustCompile(
 // token, leaving this pattern to only ever contribute genuinely rank-less
 // grants that the other three patterns can't reach.
 var jutsuGrantNoRankPattern = regexp.MustCompile(
-	`[Yy]ou (?:learns?|gains?) (?:the |a )?([A-Z][A-Za-z' -]*?) (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
+	`[Yy]ou (?:learns?|gains?|adds?) (?:the |a )?([A-Z][A-Za-z' -]*?) (?i:Ninjutsu|Genjutsu|Taijutsu|Bukijutsu)`,
 )
 
 // rankTokenSuffixPattern matches a jutsuGrantNoRankPattern capture that
@@ -219,11 +232,11 @@ var jutsuGrantNameAliases = map[string]string{
 // 1st-level feature whose Summoning Technique grant explicitly starts at
 // 7th level, so the two can't be conflated.
 func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Sheet) (map[string]string, error) {
-	features, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
 	}
-	if len(features) == 0 {
+	if len(grantedFeatures) == 0 {
 		return nil, nil
 	}
 	index, err := s.jutsuNameIndex()
@@ -232,7 +245,7 @@ func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Shee
 	}
 
 	labels := map[string]string{}
-	for _, f := range features {
+	for _, f := range grantedFeatures {
 		label := ""
 		switch {
 		case strings.HasPrefix(f.SourceLabel, "Class:"):
@@ -263,7 +276,91 @@ func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Shee
 			}
 		}
 	}
+
+	// Controlled Chakra Flow's own choice-of-2 pick (Firecracker Flash or
+	// Feather Burst) isn't a fixed sentence parseJutsuGrants can extract —
+	// it's a player CHOICE (features.ChoiceNamedJutsuGrant) — so it's
+	// resolved separately and merged into the same label map.
+	if pickedSlug, err := s.controlledChakraFlowGrantedJutsu(characterID, grantedFeatures); err != nil {
+		return nil, err
+	} else if pickedSlug != "" {
+		if _, exists := labels[pickedSlug]; !exists {
+			labels[pickedSlug] = "Subclass Feature"
+		}
+	}
+
+	// Mech Crafter's Adaptive Movement grants two named jutsu in one
+	// sentence ("You learn the Body Flicker and Chakra Leaping Ninjutsu") —
+	// jutsuGrantNoRankPattern captures the whole "Body Flicker and Chakra
+	// Leaping" span as one bogus name, which resolves against neither jutsu
+	// and is silently skipped, so both are hand-added here instead of
+	// generalizing the regex to split on "and" (see jutsuGrantNameAliases'
+	// own doc for why this file prefers a small hand-verified list over a
+	// broad heuristic). Only the free known-jutsu grant reaching the Known
+	// Jutsu list is tracked here — casting either jutsu off CCD chakra
+	// instead of the normal pool, the combined-casting rider ("automatically
+	// gain the benefits of the other jutsu you did not cast"), and the
+	// terrain-ignoring/wall-walking/jump-distance clauses while under either
+	// jutsu's effect all stay entirely manual/narrated; no combined-cast or
+	// terrain-ignoring mechanic exists anywhere in this app.
+	if hasFeature(grantedFeatures, scienceNinAdaptiveMovementFeatureSlug) {
+		for _, slug := range []string{"jutsu/body-flicker", "jutsu/chakra-leaping"} {
+			if _, exists := labels[slug]; !exists {
+				labels[slug] = "Subclass Feature"
+			}
+		}
+	}
+
 	return labels, nil
+}
+
+// hasFeature reports whether grantedFeatures contains a feature with the
+// given slug — same shape as internal/charsheet's own unexported hasFeature,
+// duplicated here since that package can't be imported back into this one
+// (see scienceNinExoskeletonFeatureSlug's own comment for this project's
+// established precedent on small cross-package duplication like this).
+func hasFeature(grantedFeatures []grantedFeatureRow, slug string) bool {
+	for _, f := range grantedFeatures {
+		if f.Slug == slug {
+			return true
+		}
+	}
+	return false
+}
+
+// puppetControlledChakraFlowFeatureSlug is Green Technique Marionettist's
+// 6th-level subclass feature: "you learn one of the following E-Rank
+// jutsu... Firecracker Flash (Ninjutsu)... Feather Burst (Genjutsu)..." —
+// see internal/features' own ChoiceNamedJutsuGrant doc for the choice
+// mechanism backing this pick.
+const puppetControlledChakraFlowFeatureSlug = "class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/controlled-chakra-flow"
+
+// controlledChakraFlowGrantedJutsu resolves Controlled Chakra Flow's own
+// resolved pick (features.ChoiceNamedJutsuGrant, ChoiceIndex 0 — Firecracker
+// Flash or Feather Burst) into a jutsu slug, or "" if the feature isn't
+// currently granted or no pick has been made yet. Gated on grantedFeatures
+// (already level-filtered by loadGrantedFeatures) the same way every other
+// single-feature grant check in this file works, rather than re-deriving
+// MinLevel through features.ResolveChoiceSlots. Only WHICH of the two named
+// jutsu was learned is tracked — each jutsu's own rider effect (bundling
+// with a C-Rank Ninjutsu cast, or applying to all Puppets at once) is
+// reference text with no computed field to land in.
+func (s *server) controlledChakraFlowGrantedJutsu(characterID int64, grantedFeatures []grantedFeatureRow) (string, error) {
+	has := false
+	for _, f := range grantedFeatures {
+		if f.Slug == puppetControlledChakraFlowFeatureSlug {
+			has = true
+			break
+		}
+	}
+	if !has {
+		return "", nil
+	}
+	resolved, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return "", err
+	}
+	return resolved[features.ChoiceKey{FeatureSlug: puppetControlledChakraFlowFeatureSlug, ChoiceIndex: 0}], nil
 }
 
 // jutsuKnownCount counts how many of a character's jutsu count against
@@ -287,11 +384,15 @@ func jutsuKnownCount(jutsu []jutsuSheetRow) int {
 // Water or Medical release Jutsu, you instead learn a combined number of
 // Jutsu of these releases equal to half your Proficiency Bonus."
 //
-// Only the second branch has a number this app can add anywhere: nothing
-// here restricts which jutsu a character may add to their known list by
-// nature release in the first place (loadJutsuOrigins' "class"/"clan"
-// badges are informational, not a gate — the library never blocks a drag),
-// so the first branch's "gain access" has no restriction left to lift.
+// Origin (loadJutsuOrigins' "class"/"clan" badges) is non-gating flavor —
+// the library never blocks a drag based on it. jutsuEligible
+// (jutsu_eligibility.go) DOES gate elemental jutsu on a separate, real
+// affinities map, though, and this feature's own "gain the Water Nature
+// release" clause is now registered there (subclassFlatAffinity,
+// elemental_affinity.go) — without it, a Fry Cook with no other Water
+// source could never actually add a Water-release jutsu to their known
+// list, contradicting the printed text. The second branch (the bonus
+// known-jutsu-count math below) is a separate payload of the same feature.
 const waterAndOilDoMixSlug = "class/cooking-nin/group/cooking-focus/fry-cooks/feature/water-and-oil-do-mix"
 
 // heatMasterFireAccessSlug is Heat Master's "If You Can't Handle the
@@ -330,11 +431,15 @@ func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bo
 }
 
 // natureReleaseBonusJutsuSlots implements the "if you already have access
-// to [release] Jutsu, you instead learn a number of [release] Jutsu equal
-// to half your Proficiency Bonus" shape shared by Fry Cooks' Water and Oil,
-// Do Mix and Heat Master's If You Can't Handle the Heat... — gated on the
-// named granting feature being active AND the character already having
-// access to at least one of the given keywords from some other source.
+// to [release] Jutsu, you instead learn N additional [release] Jutsu that
+// you qualify for" shape shared by Fry Cooks' Water and Oil, Do Mix, Heat
+// Master's If You Can't Handle the Heat..., and the five Ninjutsu Focus
+// "[Element] Release" subclass features — gated on the named granting
+// feature being active AND the character already having access to at
+// least one of the given keywords from some other source. bonusAmount is
+// caller-supplied rather than computed here, since it varies by feature:
+// half proficiency bonus for the two Cooking-Nin features (computed at
+// their own call sites), a flat 2 for the five Ninjutsu Focus features.
 //
 // For an elemental keyword (Fire/Water/Earth/Wind/Lightning Release), "from
 // some other source" means the character's own resolved elemental
@@ -356,7 +461,7 @@ func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bo
 // affinity-system equivalent to check, so those still go through the
 // broad class/clan check, which is accurate for them (see
 // hasNatureReleaseAccess's own comment).
-func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug, grantSlug string, keywords []string, proficiencyBonus int) (int, error) {
+func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug, grantSlug string, keywords []string, bonusAmount int) (int, error) {
 	has := false
 	for _, f := range features {
 		if f.Slug == grantSlug {
@@ -372,6 +477,18 @@ func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []gran
 	for _, f := range features {
 		grantedSlugs[f.Slug] = true
 	}
+	// grantSlug is now itself a subclassFlatAffinity source (see
+	// waterAndOilDoMixSlug's own comment), so it must be excluded from this
+	// local copy before resolving affinities here — otherwise the feature's
+	// own flat grant would always satisfy its own "already have access"
+	// pre-check below, making the "gain the keyword fresh, no bonus" branch
+	// unreachable again, the same bug this function's own comment already
+	// describes hasNatureReleaseAccess having had. jutsuEligibleForCharacter
+	// and characters.go's own eligibility check build their own separate,
+	// unmodified grantedSlugs maps and are unaffected by this local delete —
+	// they must keep the full set so the flat grant actually opens
+	// eligibility there.
+	delete(grantedSlugs, grantSlug)
 	affinities, err := s.characterElementalAffinities(characterID, clanSlug, grantedSlugs)
 	if err != nil {
 		return 0, err
@@ -384,7 +501,7 @@ func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []gran
 	for _, kw := range keywords {
 		if el := elementFromReleaseKeyword(kw); el != "" {
 			if affinitySet[el] {
-				return proficiencyBonus / 2, nil
+				return bonusAmount, nil
 			}
 			continue
 		}
@@ -393,7 +510,7 @@ func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []gran
 			return 0, err
 		}
 		if ok {
-			return proficiencyBonus / 2, nil
+			return bonusAmount, nil
 		}
 	}
 	return 0, nil
@@ -404,7 +521,7 @@ func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []gran
 // bonus, rounded down, gated on Water or Medical release access from
 // elsewhere. See natureReleaseBonusJutsuSlots.
 func (s *server) waterAndOilBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug string, proficiencyBonus int) (int, error) {
-	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, waterAndOilDoMixSlug, []string{"Water Release", "Medical"}, proficiencyBonus)
+	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, waterAndOilDoMixSlug, []string{"Water Release", "Medical"}, proficiencyBonus/2)
 }
 
 // heatMasterBonusJutsuSlots returns the bonus known-jutsu count If You
@@ -412,7 +529,51 @@ func (s *server) waterAndOilBonusJutsuSlots(characterID int64, features []grante
 // proficiency bonus, rounded down, gated on Fire release access from
 // elsewhere. See natureReleaseBonusJutsuSlots.
 func (s *server) heatMasterBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug string, proficiencyBonus int) (int, error) {
-	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, heatMasterFireAccessSlug, []string{"Fire Release"}, proficiencyBonus)
+	return s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, heatMasterFireAccessSlug, []string{"Fire Release"}, proficiencyBonus/2)
+}
+
+// ninjutsuFocusReleaseBonusSlugs: the five Ninjutsu Focus "[Element]
+// Release" 2nd-level subclass features (Blaze Walker/Fire, Lightning
+// Breaker/Lightning, Stone Crusher/Earth, Storm Terror/Wind, Tsunami/Water)
+// each carry two separate payloads in the same sentence: "you gain the
+// ability to learn ninjutsu with the [Element] Release Keyword" (the flat
+// affinity grant itself — already handled by elemental_affinity.go's
+// subclassFlatAffinity) and "if you can already do this you learn 2
+// additional [Element] Release Ninjutsu that you qualify for" (a SEPARATE
+// bonus known-jutsu count, gated on already having that element from some
+// other source, keyed here). This map only covers the second half; the
+// first half needs no entry of its own here.
+var ninjutsuFocusReleaseBonusSlugs = map[string]string{
+	"class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/fire-release":           "Fire Release",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/lightning-release": "Lightning Release",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/earth-release":         "Earth Release",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/storm-terror/feature/wind-release":           "Wind Release",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/tsunami/feature/water-release":               "Water Release",
+}
+
+// ninjutsuFocusReleaseBonusJutsuSlots returns the bonus known-jutsu count
+// summed across every Ninjutsu Focus Release feature the character holds —
+// in practice at most one, since a character can only take one Ninjutsu
+// Focus subclass, but summed rather than a single lookup for the same
+// multiclass-safety reason featArchivistBonusJutsuSlots sums its own four
+// feats. Each feature grants a flat 2, not half proficiency bonus like
+// Water and Oil/Heat Master, so bonusAmount is passed as a literal 2. Book
+// text's "one of which can be C-Rank or lower" per-rank restriction is not
+// separately enforced — same "flat cap addition, rank not separately
+// enforced" simplification chakraCellEnhancementBonusJutsuSlots's own
+// comment documents, since JutsuKnownCap has no per-rank sub-limit. Which
+// specific jutsu fill the extra 2 slots stays the player's own pick via the
+// existing known-jutsu picker.
+func (s *server) ninjutsuFocusReleaseBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug string) (int, error) {
+	total := 0
+	for slug, keyword := range ninjutsuFocusReleaseBonusSlugs {
+		bonus, err := s.natureReleaseBonusJutsuSlots(characterID, features, classSlug, clanSlug, slug, []string{keyword}, 2)
+		if err != nil {
+			return 0, err
+		}
+		total += bonus
+	}
+	return total, nil
 }
 
 // chakraCellEnhancementFeatureSlug is Science-Nin's base 1st-level feature
@@ -561,6 +722,74 @@ func whiteTechniqueChakraStringBonusJutsuSlots(features []grantedFeatureRow, pup
 	}
 	if puppetMasterLevel >= 14 {
 		bonus++
+	}
+	return bonus
+}
+
+// archivistFeatBonusJutsuSlots: the four discipline-specific Archivist
+// feats (Ninjutsu/Genjutsu/Taijutsu/Bukijutsu) each grant an identically
+// shaped flat +1 known-jutsu slot — "You learn an additional [discipline]
+// that you qualify for. This does not count against your Jutsu Known." —
+// confirmed identical across all four rows in dist/rules.db, discipline
+// word the only difference. Keyed by the feat's own slug (as set on
+// grantedFeatureRow by mergeFeatFeatures) rather than a clan or class
+// feature slug, the same "flat cap addition" shape clanBonusDRankJutsuKnown
+// uses above, just feat-sourced instead of clan-sourced.
+//
+// Each feat's separate one-time "next time you hit 5th/9th/13th level,
+// learn one additional [rank] jutsu" trigger is NOT modeled here — that
+// needs a level-gated picker, not a flat cap addition, and is left as an
+// unmodeled follow-up.
+var archivistFeatBonusJutsuSlots = map[string]int{
+	"feat/ninjutsu-archivist":  1,
+	"feat/genjutsu-archivist":  1,
+	"feat/taijutsu-archivist":  1,
+	"feat/bukijutsu-archivist": 1,
+}
+
+// featArchivistBonusJutsuSlots returns the bonus known-jutsu count the
+// Archivist feats add to JutsuKnownCap, summed rather than a single lookup
+// since a character can hold more than one of the four (e.g. a
+// multiclassed character qualifying for both Ninjutsu Archivist and
+// Genjutsu Archivist).
+func featArchivistBonusJutsuSlots(features []grantedFeatureRow) int {
+	bonus := 0
+	for _, f := range features {
+		bonus += archivistFeatBonusJutsuSlots[f.Slug]
+	}
+	return bonus
+}
+
+// ninjutsuSpecializationBonusJutsuKnown: the four non-elemental Ninjutsu
+// Focus "[Discipline] Specialization" 2nd-level subclass features each
+// grant an UNCONDITIONAL flat bonus known-jutsu count — unlike the five
+// "[Element] Release" features above (ninjutsuFocusReleaseBonusSlugs), none
+// of these four are gated on "if you already have access", so no separate
+// affinity/access check is needed here, just the flat cap addition. Book
+// text's own per-feature keyword/rank restriction (Hijutsu-only,
+// Fuinjutsu-only, Medical-Acid/Necrotic/Poison-only, no-nature-release-only;
+// plus a C-Rank-or-lower carve-out on Hemomantic and Void Specialization) is
+// not separately enforced — same "flat cap addition, rank not separately
+// enforced" simplification chakraCellEnhancementBonusJutsuSlots's own
+// comment documents, since JutsuKnownCap has no per-rank sub-limit. Which
+// jutsu fill the bonus slots stays the player's own pick via the existing
+// known-jutsu picker.
+var ninjutsuSpecializationBonusJutsuKnown = map[string]int{
+	"class/ninjutsu-specialist/group/ninjutsu-focus/hijutsu-elitist/feature/hijutsu-specialization":    1,
+	"class/ninjutsu-specialist/group/ninjutsu-focus/scribe-master/feature/fuinjutsu-specialization":    2,
+	"class/ninjutsu-specialist/group/ninjutsu-focus/sanguine-master/feature/hemomantic-specialization": 1,
+	"class/ninjutsu-specialist/group/ninjutsu-focus/trace-talent/feature/void-specialization":          2,
+}
+
+// ninjutsuSpecializationBonusJutsuSlots returns the bonus known-jutsu count
+// summed across every Ninjutsu Specialization feature the character holds —
+// in practice at most one, since a character can only take one Ninjutsu
+// Focus subclass, but summed for the same multiclass-safety reason
+// featArchivistBonusJutsuSlots sums its own four feats.
+func ninjutsuSpecializationBonusJutsuSlots(features []grantedFeatureRow) int {
+	bonus := 0
+	for _, f := range features {
+		bonus += ninjutsuSpecializationBonusJutsuKnown[f.Slug]
 	}
 	return bonus
 }

@@ -95,6 +95,71 @@ func TestResolveChoiceSlotsElevatedDesign(t *testing.T) {
 	}
 }
 
+func TestResolveChoiceSlotsControlledChakraFlow(t *testing.T) {
+	const featureSlug = "class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/controlled-chakra-flow"
+	granted := []GrantedFeatureRow{{Slug: featureSlug}}
+	classLevels := map[string]int{"class/puppet-master": 5}
+
+	if got := ResolveChoiceSlots(granted, classLevels, 5); len(got) != 0 {
+		t.Fatalf("level 5: got %d slots, want 0 (gated at 6): %+v", len(got), got)
+	}
+
+	classLevels["class/puppet-master"] = 6
+	got := ResolveChoiceSlots(granted, classLevels, 6)
+	if len(got) != 1 {
+		t.Fatalf("level 6: got %d slots, want 1: %+v", len(got), got)
+	}
+	slot := got[0]
+	if slot.Kind != ChoiceNamedJutsuGrant {
+		t.Errorf("Kind = %v, want ChoiceNamedJutsuGrant", slot.Kind)
+	}
+	wantOptions := []string{"jutsu/firecracker-flash", "jutsu/feather-burst"}
+	if len(slot.Options) != len(wantOptions) || slot.Options[0] != wantOptions[0] || slot.Options[1] != wantOptions[1] {
+		t.Errorf("Options = %v, want %v", slot.Options, wantOptions)
+	}
+}
+
+func TestResolveChoiceSlotsPuppetToolASI(t *testing.T) {
+	const featureSlug = "class/puppet-master/feature/puppet-tool"
+	granted := []GrantedFeatureRow{{Slug: featureSlug}}
+	classLevels := map[string]int{"class/puppet-master": 1}
+
+	// Puppet Tool itself is granted at 1st level, but none of its ASI
+	// slots are reachable until the first breakpoint (4th level).
+	if got := ResolveChoiceSlots(granted, classLevels, 1); len(got) != 0 {
+		t.Fatalf("level 1: got %d slots, want 0: %+v", len(got), got)
+	}
+
+	classLevels["class/puppet-master"] = 4
+	got := ResolveChoiceSlots(granted, classLevels, 4)
+	if len(got) != 2 {
+		t.Fatalf("level 4: got %d slots, want 2: %+v", len(got), got)
+	}
+	for _, s := range got {
+		if s.FeatureSlug != featureSlug || s.Kind != ChoiceCompanionAbilityScoreIncrease || s.Amount != 1 || s.Cap != 20 {
+			t.Errorf("unexpected slot shape at level 4: %+v", s)
+		}
+	}
+	if got[0].ChoiceIndex == got[1].ChoiceIndex {
+		t.Fatalf("both level-4 slots share ChoiceIndex %d, want two independent slots", got[0].ChoiceIndex)
+	}
+
+	// At 19th level every breakpoint (4/8/12/16/19) has been reached: 10
+	// slots total, none colliding with each other.
+	classLevels["class/puppet-master"] = 19
+	got = ResolveChoiceSlots(granted, classLevels, 19)
+	if len(got) != 10 {
+		t.Fatalf("level 19: got %d slots, want 10: %+v", len(got), got)
+	}
+	seen := map[int]bool{}
+	for _, s := range got {
+		if seen[s.ChoiceIndex] {
+			t.Fatalf("duplicate ChoiceIndex %d among level-19 slots: %+v", s.ChoiceIndex, got)
+		}
+		seen[s.ChoiceIndex] = true
+	}
+}
+
 func TestClassSlugOf(t *testing.T) {
 	tests := []struct{ slug, want string }{
 		{"class/hunter-nin/feature/expertise", "class/hunter-nin"},

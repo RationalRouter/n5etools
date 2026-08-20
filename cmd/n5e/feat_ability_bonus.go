@@ -12,20 +12,30 @@ import (
 )
 
 // featAbilityIncreaseRe matches the common "Increase your/the X [ability]
-// score by N[, to a/an/the max[imum] [of] M]" clause that opens ~200 of this
-// project's 371 feats (validated against the live rules.db corpus — see
-// FEAT_AUDIT.md). The ability-list group accepts one or more names joined
-// by ", "/"or"/"and" (e.g. "Intelligence or Wisdom", "Strength, Dexterity,
-// or Constitution"). The trailing "to a maximum of M" clause is optional and
-// its value unused (this mechanism doesn't runtime-clamp against it — see
-// the plan doc) because a handful of real feats (empathic, the three X
+// [score] by N[, to a/an/the max[imum] [of] M]" clause that opens ~200 of
+// this project's 371 feats (validated against the live rules.db corpus —
+// see FEAT_AUDIT.md). The "score" word is optional: most feats include it
+// ("Increase your Strength Score by 1") but at least 9 omit it entirely
+// ("Increase your Strength by 1" — illusionist-research, poisoner, stealthy,
+// and others). Ability names not recognized by abilityNameToKey (e.g. the
+// "Clash Checks"/"initiative"/damage-die increases some non-ability feats
+// also phrase as "Increase ... by N") still match this regex's loose shape
+// but yield zero valid keys downstream in parseFeatAbilityIncrease, so they
+// parse as not-an-ability-increase exactly as before this word was made
+// optional — dropping "score" widens what the regex matches as text, not
+// what it treats as a real ability bonus. The ability-list group accepts
+// one or more names joined by ", "/"or"/"and" (e.g. "Intelligence or
+// Wisdom", "Strength, Dexterity, or Constitution"). The trailing "to a
+// maximum of M" clause is optional and its value unused (this mechanism
+// doesn't runtime-clamp against it — see the plan doc) because a handful
+// of real feats (empathic, the three X
 // Release Expert feats) have it malformed in the sourcebook text itself
 // ("to a maximum 20" missing "of", "to a maximum of" missing the number
 // entirely) — since only the amount (group 2) is actually used, requiring
 // the cap clause to parse cleanly would reject real, otherwise-fine feats
 // over a decorative value this code never reads.
 var featAbilityIncreaseRe = regexp.MustCompile(
-	`(?i)Increase (?:your|the) ([A-Za-z, ]+?)(?: ability)? [Ss]core by \+?(\d+)(?:,?\s*(?:up )?to (?:a|an|the) [Mm]ax(?:imum)?(?: of)? \d*)?`,
+	`(?i)Increase (?:your|the) ([A-Za-z, ]+?)(?: ability)?(?: [Ss]core)? by \+?(\d+)(?:,?\s*(?:up )?to (?:a|an|the) [Mm]ax(?:imum)?(?: of)? \d*)?`,
 )
 
 // featAbilityIncreaseOverrides lists feats whose ability-increase clause
@@ -114,9 +124,13 @@ func parseFeatAbilityIncrease(slug, description string) (abilities []string, amo
 }
 
 // splitAbilityList breaks a comma/or/and-joined ability list ("Strength,
-// Dexterity, or Constitution") into individual name fragments.
+// Dexterity, or Constitution") into individual name fragments. Flushes on
+// both a trailing comma and a literal "or"/"and" token, so an Oxford-comma
+// three-option list ("Strength, Dexterity or Constitution" — the comma
+// stops after the second name, not the third) still splits into three
+// fragments rather than gluing the first two names into one unrecognized
+// fragment that abilityNameToKey silently drops.
 func splitAbilityList(s string) []string {
-	s = strings.ReplaceAll(s, ",", " ")
 	fields := strings.Fields(s)
 	var parts []string
 	var cur []string
@@ -127,12 +141,17 @@ func splitAbilityList(s string) []string {
 		}
 	}
 	for _, f := range fields {
-		low := strings.ToLower(f)
+		trimmed := strings.TrimSuffix(f, ",")
+		hadComma := trimmed != f
+		low := strings.ToLower(trimmed)
 		if low == "or" || low == "and" {
 			flush()
 			continue
 		}
-		cur = append(cur, f)
+		cur = append(cur, trimmed)
+		if hadComma {
+			flush()
+		}
 	}
 	flush()
 	return parts

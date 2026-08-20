@@ -218,3 +218,28 @@ func (s *server) handlePuppetTacticDelete(w http.ResponseWriter, r *http.Request
 	}
 	s.respondSheet(w, r, id, "sheet_puppet_tactics")
 }
+
+// puppetResourcefulTacticsPickedRows returns a synthetic grantedFeatureRow
+// carrying Resourceful Tactics' own real slug when the character has
+// actually picked it among their Tactics. Resourceful Tactics is one of
+// puppetMasterTacticSlugs (characters.go) — unconditionally excluded from
+// loadGrantedFeatures' output so all 5 Tactics don't get blanket-granted
+// with no player choice — so a customResourceGrants entry keyed to its real
+// slug directly would never fire for anyone; see the
+// "class/puppet-master/feature/resourceful-tactics" entry in
+// custom_resources.go for the pool this feeds. Mirrors
+// genjutsuActualizedAlterationPickedRows' shape (genjutsu.go), which solves
+// the mirror-image problem (a slug unconditionally INCLUDED regardless of
+// pick, rather than excluded).
+func (s *server) puppetResourcefulTacticsPickedRows(characterID int64) ([]grantedFeatureRow, error) {
+	picks, err := charstore.ListPuppetTactics(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	for _, slug := range picks {
+		if slug == "class/puppet-master/feature/resourceful-tactics" {
+			return []grantedFeatureRow{{Slug: slug, Name: "Resourceful Tactics"}}, nil
+		}
+	}
+	return nil, nil
+}

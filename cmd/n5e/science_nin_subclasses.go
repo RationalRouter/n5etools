@@ -12,16 +12,23 @@ import (
 )
 
 // Eight of Science-Nin's ten subclasses' own cap+catalog picks — Elemental
-// Innovationist (E.I.Ps, W.O.W, Perma Perk), Grenadier (B.I.M), Mad
-// Scientist (Inversion Serums), Ninjaneer (Arsenal Modifications,
-// Perfected Weapons), Shinobi-Ware (Shinobi-Ware Upgrades, the Glorious
-// Evolution slot-free overlay), Spyware (Spyware Programs, the Netrunner
-// slot-free Quick Hack overlay), Storm Rider (A.T. Enhancements, the
-// King's Road Regalia overlay), Technobi (Technobi Mechanizations), and
-// S.N.B Specialist (S.N.B Upgrades only — the Scientific Ninja Beast
-// companion itself remains unbuilt). Only Mech Crafter (Titan, a second
-// companion system) is deliberately untouched here — see CLASS_AUDIT.md's
-// Science-Nin detail entry.
+// Innovationist (E.I.Ps, W.O.W, Perma Perk), Grenadier (B.I.M, the B.I.M
+// Specialist designated-type overlay), Mad Scientist (Inversion Serums, the
+// Sheep and the Shepherd designated-Serum overlay), Ninjaneer (Arsenal
+// Modifications, Perfected Weapons), Shinobi-Ware (Shinobi-Ware Upgrades,
+// the Glorious Evolution slot-free overlay, the In His Image permanent-pick
+// overlay), Spyware (Spyware Programs, the Netrunner slot-free Quick Hack
+// overlay), Storm Rider (A.T. Enhancements, the King's Road Regalia
+// overlay), Technobi (Technobi Mechanizations), and S.N.B Specialist (S.N.B
+// Upgrades, the Future of Shinobi slot-free-permanent overlay — the
+// Scientific Ninja Beast companion itself remains unbuilt). Only Mech
+// Crafter (Titan, a second companion system) is deliberately untouched here
+// — see CLASS_AUDIT.md's Science-Nin detail entry.
+//
+// Five of these subclasses' own 20th-level "Future of Shinobi" capstones add
+// a tracked slot/budget/permanent-pick bonus on top of an existing catalog
+// above — see each one's own const doc and gating block in
+// loadScienceNinSubclassData for exactly what's tracked vs. left manual.
 //
 // Every catalog here follows hunter_nin.go's simpler cap+count picker shape
 // (a flat known-count against a level/ability-derived cap), NOT
@@ -53,12 +60,18 @@ import (
 //
 // Storage is internal/charstore/science_nin_subclass_picks.go's single
 // generic character_science_nin_subclass_picks table (migrations
-// 0044_science_nin_subclass_picks.sql and
-// 0046_science_nin_subclass_picks_more_categories.sql), with 15 category
-// discriminators (eip/wow/perma_perk/bim/inversion_serum/arsenal_mod/
-// perfected_weapon/shinobi_ware_upgrade/evolved_upgrade/spyware_program/
-// quick_hack/air_treck_enhancement/regalia/technobi_mechanization/
-// snb_upgrade) and a pool column scoped to Inversion Serums alone.
+// 0044_science_nin_subclass_picks.sql,
+// 0046_science_nin_subclass_picks_more_categories.sql,
+// 0055_science_nin_more_pick_categories.sql, and
+// 0058_science_nin_ascended_wow.sql), with 20 category discriminators this
+// file manages directly (eip/wow/ascended_wow/perma_perk/bim/
+// bim_specialist/inversion_serum/sheep_and_shepherd_serum/arsenal_mod/
+// perfected_weapon/shinobi_ware_upgrade/evolved_upgrade/shinjutsu_upgrade/
+// spyware_program/quick_hack/air_treck_enhancement/regalia/
+// technobi_mechanization/snb_upgrade/snb_upgrade_permanent) plus a 21st
+// (mixed_studies_inquiry, base-class Mixed Studies — see
+// cmd/n5e/science_nin.go) this file doesn't touch, and a pool column scoped
+// to Inversion Serums alone.
 //
 // Storm Rider's own Air Trecks weapon is granted through a different
 // mechanism entirely (ensureAirTrecksGranted, cmd/n5e/science_nin.go) — a
@@ -83,6 +96,41 @@ const (
 	scienceNinKingsRoadFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/kings-road"
 	scienceNinBestLaidTrapFeatureSlug      = "class/science-nin/group/scientific-inquiry/technobi/feature/the-best-laid-trap"
 	scienceNinSNBUpgradesFeatureSlug       = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/s-n-b-upgrades"
+
+	// Five of the ten 20th-level "Future of Shinobi" subclass capstones —
+	// see each one's own gating block in loadScienceNinSubclassData below
+	// for what's tracked vs. left manual. (The other five — Elemental
+	// Innovationist's Aether, Grenadier's Destruction, Mech-Crafter's Mecha,
+	// S.N.B Specialist's own S.N.B, and Storm Rider's Sky Keeper — either
+	// have no countable component here, or (Sky Keeper) resolve through
+	// internal/features/grants.go's speedGrants and passive_traits.go
+	// instead of a cap+catalog pick.) Every one of these five previously
+	// shipped with a NULL level in rules.db (ordinalLevelRe couldn't match
+	// "At Level 20, ..." — no ordinal suffix); see migration
+	// 0055_science_nin_future_of_shinobi_null_level.sql and
+	// internal/parse/subclasses.go's knownFeatureLevelOverrides for the fix.
+	scienceNinFutureOfShinobiShinobiWareFeatureSlug = "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/the-future-of-shinobi-shinobi-ware"
+	scienceNinFutureOfShinobiWeaponsFeatureSlug     = "class/science-nin/group/scientific-inquiry/ninjaneer/feature/the-future-of-shinobi-weapons"
+	scienceNinFutureOfShinobiSNBFeatureSlug         = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/the-future-of-shinobi-s-n-b"
+	// scienceNinSkyKeeperFeatureSlug's own tracked half (a flat +60ft Speed
+	// bonus) lives in internal/features/grants.go's speedGrants, and its
+	// falling-damage immunity in passive_traits.go's passiveTraitGrants —
+	// this file only reads it to widen King's Road's Regalia cap to 2.
+	scienceNinSkyKeeperFeatureSlug = "class/science-nin/group/scientific-inquiry/storm-rider/feature/the-future-of-shinobi-sky-keeper"
+
+	// Four more 9th/17th-level subclass features, each granting a single
+	// designated pick drawn from a subset of a character's own already-known
+	// picks in a sibling catalog above.
+	scienceNinBIMSpecialistFeatureSlug    = "class/science-nin/group/scientific-inquiry/grenadier/feature/b-i-m-specialist"
+	scienceNinSheepAndShepherdFeatureSlug = "class/science-nin/group/scientific-inquiry/mad-scientist/feature/the-sheep-and-the-shepherd"
+	scienceNinInHisImageFeatureSlug       = "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/in-his-image"
+
+	// scienceNinElementalInnovationFeatureSlug is Elemental Innovationist's
+	// 17th-level Elemental Innovation, granting two independent halves: an
+	// Overcharge spend pool (custom_resources.go's
+	// "elemental_innovation_overcharge" key, keyed off this same const) and
+	// an Ascended W.o.W designation (DesignatedWoW below).
+	scienceNinElementalInnovationFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/elemental-innovation"
 )
 
 // eipCap: Exoskeleton begins with 2 E.I.P slots, +1 at 6th, +1 at 9th.
@@ -124,6 +172,19 @@ func inversionSerumCap(intMod int) int {
 }
 
 func perfectedWeaponCap(intMod int) int {
+	if intMod < 0 {
+		return 0
+	}
+	return intMod
+}
+
+// nonNegativeIntMod clamps a negative Intelligence modifier to 0 before it's
+// added as a bonus on top of an existing cap — same "a negative addend reads
+// as broken, not as fewer slots" reasoning inversionSerumCap/
+// perfectedWeaponCap already apply to their own base caps. Shared by every
+// Future of Shinobi capstone below that grants "additional slots equal to
+// your Intelligence Modifier" (Shinobi-Ware, Ninjaneer).
+func nonNegativeIntMod(intMod int) int {
 	if intMod < 0 {
 		return 0
 	}
@@ -324,6 +385,21 @@ type scienceNinElementalInnovationistData struct {
 	KnownWOW     []knownScienceNinPick
 	AvailableWOW []scienceNinSubclassOption
 
+	// DesignatedWoW is non-nil only once the character has the 17th-level
+	// Elemental Innovation feature (the same feature backing the
+	// Overcharge spend pool, custom_resources.go's
+	// "elemental_innovation_overcharge" key). AvailableDesignatedWoW is
+	// restricted to the character's own KnownWOW (any known W.o.W type
+	// qualifies, no exclusion clause) — same "restricted to already-known"
+	// shape B.I.M Specialist (scienceNinGrenadierData.DesignatedBIM) uses.
+	// Only WHICH W.o.W is designated Ascended is tracked here; the halved
+	// ammo Creation-Point cost and the damage-ignores-resistance/treats-
+	// immunity-as-resistance payload stay entirely manual/narrated — no
+	// per-item cost-modifier or damage-type-override concept exists
+	// anywhere in this app.
+	DesignatedWoW          *knownScienceNinPick
+	AvailableDesignatedWoW []scienceNinSubclassOption
+
 	// PermaPerk is non-nil only once the character has the 14th-level Perma
 	// Perk feature. AvailablePermaPerk is drawn from the character's own
 	// KnownEIPs, excluding Wonder E.I.P (the book's own restriction) and
@@ -336,22 +412,49 @@ type scienceNinElementalInnovationistData struct {
 	AvailablePermaPerk []scienceNinSubclassOption
 }
 
-// scienceNinGrenadierData backs B.I.M (Explosive Modifications).
+// scienceNinGrenadierData backs B.I.M (Explosive Modifications) and the
+// B.I.M Specialist overlay.
 type scienceNinGrenadierData struct {
 	BIMCap       int
 	BIMUsed      int
 	KnownBIM     []knownScienceNinPick
 	AvailableBIM []scienceNinSubclassOption
+
+	// DesignatedBIM is non-nil only once the character has the 9th-level
+	// B.I.M Specialist feature. AvailableDesignatedBIM is restricted to the
+	// character's own KnownBIM (any known B.I.M type qualifies, no exclusion
+	// clause) — same "restricted to already-known" shape Perma Perk/Quick
+	// Hack establish. Only WHICH B.I.M type is designated is tracked here —
+	// the half-cost upgrade discount and bonus-action on-the-fly creation
+	// (paying twice the max cost from CCD) stay Group 2/3, manual/narrated;
+	// no creation-point-cost-modifier or action-economy tracking exists for
+	// either.
+	DesignatedBIM          *knownScienceNinPick
+	AvailableDesignatedBIM []scienceNinSubclassOption
 }
 
-// scienceNinMadScientistData backs Inversion Serums. Known/Available pairs
-// with Pool are used instead of splitScienceNinPicks' plain shape — see
-// splitInversionSerumPicks.
+// scienceNinMadScientistData backs Inversion Serums and the Sheep and the
+// Shepherd overlay. Known/Available pairs with Pool are used instead of
+// splitScienceNinPicks' plain shape — see splitInversionSerumPicks.
 type scienceNinMadScientistData struct {
 	SerumCap        int
 	SerumUsed       int
 	KnownSerums     []knownScienceNinPick
 	AvailableSerums []scienceNinSubclassOption
+
+	// DesignatedSerum is non-nil only once the character has the 17th-level
+	// The Sheep and the Shepherd feature. AvailableDesignatedSerum is
+	// restricted to the character's own KnownSerums, further filtered to
+	// dual-effect Serums only (FixedPool == "" on the underlying catalog
+	// entry — a Serum whose own Drain line names one CCD half specifically
+	// doesn't qualify), cross-referenced by slug against the catalog the
+	// same way Perma Perk cross-references ei.KnownEIPs against its own
+	// catalog. Only WHICH known dual-effect Serum is designated is tracked
+	// — auto-applying its Mend/Maim effect whenever a Medical Ninjutsu heals
+	// or damages stays Group 2/3, manual/narrated; no jutsu-cast side-effect
+	// automation exists anywhere in this app.
+	DesignatedSerum          *knownScienceNinPick
+	AvailableDesignatedSerum []scienceNinSubclassOption
 }
 
 // scienceNinNinjaneerData backs Arsenal Modifications and the independent
@@ -377,9 +480,16 @@ type scienceNinNinjaneerData struct {
 	AvailablePerfectedWeapons []scienceNinSubclassOption
 }
 
-// scienceNinShinobiWareData backs Shinobi-Ware Upgrades and the Glorious
-// Evolution overlay.
+// scienceNinShinobiWareData backs Shinobi-Ware Upgrades, the Glorious
+// Evolution overlay, and the In His Image overlay.
 type scienceNinShinobiWareData struct {
+	// UpgradeCap is Edge Runner's own Proficiency-Bonus slot count, plus
+	// +Intelligence modifier once the 20th-level Future of Shinobi:
+	// Shinobi-Ware capstone is granted ("You gain extra upgrade slots equal
+	// to your Intelligence Modifier"). KnownUpgrades/AvailableUpgrades are
+	// drawn from the Shinobi-Ware Upgrades catalog with its Shinjutsu tier
+	// excluded — Edge Runner's own text grants "any upgrade, besides a
+	// Shinjutsu"; that tier is offered only through In His Image below.
 	UpgradeCap        int
 	UpgradeUsed       int
 	KnownUpgrades     []knownScienceNinPick
@@ -396,6 +506,20 @@ type scienceNinShinobiWareData struct {
 	EvolvedUsed      int
 	KnownEvolved     []knownScienceNinPick
 	AvailableEvolved []scienceNinSubclassOption
+
+	// ShinjutsuUpgrade is non-nil only once the character has the 9th-level
+	// In His Image feature AND has already made this permanent pick.
+	// AvailableShinjutsuUpgrade is the Shinobi-Ware Upgrades catalog's own
+	// Shinjutsu tier only. Unlike every other pick in this file, this one is
+	// permanent ("You gain 1 Shinjutsu Upgrade the first time you activate
+	// this ability. You can not change this later") — no delete route is
+	// wired for it (see server.go). Only WHICH Shinjutsu Upgrade was chosen
+	// is tracked — activating/maintaining the seal (20 CCD to start, 5
+	// CCD/turn upkeep, 1-minute duration), the +2 AC/+1 crit-range clauses
+	// while sealed, and the "only while sealed" restriction stay Group 2/3,
+	// manual/narrated.
+	ShinjutsuUpgrade          *knownScienceNinPick
+	AvailableShinjutsuUpgrade []scienceNinSubclassOption
 }
 
 // scienceNinSpywareData backs Spyware Programs and the Netrunner Quick Hack
@@ -428,13 +552,24 @@ type scienceNinStormRiderData struct {
 	KnownEnhancements     []knownScienceNinPick
 	AvailableEnhancements []scienceNinSubclassOption
 
-	// Regalia is non-nil only once the character has the 14th-level King's
-	// Road feature. AvailableRegalia is the "Air Treck Enhancements" list's
-	// own Regalia row (8 named entries, unlike every other tier not gated
-	// by a Cost stat line — see this file's own header doc), never
-	// restricted to already-known Enhancements since Regalia is an
-	// entirely independent 8-option catalog of its own.
-	Regalia          *knownScienceNinPick
+	// RegaliaCap/RegaliaUsed/Regalia/AvailableRegalia are non-zero/non-nil
+	// only once the character has the 14th-level King's Road feature.
+	// RegaliaCap is 1, or 2 once the 20th-level Future of Shinobi: Sky
+	// Keeper capstone is also granted ("Choose another Regalia... can be
+	// used in conjunction with the other"). AvailableRegalia is the "Air
+	// Treck Enhancements" list's own Regalia row (8 named entries, unlike
+	// every other tier not gated by a Cost stat line — see this file's own
+	// header doc), never restricted to already-known Enhancements since
+	// Regalia is an entirely independent 8-option catalog of its own. Sky
+	// Keeper's own flat +60ft Speed bonus is a speedGrants entry
+	// (internal/features/grants.go), not tracked here; its flying-
+	// speed/hover and difficult-terrain clauses have no field anywhere in
+	// this app to land in (no flying-speed or hover field exists) and stay
+	// Group 3, same restraint already applied to the Air Trecks weapon-stat
+	// bump clauses of this same capstone.
+	RegaliaCap       int
+	RegaliaUsed      int
+	Regalia          []knownScienceNinPick
 	AvailableRegalia []scienceNinSubclassOption
 }
 
@@ -462,6 +597,21 @@ type scienceNinSNBSpecialistData struct {
 	UpgradeUsed       int
 	KnownUpgrades     []knownScienceNinPick
 	AvailableUpgrades []scienceNinSubclassOption
+
+	// PermanentCap/PermanentUsed/KnownPermanent/AvailablePermanent back the
+	// 20th-level Future of Shinobi: S.N.B capstone: "choose 3 S.N.B.
+	// Upgrades, your Scientific Ninja Beast permanently gains these
+	// upgrades, and they no longer take an upgrade slot or cost creation
+	// points." PermanentCap is always 3 once granted. AvailablePermanent is
+	// restricted to the character's own KnownUpgrades — stored under its
+	// own category (snb_upgrade_permanent), so these picks never count
+	// against UpgradeUsed/UpgradeCap above. Prerequisite-checking ("you
+	// must still meet the prerequisites") stays unenforced/manual, matching
+	// this file's existing Prerequisite-is-informational-only restraint.
+	PermanentCap       int
+	PermanentUsed      int
+	KnownPermanent     []knownScienceNinPick
+	AvailablePermanent []scienceNinSubclassOption
 }
 
 // loadScienceNinSubclassData populates whichever of
@@ -514,6 +664,25 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			}
 			ei.WOWUsed = len(picks)
 			ei.KnownWOW, ei.AvailableWOW = splitScienceNinPicks(catalog, pickedSet)
+
+			if has[scienceNinElementalInnovationFeatureSlug] {
+				designatedPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickAscendedWoW)
+				if err != nil {
+					return err
+				}
+				designatedSet := make(map[string]bool, len(designatedPicks))
+				for _, p := range designatedPicks {
+					designatedSet[p.OptionSlug] = true
+				}
+				for _, k := range ei.KnownWOW {
+					if designatedSet[k.Slug] {
+						pick := k
+						ei.DesignatedWoW = &pick
+						continue
+					}
+					ei.AvailableDesignatedWoW = append(ei.AvailableDesignatedWoW, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				}
+			}
 		}
 
 		if has[scienceNinPermaPerkFeatureSlug] {
@@ -557,6 +726,26 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 		gr.BIMUsed = len(picks)
 		gr.KnownBIM, gr.AvailableBIM = splitScienceNinPicks(catalog, pickedSet)
+
+		if has[scienceNinBIMSpecialistFeatureSlug] {
+			designatedPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickBIMSpecialist)
+			if err != nil {
+				return err
+			}
+			designatedSet := make(map[string]bool, len(designatedPicks))
+			for _, p := range designatedPicks {
+				designatedSet[p.OptionSlug] = true
+			}
+			for _, k := range gr.KnownBIM {
+				if designatedSet[k.Slug] {
+					pick := k
+					gr.DesignatedBIM = &pick
+					continue
+				}
+				gr.AvailableDesignatedBIM = append(gr.AvailableDesignatedBIM, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+			}
+		}
+
 		data.Grenadier = gr
 	}
 
@@ -575,13 +764,38 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			pickedPool[p.OptionSlug] = p.Pool
 		}
 		ms.SerumUsed = len(picks)
+		fixedPoolBySlug := make(map[string]string, len(catalog))
 		for _, o := range catalog {
+			fixedPoolBySlug[o.Slug] = o.FixedPool
 			if pool, ok := pickedPool[o.Slug]; ok {
 				ms.KnownSerums = append(ms.KnownSerums, knownScienceNinPick{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Pool: pool})
 				continue
 			}
 			ms.AvailableSerums = append(ms.AvailableSerums, o)
 		}
+
+		if has[scienceNinSheepAndShepherdFeatureSlug] {
+			designatedPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSheepAndShepherdSerum)
+			if err != nil {
+				return err
+			}
+			designatedSet := make(map[string]bool, len(designatedPicks))
+			for _, p := range designatedPicks {
+				designatedSet[p.OptionSlug] = true
+			}
+			for _, k := range ms.KnownSerums {
+				if fixedPoolBySlug[k.Slug] != "" {
+					continue // The Sheep and the Shepherd requires a dual-effect Serum (FixedPool == "")
+				}
+				if designatedSet[k.Slug] {
+					pick := k
+					ms.DesignatedSerum = &pick
+					continue
+				}
+				ms.AvailableDesignatedSerum = append(ms.AvailableDesignatedSerum, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+			}
+		}
+
 		data.MadScientist = ms
 	}
 
@@ -594,6 +808,15 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 		if has[scienceNinArsenalFeatureSlug] {
 			nj.ArsenalModCap = arsenalModCap(proficiencyBonus)
+			if has[scienceNinFutureOfShinobiWeaponsFeatureSlug] {
+				// "You gain additional upgrade slots for your Enhanced
+				// Arsenal equal to your Intelligence modifier." The same
+				// capstone's flat proficiency-bonus/2x-proficiency/Int-mod
+				// damage-roll riders on Enhanced/Legendary/Perfected
+				// Weapons stay undocumented — no per-weapon damage-roll-
+				// modifier field exists anywhere in this app.
+				nj.ArsenalModCap += nonNegativeIntMod(intMod)
+			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickArsenalMod)
 			if err != nil {
 				return err
@@ -638,6 +861,23 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 		if has[scienceNinEdgeRunnerFeatureSlug] {
 			sw.UpgradeCap = shinobiWareUpgradeCap(proficiencyBonus)
+			if has[scienceNinFutureOfShinobiShinobiWareFeatureSlug] {
+				// "You gain extra upgrade slots equal to your Intelligence
+				// Modifier." The same capstone's own doubling of the base
+				// Creation Points budget is applied in loadScienceNinTabData
+				// (science_nin.go), not here.
+				sw.UpgradeCap += nonNegativeIntMod(intMod)
+			}
+			// Edge Runner's own text grants "any upgrade, besides a
+			// Shinjutsu" — exclude the Shinjutsu tier here so it's only ever
+			// offered through In His Image below, mirroring Glorious
+			// Evolution's own allowedTiers filter a few lines down.
+			var edgeRunnerCatalog []scienceNinSubclassOption
+			for _, o := range catalog {
+				if !strings.EqualFold(o.Tier, "Shinjutsu") {
+					edgeRunnerCatalog = append(edgeRunnerCatalog, o)
+				}
+			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickShinobiWareUpgrade)
 			if err != nil {
 				return err
@@ -647,7 +887,32 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				pickedSet[p.OptionSlug] = true
 			}
 			sw.UpgradeUsed = len(picks)
-			sw.KnownUpgrades, sw.AvailableUpgrades = splitScienceNinPicks(catalog, pickedSet)
+			sw.KnownUpgrades, sw.AvailableUpgrades = splitScienceNinPicks(edgeRunnerCatalog, pickedSet)
+
+			if has[scienceNinInHisImageFeatureSlug] {
+				var shinjutsuOnly []scienceNinSubclassOption
+				for _, o := range catalog {
+					if strings.EqualFold(o.Tier, "Shinjutsu") {
+						shinjutsuOnly = append(shinjutsuOnly, o)
+					}
+				}
+				shinjutsuPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickShinjutsuUpgrade)
+				if err != nil {
+					return err
+				}
+				pickedShinjutsu := make(map[string]bool, len(shinjutsuPicks))
+				for _, p := range shinjutsuPicks {
+					pickedShinjutsu[p.OptionSlug] = true
+				}
+				for _, o := range shinjutsuOnly {
+					if pickedShinjutsu[o.Slug] {
+						pick := knownScienceNinPick{Slug: o.Slug, Name: o.Name, Tier: o.Tier}
+						sw.ShinjutsuUpgrade = &pick
+						continue
+					}
+					sw.AvailableShinjutsuUpgrade = append(sw.AvailableShinjutsuUpgrade, o)
+				}
+			}
 		}
 
 		if has[scienceNinGloriousEvolutionFeatureSlug] {
@@ -760,6 +1025,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 
 		if has[scienceNinKingsRoadFeatureSlug] {
+			sr.RegaliaCap = 1
+			if has[scienceNinSkyKeeperFeatureSlug] {
+				// "Choose another Regalia... can be used in conjunction
+				// with the other." Sky Keeper's own flat +60ft Speed bonus
+				// is a speedGrants entry (internal/features/grants.go), not
+				// tracked here.
+				sr.RegaliaCap = 2
+			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickRegalia)
 			if err != nil {
 				return err
@@ -768,11 +1041,8 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range picks {
 				pickedSet[p.OptionSlug] = true
 			}
-			var known []knownScienceNinPick
-			known, sr.AvailableRegalia = splitScienceNinPicks(scienceNinRegaliaOptions, pickedSet)
-			if len(known) > 0 {
-				sr.Regalia = &known[0]
-			}
+			sr.Regalia, sr.AvailableRegalia = splitScienceNinPicks(scienceNinRegaliaOptions, pickedSet)
+			sr.RegaliaUsed = len(sr.Regalia)
 		}
 
 		data.StormRider = sr
@@ -813,6 +1083,28 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 		snb.UpgradeUsed = len(picks)
 		snb.KnownUpgrades, snb.AvailableUpgrades = splitScienceNinPicks(catalog, pickedSet)
+
+		if has[scienceNinFutureOfShinobiSNBFeatureSlug] {
+			snb.PermanentCap = 3
+			permPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSNBUpgradePermanent)
+			if err != nil {
+				return err
+			}
+			permSet := make(map[string]bool, len(permPicks))
+			for _, p := range permPicks {
+				permSet[p.OptionSlug] = true
+			}
+			for _, k := range snb.KnownUpgrades {
+				if permSet[k.Slug] {
+					pick := k
+					snb.KnownPermanent = append(snb.KnownPermanent, pick)
+					continue
+				}
+				snb.AvailablePermanent = append(snb.AvailablePermanent, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+			}
+			snb.PermanentUsed = len(snb.KnownPermanent)
+		}
+
 		data.SNBSpecialist = snb
 	}
 
@@ -820,7 +1112,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 }
 
 // handleScienceNinSubclassPickAdd builds one category's "learn a pick"
-// route — shared by all fifteen of this file's catalogs, differing only in
+// route — shared by all nineteen of this file's catalogs, differing only in
 // which of scienceNinToolsTabData's own fields govern the cap/current-count
 // and currently-pickable list, same factory shape
 // hunter_nin.go's handleHunterPickAdd already establishes. requiresPool is
@@ -937,7 +1229,7 @@ func (s *server) handleScienceNinSubclassPickDelete(category charstore.ScienceNi
 }
 
 // handleScienceNinSubclassPickDetail serves the click-to-open popup for a
-// Known pick in any of this file's fifteen catalogs — same
+// Known pick in any of this file's nineteen catalogs — same
 // hunter_pick_detail_card mechanism handleHunterPickDetail/
 // handleScienceNinToolDetail already use. Not character-scoped — every one
 // of these catalogs is static rules content.
@@ -953,6 +1245,23 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 		for _, o := range scienceNinRegaliaOptions {
 			if o.Slug == slug {
 				s.renderScienceNinSubclassPickDetail(w, o.Name, o.Description)
+				return
+			}
+		}
+		http.NotFound(w, r)
+		return
+	}
+
+	// Mixed Studies is also hand-curated (mixedStudiesInquiryOptions,
+	// science_nin.go) — slug here is a subclasses table slug, not a
+	// class_options/class_option_entries one, so it needs its own lookup
+	// too. Description is built live from both of the picked Inquiry's own
+	// 3rd Level features (mixedStudiesInquiryDescription), the same text
+	// the picker's own tooltip already shows.
+	if category == "mixed-studies" {
+		for _, o := range mixedStudiesInquiryOptions {
+			if o.SubclassSlug == slug {
+				s.renderScienceNinSubclassPickDetail(w, o.Name, s.mixedStudiesInquiryDescription(o))
 				return
 			}
 		}

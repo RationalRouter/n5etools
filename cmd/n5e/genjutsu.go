@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
@@ -19,7 +20,10 @@ import (
 // simultaneous cap-gated catalog picks — Malleable Mirages (level 2,
 // class_options list_name "Malleable Mirages", known-cap read live off
 // v_class_level_resources via classLevelResourceInt, 2@2nd up to 11@20th,
-// each entry individually prerequisite-gated, see genjutsu_prereq.go),
+// each entry individually prerequisite-gated, see genjutsu_prereq.go; ~31
+// of the 79 entries also carry their own printed rest-scoped use-limit on
+// top of the known-Mirage pick itself — see genjutsuMiragePickedRows and
+// the matching customResourceGrants entries, custom_resources.go),
 // Genjutsu Inception (level 3, "Genjutsu Inception", a single pick from 6
 // named entries, each granting one specific Mirage for free at 7th level —
 // see genjutsuInceptionMirageAutoGrants), Real World Conversion (level 5, 5
@@ -30,15 +34,31 @@ import (
 // same shape Hunter-Nin's defensiveTacticsOptions already uses — cap
 // 1->2@20th). Also built: the 2 subclasses (of 7) whose own features reduce
 // to a cheap level-scaled dice readout — Corrupt Thoughts' Vicious Mockery
-// and Siren's Visceral Language's damage die (its own numeric use-pool is
-// deferred, see CLASS_AUDIT.md — it needs a Genjutsu-Ability-Modifier input
-// customResourceGrant's Max signature doesn't carry).
+// and Siren's Visceral Language's damage die (its own combined use-pool,
+// sized by Genjutsu Ability Modifier, is genjutsuVisceralLanguagePool,
+// custom_resources.go).
+//
+// Every one of the 7 subclasses' own per-rest use-count gates found on top
+// of the 2 damage-die readouts above is now a customResourceGrants entry
+// (custom_resources.go): Beguiler's Beguiling Presence/Beyond Sight/
+// Beguiling Influence, Corrupt Thoughts' Nightmare Incarnates, Illusionist's
+// Illusionary Fury/Illusionary Rage, Layered Reality's Split Focus/Master of
+// Reality, Time Slipper's Misread Clocks/Temporal Mastery, and Siren's Words
+// of Detriment. Beguiler's Twisted Casting and Corrupt Thoughts' Psyche
+// Breaker (both 10th level, "select two Genjutsu you know") are their own
+// jutsu-ID-keyed picks instead — TwistedCastingCap/PsycheBreakerCap below,
+// backed by charstore.AddGenjutsuJutsuPick — since neither sources its
+// options from a rules-database catalog.
 //
 // Everything else (the base class's own conditional/triggered features —
 // Chakra Disruption's and Actualization's own spend effects, Keen Awareness,
-// The Turn, The Prestige — plus all 7 subclasses' own Reaction/Bonus-Action
-// features beyond the 2 readouts above) is documented, not modeled — see
-// CLASS_AUDIT.md's Genjutsu Specialist detail entry.
+// The Turn, The Prestige, and every subclass's own effect once cast/
+// triggered — which creature is targeted, what condition is inflicted,
+// which Genjutsu is selected) is documented, not modeled: only the use-count
+// gate in front of each is tracked, never the triggered effect itself. See
+// CLASS_AUDIT.md's Genjutsu Specialist detail entry's "Documented,
+// deliberately not automated this pass" table for the current, per-subclass
+// breakdown.
 const genjutsuSpecialistSlug = "class/genjutsu-specialist"
 
 const (
@@ -126,6 +146,139 @@ func (s *server) genjutsuSpecialistSubclassSlug(characterID int64) (slug, name s
 		}
 	}
 	return "", "", nil
+}
+
+// genjutsuActualizedAlterationPickedRows returns a synthetic
+// grantedFeatureRow under a key distinct from the real rules-database slug
+// when the character has actually picked Actualized Alteration among their
+// Real World Conversions. Real World Conversion's 5 options (Actualized
+// Alteration/Duplicity/Perception/Perfection/Power) are all NULL-level
+// class_features rows, so the real slug is already unconditionally present
+// in loadGrantedFeatures' output for every Genjutsu Specialist 5+
+// regardless of which Conversion (if any) was picked — a customResourceGrants
+// entry keyed to the real slug directly would therefore grant Actualized
+// Alteration's own extra pool to every such character. See the
+// "genjutsu-pick/actualized-alteration" entry in customResourceGrants
+// (custom_resources.go) for the pool this feeds. Mirrors
+// medicalDoctrinePickedRows' exact shape (medical_nin.go), which solves the
+// identical NULL-level-catalog-row problem for Medical Doctrine.
+func (s *server) genjutsuActualizedAlterationPickedRows(characterID int64) ([]grantedFeatureRow, error) {
+	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickConversion)
+	if err != nil {
+		return nil, err
+	}
+	for _, slug := range picks {
+		if slug == "class/genjutsu-specialist/feature/actualized-alteration" {
+			return []grantedFeatureRow{{Slug: "genjutsu-pick/actualized-alteration", Name: "Actualized Alteration"}}, nil
+		}
+	}
+	return nil, nil
+}
+
+// genjutsuMirageOptionSlugPrefix is the common class_options slug prefix
+// every Malleable Mirage's real rules-database slug shares — trimmed to get
+// the bare suffix genjutsuMirageRestLimitedSlugs and
+// genjutsuMirageDeceitfulDuplicateSlug key off.
+const genjutsuMirageOptionSlugPrefix = "class/genjutsu-specialist/option/malleable-mirages/"
+
+// genjutsuMirageDeceitfulDuplicateSlug is the synthetic key
+// genjutsuMiragePickedRows emits when the character has picked Deceitful
+// Duplicate specifically — loadCustomResources checks for its presence to
+// call genjutsuDeceitfulDuplicatePool (custom_resources.go) instead of
+// resolving a flat customResourceGrants entry, since that Mirage's own
+// use-pool is sized by Genjutsu Ability Modifier ("a number of times equal
+// to your Genjutsu ability modifier... recover when you finish a long
+// rest") rather than a flat printed integer — the same reason Visceral
+// Language (sirenVisceralLanguageFeatureSlug) gets a dedicated function
+// instead of a flat grant.
+const genjutsuMirageDeceitfulDuplicateSlug = "genjutsu-mirage/deceitful-duplicate"
+
+// genjutsuMirageRestLimitedSlugs: the Malleable Mirages (of 79 total) whose
+// own printed text carries a rest-scoped use-limit on top of the base
+// known-Mirage pick MiragesCap/KnownMirages/AvailableMirages (below)
+// already track — e.g. "you can cast X at no cost... once per rest," on
+// top of the shared fallback clause every one of these also prints, "if
+// you have already reached this Mirage's use limit, you can choose to cast
+// the jutsu this Mirage provides by spending N Chakra die" (that fallback
+// needs no separate mechanism here — it already spends from the existing,
+// separately-tracked Chakra Die pool by hand). Devilish Vigor's own "once
+// every 10 minutes" is a real-time cooldown, not rest-scoped, and is
+// deliberately excluded. Deceitful Duplicate is also excluded from this
+// flat map — see genjutsuMirageDeceitfulDuplicateSlug above. Every Mirage
+// without an entry here or there has no printed use-limit of its own at
+// all (a permanent always-on effect, or a plain Chakra spend with no
+// separate cap).
+//
+// Value is the display Name for the synthetic grantedFeatureRow
+// genjutsuMiragePickedRows emits under "genjutsu-mirage/<key>" — see the
+// matching customResourceGrants entries (custom_resources.go), one per key
+// here, for the actual Max/regen-tier reading off each Mirage's own text.
+var genjutsuMirageRestLimitedSlugs = map[string]string{
+	"accelerate":             "Accelerate",
+	"ascendant-image":        "Ascendant Image",
+	"battle-ready-minds":     "Battle Ready Minds",
+	"beneath-the-boot":       "Beneath the Boot",
+	"berserk-thoughts":       "Berserk Thoughts",
+	"bewitching-whispers":    "Bewitching Whispers",
+	"black-fangs":            "Black Fangs",
+	"blade-song":             "Blade Song",
+	"blinding-lights":        "Blinding Lights",
+	"book-of-stolen-secrets": "Book of Stolen Secrets",
+	"chained-mind":           "Chained Mind",
+	"chains-of-madness":      "Chains of Madness",
+	"critical-confusion":     "Critical Confusion",
+	"dreadful-word":          "Dreadful Word",
+	"dulled-mind":            "Dulled Mind",
+	"evil-thoughts":          "Evil Thoughts",
+	"freedom-of-frenzy":      "Freedom of Frenzy",
+	"ghastly-mist":           "Ghastly Mist",
+	"illusionary-brawler":    "Illusionary Brawler",
+	"magnum-opus":            "Magnum Opus",
+	"misty-thoughts":         "Misty Thoughts",
+	"misty-visions":          "Misty Visions",
+	"no-light-at-the-end":    "No Light At the End",
+	"pause":                  "Pause",
+	"psyche-drinker":         "Psyche Drinker",
+	"shaken-up":              "Shaken Up",
+	"shroud-of-shadows":      "Shroud of Shadows",
+	"song-of-the-end":        "Song of the End",
+	"superior-thoughts":      "Superior Thoughts",
+	"tentative-escape":       "Tentative Escape",
+	"thieving-confidence":    "Thieving Confidence",
+}
+
+// genjutsuMiragePickedRows returns one synthetic grantedFeatureRow per
+// Malleable Mirage the character has actually picked
+// (charstore.ListGenjutsuPicks) that carries its own rest-scoped use-limit
+// (genjutsuMirageRestLimitedSlugs) or is Deceitful Duplicate specifically
+// (genjutsuMirageDeceitfulDuplicateSlug) — same shape
+// genjutsuActualizedAlterationPickedRows establishes just above,
+// generalized from checking one fixed slug to checking every picked slug
+// against a lookup table. A synthetic "genjutsu-mirage/<slug>" key is used
+// rather than the real class_options slug for a stronger reason than
+// Actualized Alteration's own collision-avoidance: Malleable Mirages' own
+// class_options rows never appear in loadMergedGrantedFeatures' output at
+// all (that function only ever reads class_features/subclass_features/
+// clan_features plus feats, never class_options picks), so without this
+// injection customResourceGrants could never match on a Mirage pick no
+// matter which slug it was keyed to.
+func (s *server) genjutsuMiragePickedRows(characterID int64) ([]grantedFeatureRow, error) {
+	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickMirage)
+	if err != nil {
+		return nil, err
+	}
+	var out []grantedFeatureRow
+	for _, slug := range picks {
+		suffix := strings.TrimPrefix(slug, genjutsuMirageOptionSlugPrefix)
+		if suffix == "deceitful-duplicate" {
+			out = append(out, grantedFeatureRow{Slug: genjutsuMirageDeceitfulDuplicateSlug, Name: "Deceitful Duplicate"})
+			continue
+		}
+		if name, ok := genjutsuMirageRestLimitedSlugs[suffix]; ok {
+			out = append(out, grantedFeatureRow{Slug: "genjutsu-mirage/" + suffix, Name: name})
+		}
+	}
+	return out, nil
 }
 
 // actualizationDieSize: d4 base, d6 at 9th, d8 at 17th — the die's own
@@ -235,6 +388,152 @@ func masterOfIllusionCap(level int) int {
 	}
 }
 
+// Illusionist Training/Expert/Specialist's own feat slugs — three
+// archetype-training feats that let a character with no real Genjutsu
+// Specialist class levels still pick from a small slice of Malleable
+// Mirages/Genjutsu Inception/Real World Conversion/Actualization Die,
+// "as if" they held real levels. Illusionist Enthusiast (its own effect —
+// picking a Genjutsu Pledge and gaining that Pledge's 6th-level feature —
+// isn't modeled anywhere in this file; see the doc comment on
+// loadGenjutsuTabData) and Mirage Exhibition (only ever taken alongside
+// real levels; see mirageExhibitionMirageBonus below) are read directly by
+// slug where needed instead of joining this struct.
+const (
+	illusionistTrainingFeatSlug   = "feat/class/illusionist-training"
+	illusionistExpertFeatSlug     = "feat/class/illusionist-expert"
+	illusionistSpecialistFeatSlug = "feat/class/illusionist-specialist"
+	mirageExhibitionFeatSlug      = "feat/class/mirage-exhibition"
+)
+
+// genjutsuArchetypeFeats reports which of Illusionist Training/Expert/
+// Specialist a character holds. Specialist requires Expert as its own
+// prerequisite, which requires Training — a character with a deeper feat
+// is assumed to also carry every shallower one's own benefits (this app
+// doesn't enforce feat prerequisites in code, same "trust the player"
+// boundary every other pick in this file already draws).
+type genjutsuArchetypeFeats struct {
+	Training, Expert, Specialist bool
+}
+
+func loadGenjutsuArchetypeFeats(feats []characterFeat) genjutsuArchetypeFeats {
+	var g genjutsuArchetypeFeats
+	for _, f := range feats {
+		switch f.Slug {
+		case illusionistTrainingFeatSlug:
+			g.Training = true
+		case illusionistExpertFeatSlug:
+			g.Expert = true
+		case illusionistSpecialistFeatSlug:
+			g.Specialist = true
+		}
+	}
+	return g
+}
+
+func (g genjutsuArchetypeFeats) any() bool {
+	return g.Training || g.Expert || g.Specialist
+}
+
+// mirageLevel is the "as if you were an Nth level Genjutsu Specialist"
+// qualification these feats grant for Malleable Mirages specifically —
+// Training says 2nd level, Expert and Specialist each separately say 5th.
+// The caller combines this with the character's own real Genjutsu
+// Specialist level via max(), and only ever feeds the Mirage catalog's own
+// per-entry prerequisite gate (genjutsuMiragePrereqMet) — the known-Mirage
+// COUNT is driven by mirageSlotBonus below instead, since each feat grants
+// one fixed extra slot rather than scaling the class's own level-keyed
+// table (malleableMiragesCap), which would overshoot what the feat text
+// actually grants (e.g. Training's "as if 2nd level" would otherwise pull
+// in the class table's own 2-Mirage cap at 2nd level, not the single
+// Mirage the feat names).
+func (g genjutsuArchetypeFeats) mirageLevel() int {
+	level := 0
+	if g.Training && level < 2 {
+		level = 2
+	}
+	if (g.Expert || g.Specialist) && level < 5 {
+		level = 5
+	}
+	return level
+}
+
+// mirageSlotBonus: Training, Expert, and Specialist each separately say
+// "You learn one Malleable Mirage" — one extra known-Mirage slot per feat
+// held, stacking up to 3.
+func (g genjutsuArchetypeFeats) mirageSlotBonus() int {
+	n := 0
+	if g.Training {
+		n++
+	}
+	if g.Expert {
+		n++
+	}
+	if g.Specialist {
+		n++
+	}
+	return n
+}
+
+// conversionSlotBonus: Training and Expert each separately say "Select one
+// effect granted by Real World Conversion" — one extra known-Conversion
+// slot per feat held. Specialist's own third benefit is a Genjutsu
+// Inception pick instead (see inceptionUnlockLevel), not a second
+// Conversion.
+func (g genjutsuArchetypeFeats) conversionSlotBonus() int {
+	n := 0
+	if g.Training {
+		n++
+	}
+	if g.Expert {
+		n++
+	}
+	return n
+}
+
+// inceptionUnlockLevel: only Specialist grants a Genjutsu Inception pick
+// ("Select one Genjutsu Inception. You gain it as if you were a 9th level
+// Genjutsu Specialist") — Training and Expert grant no Inception access at
+// all, so this deliberately does NOT reuse mirageLevel's own 5. The
+// caller feeds this into genjutsuInceptionCap (which only cares whether it
+// clears its own single 3rd-level threshold — it never scales past 1) and
+// into the 7th-level "Inception auto-grants a free Mirage" check
+// (genjutsuInceptionMirageAutoGrants), both of which a real 9th-level
+// Genjutsu Specialist would already pass.
+func (g genjutsuArchetypeFeats) inceptionUnlockLevel() int {
+	if g.Specialist {
+		return 9
+	}
+	return 0
+}
+
+// mirageExhibitionMirageBonus: Mirage Exhibition's own text — "You gain 1
+// Additional Malleable Mirage that you qualify for. You gain an additional
+// Malleable Mirage at 5th and 17th Genjutsu Specialist levels" — 1 base,
+// +1 at 5th, +1 at 17th (up to 3 total). The feat's own prerequisite ("At
+// least 4+ levels in Genjutsu Specialist") means this only ever applies
+// alongside real class levels, unlike Training/Expert/Specialist above —
+// no effective-level substitution needed, genjutsuLevel is always the
+// character's real level here.
+func mirageExhibitionMirageBonus(genjutsuLevel int) int {
+	n := 1
+	if genjutsuLevel >= 5 {
+		n++
+	}
+	if genjutsuLevel >= 17 {
+		n++
+	}
+	return n
+}
+
+func featSlugPresent(feats []characterFeat, slug string) bool {
+	for _, f := range feats {
+		if f.Slug == slug {
+			return true
+		}
+	}
+	return false
+}
+
 // genjutsuPickOption is one entry in any of Genjutsu Specialist's four
 // catalog picks. Prerequisites is only ever populated for Malleable
 // Mirages — blank for the other three.
@@ -302,6 +601,106 @@ func (s *server) loadGenjutsuConversionCatalog() ([]genjutsuPickOption, error) {
 	return out, rows.Err()
 }
 
+// loadKnownGenjutsu reads every jutsu of classification "Genjutsu" the
+// character currently knows (character_jutsu, both a published jutsu_slug
+// resolved against rules.db's v_jutsu and a player-created custom_jutsu
+// resolved entirely within charDB), for Twisted Casting/Psyche Breaker's own
+// pickers to filter and offer. A sibling of ninjutsu_specialist.go's
+// loadKnownNinjutsu (same body, different classification filter —
+// "Genjutsu" here instead of "Ninjutsu") rather than a shared/generalized
+// helper, kept in this file since both picks are Genjutsu Specialist's own,
+// the same "one sibling function per class" precedent
+// medical_nin.go's loadKnownExpertCombatantJutsu already establishes. A
+// stale published jutsu_slug (removed in a rules update) is silently
+// skipped, same tolerance loadKnownNinjutsu already extends.
+func (s *server) loadKnownGenjutsu(characterID int64) ([]knownJutsuOption, error) {
+	rows, err := s.charDB.Query(`
+		SELECT id, jutsu_slug, custom_jutsu_id FROM character_jutsu WHERE character_id = ?`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		id        int64
+		jutsuSlug sql.NullString
+		customID  sql.NullInt64
+	}
+	var stored []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.jutsuSlug, &r.customID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		stored = append(stored, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var out []knownJutsuOption
+	for _, r := range stored {
+		var name, classification, rank, keywords, description string
+		if r.jutsuSlug.Valid {
+			err := s.rulesDB.QueryRow(
+				`SELECT name, classification, rank, keywords, description FROM v_jutsu WHERE slug = ?`, r.jutsuSlug.String,
+			).Scan(&name, &classification, &rank, &keywords, &description)
+			if err == sql.ErrNoRows {
+				continue // stale slug (rules update) — skip rather than break the picker
+			}
+			if err != nil {
+				return nil, err
+			}
+		} else if r.customID.Valid {
+			err := s.charDB.QueryRow(
+				`SELECT name, classification, rank, keywords, description FROM custom_jutsu WHERE id = ?`, r.customID.Int64,
+			).Scan(&name, &classification, &rank, &keywords, &description)
+			if err == sql.ErrNoRows {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			continue
+		}
+		if classification != "Genjutsu" {
+			continue
+		}
+		out = append(out, knownJutsuOption{
+			JutsuID:        r.id,
+			Name:           name,
+			Rank:           rank,
+			Description:    description,
+			HasCombination: strings.Contains(keywords, "Combination"),
+		})
+	}
+	return out, nil
+}
+
+// twistedCastingCap: Beguiler's Twisted Casting, 10th level, "select two
+// Genjutsu that you know" — a flat cap of 2, no scaling chart of its own.
+func twistedCastingCap(subclassSlug string, genjutsuLevel int) int {
+	if subclassSlug == beguilerSubclassSlug && genjutsuLevel >= 10 {
+		return 2
+	}
+	return 0
+}
+
+// psycheBreakerCap: Corrupt Thoughts' Psyche Breaker, 10th level, "select
+// two Genjutsu that you know that deal damage" — a flat cap of 2, no
+// scaling chart of its own. The "that deal damage" qualifier is not
+// enforced: jutsu carry no structured damage field anywhere in this schema
+// to filter on, so the picker offers every known Genjutsu — the same
+// "trust the player" boundary Malleable Mirages' own 3 unenforceable
+// Prerequisite-column-free rows already draw.
+func psycheBreakerCap(subclassSlug string, genjutsuLevel int) int {
+	if subclassSlug == corruptThoughtsSubclassSlug && genjutsuLevel >= 10 {
+		return 2
+	}
+	return 0
+}
+
 // splitGenjutsuPicks classifies a catalog against a character's stored picks
 // for one category — shared by Inception, Real World Conversion, and Master
 // of Illusion; Mirages needs its own version (loadGenjutsuTabData) since it
@@ -350,25 +749,79 @@ type genjutsuTabData struct {
 	IllusionMasteryUsed      int
 	KnownIllusionMastery     []knownGenjutsuPick
 	AvailableIllusionMastery []genjutsuPickOption
+
+	// TwistedCasting/PsycheBreaker source their Known/Available lists from
+	// the character's own known jutsu (loadKnownGenjutsu) rather than a
+	// rules-database catalog — same "Known"/"Available" markup as
+	// sheet_ninjutsu_specialist's Refined Ninjutsu/Ninjutsu Master, reusing
+	// their knownNinjutsuJutsuPick/knownJutsuOption types as-is.
+	TwistedCastingCap       int
+	TwistedCastingUsed      int
+	KnownTwistedCasting     []knownNinjutsuJutsuPick
+	AvailableTwistedCasting []knownJutsuOption
+
+	PsycheBreakerCap       int
+	PsycheBreakerUsed      int
+	KnownPsycheBreaker     []knownNinjutsuJutsuPick
+	AvailablePsycheBreaker []knownJutsuOption
 }
 
 // loadGenjutsuTabData returns nil for a character with no Genjutsu
-// Specialist levels — the template gates the whole box's existence on this
-// being non-nil, same treatment HunterTechniques gets. Each sub-section
-// independently gates its own DISPLAY on its own Cap being > 0 (a level 2
-// Genjutsu Specialist has Mirages but not yet Inception/Conversion/Illusion
-// Mastery) — Inception's own picks are still loaded even below level 3,
-// since Mirages' auto-grant and prerequisite check both need them.
+// Specialist levels AND none of Illusionist Training/Expert/Specialist (the
+// three archetype-training feats that let a non-Genjutsu-Specialist taste
+// these mechanics — see genjutsuArchetypeFeats) — the template gates the
+// whole box's existence on this being non-nil, same treatment
+// HunterTechniques gets. Each sub-section independently gates its own
+// DISPLAY on its own Cap being > 0 (a level 2 Genjutsu Specialist has
+// Mirages but not yet Inception/Conversion/Illusion Mastery) — Inception's
+// own picks are still loaded even below level 3, since Mirages' auto-grant
+// and prerequisite check both need them. TwistedCastingCap/PsycheBreakerCap
+// only ever both gate on genjutsuLevel >= 10 (subclassSlug is already
+// resolved by the genjutsuLevel >= 2 block above by the time either is
+// checked), so loadKnownGenjutsu is skipped entirely for a character who
+// qualifies for neither.
+//
+// Two Genjutsu Specialist feats are deliberately NOT modeled here:
+//   - Illusionist Enthusiast ("Select one Genjutsu Specialist Class,
+//     Genjutsu Pledge (Subclass). You gain the 6th Level feature it has.")
+//     would need a brand-new picker (a 7-option catalog of subclass_features
+//     rows, its own charstore.GenjutsuPickCategory, add/delete routes, and a
+//     template section) whose payoff, once picked, still couldn't compute
+//     anything: none of the 7 Genjutsu Pledges' own 6th-level features are
+//     modeled anywhere in this codebase yet (this file's own header comment
+//     already documents subclass Reaction/Bonus-Action features beyond the
+//     2 existing damage-die readouts as "documented, not modeled") — the
+//     pick would only ever render as inert flavor text, not a real gap this
+//     change can close.
+//   - Real World Conversion's own effect choices (both Training's and
+//     Expert's) reuse the class's own existing Conversion picker as-is
+//     (ConversionCap/KnownConversions/AvailableConversions below) — no new
+//     lookup needed, just an extra known-slot per feat.
 func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) (*genjutsuTabData, error) {
 	genjutsuLevel, err := s.genjutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
 	}
-	if genjutsuLevel == 0 {
+	feats, err := s.loadCharacterFeats(characterID)
+	if err != nil {
+		return nil, err
+	}
+	archFeats := loadGenjutsuArchetypeFeats(feats)
+	if genjutsuLevel == 0 && !archFeats.any() {
 		return nil, nil
 	}
 
-	data := &genjutsuTabData{ActualizationDieSize: actualizationDieSize(genjutsuLevel)}
+	data := &genjutsuTabData{}
+	switch {
+	case genjutsuLevel > 0:
+		data.ActualizationDieSize = actualizationDieSize(genjutsuLevel)
+	case archFeats.Training:
+		// Illusionist Training: "represented as a D4" — fixed, no real
+		// levels to scale the die size against (actualizationDieSize's own
+		// d6@9th/d8@17th tiers are Genjutsu Specialist class-level scaling
+		// that Training/Expert/Specialist never grant).
+		data.ActualizationDieSize = "d4"
+	}
 
 	var subclassSlug string
 	if genjutsuLevel >= 2 {
@@ -406,6 +859,9 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 		inceptionPickedSet[slug] = true
 	}
 	data.InceptionCap = genjutsuInceptionCap(genjutsuLevel)
+	if featCap := genjutsuInceptionCap(archFeats.inceptionUnlockLevel()); featCap > data.InceptionCap {
+		data.InceptionCap = featCap
+	}
 	if data.InceptionCap > 0 {
 		data.InceptionUsed = len(inceptionPicks)
 		data.KnownInception, data.AvailableInception = splitGenjutsuPicks(inceptionCatalog, inceptionPickedSet)
@@ -417,6 +873,10 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 	}
 	if subclassSlug == timeSlipperSubclassSlug && genjutsuLevel >= 2 {
 		data.MiragesCap++
+	}
+	data.MiragesCap += archFeats.mirageSlotBonus()
+	if featSlugPresent(feats, mirageExhibitionFeatSlug) {
+		data.MiragesCap += mirageExhibitionMirageBonus(genjutsuLevel)
 	}
 	if data.MiragesCap > 0 {
 		mirageCatalog, err := s.loadGenjutsuOptionCatalog("Malleable Mirages")
@@ -466,9 +926,27 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 			}
 		}
 
+		// inceptionAutoGrantLevel folds in Specialist's own "as if 9th
+		// level" Inception qualification — a real 9th-level Genjutsu
+		// Specialist gets their Inception pick's auto-granted Mirage, so a
+		// Specialist-feat character with an Inception pick should too.
+		inceptionAutoGrantLevel := genjutsuLevel
+		if lvl := archFeats.inceptionUnlockLevel(); lvl > inceptionAutoGrantLevel {
+			inceptionAutoGrantLevel = lvl
+		}
 		var autoGrantSlug string
-		if len(inceptionPicks) == 1 && genjutsuLevel >= 7 {
+		if len(inceptionPicks) == 1 && inceptionAutoGrantLevel >= 7 {
 			autoGrantSlug = genjutsuInceptionMirageAutoGrants[inceptionPicks[0]]
+		}
+
+		// mirageQualifyLevel folds in Training/Expert/Specialist's own "as
+		// if Nth level" Mirage qualification (mirageLevel) into the
+		// prerequisite gate every Mirage's own "Nth level" clause checks —
+		// this is the ONLY thing archFeats.mirageLevel feeds; the known-
+		// Mirage COUNT above already comes from mirageSlotBonus instead.
+		mirageQualifyLevel := genjutsuLevel
+		if lvl := archFeats.mirageLevel(); lvl > mirageQualifyLevel {
+			mirageQualifyLevel = lvl
 		}
 
 		data.MiragesUsed = len(miragePicks)
@@ -479,14 +957,14 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 			case miragePickedSet[o.Slug]:
 				data.KnownMirages = append(data.KnownMirages, knownGenjutsuPick{Slug: o.Slug, Name: o.Name})
 			default:
-				if genjutsuMiragePrereqMet(o.Prerequisites, genjutsuLevel, allInceptionNames, allMirageNames, knownInceptionNames, knownMirageNames) {
+				if genjutsuMiragePrereqMet(o.Prerequisites, mirageQualifyLevel, allInceptionNames, allMirageNames, knownInceptionNames, knownMirageNames) {
 					data.AvailableMirages = append(data.AvailableMirages, o)
 				}
 			}
 		}
 	}
 
-	data.ConversionCap = realWorldConversionCap(genjutsuLevel)
+	data.ConversionCap = realWorldConversionCap(genjutsuLevel) + archFeats.conversionSlotBonus()
 	if data.ConversionCap > 0 {
 		catalog, err := s.loadGenjutsuConversionCatalog()
 		if err != nil {
@@ -516,6 +994,51 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 		}
 		data.IllusionMasteryUsed = len(picks)
 		data.KnownIllusionMastery, data.AvailableIllusionMastery = splitGenjutsuPicks(masterOfIllusionOptions, pickedSet)
+	}
+
+	data.TwistedCastingCap = twistedCastingCap(subclassSlug, genjutsuLevel)
+	data.PsycheBreakerCap = psycheBreakerCap(subclassSlug, genjutsuLevel)
+	if data.TwistedCastingCap > 0 || data.PsycheBreakerCap > 0 {
+		known, err := s.loadKnownGenjutsu(characterID)
+		if err != nil {
+			return nil, err
+		}
+		if data.TwistedCastingCap > 0 {
+			picks, err := charstore.ListGenjutsuJutsuPicks(s.charDB, characterID, charstore.GenjutsuPickTwistedCasting)
+			if err != nil {
+				return nil, err
+			}
+			pickedSet := make(map[int64]bool, len(picks))
+			for _, id := range picks {
+				pickedSet[id] = true
+			}
+			data.TwistedCastingUsed = len(picks)
+			for _, o := range known {
+				if pickedSet[o.JutsuID] {
+					data.KnownTwistedCasting = append(data.KnownTwistedCasting, knownNinjutsuJutsuPick{JutsuID: o.JutsuID, Name: o.Name, Rank: o.Rank})
+				} else {
+					data.AvailableTwistedCasting = append(data.AvailableTwistedCasting, o)
+				}
+			}
+		}
+		if data.PsycheBreakerCap > 0 {
+			picks, err := charstore.ListGenjutsuJutsuPicks(s.charDB, characterID, charstore.GenjutsuPickPsycheBreaker)
+			if err != nil {
+				return nil, err
+			}
+			pickedSet := make(map[int64]bool, len(picks))
+			for _, id := range picks {
+				pickedSet[id] = true
+			}
+			data.PsycheBreakerUsed = len(picks)
+			for _, o := range known {
+				if pickedSet[o.JutsuID] {
+					data.KnownPsycheBreaker = append(data.KnownPsycheBreaker, knownNinjutsuJutsuPick{JutsuID: o.JutsuID, Name: o.Name, Rank: o.Rank})
+				} else {
+					data.AvailablePsycheBreaker = append(data.AvailablePsycheBreaker, o)
+				}
+			}
+		}
 	}
 
 	return data, nil
@@ -611,6 +1134,102 @@ func (s *server) handleGenjutsuPickDelete(category charstore.GenjutsuPickCategor
 		if err := charstore.RemoveGenjutsuPick(s.charDB, id, category, slug); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("remove genjutsu pick:", err)
+			return
+		}
+		s.respondSheet(w, r, id, "sheet_genjutsu")
+	}
+}
+
+// handleGenjutsuJutsuPickAdd builds one of Twisted Casting/Psyche Breaker's
+// own "pick a known Genjutsu" routes — shared since both validate/store
+// identically, differing only in which of genjutsuTabData's own fields
+// govern the cap and the currently-pickable list. Same shape
+// handleNinjutsuJutsuPickAdd (ninjutsu_specialist.go) already establishes,
+// keyed by a character_jutsu row id (form field "jutsu_id") instead of a
+// rules-database option_slug.
+func (s *server) handleGenjutsuJutsuPickAdd(
+	category charstore.GenjutsuJutsuPickCategory,
+	used func(*genjutsuTabData) int,
+	cap func(*genjutsuTabData) int,
+	available func(*genjutsuTabData) []knownJutsuOption,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseCharacterID(r)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		jutsuID, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("jutsu_id")), 10, 64)
+		if err != nil {
+			http.Error(w, "missing pick", http.StatusBadRequest)
+			return
+		}
+		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("compute sheet for genjutsu jutsu pick add:", err)
+			return
+		}
+		data, err := s.loadGenjutsuTabData(id, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load genjutsu for jutsu pick add:", err)
+			return
+		}
+		if data == nil {
+			http.Error(w, "character has no levels in Genjutsu Specialist", http.StatusBadRequest)
+			return
+		}
+		if used(data) >= cap(data) {
+			http.Error(w, "no slots remaining", http.StatusBadRequest)
+			return
+		}
+		valid := false
+		for _, o := range available(data) {
+			if o.JutsuID == jutsuID {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid pick", http.StatusBadRequest)
+			return
+		}
+		if err := charstore.AddGenjutsuJutsuPick(s.charDB, id, category, jutsuID); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("add genjutsu jutsu pick:", err)
+			return
+		}
+		s.respondSheet(w, r, id, "sheet_genjutsu")
+	}
+}
+
+// handleGenjutsuJutsuPickDelete builds one category's "forget a pick"
+// route — freely, at any time, same "trust the player" boundary every other
+// pick removal in this app already draws.
+func (s *server) handleGenjutsuJutsuPickDelete(category charstore.GenjutsuJutsuPickCategory) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseCharacterID(r)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		jutsuID, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("jutsu_id")), 10, 64)
+		if err != nil {
+			http.Error(w, "missing pick", http.StatusBadRequest)
+			return
+		}
+		if err := charstore.RemoveGenjutsuJutsuPick(s.charDB, id, category, jutsuID); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("remove genjutsu jutsu pick:", err)
 			return
 		}
 		s.respondSheet(w, r, id, "sheet_genjutsu")

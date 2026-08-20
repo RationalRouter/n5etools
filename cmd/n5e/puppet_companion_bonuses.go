@@ -29,26 +29,81 @@ const puppetSymphonyOfPuppetryFeatureSlug = "class/puppet-master/group/puppet-te
 // puppetSymphonyExpansionGrant.
 const puppetExpandedPuppetryEntrySlug = "class/puppet-master/option/puppet-master-upgrades/silver-tier/entry/expanded-puppetry"
 
-// puppetElevatedDesignAbilityBonus resolves Elevated Design's own choice
-// (two independent ChoiceCompanionAbilityScoreIncrease slots) into a
-// per-ability +2 bonus, applied to every Puppet Tool the character
-// possesses. Deliberately never folded into a companion's own Str/Dex/...
-// fields — those are plain player-editable <input>s that resend their
-// CURRENT typed value on every other field's blur (see
-// charstore.SetCompanionFields' own doc); silently pre-adding +2 there
-// would get autosaved right back into the stored score on the next
-// unrelated edit, permanently baking in a bonus that's supposed to stay
-// reversible (e.g. if a level-down or subclass swap ever removed the
-// feature). Callers show this as separate annotation text next to the
-// field instead — see companion_fields.html.
-func puppetElevatedDesignAbilityBonus(resolved map[features.ChoiceKey]string) map[string]int {
+// companionAbilityScoreIncreaseBonus sums every resolved
+// ChoiceCompanionAbilityScoreIncrease pick across choiceIndices for one
+// feature slug into a per-ability bonus map — the shared resolution both
+// puppetElevatedDesignAbilityBonus and puppetToolASIAbilityBonus build on.
+// amountPerSlot is each individual slot's own Amount (matches
+// choiceSlotDefs' own Amount field for that slug): picking the same
+// ability across two slots in the same call sums to amountPerSlot*2,
+// picking two different abilities gives amountPerSlot to each — this is
+// how Puppet Tool's own "+2 to one ability score, or +1 to two ability
+// scores" (Amount 1 per slot) and Elevated Design's "+2 to two different
+// ability scores" (Amount 2 per slot, only ever meaningfully picked as two
+// different abilities) both fall out of the same per-slot summation with
+// no separate branch for either shape.
+//
+// Deliberately never folded into a companion's own Str/Dex/... fields —
+// those are plain player-editable <input>s that resend their CURRENT typed
+// value on every other field's blur (see charstore.SetCompanionFields' own
+// doc); silently pre-adding a bonus there would get autosaved right back
+// into the stored score on the next unrelated edit, permanently baking in
+// a bonus that's supposed to stay reversible (e.g. if a level-down or
+// subclass swap ever removed the granting feature). Callers show this as
+// separate annotation text next to the field instead — see
+// companion_fields.html.
+func companionAbilityScoreIncreaseBonus(resolved map[features.ChoiceKey]string, featureSlug string, choiceIndices []int, amountPerSlot int) map[string]int {
 	bonus := map[string]int{}
-	for i := 0; i < 2; i++ {
-		if ab, ok := resolved[features.ChoiceKey{FeatureSlug: puppetElevatedDesignFeatureSlug, ChoiceIndex: i}]; ok && ab != "" {
-			bonus[ab] += 2
+	for _, idx := range choiceIndices {
+		if ab, ok := resolved[features.ChoiceKey{FeatureSlug: featureSlug, ChoiceIndex: idx}]; ok && ab != "" {
+			bonus[ab] += amountPerSlot
 		}
 	}
 	return bonus
+}
+
+// puppetElevatedDesignAbilityBonus resolves Elevated Design's own choice
+// (two independent ChoiceCompanionAbilityScoreIncrease slots, ChoiceIndex 0
+// and 1) into a per-ability +2 bonus, applied to every Puppet Tool the
+// character possesses. See companionAbilityScoreIncreaseBonus for why this
+// stays a display-only annotation rather than a baked-in field edit.
+func puppetElevatedDesignAbilityBonus(resolved map[features.ChoiceKey]string) map[string]int {
+	return companionAbilityScoreIncreaseBonus(resolved, puppetElevatedDesignFeatureSlug, []int{0, 1}, 2)
+}
+
+// puppetToolFeatureSlug is Puppet Master's base 1st-level Puppet Tool
+// feature — its own Ability Score Improvement clause ("A Puppet Tool
+// increases one of its ability scores by +2, or two ability scores by +1,
+// when you gain an Ability Score Improvement/Feat from this class") is what
+// puppetToolASIChoiceIndices/puppetToolASIAbilityBonus below resolve.
+const puppetToolFeatureSlug = "class/puppet-master/feature/puppet-tool"
+
+// puppetToolASIChoiceIndices: the two ChoiceCompanionAbilityScoreIncrease
+// ChoiceIndex values stored per Puppet Master Ability Score Improvement
+// breakpoint (internal/features.ASIBreakpoints) — see choices.go's own
+// choiceSlotDefs entries for the breakpoint*2/breakpoint*2+1 indexing
+// scheme.
+var puppetToolASIChoiceIndices = func() []int {
+	out := make([]int, 0, len(features.ASIBreakpoints)*2)
+	for _, bp := range features.ASIBreakpoints {
+		out = append(out, bp*2, bp*2+1)
+	}
+	return out
+}()
+
+// puppetToolASIAbilityBonus resolves Puppet Tool's own per-ASI-breakpoint
+// ability bonus (up to two picks per breakpoint reached) into a per-ability
+// total, applied to every Puppet Tool the character possesses. Only the
+// ASI's own ABILITY-SCORE half is tracked here — the book's Ability Score
+// Improvement/Feat also grants a Mastery rank and a Feat, neither of which
+// this clause touches (see asi.go's own asiFeatureSuffix doc for why those
+// need no separate code). See companionAbilityScoreIncreaseBonus for why
+// this stays a display-only annotation, capped at 20 per the feature's own
+// text ("A Puppet Tool can have no more than 20 in an ability score as
+// normal") rather than Elevated Design's raised cap of 22 — see each
+// slot's own Cap field.
+func puppetToolASIAbilityBonus(resolved map[features.ChoiceKey]string) map[string]int {
+	return companionAbilityScoreIncreaseBonus(resolved, puppetToolFeatureSlug, puppetToolASIChoiceIndices, 1)
 }
 
 // puppetSymphonyExpansionGrant resolves Symphony of Puppetry's Expansion

@@ -150,6 +150,11 @@ var saveMasteryGrants = map[string][]string{
 	// Juggernaut, the same reading this feature's poison-immunity clause
 	// already gets in passiveTraitGrants.
 	"class/puppet-master/group/puppet-techniques/purple-technique-juggernaut/feature/intelligent-design": {"str"},
+	// "You gain a +2 bonuses to Dexterity saving throws you make." One of
+	// several unconditional Benefits Superior Speed grants outright at
+	// Namikaze Clan Level 8+; the feature's Speed increase already lives in
+	// speedGrants (grants.go).
+	"feat/namikaze/superior-speed": {"dex"},
 }
 
 // ResolveSaveMasteryRanks returns the character's feature-granted Mastery

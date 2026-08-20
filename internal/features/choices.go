@@ -31,6 +31,23 @@ const (
 	// into the same granted-display treatment puppetUpgradeAutoGrants'
 	// fixed single-entry grants already get.
 	ChoiceUpgradeEntry ChoiceKind = "upgrade_entry"
+	// ChoiceNamedJutsuGrant: the feature grants ONE of several named jutsu
+	// for free, outside the character's normal Jutsu Known cap — Puppet
+	// Master's Controlled Chakra Flow ("you learn one of the following
+	// E-Rank jutsu. Depending on your choice, you gain an extra effect;
+	// Firecracker Flash (Ninjutsu)... Feather Burst (Genjutsu)..."). Same
+	// shape as ChoiceUpgradeEntry — a small, fixed Options list (the
+	// jutsu table's own slug column) known ahead of time, no rules.db
+	// catalog needed by this package — just resolving to a granted jutsu
+	// instead of a granted Upgrade. This pick is PERMANENT (learned once,
+	// never re-selected), so it fits this locked mechanism rather than a
+	// freely re-pickable one. cmd/n5e resolves a picked value into the
+	// same granted-jutsu-label treatment jutsu_grants.go's auto-parsed
+	// grants already get; each jutsu's own extra rider effect (bundling
+	// with a C-Rank Ninjutsu cast, applying to all Puppets at once) stays
+	// reference text — only which of the named jutsu was learned is
+	// tracked.
+	ChoiceNamedJutsuGrant ChoiceKind = "named_jutsu_grant"
 	// ChoiceArmorProperty: the feature grants one or more Armor Properties
 	// (Chapter 5: Equipment) applied to a worn suit of armor — Puppet
 	// Master's Nearly Perfected Architecture ("select two Armor Properties
@@ -90,6 +107,15 @@ type ChoiceSlot struct {
 	// RaisesMax: ChoiceAbilityScoreIncrease only — see AbilityScoreGrant's
 	// own field of the same name in scores.go.
 	RaisesMax bool
+	// Cap is the granting feature's own stated maximum ability score once
+	// this bonus is applied — ChoiceCompanionAbilityScoreIncrease only.
+	// Elevated Design's own text raises the cap to 22; Puppet Tool's base
+	// ASI bonus stays at the normal 20 ("A Puppet Tool can have no more
+	// than 20 in an ability score as normal") — both kinds share the same
+	// Kind and the same display code in cmd/n5e/feature_choices.go, so
+	// this can't be a shared constant the way ChoiceAbilityScoreIncrease's
+	// own display text hardcodes 20 as the ordinary cap.
+	Cap int
 }
 
 // choiceSlotDef is the level-gated definition backing a ChoiceSlot.
@@ -138,6 +164,7 @@ type choiceSlotDef struct {
 	Options     []string
 	Amount      int  // ChoiceAbilityScoreIncrease only; see ChoiceSlot.Amount
 	RaisesMax   bool // ChoiceAbilityScoreIncrease only; see ChoiceSlot.RaisesMax
+	Cap         int  // ChoiceCompanionAbilityScoreIncrease only; see ChoiceSlot.Cap
 }
 
 var choiceSlotDefs = []choiceSlotDef{
@@ -239,8 +266,52 @@ var choiceSlotDefs = []choiceSlotDef{
 	// different ability scores." Two independent slots, same "pick N
 	// separately" shape Nearly Perfected Architecture's own two Armor
 	// Property slots use just above.
-	{FeatureSlug: "class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/elevated-design", ChoiceIndex: 0, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 17, Label: "Elevated Design — first ability (+2, max 22, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 2},
-	{FeatureSlug: "class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/elevated-design", ChoiceIndex: 1, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 17, Label: "Elevated Design — second ability (+2, max 22, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 2},
+	{FeatureSlug: "class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/elevated-design", ChoiceIndex: 0, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 17, Label: "Elevated Design — first ability (+2, max 22, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 2, Cap: 22},
+	{FeatureSlug: "class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/elevated-design", ChoiceIndex: 1, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 17, Label: "Elevated Design — second ability (+2, max 22, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 2, Cap: 22},
+
+	// Controlled Chakra Flow: "you learn one of the following E-Rank
+	// jutsu. Depending on your choice, you gain an extra effect;
+	// Firecracker Flash (Ninjutsu)... Feather Burst (Genjutsu)..." A
+	// PERMANENT choice between 2 named jutsu — see ChoiceNamedJutsuGrant's
+	// own doc comment for why this fits the same locked mechanism
+	// ChoiceUpgradeEntry uses above, not a re-pickable one. Options are
+	// the jutsu table's own slug column, not a bare name — cmd/n5e resolves
+	// the pick straight into a known jutsu, no name lookup needed. Each
+	// jutsu's own rider effect (Firecracker Flash bundling with a C-Rank
+	// Ninjutsu cast; Feather Burst applying to all Puppets at once) stays
+	// reference text — only which jutsu was learned is tracked.
+	{FeatureSlug: "class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/controlled-chakra-flow", ChoiceIndex: 0, Kind: ChoiceNamedJutsuGrant, MinLevel: 6, Label: "Controlled Chakra Flow — choose a free E-Rank jutsu", Options: []string{"jutsu/firecracker-flash", "jutsu/feather-burst"}},
+
+	// Puppet Tool's own base-class Ability Score Improvement clause: "A
+	// Puppet Tool increases one of its ability scores by +2, or two
+	// ability scores by +1, when you gain an Ability Score Improvement/
+	// Feat from this class. A Puppet Tool can have no more than 20 in an
+	// ability score as normal." Two ChoiceCompanionAbilityScoreIncrease
+	// slots per ASI breakpoint (asi.go's own ASIBreakpoints), Amount 1
+	// each rather than Elevated Design's fixed 2 — picking the same
+	// ability on both of a pair's slots sums to +1+1=+2 ("one score by
+	// +2"), picking two different abilities gives +1 each ("two ability
+	// scores by +1"), reproducing the book's own either/or branch for
+	// free since nothing here forces which the player picks. FeatureSlug
+	// is Puppet Tool itself (granted at 1st level, always present once
+	// the character has any Puppet Master levels), not the ASI feature —
+	// each slot's own MinLevel is what actually gates it to the matching
+	// breakpoint; classSlugOf still resolves "class/puppet-master" the
+	// same way from this slug's own "class/<slug>/..." prefix. ChoiceIndex
+	// is breakpoint*2 / breakpoint*2+1 (not sequential 0..9) so a future
+	// ASI breakpoint the book might add can't collide with one already
+	// stored here. Cap 20, not Elevated Design's 22 — this feature's own
+	// text states the ordinary cap, not a raised one.
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 8, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 4, Label: "Puppet Tool ASI (4th level) — first ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 9, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 4, Label: "Puppet Tool ASI (4th level) — second ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 16, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 8, Label: "Puppet Tool ASI (8th level) — first ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 17, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 8, Label: "Puppet Tool ASI (8th level) — second ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 24, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 12, Label: "Puppet Tool ASI (12th level) — first ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 25, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 12, Label: "Puppet Tool ASI (12th level) — second ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 32, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 16, Label: "Puppet Tool ASI (16th level) — first ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 33, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 16, Label: "Puppet Tool ASI (16th level) — second ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 38, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 19, Label: "Puppet Tool ASI (19th level) — first ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
+	{FeatureSlug: "class/puppet-master/feature/puppet-tool", ChoiceIndex: 39, Kind: ChoiceCompanionAbilityScoreIncrease, MinLevel: 19, Label: "Puppet Tool ASI (19th level) — second ability (+1, max 20, applies to all Puppet Tools)", Options: []string{"str", "dex", "con", "int", "wis", "cha"}, Amount: 1, Cap: 20},
 }
 
 // classSlugOf returns the owning class's own slug ("class/<slug>") for a
@@ -284,7 +355,7 @@ func ResolveChoiceSlots(granted []GrantedFeatureRow, classLevels map[string]int,
 		out = append(out, ChoiceSlot{
 			FeatureSlug: def.FeatureSlug, ChoiceIndex: def.ChoiceIndex,
 			Kind: def.Kind, Label: def.Label, Options: def.Options, Amount: def.Amount,
-			RaisesMax: def.RaisesMax,
+			RaisesMax: def.RaisesMax, Cap: def.Cap,
 		})
 	}
 	return out

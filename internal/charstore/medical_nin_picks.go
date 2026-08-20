@@ -46,3 +46,50 @@ func ListMedicalDoctrinePicks(charDB *sql.DB, characterID int64) ([]string, erro
 	}
 	return out, rows.Err()
 }
+
+// AddMedicalNinExpertCombatantPick records one of Combat Medic's Expert
+// Combatant picks — a specific known-jutsu row (see
+// cmd/n5e/medical_nin.go), not a rules-database slug. A duplicate add is a
+// silent no-op, same boundary AddMedicalDoctrinePick draws.
+func AddMedicalNinExpertCombatantPick(charDB *sql.DB, characterID int64, jutsuID int64) error {
+	_, err := charDB.Exec(
+		`INSERT INTO character_medical_nin_expert_combatant_picks (character_id, jutsu_id) VALUES (?, ?)
+		 ON CONFLICT (character_id, jutsu_id) DO NOTHING`,
+		characterID, jutsuID)
+	return err
+}
+
+// RemoveMedicalNinExpertCombatantPick drops one pick — freely, at any time.
+// RAW allows switching which jutsu this feature affects on a Long Rest; this
+// app doesn't enforce that timing anywhere else either, same "trust the
+// player" boundary as RemoveMedicalDoctrinePick.
+func RemoveMedicalNinExpertCombatantPick(charDB *sql.DB, characterID int64, jutsuID int64) error {
+	_, err := charDB.Exec(
+		`DELETE FROM character_medical_nin_expert_combatant_picks WHERE character_id = ? AND jutsu_id = ?`,
+		characterID, jutsuID)
+	return err
+}
+
+// ListMedicalNinExpertCombatantPicks returns the character_jutsu row ids a
+// character has picked for Expert Combatant. A row id disappears from this
+// list on its own once the underlying character_jutsu row is deleted (ON
+// DELETE CASCADE), so forgetting a jutsu automatically clears any pick that
+// pointed at it.
+func ListMedicalNinExpertCombatantPicks(charDB *sql.DB, characterID int64) ([]int64, error) {
+	rows, err := charDB.Query(
+		`SELECT jutsu_id FROM character_medical_nin_expert_combatant_picks WHERE character_id = ?`,
+		characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

@@ -3220,7 +3220,15 @@ func (s *server) computeJutsuKnown(classes []characterClassLevel) (known int, hi
 // (sarutobiAdvancedNatureProficiencyBonusJutsuSlots), plus White Technique
 // Weaver's own escalating Chakra String Augments subclass feature
 // (whiteTechniqueChakraStringBonusJutsuSlots, scoped to the character's own
-// Puppet Master class level). Shared by
+// Puppet Master class level), plus the flat +1 each of the four Archivist
+// feats grants outright (featArchivistBonusJutsuSlots, summed since a
+// character can hold more than one), plus the five Ninjutsu Focus
+// "[Element] Release" subclass features' own conditional +2 known-jutsu
+// bonus (ninjutsuFocusReleaseBonusJutsuSlots, same primary-class-only
+// scoping as Water and Oil/Heat Master above, since it shares that same
+// "already have access from elsewhere" gate), plus the four Ninjutsu Focus
+// "[Discipline] Specialization" subclass features' own unconditional flat
+// bonus (ninjutsuSpecializationBonusJutsuSlots). Shared by
 // handleCharacterSheet and the sheet_jutsu_known/sheet_attack_jutsu_table
 // fragment refresh, which used to each run their own copy of this off the
 // primary class's level alone — wrong the moment a character has a second
@@ -3257,7 +3265,13 @@ func (s *server) jutsuKnownCapForCharacter(characterID int64, sheet *charsheet.S
 		return -1, err
 	}
 	whiteTechniqueBonus := whiteTechniqueChakraStringBonusJutsuSlots(grantedFeatures, puppetMasterLevel)
-	return known + waterAndOilBonus + heatMasterBonus + chakraCellBonus + clanBonus + sarutobiBonus + whiteTechniqueBonus, nil
+	archivistBonus := featArchivistBonusJutsuSlots(grantedFeatures)
+	ninjutsuFocusReleaseBonus, err := s.ninjutsuFocusReleaseBonusJutsuSlots(characterID, grantedFeatures, classes[0].Slug, sheet.ClanSlug)
+	if err != nil {
+		return -1, err
+	}
+	ninjutsuSpecializationBonus := ninjutsuSpecializationBonusJutsuSlots(grantedFeatures)
+	return known + waterAndOilBonus + heatMasterBonus + chakraCellBonus + clanBonus + sarutobiBonus + whiteTechniqueBonus + archivistBonus + ninjutsuFocusReleaseBonus + ninjutsuSpecializationBonus, nil
 }
 
 // ---- Ambitions step ---------------------------------------------------
@@ -3411,6 +3425,27 @@ var bulkStorageBonus = map[string]float64{
 	"gear/shinobi-waist-bag":  5,
 	"gear/shinobi-belt-pouch": 3,
 	"gear/shinobi-leg-pouch":  2,
+}
+
+// featBulkBonusGrants is flat max-bulk increases from feats:
+//   - feat/f-athlete: "Increase your maximum bulk by +5."
+//   - feat/brawny: "Increase your maximum bulk by +10."
+var featBulkBonusGrants = map[string]float64{
+	"feat/f-athlete": 5,
+	"feat/brawny":    10,
+}
+
+// featBulkBonus sums featBulkBonusGrants across a character's taken feats.
+func (s *server) featBulkBonus(characterID int64) (float64, error) {
+	feats, err := s.loadCharacterFeats(characterID)
+	if err != nil {
+		return 0, err
+	}
+	var total float64
+	for _, f := range feats {
+		total += featBulkBonusGrants[f.Slug]
+	}
+	return total, nil
 }
 
 // bulkSummary is the inventory's carrying-capacity readout.
@@ -3718,11 +3753,19 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
-	focusSlugs, focusBonus, err := s.weaponFocusBonusSet(characterID)
+	focusSlugs, focusBonus, err := s.weaponFocusBonusSet(characterID, sheet)
 	if err != nil {
 		return nil, err
 	}
 	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
+	if err != nil {
+		return nil, err
+	}
+	wardenWeaponSlug, wardenAggressiveAttack, wardenBladesAggression, err := s.hunterNinWardenWeaponBonuses(characterID, sheet)
+	if err != nil {
+		return nil, err
+	}
+	arsenalWeaponKeywords, arsenalWeaponBonus, err := s.hunterNinArsenalWeaponBonus(characterID)
 	if err != nil {
 		return nil, err
 	}
@@ -3809,6 +3852,46 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			weaponFocusBonus = focusBonus
 		}
 
+		// Blade Warden's Aggressive Attack (7th level, always-on once
+		// known) swaps the single-ability damage sum for BOTH Strength and
+		// Dexterity, and Blade's Aggression (10th) separately steps the
+		// damage die up by 1 — both flat, ever-on bonuses gated purely on
+		// "this equipped item is the character's own Warden Weapon", never
+		// spent or triggered, so nothing beyond the match itself needs
+		// tracking (the pick that IS tracked, and gates both bonuses in
+		// the first place, is the Warden Weapon TYPE choice itself — see
+		// hunterNinWardenWeaponBonuses). Deliberately left out of
+		// DamageFlat/DamageAbility below: those feed the per-weapon
+		// "Adjust" form's single-ability composition display, which has no
+		// way to represent "both Str and Dex" — the roll button's own
+		// DamageBonus total is correct either way.
+		damageAbilityBonus := sheet.Abilities[damageAbility].Modifier
+		effectiveDamageDice := damageDice.String
+		if wardenWeaponSlug != "" && item.Slug == wardenWeaponSlug {
+			if wardenAggressiveAttack {
+				damageAbilityBonus = sheet.Abilities["str"].Modifier + sheet.Abilities["dex"].Modifier
+			}
+			if wardenBladesAggression {
+				effectiveDamageDice = stepWeaponDie(effectiveDamageDice)
+			}
+		}
+
+		// Arsenalist's Arsenal Weapons (3rd level, always-on once known):
+		// any equipped weapon whose properties match one of the character's
+		// picked Arsenal keywords (thrown/multiattack/light/finesse) steps
+		// its damage die up by 1 and gains a flat +2/+4/+6 damage bonus —
+		// see hunterNinArsenalWeaponBonus. The Hidden Weapon property tag
+		// and the Lethal-Attack trigger override stay manual/narrated; only
+		// the die-step and flat damage bonus reach the Attacks table.
+		arsenalBonus := 0
+		for kw := range arsenalWeaponKeywords {
+			if strings.Contains(props, kw) {
+				effectiveDamageDice = stepWeaponDie(effectiveDamageDice)
+				arsenalBonus = arsenalWeaponBonus
+				break
+			}
+		}
+
 		row := attackRow{
 			Name:               item.Name,
 			Slug:               item.Slug,
@@ -3817,17 +3900,17 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			Ability:            strings.ToUpper(attackAbility),
 			AttackBonus: charsheet.ComposeModifier(
 				sheet.Abilities[attackAbility].Modifier, sheet.ProficiencyBonus, prof, opt.AttackBonus+weaponFocusBonus),
-			DamageBonus:   sheet.Abilities[damageAbility].Modifier + opt.DamageBonus + weaponFocusBonus,
-			DamageDice:    damageDice.String,
+			DamageBonus:   damageAbilityBonus + opt.DamageBonus + weaponFocusBonus + arsenalBonus,
+			DamageDice:    effectiveDamageDice,
 			DamageType:    damageType.String,
 			AttackAbility: attackAbility,
 			AttackProf:    prof,
 			AttackFlat:    opt.AttackBonus + weaponFocusBonus,
 			DamageAbility: damageAbility,
-			DamageFlat:    opt.DamageBonus + weaponFocusBonus,
+			DamageFlat:    opt.DamageBonus + weaponFocusBonus + arsenalBonus,
 			Derived:       !overridden,
 		}
-		if m := damageDicePattern.FindStringSubmatch(strings.TrimSpace(damageDice.String)); m != nil {
+		if m := damageDicePattern.FindStringSubmatch(strings.TrimSpace(effectiveDamageDice)); m != nil {
 			count := 1
 			if m[1] != "" {
 				count, _ = strconv.Atoi(m[1])
@@ -4018,7 +4101,19 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load chassis property bulk bonus:", err)
 		return
 	}
-	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus)
+	featBulk, err := s.featBulkBonus(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feat bulk bonus:", err)
+		return
+	}
+	backupPlanBonus, err := s.backupPlanBulkBonus(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load backup plan bulk bonus:", err)
+		return
+	}
+	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus)
 	attacks, err := s.buildAttacks(id, inventory, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4208,7 +4303,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load martial techniques:", err)
 		return
 	}
-	weaponFocus, err := s.loadWeaponFocusTabData(id)
+	weaponFocus, err := s.loadWeaponFocusTabData(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon focus:", err)
@@ -4446,6 +4541,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pendingFeatSkillOrToolChoices, err := s.buildPendingFeatSkillOrToolChoiceRows(id, characterFeats)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("build pending feat skill-or-tool choice rows:", err)
+		return
+	}
+
 	s.render(w, "character_sheet.html", map[string]any{
 		"Title": sheet.Name, "ID": id, "Sheet": sheet,
 		"AbilityOrder": charsheet.Abilities, // Sheet.Abilities is a map — fixed display order comes from here
@@ -4463,22 +4565,23 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"Drive":   drive, "Goal": goal, "Fear": fear,
 		"PassiveTraits": passiveTraits, "CustomResources": customResources, "PuppetTactics": puppetTactics,
 		"MartialDice": martialDice, "MartialTechniques": martialTechniques, "WeaponFocus": weaponFocus,
-		"WeaponForm":                weaponForm,
-		"MartialDefense":            martialDefense,
-		"HunterTechniques":          hunterTechniques,
-		"CookingNin":                cookingNin,
-		"Genjutsu":                  genjutsu,
-		"MedicalNin":                medicalNin,
-		"ScoutNin":                  scoutNin,
-		"IntelligenceOperative":     intelligenceOperative,
-		"NinjutsuSpecialist":        ninjutsuSpecialist,
-		"ScienceNin":                scienceNin,
-		"Mastery":                   mastery,
-		"PendingFeatureChoices":     pendingFeatureChoices,
-		"PendingASI":                pendingASI,
-		"PendingFeatAbilityChoices": pendingFeatAbilityChoices,
-		"ChatLog":                   chatLog,
-		"ToolProficiencies":         toolRows, "Languages": languages, "CustomSkills": customSkillRows,
+		"WeaponForm":                    weaponForm,
+		"MartialDefense":                martialDefense,
+		"HunterTechniques":              hunterTechniques,
+		"CookingNin":                    cookingNin,
+		"Genjutsu":                      genjutsu,
+		"MedicalNin":                    medicalNin,
+		"ScoutNin":                      scoutNin,
+		"IntelligenceOperative":         intelligenceOperative,
+		"NinjutsuSpecialist":            ninjutsuSpecialist,
+		"ScienceNin":                    scienceNin,
+		"Mastery":                       mastery,
+		"PendingFeatureChoices":         pendingFeatureChoices,
+		"PendingASI":                    pendingASI,
+		"PendingFeatAbilityChoices":     pendingFeatAbilityChoices,
+		"PendingFeatSkillOrToolChoices": pendingFeatSkillOrToolChoices,
+		"ChatLog":                       chatLog,
+		"ToolProficiencies":             toolRows, "Languages": languages, "CustomSkills": customSkillRows,
 		"AllTools": allTools, "AllLanguages": allLanguages,
 		"ClassSummary":     classSummary,
 		"EquipmentOptions": equipmentOptions,
@@ -4676,6 +4779,19 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			return nil, err
 		}
 		for slug, label := range upgradeGrants {
+			if _, exists := grantLabels[slug]; !exists {
+				grantLabels[slug] = label
+			}
+		}
+	}
+	if scoutNinLevel, err := s.scoutNinClassLevel(characterID); err != nil {
+		return nil, err
+	} else if scoutNinLevel > 0 {
+		mobileSavantGrants, err := s.scoutNinMobileSavantGrantedJutsu(characterID)
+		if err != nil {
+			return nil, err
+		}
+		for slug, label := range mobileSavantGrants {
 			if _, exists := grantLabels[slug]; !exists {
 				grantLabels[slug] = label
 			}
@@ -5190,7 +5306,13 @@ func (s *server) loadGrantedFeatures(characterID int64, clanSlug string, classLe
 			out = append(out, f)
 		}
 	}
-	return out, nil
+	// Mixed Studies (18th level, base Science-Nin): folds the picked
+	// Inquiry's own 3rd Level feature rows in here — the single funnel
+	// every cmd/n5e consumer of this function (science_nin_subclasses.go's
+	// own has[slug] catalog gates, jutsu_grants.go, custom_resources.go,
+	// loadMergedGrantedFeatures) ultimately reads through. See
+	// mergeMixedStudiesFeatures's own doc (science_nin.go).
+	return s.mergeMixedStudiesFeatures(characterID, out)
 }
 
 // puppetMasterTacticSlugs excludes Puppet Master's 5 named Tactics
@@ -5418,7 +5540,19 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load chassis property bulk bonus for "+name+" fragment:", err)
 			return
 		}
-		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus)
+		featBulk, err := s.featBulkBonus(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load feat bulk bonus for "+name+" fragment:", err)
+			return
+		}
+		backupPlanBonus, err := s.backupPlanBulkBonus(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load backup plan bulk bonus for "+name+" fragment:", err)
+			return
+		}
+		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus)
 	case "sheet_elemental_affinities":
 		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 		if err != nil {
@@ -5467,7 +5601,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 		}
 		data["MartialTechniques"] = martialTechniques
 	case "sheet_weapon_focus":
-		weaponFocus, err := s.loadWeaponFocusTabData(characterID)
+		weaponFocus, err := s.loadWeaponFocusTabData(characterID, sheet)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load weapon focus for fragment:", err)
@@ -5587,9 +5721,16 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("build pending feat ability choice rows for fragment:", err)
 			return
 		}
+		pendingFeatSkillOrToolChoices, err := s.buildPendingFeatSkillOrToolChoiceRows(characterID, characterFeats)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("build pending feat skill-or-tool choice rows for fragment:", err)
+			return
+		}
 		data["PendingFeatureChoices"] = pendingFeatureChoices
 		data["PendingASI"] = pendingASI
 		data["PendingFeatAbilityChoices"] = pendingFeatAbilityChoices
+		data["PendingFeatSkillOrToolChoices"] = pendingFeatSkillOrToolChoices
 	case "sheet_companions":
 		companions, err := charstore.ListCompanions(s.charDB, characterID)
 		if err != nil {
@@ -7810,13 +7951,25 @@ func (s *server) handleSheetFeatAdd(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// A clean fixed single-skill clause applies immediately, same as a fixed
-	// single-ability clause above — no player choice modeled for this
-	// mechanism (weapon/tool/choice-of-N proficiency clauses are left
-	// unparsed and documented in FEAT_AUDIT.md instead).
-	if skill, ok := parseFeatSkillProficiency(description); ok {
-		if err := charstore.ApplyFeatSkillProficiency(s.charDB, id, slug, skill); err != nil {
+	// single-ability clause above — upgrading to Mastery instead of a
+	// duplicate grant when the character is already proficient, for the
+	// feats whose text calls for that (see applyFeatProficiencyGrant). Tool/
+	// choice-of-N proficiency clauses are left unparsed and documented in
+	// FEAT_AUDIT.md instead.
+	if skill, ok := parseFeatSkillProficiency(slug, description); ok {
+		if err := s.applyFeatProficiencyGrant(id, slug, "skill", skill, description); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("apply feat skill proficiency:", err)
+			return
+		}
+	}
+	// Same fixed-single-category auto-apply as the skill clause above, for a
+	// weapon-category grant instead (e.g. "You gain proficiency in Martial
+	// Weapons").
+	if category, ok := parseFeatWeaponProficiency(description); ok {
+		if err := charstore.ApplyFeatWeaponProficiency(s.charDB, id, slug, category); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("apply feat weapon proficiency:", err)
 			return
 		}
 	}
@@ -7857,6 +8010,19 @@ func (s *server) handleSheetFeatDelete(w http.ResponseWriter, r *http.Request) {
 	if err := charstore.RemoveFeatSkillProficiency(s.charDB, id, slug); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("remove feat skill proficiency:", err)
+		return
+	}
+	// Same safe-no-op reasoning, for the tool/kit side of a "Kit or Skill
+	// (Pick one)" feat resolved via handleSheetFeatSkillOrToolChoice.
+	if err := charstore.RemoveFeatToolProficiency(s.charDB, id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("remove feat tool proficiency:", err)
+		return
+	}
+	// Same safe-no-op reasoning again, for a weapon-category grant.
+	if err := charstore.RemoveFeatWeaponProficiency(s.charDB, id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("remove feat weapon proficiency:", err)
 		return
 	}
 	// If this feat was granted through an ASI breakpoint's Feat alternative

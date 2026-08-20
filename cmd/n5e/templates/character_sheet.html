@@ -101,10 +101,10 @@
        subclass edit that newly unlocks one via data-also-refresh can't
        reveal the banner the same way it refreshes sheet-skills/sheet-saves
        — the player sees it on their next full page load. */}}
-  {{if or .PendingFeatureChoices .PendingASI .PendingFeatAbilityChoices}}
+  {{if or .PendingFeatureChoices .PendingASI .PendingFeatAbilityChoices .PendingFeatSkillOrToolChoices}}
   <div class="pending-choices-banner">
     <h2>⚠ Pending Choices</h2>
-    {{template "sheet_feature_choices" (dict "ID" .ID "PendingFeatureChoices" .PendingFeatureChoices "PendingASI" .PendingASI "PendingFeatAbilityChoices" .PendingFeatAbilityChoices)}}
+    {{template "sheet_feature_choices" (dict "ID" .ID "PendingFeatureChoices" .PendingFeatureChoices "PendingASI" .PendingASI "PendingFeatAbilityChoices" .PendingFeatAbilityChoices "PendingFeatSkillOrToolChoices" .PendingFeatSkillOrToolChoices)}}
   </div>
   {{end}}
 
@@ -376,11 +376,15 @@
     </details>
     {{end}}
 
-    {{/* Only shown for a character with real levels in Weapon Specialist —
-         Weapon Focus's own cap-gated weapon-type picker (any weapon in the
-         equipment catalog, not just carried inventory) plus the shared
-         Attack/Damage bonus and Flurry Die size readouts. Real DOM removal
-         via {{if}}, same treatment Martial Techniques gets above. */}}
+    {{/* Shown for a character with real levels in Weapon Specialist, OR a
+         character with no Weapon Specialist levels who took the
+         feat/class/weapon-arts-expert feat (its own slot doesn't require
+         Weapon Specialist levels — see cmd/n5e/weapon_specialist.go's
+         weaponFocusBonusSlots) — Weapon Focus's own cap-gated weapon-type
+         picker (any weapon in the equipment catalog, not just carried
+         inventory) plus the shared Attack/Damage bonus and Flurry Die size
+         readouts. Real DOM removal via {{if}}, same treatment Martial
+         Techniques gets above. */}}
     {{if .WeaponFocus}}
     <details class="sheet-feature-panel sheet-box" open data-box-id="weapon-focus">
       <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Weapon Focus</h2></summary>
@@ -1488,6 +1492,125 @@
   </form>
 </div>
 {{end}}
+{{/* Transformer (Blue Technique Warmaster, L14+) — a second Puppet Weapon
+     Type, re-pickable on every long rest. Reference/display only: this
+     does NOT re-run the ability-score/size/natural-weapon math the
+     companion card's own PRIMARY Weapon Type pick already applies —
+     transforming into this second form and applying its own bonuses
+     stays the player's own bookkeeping. */}}
+{{if .PuppetsTab.TransformerWeaponType}}
+<div class="sheet-subclass-detail">
+  <h3>Transformer: Second Weapon Type</h3>
+  <p class="section-hint">On a long rest, choose a second Puppet Weapon Type your Puppet Tool can transform into or out of. Reference only — its ability score/size/natural-weapon bonuses aren't applied automatically; your companion card's stats stay on your primary Weapon Type.</p>
+  <form method="post" action="/characters/{{$.ID}}/sheet/puppet-transformer-weapon-type" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+    <label class="sheet-vitals-label">Second Weapon Type
+      <select name="weapon_type_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .PuppetsTab.TransformerWeaponType.Options}}
+        <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.PuppetsTab.TransformerWeaponType.Current}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .PuppetsTab.TransformerWeaponType.Current}}{{.PuppetsTab.TransformerWeaponType.CurrentDescription}}{{else}}Choose a second Puppet Weapon Type to see what it does.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+</div>
+{{end}}
+{{/* Master of the Green Technique (Green Technique Marionettist, L20+) —
+     a long-rest re-pickable Ninjutsu/Genjutsu (B-Rank or lower, from the
+     full rules-db catalog filtered by rank + class/clan/elemental
+     eligibility). The book's further restrictions (no damage, doesn't
+     affect another creature, 1 action/Bonus Action cast time) aren't
+     queryable columns, so they're stated here rather than silently
+     enforced. Applying the chosen jutsu to your Puppets stays manual. */}}
+{{if .PuppetsTab.GreenTechniqueJutsu}}
+<div class="sheet-subclass-detail">
+  <h3>Master of the Green Technique: Chosen Jutsu</h3>
+  <p class="section-hint">Each long rest, choose one Ninjutsu or Genjutsu of B-Rank or lower that you could learn, dealing no damage and not affecting any other creature, with a casting time of 1 action or Bonus Action. Your Puppets stay under its effects while you're conscious — applying that stays manual.</p>
+  <form method="post" action="/characters/{{$.ID}}/sheet/puppet-green-technique-jutsu" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+    <label class="sheet-vitals-label">Chosen Jutsu
+      <select name="jutsu_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .PuppetsTab.GreenTechniqueJutsu.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.PuppetsTab.GreenTechniqueJutsu.Current}}selected{{end}}>{{.Name}} ({{.Rank}}-Rank)</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .PuppetsTab.GreenTechniqueJutsu.Current}}{{.PuppetsTab.GreenTechniqueJutsu.CurrentDescription}}{{else}}Choose a jutsu to see what it does.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+</div>
+{{end}}
+{{/* Thread Savant (White Technique Weaver, L14+) — a full-rest re-pickable
+     jutsu, sourced from the character's OWN known jutsu (published or
+     custom) rather than the full catalog. Casting it alongside a Chakra
+     Threads connection stays manual. */}}
+{{if .PuppetsTab.ThreadSavantJutsu}}
+<div class="sheet-subclass-detail">
+  <h3>Thread Savant: Chosen Jutsu</h3>
+  <p class="section-hint">Select one jutsu you know that deals no damage, inflicts no condition, and has a casting time of 1 action or Bonus Action. Casting it when you connect your Chakra Threads to a creature stays manual; you may switch it at the conclusion of a full rest.</p>
+  {{if .PuppetsTab.ThreadSavantJutsu.Options}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/puppet-thread-savant-jutsu" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+    <label class="sheet-vitals-label">Chosen Jutsu
+      <select name="jutsu_id" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .PuppetsTab.ThreadSavantJutsu.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.PuppetsTab.ThreadSavantJutsu.Current}}selected{{end}}>{{.Name}}{{if .Rank}} ({{.Rank}}-Rank){{end}}</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .PuppetsTab.ThreadSavantJutsu.Current}}{{.PuppetsTab.ThreadSavantJutsu.CurrentDescription}}{{else}}Choose a jutsu to see what it does.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+  {{else}}
+  <p class="section-hint">Learn a qualifying jutsu on the Jutsu tab first.</p>
+  {{end}}
+</div>
+{{end}}
+{{/* Always Prepared (base class, L18+) — a rest-re-pickable temporary
+     Upgrade, available to every Puppet Technique (not subclass-gated like
+     the three pickers above). Eligibility is filtered to Silver tier or
+     lower, prerequisite-checked, and excludes anything already held for
+     real. Creating/losing the temporary Upgrade each rest, and applying
+     whatever it actually does, stay manual. */}}
+{{if .PuppetsTab.AlwaysPreparedUpgrade}}
+<div class="sheet-subclass-detail">
+  <h3>Always Prepared: Temporary Upgrade</h3>
+  <p class="section-hint">After any rest, select and create a temporary version of a Puppet Upgrade of Silver tier or lower that you qualify for but don't already have. You keep it until you complete a rest — applying what it actually does stays manual.</p>
+  {{if .PuppetsTab.AlwaysPreparedUpgrade.Options}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/puppet-always-prepared-upgrade" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
+    <label class="sheet-vitals-label">Temporary Upgrade
+      <select name="upgrade_entry_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .PuppetsTab.AlwaysPreparedUpgrade.Options}}
+        <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.PuppetsTab.AlwaysPreparedUpgrade.Current}}selected{{end}}>{{.Name}} ({{.Tier}})</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .PuppetsTab.AlwaysPreparedUpgrade.Current}}{{.PuppetsTab.AlwaysPreparedUpgrade.CurrentDescription}}{{else}}Choose a temporary Upgrade to see what it does.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+  {{else}}
+  <p class="section-hint">You don't currently qualify for any additional Upgrade of Silver tier or lower.</p>
+  {{end}}
+</div>
+{{end}}
 {{/* Puppet Swarm (Red Technique Performer, Performance of 10 Puppets,
      L10+): a read-only computed card, not a picker — AC/HP/Speed/ability
      scores are recomputed live from the character's own Puppet Tool
@@ -1583,12 +1706,12 @@
   {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" $.ID "FormID" (printf "companion-form-%d" .ID)
               "SummonTribes" nil "ArmorChassisOptions" $.PuppetsTab.ArmorChassisOptions
               "ShowStructuredAttacks" true "AttacksTarget" "sheet-puppet-tab" "Attacks" .Attacks
-              "BaseTraits" $.PuppetsTab.BaseTraits
+              "BaseTraits" $.PuppetsTab.BaseTraits "MendingHealDie" $.PuppetsTab.MendingHealDie
               "ShowSeals" true "Seals" .Seals "SealCap" .SealCap "SealOptions" .SealOptions
               "UpgradeBonuses" .UpgradeBonuses "ChassisProperties" .ChassisProperties
               "ExpectedAC" .ExpectedAC "ExpectedMaxHP" .ExpectedMaxHP
               "ExpectedSpeed" .ExpectedSpeed "ExpectedFlySpeed" .ExpectedFlySpeed
-              "ElevatedDesignBonus" .ElevatedDesignBonus "SymphonyEnhancement" .SymphonyEnhancement
+              "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
               "ShowMatryoshka" true "IsMatryoshkaFramework" .IsMatryoshkaFramework
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName)}}
 
@@ -1909,10 +2032,15 @@
      a technique loses none of its detail once learned. Expects {ID,
      MartialTechniques}. Unarmed Technique's own die progression and
      Taijutsu Stance pick (base class feature, level 1 — every Taijutsu
-     Specialist, not subclass-gated) render at the top of the box.
-     Passionate Flame's and Ruin's own re-selectable choices (Hand Wraps of
-     Passion; the Anti-Chakra Wavelength 2-of-10 keyword pick) live as a
-     sub-section at the bottom, nil for every other subclass. */}}
+     Specialist, not subclass-gated) render at the top of the box, followed
+     by Stancer's own Mixed Martial Arts (3rd level) and Stance Blending
+     (9th level), each one more independent "learn a Stance you don't know"
+     pick under its own feature slug (buildFightingStanceView,
+     taijutsu.go) — only the known-stance pick is tracked; holding more
+     than one stance's benefit at once by spending Martial Dice stays
+     manual. Passionate Flame's and Ruin's own re-selectable choices (Hand
+     Wraps of Passion; the Anti-Chakra Wavelength 2-of-10 keyword pick)
+     live as a sub-section at the bottom, nil for every other subclass. */}}
 {{define "sheet_martial_techniques"}}
 <div id="sheet-martial-techniques" data-fragment="sheet_martial_techniques">
   {{if .MartialTechniques.UnarmedDamageDie}}
@@ -1934,6 +2062,52 @@
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
         <span class="tooltip-content">{{if .MartialTechniques.Stance.Current}}{{.MartialTechniques.Stance.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
+  {{if .MartialTechniques.StancerMixedMartialArts}}
+  <div class="sheet-subclass-detail">
+    <h3>Mixed Martial Arts</h3>
+    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding its benefit alongside your primary Stance at once (1 Martial Dice, for the next minute) is tracked on paper, not here.</p>
+    <form method="post" action="/characters/{{$.ID}}/sheet/stancer-mixed-martial-arts-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-martial-techniques">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .MartialTechniques.StancerMixedMartialArts.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.MartialTechniques.StancerMixedMartialArts.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .MartialTechniques.StancerMixedMartialArts.Current}}{{.MartialTechniques.StancerMixedMartialArts.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
+  {{if .MartialTechniques.StancerStanceBlending}}
+  <div class="sheet-subclass-detail">
+    <h3>Stance Blending</h3>
+    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding up to 3 stances' benefits simultaneously (1 Martial Dice per turn) is tracked on paper, not here.</p>
+    <form method="post" action="/characters/{{$.ID}}/sheet/stancer-stance-blending-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-martial-techniques">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .MartialTechniques.StancerStanceBlending.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.MartialTechniques.StancerStanceBlending.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .MartialTechniques.StancerStanceBlending.Current}}{{.MartialTechniques.StancerStanceBlending.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
       </span>
       <button type="submit">Set</button>
       <span class="sheet-save-toast" hidden>Saved.</span>
@@ -2101,7 +2275,12 @@
      list-then-radio-Add-form shape as sheet_martial_techniques for the
      Styles half; both Known and Available entries are .tooltip triggers
      showing the full description via formatDescription's named-entry
-     splitting. Expects {ID, WeaponForm}. */}}
+     splitting. Slayer Form's own 6th-level Stalking Predator (a freely
+     re-selectable pick between its two named Predator Exploits) renders as
+     a select+tooltip, same shape sheet_cooking_nin's Food For the Soul
+     uses. Superior Weapon Flurry (base class, 14th/18th level) is a second
+     cap-gated Picks-list-then-radio-Add-form pick, same shape as Styles
+     above, independent of which Form is chosen. Expects {ID, WeaponForm}. */}}
 {{define "sheet_weapon_form"}}
 <div id="sheet-weapon-form" data-fragment="sheet_weapon_form">
   {{if .WeaponForm.Techniques}}
@@ -2115,6 +2294,29 @@
       </span>
     </div>
     {{end}}
+  </div>
+  {{end}}
+
+  {{if .WeaponForm.StalkingPredator}}
+  <div class="sheet-subclass-detail">
+    <h3>Stalking Predator</h3>
+    <form method="post" action="/characters/{{$.ID}}/sheet/stalking-predator" class="sheet-inline-form sheet-fetch-form" data-target="sheet-weapon-form">
+      <label class="sheet-vitals-label">Predator Exploit
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— none chosen —</option>
+          {{range .WeaponForm.StalkingPredator.Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.WeaponForm.StalkingPredator.Current}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .WeaponForm.StalkingPredator.Current}}{{range .WeaponForm.StalkingPredator.Options}}{{if eq .Value $.WeaponForm.StalkingPredator.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a Predator Exploit above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    <p class="section-hint">Switchable when you would complete a short rest — this app doesn't enforce that timing. The Flurry-die bonus to the matching skill checks (and each Exploit's own follow-on effect) stays manual; only which Exploit is currently active is tracked here.</p>
   </div>
   {{end}}
 
@@ -2154,6 +2356,42 @@
     <p class="section-hint">All Style slots filled — forget one above to learn a different Style.</p>
     {{end}}
   </div>
+
+  {{if .WeaponForm.SuperiorWeaponFlurry}}
+  <div class="sheet-subclass-detail">
+    <h3>Superior Weapon Flurry <span class="option-picker-epithet">{{.WeaponForm.SuperiorWeaponFlurry.Used}}/{{.WeaponForm.SuperiorWeaponFlurry.Cap}} chosen</span></h3>
+    <p class="section-hint">Each benefit modifies an existing Flurry Technique's duration or effect — applying that change stays manual; only which benefits are selected is tracked here.</p>
+    {{range .WeaponForm.SuperiorWeaponFlurry.Known}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/superior-weapon-flurry/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-weapon-form">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{.Description}}</span>
+      </span>
+    </div>
+    {{end}}
+
+    {{if lt .WeaponForm.SuperiorWeaponFlurry.Used .WeaponForm.SuperiorWeaponFlurry.Cap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/superior-weapon-flurry" class="sheet-panel-form sheet-fetch-form" data-target="sheet-weapon-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .WeaponForm.SuperiorWeaponFlurry.Available}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{.Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Select Benefit</button>
+    </form>
+    {{else}}
+    <p class="section-hint">All benefit slots filled — remove one above to select a different benefit.</p>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -2202,27 +2440,68 @@
 </div>
 {{end}}
 
-{{/* sheet_hunter_techniques: Hunter-Nin's Lethal Attack die readout plus
-     three independent cap-gated catalog picks — Hunters Patterns, Hunters
-     Exploits (whose Known list also folds in whichever of the 8
-     subclass-exclusive exploits the character's own Hunter's Creed grants
-     for free, marked Granted, same shape Martial Techniques' auto-grants
-     use), and Defensive Tactics (a hand-curated 4-option catalog, no
-     class_options rows of its own). Each sub-section renders only when its
-     own Cap is > 0 (a level 1-2 character has Lethal Attack but hasn't
-     reached Hunters Patterns yet, etc.) — three independently-gated lists
-     in one box rather than three separate boxes, the same "don't leave
-     other characters looking at an empty box" reasoning Passionate
-     Flame's/Ruin's sub-sections inside Martial Techniques already use.
-     Known Patterns, Exploits, and Defensive Tactics are all real popup
-     links (.sheet-popup-trigger, see sheet-popup.js) to
-     hunter_pick_detail_card below, so a locked-in pick's full text stays
-     reachable after it drops out of the tooltipped Available list.
-     Expects {ID, HunterTechniques}. */}}
+{{/* sheet_hunter_techniques: Hunter-Nin's Lethal Attack die readout, four
+     base-class-wide cap-gated catalog picks — Lethal Precision (a
+     hand-curated 2-option Taijutsu/Bukijutsu table, cap 1, no re-cap;
+     picking one swaps that discipline's Attack ability to Dexterity on the
+     Core tab, see charsheet.go's JutsuAttacks loop — only the pick is
+     tracked here), Hunters Patterns, Hunters Exploits (whose Known list
+     also folds in whichever of the 8 subclass-exclusive exploits the
+     character's own Hunter's Creed grants for free, marked Granted, same
+     shape Martial Techniques' auto-grants use), and Defensive Tactics (a
+     hand-curated 4-option catalog, no class_options rows of its own) —
+     plus each of the 8 Hunter's Creeds'
+     own subclass-exclusive 3rd-level (cap 1->2@10th, unless noted) catalog
+     pick: Blade Warden's Warden Weapon TYPE (cap 1, no re-cap) and Warden
+     Weapon Property, Necrotic Hand's Medical/Grave Stalker's Shadow/
+     Undertaker's Toxic/Vice Agent's Vice/Void Walker's Void Assassination
+     Techniques, Arsenalist's Arsenal (cap 4->6@10th), and Wolves Legacy's
+     Prosthetic Attachments (cap 2->4@10th, its own per-rest use pool is a
+     Special Resources tile above, not shown here). Each sub-section
+     renders only when its own Cap is > 0 (a level 1-2 character has
+     Lethal Attack but hasn't reached Hunters Patterns yet; every
+     subclass-exclusive sub-section stays hidden for every OTHER Creed) —
+     many independently-gated lists in one box rather than one box per
+     list, the same "don't leave other characters looking at an empty box"
+     reasoning Passionate Flame's/Ruin's sub-sections inside Martial
+     Techniques already use. Every Known pick is a real popup link
+     (.sheet-popup-trigger, see sheet-popup.js) to hunter_pick_detail_card
+     below, so a locked-in pick's full text stays reachable after it drops
+     out of the tooltipped Available list. Expects {ID, HunterTechniques}. */}}
 {{define "sheet_hunter_techniques"}}
 <div id="sheet-hunter-techniques" data-fragment="sheet_hunter_techniques">
   {{if .HunterTechniques.LethalAttackDice}}
   <p class="section-hint">Lethal Attack: {{.HunterTechniques.LethalAttackDice}} extra damage, once per turn against a foe that fits the trigger.</p>
+  {{end}}
+
+  {{if gt .HunterTechniques.LethalPrecisionCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Lethal Precision <span class="option-picker-epithet">{{.HunterTechniques.LethalPrecisionUsed}}/{{.HunterTechniques.LethalPrecisionCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownLethalPrecision}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/lethal-precision/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/lethal-precision/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.LethalPrecisionUsed .HunterTechniques.LethalPrecisionCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/lethal-precision" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableLethalPrecision}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Discipline</button>
+    </form>
+    {{end}}
+  </div>
   {{end}}
 
   {{if gt .HunterTechniques.PatternsCap 0}}
@@ -2317,6 +2596,314 @@
     {{end}}
   </div>
   {{end}}
+
+  {{/* The 8 Hunter's Creeds' own subclass-exclusive picks below — each
+       sub-section only ever renders for the one matching Creed (its own
+       Cap stays 0 for every other subclass, hiding it the same way
+       Patterns/Exploits/Defensive Tactics hide themselves above). */}}
+
+  {{if gt .HunterTechniques.WardenWeaponCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Warden Weapon <span class="option-picker-epithet">{{.HunterTechniques.WardenWeaponUsed}}/{{.HunterTechniques.WardenWeaponCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownWardenWeapon}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/warden-weapon/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/warden-weapon/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.WardenWeaponUsed .HunterTechniques.WardenWeaponCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/warden-weapon" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableWardenWeapon}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Warden Weapon</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.WardenWeaponPropertyCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Warden Weapon Property <span class="option-picker-epithet">{{.HunterTechniques.WardenWeaponPropertyUsed}}/{{.HunterTechniques.WardenWeaponPropertyCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownWardenWeaponProperty}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/warden-weapon-property/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/warden-weapon-property/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.WardenWeaponPropertyUsed .HunterTechniques.WardenWeaponPropertyCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/warden-weapon-property" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableWardenWeaponProperty}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Property</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.MedicalTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Medical Assassination Technique <span class="option-picker-epithet">{{.HunterTechniques.MedicalTechniqueUsed}}/{{.HunterTechniques.MedicalTechniqueCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownMedicalTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/medical-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/medical-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.MedicalTechniqueUsed .HunterTechniques.MedicalTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/medical-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableMedicalTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.ShadowTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Shadow Assassination Technique <span class="option-picker-epithet">{{.HunterTechniques.ShadowTechniqueUsed}}/{{.HunterTechniques.ShadowTechniqueCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownShadowTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/shadow-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/shadow-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.ShadowTechniqueUsed .HunterTechniques.ShadowTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/shadow-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableShadowTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.ArsenalItemCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Arsenal <span class="option-picker-epithet">{{.HunterTechniques.ArsenalItemUsed}}/{{.HunterTechniques.ArsenalItemCap}} chosen</span></h3>
+    <p class="section-hint">Manipulated Tools items also learn the matching jutsu automatically.</p>
+    {{range .HunterTechniques.KnownArsenalItem}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/arsenal-item/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/arsenal-item/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.ArsenalItemUsed .HunterTechniques.ArsenalItemCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/arsenal-item" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableArsenalItem}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Add to Arsenal</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.ToxicTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Toxic Assassination Technique <span class="option-picker-epithet">{{.HunterTechniques.ToxicTechniqueUsed}}/{{.HunterTechniques.ToxicTechniqueCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownToxicTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/toxic-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/toxic-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.ToxicTechniqueUsed .HunterTechniques.ToxicTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/toxic-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableToxicTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.ViceTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Vice Assassination Technique <span class="option-picker-epithet">{{.HunterTechniques.ViceTechniqueUsed}}/{{.HunterTechniques.ViceTechniqueCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownViceTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/vice-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/vice-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.ViceTechniqueUsed .HunterTechniques.ViceTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/vice-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableViceTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.VoidTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Void Assassination Technique <span class="option-picker-epithet">{{.HunterTechniques.VoidTechniqueUsed}}/{{.HunterTechniques.VoidTechniqueCap}} chosen</span></h3>
+    {{range .HunterTechniques.KnownVoidTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/void-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/void-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.VoidTechniqueUsed .HunterTechniques.VoidTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/void-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableVoidTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.ProstheticAttachmentCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Prosthetic Attachments <span class="option-picker-epithet">{{.HunterTechniques.ProstheticAttachmentUsed}}/{{.HunterTechniques.ProstheticAttachmentCap}} chosen</span></h3>
+    <p class="section-hint">Spent from your Prosthetic Attachments pool in Special Resources above.</p>
+    {{range .HunterTechniques.KnownProstheticAttachment}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/prosthetic-attachment/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/prosthetic-attachment/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.ProstheticAttachmentUsed .HunterTechniques.ProstheticAttachmentCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/prosthetic-attachment" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableProstheticAttachment}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Attachment</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .HunterTechniques.WolfTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Wolf Techniques <span class="option-picker-epithet">{{.HunterTechniques.WolfTechniqueUsed}}/{{.HunterTechniques.WolfTechniqueCap}} chosen</span></h3>
+    <p class="section-hint">Learning a Wolf Technique also learns its jutsu. Casting it by spending two uses of your Prosthetic Attachments instead of Chakra (always B-Rank, no component requirement) stays a manual choice at cast time — nothing here automates that alternate cost.</p>
+    {{range .HunterTechniques.KnownWolfTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/wolf-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/hunter-techniques/wolf-technique/{{.Slug}}">{{.Name}}</a>
+    </div>
+    {{end}}
+    {{if lt .HunterTechniques.WolfTechniqueUsed .HunterTechniques.WolfTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/wolf-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <ul class="puppet-upgrade-option-list">
+        {{range .HunterTechniques.AvailableWolfTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -2407,10 +2994,16 @@
      would otherwise promise one) — the jutsu's own full text is already
      reachable from the Known Jutsu/Attacks & Jutsu sections elsewhere on
      the sheet. Each sub-section renders only when its own Cap is > 0.
-     Chakra Recovery, Jutsu Breaker, and Efficient Molding's own separate
-     "uses per rest" pool are Special Resources tiles above
-     (customResourceGrants), not shown here. Expects
-     {ID, NinjutsuSpecialist}. */}}
+     Efficient Molding's own Known list mixes player picks (Slug set, real
+     popup link, counts against MoldingCap) with the 22 bespoke per-subclass
+     auto-grants (ninjutsuMoldingAutoGrants, cmd/n5e/ninjutsu_specialist.go —
+     Granted true, no Slug, no popup route to link to since no class_options
+     row exists for them, so a .tooltip renders the granting feature's own
+     description inline instead) — same Slug-vs-Granted split
+     sheet_martial_techniques already establishes. Chakra Recovery, Jutsu
+     Breaker, and Efficient Molding's own separate "uses per rest" pool are
+     Special Resources tiles above (customResourceGrants), not shown here.
+     Expects {ID, NinjutsuSpecialist}. */}}
 {{define "sheet_ninjutsu_specialist"}}
 <div id="sheet-ninjutsu-specialist" data-fragment="sheet_ninjutsu_specialist">
   {{if gt .NinjutsuSpecialist.MoldingCap 0}}
@@ -2419,11 +3012,19 @@
     <p class="section-hint">Freely re-editable when you level up in this class — this app doesn't enforce that timing.</p>
     {{range .NinjutsuSpecialist.KnownMolding}}
     <div class="puppet-upgrade-pick">
+      {{if not .Granted}}
       <form method="post" action="/characters/{{$.ID}}/sheet/ninjutsu-molding/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
         <input type="hidden" name="option_slug" value="{{.Slug}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
       </form>
+      {{end}}
+      {{if .Granted}}
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}} (granted)
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+      {{else}}
       <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/ninjutsu-molding/{{.Slug}}">{{.Name}}</a>
+      {{end}}
     </div>
     {{end}}
     {{if lt .NinjutsuSpecialist.MoldingUsed .NinjutsuSpecialist.MoldingCap}}
@@ -2561,6 +3162,67 @@
     </form>
     {{end}}
   </div>
+  {{if .ScienceNin.InfusedGenius}}
+  {{$ig := .ScienceNin.InfusedGenius}}
+  <div class="sheet-subclass-detail">
+    <h3>Infused Tools <span class="option-picker-epithet">{{$ig.Used}}/{{$ig.Cap}} infused</span></h3>
+    <p class="section-hint">Restricted to already-known tools of Cost 8 or lower. Twice per long rest (Special Resources above), the holder or wearer of the attached weapon/armor can use one at no chakra cost — which item each is attached to isn't tracked here.</p>
+    {{range $ig.Known}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-tools/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $ig.Used $ig.Cap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ig.Available}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Infuse Tool</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .ScienceNin.MixedStudies}}
+  {{$mixed := .ScienceNin.MixedStudies}}
+  <div class="sheet-subclass-detail">
+    <h3>Mixed Studies</h3>
+    <p class="section-hint">Grants the 3rd Level features of one other Scientific Inquiry (never the one chosen at 3rd Level). Only this pick is tracked — whatever the borrowed Inquiry's own 3rd Level mechanics unlock elsewhere on this sheet follows automatically.</p>
+    {{if $mixed.Picked}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$mixed.Picked.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Drop Mixed Studies pick" title="Drop">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/mixed-studies/{{$mixed.Picked.Slug}}">{{$mixed.Picked.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $mixed.Available}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Study Inquiry</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{if .ScienceNin.ElementalInnovationist}}
   {{$ei := .ScienceNin.ElementalInnovationist}}
   <div class="sheet-subclass-detail">
@@ -2619,6 +3281,34 @@
     </form>
     {{end}}
   </div>
+  {{if or $ei.DesignatedWoW $ei.AvailableDesignatedWoW}}
+  <div class="sheet-subclass-detail">
+    <h3>Elemental Innovation: Ascended W.o.W</h3>
+    <p class="section-hint">One known W.o.W designated Ascended — half ammo Creation Point cost, and its damage ignores resistance and treats immunity as resistance. Only the designation itself is tracked; the cost discount and damage-type override stay on paper.</p>
+    {{if $ei.DesignatedWoW}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-ascended-wow/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$ei.DesignatedWoW.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Clear Ascended W.o.W" title="Clear">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/wow/{{$ei.DesignatedWoW.Slug}}">{{$ei.DesignatedWoW.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-ascended-wow" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ei.AvailableDesignatedWoW}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Set Ascended W.o.W</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{end}}
   {{if or $ei.PermaPerk $ei.AvailablePermaPerk}}
   <div class="sheet-subclass-detail">
@@ -2680,6 +3370,34 @@
     </form>
     {{end}}
   </div>
+  {{if or $gr.DesignatedBIM $gr.AvailableDesignatedBIM}}
+  <div class="sheet-subclass-detail">
+    <h3>B.I.M Specialist</h3>
+    <p class="section-hint">One known B.I.M type designated — half Creation Point cost to upgrade, and creatable on the fly as a bonus action. Only the designation itself is tracked; the cost discount and bonus-action creation stay on paper.</p>
+    {{if $gr.DesignatedBIM}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-bim-specialist/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$gr.DesignatedBIM.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Clear B.I.M Specialist" title="Clear">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/bim/{{$gr.DesignatedBIM.Slug}}">{{$gr.DesignatedBIM.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-bim-specialist" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $gr.AvailableDesignatedBIM}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Set B.I.M Specialist</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{end}}
   {{if .ScienceNin.MadScientist}}
   {{$ms := .ScienceNin.MadScientist}}
@@ -2727,6 +3445,34 @@
     </form>
     {{end}}
   </div>
+  {{if or $ms.DesignatedSerum $ms.AvailableDesignatedSerum}}
+  <div class="sheet-subclass-detail">
+    <h3>The Sheep and the Shepherd</h3>
+    <p class="section-hint">One known dual-effect Serum designated — your healing Medical Ninjutsu also applies its Mend effect, your damaging Medical Ninjutsu also applies its Maim effect. Only the designation is tracked; applying the Mend/Maim effect stays manual.</p>
+    {{if $ms.DesignatedSerum}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-sheep-and-shepherd/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{$ms.DesignatedSerum.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Clear designated Serum" title="Clear">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/inversion-serum/{{$ms.DesignatedSerum.Slug}}">{{$ms.DesignatedSerum.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-sheep-and-shepherd" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $ms.AvailableDesignatedSerum}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Designate Serum</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{end}}
   {{if .ScienceNin.Ninjaneer}}
   {{$nj := .ScienceNin.Ninjaneer}}
@@ -2852,6 +3598,31 @@
     {{end}}
   </div>
   {{end}}
+  {{if or $sw.ShinjutsuUpgrade $sw.AvailableShinjutsuUpgrade}}
+  <div class="sheet-subclass-detail">
+    <h3>In His Image</h3>
+    <p class="section-hint">One Shinjutsu Upgrade, granted permanently the first time your seal activates — this pick cannot be changed once made. Activating and maintaining the seal, and its +2 AC/+1 crit-range effects while sealed, stay manual.</p>
+    {{if $sw.ShinjutsuUpgrade}}
+    <div class="puppet-upgrade-pick">
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/shinobi-ware-upgrade/{{$sw.ShinjutsuUpgrade.Slug}}">{{$sw.ShinjutsuUpgrade.Name}}</a>
+    </div>
+    {{else}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-shinjutsu-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $sw.AvailableShinjutsuUpgrade}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Bind Shinjutsu</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{end}}
   {{if .ScienceNin.Spyware}}
   {{$sp := .ScienceNin.Spyware}}
@@ -2945,17 +3716,18 @@
   </div>
   {{if or $sr.Regalia $sr.AvailableRegalia}}
   <div class="sheet-subclass-detail">
-    <h3>Regalia</h3>
-    <p class="section-hint">One permanent Regalia, worn alongside your A. Ts.</p>
-    {{if $sr.Regalia}}
+    <h3>Regalia <span class="option-picker-epithet">{{$sr.RegaliaUsed}}/{{$sr.RegaliaCap}} worn</span></h3>
+    <p class="section-hint">{{if gt $sr.RegaliaCap 1}}Two Regalia can be worn at once, granted by Future of Shinobi: Sky Keeper.{{else}}One permanent Regalia, worn alongside your A. Ts.{{end}}</p>
+    {{range $sr.Regalia}}
     <div class="puppet-upgrade-pick">
       <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-regalia/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
-        <input type="hidden" name="option_slug" value="{{$sr.Regalia.Slug}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Remove Regalia" title="Remove">&times;</button>
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
       </form>
-      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/regalia/{{$sr.Regalia.Slug}}">{{$sr.Regalia.Name}}</a>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/regalia/{{.Slug}}">{{.Name}}</a>
     </div>
-    {{else}}
+    {{end}}
+    {{if lt $sr.RegaliaUsed $sr.RegaliaCap}}
     <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-regalia" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
       <ul class="puppet-upgrade-option-list">
         {{range $sr.AvailableRegalia}}
@@ -3035,15 +3807,59 @@
     </form>
     {{end}}
   </div>
+  {{if or $snb.KnownPermanent $snb.AvailablePermanent}}
+  <div class="sheet-subclass-detail">
+    <h3>Future of Shinobi: S.N.B <span class="option-picker-epithet">{{$snb.PermanentUsed}}/{{$snb.PermanentCap}} chosen</span></h3>
+    <p class="section-hint">Three known S.N.B Upgrades made permanent — they no longer take an upgrade slot or cost Creation Points.</p>
+    {{range $snb.KnownPermanent}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-snb-upgrade-permanent/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+      </form>
+      <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/snb-upgrade/{{.Slug}}">{{.Name}}</a>
+      <span class="option-picker-epithet">{{.Tier}}</span>
+    </div>
+    {{end}}
+    {{if lt $snb.PermanentUsed $snb.PermanentCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-snb-upgrade-permanent" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range $snb.AvailablePermanent}}
+        <li>
+          <label class="puppet-upgrade-option">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Make Permanent</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{end}}
 </div>
 {{end}}
 
-{{/* sheet_cooking_nin: Cooking-Nin's Cooking Die size readout plus Food For
+{{/* sheet_cooking_nin: Cooking-Nin's Cooking Die size readout, Food For
      the Soul's freely re-editable ability-score pick (2nd level+, blank
-     until the player has chosen one). The class's own spendable pools
-     (Shinobi Snacks, Wandering Aroma, War and Food, the subclass bonus
-     Auras, and the rest) are separate tiles in the Special Resources row
+     until the player has chosen one), Fast and Furious's freely re-editable
+     Int-or-Cha-for-Initiative pick (Entremetier Chef, 2nd level — only the
+     pick is tracked; charsheet.go reads it back as InitiativeAbility's own
+     default), and (Gastrochemist only) the Nature's Blend Enhancement
+     picker — a known jutsu of the character's own
+     Nature's Blend release element(s) (elemental_affinity.go's own
+     "natures-blend"/"many-colored-blend" picks feed the Elemental
+     Affinities panel elsewhere on the sheet) paired with one of 4
+     Enhancement types, each picked as its own radio list within one form
+     (same "no separate JS listener needed" tooltip shape
+     sheet_martial_techniques uses, just two radio lists submitted
+     together instead of one). Only WHICH jutsu/Enhancement pair was chosen
+     is tracked — applying an Enhancement still costs Chakra and a Snack at
+     cast time, narrated by the player, not automated. Renders only when
+     BlendEnhancementCap > 0. The class's own spendable pools (Shinobi
+     Snacks, Wandering Aroma, War and Food, the subclass bonus Auras, and
+     the rest) are separate tiles in the Special Resources row
      (customResourceGrants), not here. Expects {ID, CookingNin}. */}}
 {{define "sheet_cooking_nin"}}
 <div id="sheet-cooking-nin" data-fragment="sheet_cooking_nin">
@@ -3067,6 +3883,68 @@
     <button type="submit">Set</button>
     <span class="sheet-save-toast" hidden>Saved.</span>
   </form>
+  {{end}}
+
+  {{if .CookingNin.FastAndFurious}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/fast-and-furious" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+    <label class="sheet-vitals-label">Fast and Furious (Initiative)
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— Dexterity (default) —</option>
+        {{range .CookingNin.FastAndFurious.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.FastAndFurious.Current}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .CookingNin.FastAndFurious.Current}}{{range .CookingNin.FastAndFurious.Options}}{{if eq .Value $.CookingNin.FastAndFurious.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose Intelligence or Charisma above to use it for Initiative instead of Dexterity — sets the sheet's own Initiative ability default, still overridable from the Adjust panel.{{end}}</span>
+    </span>
+    <button type="submit">Set</button>
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
+  {{end}}
+
+  {{if gt .CookingNin.BlendEnhancementCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Nature's Blend Enhancements <span class="option-picker-epithet">{{.CookingNin.BlendEnhancementUsed}}/{{.CookingNin.BlendEnhancementCap}} chosen</span></h3>
+    <p class="section-hint">Applying an Enhancement still costs Chakra and a Snack at cast time — narrate that yourself, this only tracks which jutsu/Enhancement pair you've chosen. Freely re-editable at any time — this app doesn't enforce a rest/level-up gate on this pick.</p>
+    {{range .CookingNin.KnownBlendEnhancements}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/blend-enhancement/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}'s Enhancement" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}} · {{.EnhancementLabel}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .CookingNin.BlendEnhancementUsed .CookingNin.BlendEnhancementCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/blend-enhancement" class="sheet-panel-form sheet-fetch-form" data-target="sheet-cooking-nin">
+      <p class="section-hint">Jutsu of your Nature's Blend release:</p>
+      <ul class="puppet-upgrade-option-list">
+        {{range .CookingNin.AvailableBlendJutsu}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <p class="section-hint">Enhancement type:</p>
+      <ul class="puppet-upgrade-option-list">
+        {{range .CookingNin.BlendEnhancementOptions}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="enhancement_type" value="{{.Value}}" required> {{.Label}}
+            <span class="tooltip-content">{{.Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Give Enhancement</button>
+    </form>
+    {{end}}
+  </div>
   {{end}}
 </div>
 {{end}}
@@ -3095,14 +3973,22 @@
      individually prerequisite-gated, see genjutsu_prereq.go; a Mirage
      granted for free by the character's own Genjutsu Inception pick shows
      Granted, same shape Hunters Exploits' subclass auto-grants use),
-     Genjutsu Inception, Real World Conversion, and Master of Illusion. Each
+     Genjutsu Inception, Real World Conversion, and Master of Illusion — plus
+     Beguiler's Twisted Casting and Corrupt Thoughts' Psyche Breaker (10th
+     level, cap 2, both sourced from the character's own known Genjutsu via
+     loadKnownGenjutsu rather than a rules catalog — same "Known"/
+     "Available" markup as sheet_ninjutsu_specialist's Refined Ninjutsu/
+     Ninjutsu Master, so their Known rows get no popup link either, same
+     reasoning: the jutsu's own full text is already reachable from the
+     Known Jutsu/Attacks & Jutsu sections elsewhere on the sheet). Each
      sub-section renders only when its own Cap is > 0, same "don't leave
      other characters looking at an empty box" reasoning
-     sheet_hunter_techniques already uses. Known picks are all real popup
-     links (.sheet-popup-trigger) to hunter_pick_detail_card above (reused
-     as-is — it's already a bare Name/Description card with nothing
-     Hunter-specific in it), so a locked-in pick's full text stays reachable
-     after it drops out of the tooltipped Available list.
+     sheet_hunter_techniques already uses. The four rules-catalog picks'
+     Known entries are all real popup links (.sheet-popup-trigger) to
+     hunter_pick_detail_card above (reused as-is — it's already a bare
+     Name/Description card with nothing Hunter-specific in it), so a
+     locked-in pick's full text stays reachable after it drops out of the
+     tooltipped Available list.
      Expects {ID, Genjutsu}. */}}
 {{define "sheet_genjutsu"}}
 <div id="sheet-genjutsu" data-fragment="sheet_genjutsu">
@@ -3243,6 +4129,68 @@
     {{end}}
   </div>
   {{end}}
+
+  {{if gt .Genjutsu.TwistedCastingCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Twisted Casting <span class="option-picker-epithet">{{.Genjutsu.TwistedCastingUsed}}/{{.Genjutsu.TwistedCastingCap}} chosen</span></h3>
+    <p class="section-hint">Genjutsu you know that can appear to originate from another creature you can see, as a Bonus Action. Freely re-editable on a long rest — this app doesn't enforce that timing.</p>
+    {{range .Genjutsu.KnownTwistedCasting}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/genjutsu-twisted-casting/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-genjutsu">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .Genjutsu.TwistedCastingUsed .Genjutsu.TwistedCastingCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/genjutsu-twisted-casting" class="sheet-panel-form sheet-fetch-form" data-target="sheet-genjutsu">
+      <ul class="puppet-upgrade-option-list">
+        {{range .Genjutsu.AvailableTwistedCasting}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Twisted Casting</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .Genjutsu.PsycheBreakerCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Psyche Breaker <span class="option-picker-epithet">{{.Genjutsu.PsycheBreakerUsed}}/{{.Genjutsu.PsycheBreakerCap}} chosen</span></h3>
+    <p class="section-hint">Genjutsu you know that deal damage (not enforced — pick freely). Casting one as a Bonus Action stacks a -1 AC penalty, up to 3 times, on affected creatures for 1 minute. Freely re-editable — this app doesn't enforce a re-pick timing.</p>
+    {{range .Genjutsu.KnownPsycheBreaker}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/genjutsu-psyche-breaker/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-genjutsu">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .Genjutsu.PsycheBreakerUsed .Genjutsu.PsycheBreakerCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/genjutsu-psyche-breaker" class="sheet-panel-form sheet-fetch-form" data-target="sheet-genjutsu">
+      <ul class="puppet-upgrade-option-list">
+        {{range .Genjutsu.AvailablePsycheBreaker}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Psyche Breaker</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -3250,15 +4198,20 @@
      (Chakra Scalpel damage, Channeled Healing bonus, Rejuvenating Rest
      extra dice — each blank until the character reaches that column's own
      starting level), Medical Doctrine's cap-gated 4-option catalog pick,
-     and, for a Combat Medic only, Martial Competency's own Taijutsu Stance
-     pick (same markup as sheet_martial_techniques' Stance section, reused
-     via taijutsu.go's buildFightingStanceView/storeFightingStanceChoice —
-     see medical_nin.go's handleMedicalNinFightingStance). The class's own
-     spendable pools (Chakra Scalpel Charges, Preserve/Take Life, Yin
-     Motes, Competent Combatant's double-modifier uses, Passive
+     for a Combat Medic only, Martial Competency's own Taijutsu Stance pick
+     (same markup as sheet_martial_techniques' Stance section, reused via
+     taijutsu.go's buildFightingStanceView/storeFightingStanceChoice — see
+     medical_nin.go's handleMedicalNinFightingStance), and Combat Medic's
+     own Expert Combatant pick (same "Known"/"Available" markup as
+     sheet_ninjutsu_specialist's Refined Ninjutsu/Ninjutsu Master, sourced
+     from the character's own known jutsu rather than a rules-database
+     catalog — see medical_nin.go's loadKnownExpertCombatantJutsu). The
+     class's own spendable pools (Chakra Scalpel Charges, Preserve/Take
+     Life, Yin Motes, Competent Combatant's double-modifier uses, Passive
      Regeneration, Natural Healing Dice, Shaman's Hex Marks, Transfigured
-     Technique) are separate tiles in the Special Resources row above
-     (customResourceGrants), not shown here. Expects {ID, MedicalNin}. */}}
+     Technique, Not Allowed to Die, Until Their Heart Stops) are separate
+     tiles in the Special Resources row above (customResourceGrants), not
+     shown here. Expects {ID, MedicalNin}. */}}
 {{define "sheet_medical_nin"}}
 <div id="sheet-medical-nin" data-fragment="sheet_medical_nin">
   {{if .MedicalNin.ChakraScalpelDamageDie}}
@@ -3324,6 +4277,37 @@
     {{end}}
   </div>
   {{end}}
+
+  {{if gt .MedicalNin.ExpertCombatantCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Expert Combatant <span class="option-picker-epithet">{{.MedicalNin.ExpertCombatantUsed}}/{{.MedicalNin.ExpertCombatantCap}} chosen</span></h3>
+    <p class="section-hint">Taijutsu or Bukijutsu you know that gains the Medical Keyword. Freely re-editable on a long rest — this app doesn't enforce that timing. The extra attack Expert Combatant also grants isn't tracked here.</p>
+    {{range .MedicalNin.KnownExpertCombatant}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/expert-combatant/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-medical-nin">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .MedicalNin.ExpertCombatantUsed .MedicalNin.ExpertCombatantCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/expert-combatant" class="sheet-panel-form sheet-fetch-form" data-target="sheet-medical-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .MedicalNin.AvailableExpertCombatant}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Expert Combatant</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -3334,14 +4318,26 @@
      (Taijutsu Stance OR Weapon Stance, same markup as sheet_martial_techniques'
      Stance section, reused via taijutsu.go's buildFightingStanceView/
      storeFightingStanceChoice — see scout_nin.go's handleScoutNinFightingStance),
-     Shinobi Adept's and Jack of All, Master of None's cap-gated catalog
-     picks (same "Known"/"Available" markup as sheet_medical_nin's Medical
-     Doctrine section), and Deft Explorer's Mobile sub-tier readout (6th
-     level, automatic — swim/climb/wall/water-walk speed all equal Speed).
-     Superiority Dice's own count/size readout, and Elemental Scout's own
-     Chakra Sphere/Repelling Burst, Ghastly Leech, Willpower Surge, and
-     Tricksters Words uses, are all Special Resources tiles above
-     (customResourceGrants), not shown here. Expects {ID, ScoutNin}. */}}
+     Shinobi Adept's, Jack of All Master of None's, Signature Technique's,
+     Mobile Savant's, Tactical Superiority's, Signature Maneuver's, and
+     Supreme Clones' cap-gated catalog picks (same "Known"/"Available"
+     markup as sheet_medical_nin's Medical Doctrine section — Signature
+     Maneuver's and Supreme Clones' own catalogs are both drawn from the
+     character's already-known Maneuvers, Mobile Savant's from the jutsu
+     table rather than class_features, Tactical Superiority's from several
+     OTHER subclasses' own Maneuvers), Trickster Scout's freely re-editable
+     Change of Heart pick and Arbiter Scout's freely re-editable Paragon's
+     Presence pick (both the same select+data-description markup as
+     sheet_cooking_nin's Food For the Soul), Signature Jutsu's own compound
+     jutsu+effect pick (a matched pair of single-select forms per slot, up
+     to 3 slots — see scout_nin.go's signatureJutsuCap), and Deft Explorer's
+     Mobile sub-tier readout (6th level, automatic — swim/climb/wall/
+     water-walk speed all equal Speed). Superiority Dice's own count/size
+     readout, Phantasmic Power's DieSize readout (folded into the Ghastly
+     Leech tile), and Elemental Scout's own Chakra Sphere/Repelling Burst,
+     Ghastly Leech, Willpower Surge, and Tricksters Words uses, are all
+     Special Resources tiles above (customResourceGrants), not shown here.
+     Expects {ID, ScoutNin}. */}}
 {{define "sheet_scout_nin"}}
 <div id="sheet-scout-nin" data-fragment="sheet_scout_nin">
   {{if gt .ScoutNin.ManeuversCap 0}}
@@ -3465,6 +4461,256 @@
     {{end}}
   </div>
   {{end}}
+
+  {{if gt .ScoutNin.SignatureTechniqueCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Signature Technique <span class="option-picker-epithet">{{.ScoutNin.SignatureTechniqueUsed}}/{{.ScoutNin.SignatureTechniqueCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownSignatureTechnique}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/signature-technique/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.SignatureTechniqueUsed .ScoutNin.SignatureTechniqueCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/signature-technique" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableSignatureTechnique}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Technique</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.MobileSavantCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Mobile Savant <span class="option-picker-epithet">{{.ScoutNin.MobileSavantUsed}}/{{.ScoutNin.MobileSavantCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownMobileSavant}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/mobile-savant/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.MobileSavantUsed .ScoutNin.MobileSavantCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/mobile-savant" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableMobileSavant}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Jutsu</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.TacticalSuperiorityCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Tactical Superiority <span class="option-picker-epithet">{{.ScoutNin.TacticalSuperiorityUsed}}/{{.ScoutNin.TacticalSuperiorityCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownTacticalSuperiority}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/tactical-superiority/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.TacticalSuperiorityUsed .ScoutNin.TacticalSuperiorityCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/tactical-superiority" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableTacticalSuperiority}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Learn Maneuver</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.SignatureManeuverCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Signature Maneuver <span class="option-picker-epithet">{{.ScoutNin.SignatureManeuverUsed}}/{{.ScoutNin.SignatureManeuverCap}} chosen</span></h3>
+    {{range .ScoutNin.KnownSignatureManeuver}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/signature-maneuver/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.SignatureManeuverUsed .ScoutNin.SignatureManeuverCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/signature-maneuver" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableSignatureManeuver}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Mark Signature</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.SupremeClonesCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Supreme Clones <span class="option-picker-epithet">{{.ScoutNin.SupremeClonesUsed}}/{{.ScoutNin.SupremeClonesCap}} chosen</span></h3>
+    <p class="section-hint">Your clones can perform the marked Maneuver without expending a Superiority Die once per turn — actually having a clone do so stays a manual call.</p>
+    {{range .ScoutNin.KnownSupremeClones}}
+    <div class="puppet-upgrade-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/supreme-clones/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="option_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}}
+        <span class="tooltip-content">{{formatDescription .Description}}</span>
+      </span>
+    </div>
+    {{end}}
+    {{if lt .ScoutNin.SupremeClonesUsed .ScoutNin.SupremeClonesCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/supreme-clones" class="sheet-panel-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <ul class="puppet-upgrade-option-list">
+        {{range .ScoutNin.AvailableSupremeClones}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}}
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Mark Supreme Clone</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if gt .ScoutNin.SignatureJutsuCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Signature Jutsu</h3>
+    <p class="section-hint">Select one Jutsu you know of B-Rank or lower, and one of its three possible benefits, per slot. Applying the benefit when you use that jutsu stays manual; switch either half whenever you'd learn a new jutsu from leveling up.</p>
+    {{range .ScoutNin.SignatureJutsu}}
+    {{$jv := .JutsuValue}}
+    {{$ev := .EffectValue}}
+    <div class="sheet-signature-jutsu-slot">
+      <form method="post" action="/characters/{{$.ID}}/sheet/signature-jutsu" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="slot_index" value="{{.Index}}">
+        <label class="sheet-vitals-label">Jutsu
+          <select name="jutsu_id" class="sheet-option-tooltip-select" required>
+            <option value="">— choose —</option>
+            {{range .JutsuOptions}}
+            <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $jv}}selected{{end}}>{{.Name}}{{if .Rank}} ({{.Rank}}-Rank){{end}}</option>
+            {{end}}
+          </select>
+        </label>
+        <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content">{{if $jv}}{{.JutsuDescription}}{{else}}Choose a jutsu to see what it does.{{end}}</span>
+        </span>
+        <button type="submit">Set</button>
+        <span class="sheet-save-toast" hidden>Saved.</span>
+      </form>
+      <form method="post" action="/characters/{{$.ID}}/sheet/signature-jutsu-effect" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+        <input type="hidden" name="slot_index" value="{{.Index}}">
+        <label class="sheet-vitals-label">Benefit
+          <select name="effect_slug" class="sheet-option-tooltip-select" required>
+            <option value="">— choose —</option>
+            {{range .EffectOptions}}
+            <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $ev}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+        <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content">{{if $ev}}{{.EffectDescription}}{{else}}Choose a benefit to see what it does.{{end}}</span>
+        </span>
+        <button type="submit">Set</button>
+        <span class="sheet-save-toast" hidden>Saved.</span>
+      </form>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if .ScoutNin.ChangeOfHeart}}
+  <div class="sheet-subclass-detail">
+    <form method="post" action="/characters/{{$.ID}}/sheet/change-of-heart" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <label class="sheet-vitals-label">Change of Heart
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— none chosen —</option>
+          {{range .ScoutNin.ChangeOfHeart.Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.ScoutNin.ChangeOfHeart.Current}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ScoutNin.ChangeOfHeart.Current}}{{range .ScoutNin.ChangeOfHeart.Options}}{{if eq .Value $.ScoutNin.ChangeOfHeart.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a benefit above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
+
+  {{if .ScoutNin.ParagonsPresence}}
+  <div class="sheet-subclass-detail">
+    <form method="post" action="/characters/{{$.ID}}/sheet/paragons-presence" class="sheet-inline-form sheet-fetch-form" data-target="sheet-scout-nin">
+      <label class="sheet-vitals-label">Paragon's Presence
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— none chosen —</option>
+          {{range .ScoutNin.ParagonsPresence.Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.ScoutNin.ParagonsPresence.Current}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ScoutNin.ParagonsPresence.Current}}{{range .ScoutNin.ParagonsPresence.Options}}{{if eq .Value $.ScoutNin.ParagonsPresence.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a condition above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -3520,7 +4766,8 @@
      Canny, ...) plus one row per unresolved Ability Score Improvement pick
      — see internal/features' choiceSlotDefs/asi.go for the full list and
      why each one needs a player pick this app can't make on its own.
-     Expects {ID, PendingFeatureChoices, PendingASI, PendingFeatAbilityChoices}.
+     Expects {ID, PendingFeatureChoices, PendingASI, PendingFeatAbilityChoices,
+     PendingFeatSkillOrToolChoices}.
      A skill/save row picks
      its value and auto-submits via fetch, same inline pattern as the
      class/subclass selects in sheet_level_row; an ASI row is a genuine
@@ -3623,6 +4870,38 @@
         <span class="tooltip sheet-info-tooltip" tabindex="0">
           <span class="tooltip-trigger">ⓘ</span>
           <span class="tooltip-content">Pick an ability above to see what this does.</span>
+        </span>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+  {{if .PendingFeatSkillOrToolChoices}}
+  {{/* Same shape as the PendingFeatAbilityChoices block above — a "Kit or
+       Skill (Pick one)" feat's proficiency choice ripples into Skills (or
+       Tool Proficiencies) and potentially Mastery, so this is a plain form
+       + full reload too, not a fragment swap. Posts to its own route
+       (handleSheetFeatSkillOrToolChoice) for the same "isolated from
+       internal/features' choice-slot engine" reasoning as the ability
+       choice block above. Each Option's Value already encodes which writer
+       the pick resolves to ("skill:Name" / "tool:Name" — see
+       feat_skill_or_tool_choice.go), so the plain <select> here needs only
+       one field, same as every other row in this template. */}}
+  <p class="section-hint">These feats let you choose between a skill and a tool/kit proficiency — pick one for each to have it take effect.</p>
+  <ul class="sheet-feature-list">
+    {{range .PendingFeatSkillOrToolChoices}}
+    <li>
+      <form method="post" action="/characters/{{$.ID}}/sheet/feats/skill-or-tool-choice" class="sheet-inline-form"
+            data-confirm="This pick is permanent and cannot be changed later. Confirm?">
+        <input type="hidden" name="feat_slug" value="{{.FeatSlug}}">
+        <span class="puppet-upgrade-pick-name">{{.Label}}</span>
+        <select name="choice" required class="sheet-option-tooltip-select" onchange="this.form.requestSubmit()">
+          <option value="">— choose —</option>
+          {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        <span class="tooltip sheet-info-tooltip" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content">Pick an option above to see what this does.</span>
         </span>
       </form>
     </li>

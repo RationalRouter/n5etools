@@ -115,6 +115,98 @@ var knownFeatureLevelOverrides = map[string]map[string]int{
 	// "Starting at 3rd level, ..."; Gungnir Piercer Form's skips straight to
 	// its named abilities and never states a level at all.
 	"Gungnir Piercer Form": {"Gungnir Piercer Techniques[changed]": 3},
+	// Science-Nin's "Future of Shinobi" capstones open with "At Level 20,
+	// ..." (a bare number after the word "Level", no ordinal suffix), which
+	// ordinalLevelRe cannot match -- unlike the other 5 subclasses' own
+	// capstones of the same shape, which open "At/Finally at 20th level"
+	// and match the regex directly.
+	"Mad Scientist": {"The Future of Shinobi: Biology": 20},
+	"Ninjaneer":     {"The Future of Shinobi: Weapons": 20},
+	"Shinobi-Ware":  {"The Future of Shinobi: Shinobi-Ware": 20},
+	"Spyware":       {"The Future of Shinobi: Programs": 20},
+	"Technobi":      {"The Future of Shinobi: Scrolls": 20},
+}
+
+// mistaggedSubclassTable describes one Hunter-Nin subclass option table (a
+// technique/property/attachment list, printed with its own ALL-CAPS
+// heading) that the flat PDF text extractor glued onto the wrong sibling
+// feature instead of the one that actually grants the choice. Every Hunters
+// Creed subclass's 3rd-level "Proficiency" feature says "Select one of the
+// following ... Technique/Property/Attachment", but in 7 of the 8 subclasses
+// the table itself resurfaces appended to a LATER, unrelated feature's raw
+// text block instead — confirmed against dist/rules.db for every entry
+// below (only Arsenalist, whose option list is a plain bullet list rather
+// than an ALL-CAPS-headed table, escaped the bug).
+type mistaggedSubclassTable struct {
+	subclass string // Subclass.Name
+	marker   string // the table's own printed ALL-CAPS heading, verbatim
+	from     string // ClassFeature.Name currently holding the table
+	to       string // ClassFeature.Name that grants the choice and should hold it instead
+
+	// resumeAfter, when set, is the literal tail of FROM's own sentence
+	// that the extractor spliced the table into the MIDDLE of, rather than
+	// appending it cleanly onto the end of FROM's description like every
+	// other entry here — the table run ends where this text begins, and
+	// this text is stitched back onto FROM, not moved to TO along with the
+	// table.
+	resumeAfter string
+}
+
+var mistaggedSubclassTables = []mistaggedSubclassTable{
+	{subclass: "Blade Warden", marker: "WARDEN WEAPON PROPERTY TABLE", from: "Superior Offense", to: "Warden’s Proficiency"},
+	{subclass: "Necrotic Hand", marker: "MEDICAL ASSASSINATION TECHNIQUE TABLE", from: "Necrotic Touch", to: "Medical Proficiency"},
+	{subclass: "Grave Stalker", marker: "SHADOW ASSASSINATION TECHNIQUE TABLE", from: "Master Ambusher", to: "Stalkers Proficiency",
+		resumeAfter: "can attempt to interject socially in this way, once every 10 minutes."},
+	{subclass: "Undertaker", marker: "TOXIC ASSASSINATION TECHNIQUE TABLE", from: "False Faces", to: "Toxic Proficiency"},
+	{subclass: "Vice Agent", marker: "VICE ASSASSINATION TECHNIQUE TABLE", from: "Arrogance’s Influence", to: "Sin’s Proficiency"},
+	{subclass: "Void Walker", marker: "VOID ASSASSINATION TECHNIQUE TABLE", from: "Vorpal Strike", to: "Stalker Proficiency"},
+	{subclass: "Wolves Legacy", marker: "PROSTHETIC ATTACHMENTS TABLE", from: "Eyes of a Shinobi", to: "Wolf’s Proficiency"},
+}
+
+// redistributeMistaggedTables applies every mistaggedSubclassTables entry
+// for the given subclass, moving each table's text from the feature it was
+// wrongly glued to over to the feature that actually grants the choice.
+// Mutates features in place through pointers into its backing array; a
+// no-op for any subclass with no matching entries, and for any entry whose
+// marker text isn't found (e.g. re-running against an already-fixed row).
+func redistributeMistaggedTables(subclassName string, features []ClassFeature) {
+	for _, t := range mistaggedSubclassTables {
+		if t.subclass != subclassName {
+			continue
+		}
+		var from, to *ClassFeature
+		for i := range features {
+			switch features[i].Name {
+			case t.from:
+				from = &features[i]
+			case t.to:
+				to = &features[i]
+			}
+		}
+		if from == nil || to == nil {
+			continue
+		}
+		idx := strings.Index(from.Description, t.marker)
+		if idx < 0 {
+			continue
+		}
+		before := strings.TrimSpace(from.Description[:idx])
+		table := from.Description[idx:]
+		after := ""
+		if t.resumeAfter != "" {
+			if ai := strings.Index(table, t.resumeAfter); ai >= 0 {
+				after = strings.TrimSpace(table[ai:])
+				table = table[:ai]
+			}
+		}
+		table = strings.TrimSpace(table)
+		if after == "" {
+			from.Description = before
+		} else {
+			from.Description = before + " " + after
+		}
+		to.Description = strings.TrimSpace(to.Description) + " " + table
+	}
 }
 
 // ordinalRe matches a bare ordinal ("2nd", "18th") — the group intros list
@@ -426,6 +518,9 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 						Description: strings.TrimSpace(strings.Join(ch.content, " "))}
 					for _, f := range ch.children {
 						a.Features = append(a.Features, buildFeature(f, ch.title))
+					}
+					if c.Name == "Hunter-Nin" {
+						redistributeMistaggedTables(ch.title, a.Features)
 					}
 					g.Subclasses = append(g.Subclasses, a)
 					lastSubclass = ch.title

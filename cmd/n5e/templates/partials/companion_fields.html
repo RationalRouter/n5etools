@@ -127,7 +127,7 @@
      puppet_foundation.go) share this same block/button shape even when
      there are no puppetUpgradeBonusNote entries at all, since a fresh
      companion can have a Foundation pick and nothing else yet. */}}
-{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus}}
+{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus .PuppetToolASIBonus}}
 <div class="section-hint companion-enhanced-durability-hint">
   {{if .UpgradeBonuses}}
   <span>
@@ -141,6 +141,16 @@
   {{if .ElevatedDesignBonus}}
   <span>
     Elevated Design: {{range $ab, $amt := .ElevatedDesignBonus}}{{upper $ab}} +{{$amt}} (max 22); {{end}}not reflected in the fields above.
+  </span>
+  {{end}}
+  {{/* PuppetToolASIBonus: Puppet Tool's own base-class per-ASI-breakpoint
+       ability bonus, same computed-annotation treatment as
+       ElevatedDesignBonus just above — see puppetToolASIAbilityBonus's own
+       doc for the bonus math and puppetElevatedDesignAbilityBonus's doc
+       for why it's never baked into the editable score fields. */}}
+  {{if .PuppetToolASIBonus}}
+  <span>
+    Puppet Tool ASI: {{range $ab, $amt := .PuppetToolASIBonus}}{{upper $ab}} +{{$amt}} (max 20); {{end}}not reflected in the fields above.
   </span>
   {{end}}
   {{if .ExpectedAC}}
@@ -350,6 +360,11 @@
     <dt>Condition Immunities</dt><dd>{{.BaseTraits.ConditionImmunity}}</dd>
     <dt>Weapon Proficiencies</dt><dd>{{.BaseTraits.WeaponProficiency}}</dd>
     <dt>Senses</dt><dd>Passive Perception {{.BaseTraits.PassivePerception}}</dd>
+    {{/* MendingHealDie: puppetMendingHealDie's own computed die size — a
+         readout, not a spendable resource (Mending itself is unlimited,
+         gated only by action economy/chakra, both already tracked
+         elsewhere). Actually rolling and applying the heal stays manual. */}}
+    {{if .MendingHealDie}}<dt>Mending Heal Die</dt><dd>{{.MendingHealDie}} + half your Puppet Master level (scales to 2d8 at 9th, 2d10 at 15th)</dd>{{end}}
   </dl>
   {{if .BaseTraits.TraitsText}}<p class="companion-base-traits-text">{{.BaseTraits.TraitsText}}</p>{{end}}
 </section>

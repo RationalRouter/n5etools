@@ -48,6 +48,45 @@ func TestPuppetElevatedDesignAbilityBonus(t *testing.T) {
 	}
 }
 
+// TestPuppetToolASIAbilityBonus mirrors TestPuppetElevatedDesignAbilityBonus
+// but for Puppet Tool's own base-class ASI bonus — Amount 1 per slot
+// instead of Elevated Design's 2, so the "same ability picked on both
+// slots of one breakpoint" case must sum to +2 (not +4), reproducing the
+// book's own "+2 to one ability score, or +1 to two ability scores" branch.
+// Also confirms two different breakpoints' own picks accumulate onto the
+// same ability rather than only the most recent breakpoint winning.
+func TestPuppetToolASIAbilityBonus(t *testing.T) {
+	if got := puppetToolASIAbilityBonus(nil); len(got) != 0 {
+		t.Errorf("no resolved choices: got %v, want empty", got)
+	}
+
+	// 4th-level breakpoint, same ability picked on both of its slots ("+2
+	// to one ability score").
+	resolved := map[features.ChoiceKey]string{
+		{FeatureSlug: puppetToolFeatureSlug, ChoiceIndex: 4 * 2}:   "str",
+		{FeatureSlug: puppetToolFeatureSlug, ChoiceIndex: 4*2 + 1}: "str",
+	}
+	got := puppetToolASIAbilityBonus(resolved)
+	want := map[string]int{"str": 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("same ability picked twice at one breakpoint: got %v, want %v", got, want)
+	}
+
+	// 4th-level breakpoint split across two different abilities ("+1 to
+	// two ability scores"), plus an 8th-level breakpoint stacking more of
+	// the same "str" bonus from a different breakpoint.
+	resolved = map[features.ChoiceKey]string{
+		{FeatureSlug: puppetToolFeatureSlug, ChoiceIndex: 4 * 2}:   "str",
+		{FeatureSlug: puppetToolFeatureSlug, ChoiceIndex: 4*2 + 1}: "dex",
+		{FeatureSlug: puppetToolFeatureSlug, ChoiceIndex: 8 * 2}:   "str",
+	}
+	got = puppetToolASIAbilityBonus(resolved)
+	want = map[string]int{"str": 2, "dex": 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("split pick plus a second breakpoint: got %v, want %v", got, want)
+	}
+}
+
 // TestPuppetSymphonyExpansionGrant covers all three branches: not the
 // Expansion branch at all, Expansion with room left (grants the entry),
 // and Expansion already taken twice (falls back to the Bronze-or-lower
@@ -109,28 +148,89 @@ func TestPuppetSymphonyEnhancementCompanionIDs(t *testing.T) {
 // TestPuppetUpgradeFeatureBonusTierCaps confirms the two curated bonus-slot
 // grants (Nearly Perfected Architecture, Elevated Design) are gated on both
 // subclass color AND Puppet Master level, and produce the right per-tier
-// cap array shape (index = puppetUpgradeTierRanks value).
+// cap array shape (index = puppetUpgradeTierRanks value). Both are class
+// features, not feats, so hasFeat is passed nil throughout — neither has a
+// FeatSlug set, and a nil map is a valid "nothing taken" hasFeat.
 func TestPuppetUpgradeFeatureBonusTierCaps(t *testing.T) {
-	if got := puppetUpgradeFeatureBonusTierCaps("Purple", 16); got != ([puppetUpgradeTierCount + 1]int{}) {
+	if got := puppetUpgradeFeatureBonusTierCaps("Purple", 16, nil); got != ([puppetUpgradeTierCount + 1]int{}) {
 		t.Errorf("Purple below level 17: got %v, want all zero", got)
 	}
-	if got := puppetUpgradeFeatureBonusTierCaps("Red", 20); got != ([puppetUpgradeTierCount + 1]int{}) {
+	if got := puppetUpgradeFeatureBonusTierCaps("Red", 20, nil); got != ([puppetUpgradeTierCount + 1]int{}) {
 		t.Errorf("Red (no bonus grant at all): got %v, want all zero", got)
 	}
 
-	purple := puppetUpgradeFeatureBonusTierCaps("Purple", 17)
+	purple := puppetUpgradeFeatureBonusTierCaps("Purple", 17, nil)
 	var wantPurple [puppetUpgradeTierCount + 1]int
 	wantPurple[puppetUpgradeTierRanks["Silver Tier"]] = 2
 	if purple != wantPurple {
 		t.Errorf("Purple level 17: got %v, want %v (2 Silver Tier slots)", purple, wantPurple)
 	}
 
-	black := puppetUpgradeFeatureBonusTierCaps("Black", 17)
+	black := puppetUpgradeFeatureBonusTierCaps("Black", 17, nil)
 	var wantBlack [puppetUpgradeTierCount + 1]int
 	wantBlack[puppetUpgradeTierRanks["Bronze Tier"]] = 1
 	wantBlack[puppetUpgradeTierRanks["Silver Tier"]] = 1
 	wantBlack[puppetUpgradeTierRanks["Gold Tier"]] = 1
 	if black != wantBlack {
 		t.Errorf("Black level 17: got %v, want %v (1 Bronze/Silver/Gold each)", black, wantBlack)
+	}
+}
+
+// TestPuppetUpgradeFeatureBonusTierCapsFeatDriven covers the Puppet Master
+// Archetype feat chain and Tools to Carry on a Legacy: each is gated on
+// hasFeat rather than subclass color (so a character of ANY subclass, or
+// none at all, still qualifies), and — unlike the two class features above
+// — is NOT granted just from satisfying level/subclass; the specific feat
+// must actually be present in hasFeat.
+func TestPuppetUpgradeFeatureBonusTierCapsFeatDriven(t *testing.T) {
+	// Right subclass/level for Elevated Design, but no feats taken at all:
+	// none of the feat-driven entries should fire, only the class feature.
+	noFeats := puppetUpgradeFeatureBonusTierCaps("Black", 20, nil)
+	var wantNoFeats [puppetUpgradeTierCount + 1]int
+	wantNoFeats[puppetUpgradeTierRanks["Bronze Tier"]] = 1
+	wantNoFeats[puppetUpgradeTierRanks["Silver Tier"]] = 1
+	wantNoFeats[puppetUpgradeTierRanks["Gold Tier"]] = 1
+	if noFeats != wantNoFeats {
+		t.Errorf("Black level 20, no feats: got %v, want %v (Elevated Design only)", noFeats, wantNoFeats)
+	}
+
+	// Puppeteer Training: fires at level 0 with no subclass at all, purely
+	// off hasFeat — the archetype chain's whole point is working without
+	// real Puppet Master class levels.
+	training := puppetUpgradeFeatureBonusTierCaps("", 0, map[string]bool{"feat/class/puppeteer-training": true})
+	var wantTraining [puppetUpgradeTierCount + 1]int
+	wantTraining[puppetUpgradeTierRanks["Wood Tier"]] = 2
+	if training != wantTraining {
+		t.Errorf("Puppeteer Training only: got %v, want %v (2 Wood Tier slots)", training, wantTraining)
+	}
+
+	// Tools to Carry on a Legacy below every one of its own level
+	// thresholds: only the unconditional Wood-tier grant fires.
+	toolsLow := puppetUpgradeFeatureBonusTierCaps("Red", 5, map[string]bool{"feat/class/tools-to-carry-on-a-legacy": true})
+	var wantToolsLow [puppetUpgradeTierCount + 1]int
+	wantToolsLow[puppetUpgradeTierRanks["Wood Tier"]] = 1
+	if toolsLow != wantToolsLow {
+		t.Errorf("Tools to Carry on a Legacy at PM level 5: got %v, want %v (Wood Tier only)", toolsLow, wantToolsLow)
+	}
+
+	// Tools to Carry on a Legacy at 19th level of Puppet Master: every one
+	// of its 4 thresholds has been crossed.
+	toolsHigh := puppetUpgradeFeatureBonusTierCaps("Red", 19, map[string]bool{"feat/class/tools-to-carry-on-a-legacy": true})
+	var wantToolsHigh [puppetUpgradeTierCount + 1]int
+	wantToolsHigh[puppetUpgradeTierRanks["Wood Tier"]] = 1
+	wantToolsHigh[puppetUpgradeTierRanks["Bronze Tier"]] = 1
+	wantToolsHigh[puppetUpgradeTierRanks["Silver Tier"]] = 1
+	wantToolsHigh[puppetUpgradeTierRanks["Platinum Tier"]] = 1
+	if toolsHigh != wantToolsHigh {
+		t.Errorf("Tools to Carry on a Legacy at PM level 19: got %v, want %v (all 4 thresholds)", toolsHigh, wantToolsHigh)
+	}
+
+	// Meeting level 19 but never having taken the feat at all: nothing
+	// fires. This is the regression case the FeatSlug check exists for —
+	// without it, any Puppet Master at level 19+ would get these slots for
+	// free regardless of their actual feats.
+	noFeatHighLevel := puppetUpgradeFeatureBonusTierCaps("Red", 19, nil)
+	if noFeatHighLevel != ([puppetUpgradeTierCount + 1]int{}) {
+		t.Errorf("PM level 19, feat never taken: got %v, want all zero", noFeatHighLevel)
 	}
 }

@@ -46,11 +46,41 @@ const (
 	fistsOfIronFeatureSlug          = "class/taijutsu-specialist/group/taijutsu-style/passionate-flame/feature/fists-of-iron"
 	handWrapsOfPassionFeatureSlug   = "class/taijutsu-specialist/group/taijutsu-style/passionate-flame/feature/hand-wraps-of-passion"
 	antiChakraWavelengthFeatureSlug = "class/taijutsu-specialist/group/taijutsu-style/ruin/feature/anti-chakra-wavelength"
+	mixedMartialArtsFeatureSlug     = "class/taijutsu-specialist/group/taijutsu-style/stancer/feature/mixed-martial-arts"
+	stanceBlendingFeatureSlug       = "class/taijutsu-specialist/group/taijutsu-style/stancer/feature/stance-blending"
 	passionateFlameSubclassSlug     = "class/taijutsu-specialist/group/taijutsu-style/passionate-flame"
 	ruinSubclassSlug                = "class/taijutsu-specialist/group/taijutsu-style/ruin"
+	stancerSubclassSlug             = "class/taijutsu-specialist/group/taijutsu-style/stancer"
 
 	martialDiceResourceKey = "martial_dice"
 )
+
+// The 4 archetype-training feats below give a non-Taijutsu-Specialist
+// character a taste of the class's own mechanics with no real class level:
+// Martial Arts Training grants a base Martial Dice/Technique and a Fighting
+// Stance pick (mutually exclusive with real levels — its own prerequisite
+// reads "You cannot have class levels in Taijutsu Specialist"); Expert and
+// Specialist each grant "1 additional" Martial Dice and Martial Technique on
+// top of whatever came before; Enthusiast grants a chosen Style's 3rd-level
+// Martial Techniques (see martialTechniqueAutoGrants below — not modeled
+// here, see loadMartialTechniquesTabData's own doc comment for why).
+const (
+	martialArtsTrainingFeatSlug   = "feat/class/martial-arts-training"
+	martialArtsExpertFeatSlug     = "feat/class/martial-arts-expert"
+	martialArtsEnthusiastFeatSlug = "feat/class/martial-arts-enthusiast"
+	martialArtsSpecialistFeatSlug = "feat/class/martial-arts-specialist"
+)
+
+// taijutsuArchetypeFeatSlugs answers "does this character have a taste of
+// Taijutsu Specialist mechanics at all" for a character with no real class
+// level — every loader/handler below that currently gates on taijutsuLevel
+// != 0 also checks this set before deciding to hide its whole section.
+var taijutsuArchetypeFeatSlugs = map[string]bool{
+	martialArtsTrainingFeatSlug:   true,
+	martialArtsExpertFeatSlug:     true,
+	martialArtsEnthusiastFeatSlug: true,
+	martialArtsSpecialistFeatSlug: true,
+}
 
 // martialTechniqueAutoGrants: feature slug -> the bespoke Martial Technique
 // names it grants for free. Every one of the 8 Taijutsu Style subclasses
@@ -180,10 +210,73 @@ func hasGrantedFeature(rows []grantedFeatureRow, slug string) bool {
 	return false
 }
 
+// hasAnyGrantedFeature is hasGrantedFeature generalized to a set of slugs —
+// used to gate a whole section on "any one of these feats/features".
+func hasAnyGrantedFeature(rows []grantedFeatureRow, slugs map[string]bool) bool {
+	for _, f := range rows {
+		if slugs[f.Slug] {
+			return true
+		}
+	}
+	return false
+}
+
+// martialDiceFeatGrants: archetype-training feat slug -> the flat Martial
+// Dice pool bonus its own text grants, independent of (and additional to)
+// the level-based class_level_resources chart martialDiceMax already reads.
+// Martial Arts Training grants the base 1 die; Expert and Specialist each
+// grant "1 additional" — modeled as three independent flat additions rather
+// than a running total, since nothing here assumes a character was granted
+// every earlier feat in the chain too. Martial Arts Enthusiast grants no
+// Martial Dice of its own.
+var martialDiceFeatGrants = map[string]int{
+	martialArtsTrainingFeatSlug:   1,
+	martialArtsExpertFeatSlug:     1,
+	martialArtsSpecialistFeatSlug: 1,
+}
+
+// martialTechniqueCapFeatGrants: feat slug -> the flat Martial Technique cap
+// bonus its own text grants ("1 Martial Technique of your choice" / "learn
+// one Martial Technique" / "1 additional Martial Technique"). Covers both
+// the archetype-training feats (which apply even at taijutsuLevel 0) and
+// Combo Expert / Martial Master (real Taijutsu Specialist levels required by
+// their own prerequisites, 4+ and 8+ respectively) — each of the latter two
+// also carries its own per-technique clause (a die-cost removal for Combo
+// Expert, a two-step die-size bump for Martial Master) that has no field to
+// flow into and is left as reference text only. loadMartialTechniquesTabData's
+// own class_options query already matches on class_slug alone (independent
+// of subclass or real class level), so raising the cap is enough to let a
+// character pick and store a technique through the existing Available/Known
+// Add/Delete handlers — no new picker UI needed.
+var martialTechniqueCapFeatGrants = map[string]int{
+	martialArtsTrainingFeatSlug:   1,
+	martialArtsExpertFeatSlug:     1,
+	martialArtsSpecialistFeatSlug: 1,
+	"feat/class/combo-expert":     1,
+	"feat/class/martial-master":   1,
+}
+
+// taijutsuStanceFeatureSlug picks which ChoiceKey a character's Fighting
+// Stance pick is stored under: a real Taijutsu Specialist uses Unarmed
+// Technique's own slug (existing behavior, unchanged); a character with no
+// real levels uses Martial Arts Training's own slug instead, so the two
+// grants — mutually exclusive under RAW, see taijutsuArchetypeFeatSlugs'
+// doc comment — never collide under one shared key, matching
+// buildFightingStanceView's own "each caller passes its own featureSlug"
+// convention.
+func taijutsuStanceFeatureSlug(taijutsuLevel int) string {
+	if taijutsuLevel > 0 {
+		return unarmedTechniqueFeatureSlug
+	}
+	return martialArtsTrainingFeatSlug
+}
+
 // martialDiceMax computes a character's Martial Dice pool size: the base
 // class_level_resources chart ("Martial Die": 1 at 2nd-5th, 2 at 6th-9th, 3
 // at 10th-13th, 4 at 14th-18th, 5 at 19th-20th) plus Talent & Focus's
-// Unnatural Talent overlay.
+// Unnatural Talent overlay, plus any archetype-training feat's own flat
+// bonus (martialDiceFeatGrants) — the latter applies even at taijutsuLevel
+// 0, for a character with no real Taijutsu Specialist levels at all.
 func (s *server) martialDiceMax(grantedFeatures []grantedFeatureRow, taijutsuLevel int) (int, error) {
 	base, err := s.classLevelResourceInt(taijutsuSpecialistSlug, "Martial Die", taijutsuLevel)
 	if err != nil {
@@ -197,6 +290,11 @@ func (s *server) martialDiceMax(grantedFeatures []grantedFeatureRow, taijutsuLev
 			base += 2
 		case taijutsuLevel >= 3:
 			base += 1
+		}
+	}
+	for slug, bonus := range martialDiceFeatGrants {
+		if hasGrantedFeature(grantedFeatures, slug) {
+			base += bonus
 		}
 	}
 	return base, nil
@@ -216,6 +314,50 @@ func martialDieSize(taijutsuLevel int) string {
 	}
 }
 
+// stanceUnarmedDieGrant pairs the Fighting Stance a die-size override
+// requires with the die size it grants while that stance is the character's
+// current pick.
+type stanceUnarmedDieGrant struct {
+	StanceSlug string
+	DieSize    string
+}
+
+// stanceUnarmedDieGrants covers the nine "X Fist Expert" archetype feats,
+// each reading "while you are in the [X] Fist Stance, your [Unarmed Damage]
+// die becomes a d8" — verified against rules.db's own feats table
+// description text (sqlite3 dist/rules.db "SELECT slug, description FROM
+// feats WHERE slug LIKE '%-fist-expert'"), not assumed from the naming
+// pattern. Each feat's own prerequisite only requires already having the
+// matching Stance, not any Taijutsu Specialist class level, so this table is
+// checked independent of taijutsuLevel. Iron Fist Expert and Silent Fist
+// Expert further escalate to a d10 conditioned on also owning a specific
+// piece of equipment (Combat Bracers / Iron Claws respectively) while a
+// matching ability score is the character's Taijutsu ability — that
+// equipment-and-ability check has no mechanism here to hook into, so only
+// each feat's unconditional (stance-only) d8 clause is modeled.
+var stanceUnarmedDieGrants = map[string]stanceUnarmedDieGrant{
+	"feat/dragon-fist-expert":  {StanceSlug: "stance/dragon-fist-stance", DieSize: "d8"},
+	"feat/drunken-fist-expert": {StanceSlug: "stance/drunken-fist-stance", DieSize: "d8"},
+	"feat/frog-fist-expert":    {StanceSlug: "stance/frog-fist-stance", DieSize: "d8"},
+	"feat/iron-fist-expert":    {StanceSlug: "stance/iron-fist-stance", DieSize: "d8"},
+	"feat/lion-fist-expert":    {StanceSlug: "stance/lion-fist-stance", DieSize: "d8"},
+	"feat/rabbit-fist-expert":  {StanceSlug: "stance/rabbit-fist-stance", DieSize: "d8"},
+	"feat/serpent-fist-expert": {StanceSlug: "stance/serpent-fist-stance", DieSize: "d8"},
+	"feat/silent-fist-expert":  {StanceSlug: "stance/silent-fist-stance", DieSize: "d8"},
+	"feat/wolf-fist-expert":    {StanceSlug: "stance/wolf-fist-stance", DieSize: "d8"},
+}
+
+// dieSizeValue parses a "dN" die-size string into N, for comparing which of
+// two die sizes is larger. Returns 0 for "" or anything unparseable, which
+// always loses a comparison against a real die.
+func dieSizeValue(die string) int {
+	n, err := strconv.Atoi(strings.TrimPrefix(die, "d"))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
 // unarmedDamageDieSize is Unarmed Technique's own die progression (base
 // class feature, level 1, every Taijutsu Specialist): "you can roll a d6 in
 // place of the normal damage of your unarmed strike or Weapons that you are
@@ -227,22 +369,46 @@ func martialDieSize(taijutsuLevel int) string {
 // hundred jutsu descriptions' prose, and no bonus-damage-composition
 // mechanism exists anywhere in the attack tables to wire a computed value
 // into; building one for this single feature would be scope creep.
-func unarmedDamageDieSize(taijutsuLevel int) string {
+//
+// currentStanceSlug (the character's own current Fighting Stance pick, from
+// fightingStanceView.Current) is checked against stanceUnarmedDieGrants —
+// whichever of the level-based progression or a matching stance grant is
+// LARGER wins, since a stance grant is a floor a high-level character's own
+// progression can already exceed (e.g. an 11th-level character's d10
+// already beats any fist-expert feat's d8). Returns "" — hidden by the
+// template's own {{if}} guard — when taijutsuLevel is 0 and no stance grant
+// applies: a feat-only character with, say, only Martial Arts Training has
+// no Unarmed Damage die at all until a stance-conditional feat like Dragon
+// Fist Expert grants one.
+func unarmedDamageDieSize(taijutsuLevel int, grantedFeatures []grantedFeatureRow, currentStanceSlug string) string {
+	die := ""
 	switch {
 	case taijutsuLevel >= 11:
-		return "d10"
+		die = "d10"
 	case taijutsuLevel >= 6:
-		return "d8"
-	default:
-		return "d6"
+		die = "d8"
+	case taijutsuLevel >= 1:
+		die = "d6"
 	}
+	for _, f := range grantedFeatures {
+		grant, ok := stanceUnarmedDieGrants[f.Slug]
+		if !ok || grant.StanceSlug != currentStanceSlug {
+			continue
+		}
+		if dieSizeValue(grant.DieSize) > dieSizeValue(die) {
+			die = grant.DieSize
+		}
+	}
+	return die
 }
 
 // martialTechniqueCap computes how many Martial Techniques a character can
 // know at once: the base class_level_resources chart ("Martial
 // Techniques": 4 -> 5 at 7th -> 6 at 13th -> 7 at 19th) plus Talent &
 // Focus's Talented Legacy overlay (+1 at 14th, +1 more — total +2 — at
-// 20th).
+// 20th), plus any archetype-training feat's own flat bonus
+// (martialTechniqueCapFeatGrants) — the latter applies even at
+// taijutsuLevel 0.
 func (s *server) martialTechniqueCap(grantedFeatures []grantedFeatureRow, taijutsuLevel int) (int, error) {
 	base, err := s.classLevelResourceInt(taijutsuSpecialistSlug, "Martial Techniques", taijutsuLevel)
 	if err != nil {
@@ -254,6 +420,11 @@ func (s *server) martialTechniqueCap(grantedFeatures []grantedFeatureRow, taijut
 			base += 2
 		case taijutsuLevel >= 14:
 			base += 1
+		}
+	}
+	for slug, bonus := range martialTechniqueCapFeatGrants {
+		if hasGrantedFeature(grantedFeatures, slug) {
+			base += bonus
 		}
 	}
 	return base, nil
@@ -286,19 +457,20 @@ type martialDiceView struct {
 }
 
 // loadMartialDice returns nil for a character with no Taijutsu Specialist
-// levels — the template gates the whole tile on this being non-nil, same
-// "real DOM removal" treatment CustomResources/PuppetTactics already get.
+// levels AND none of the archetype-training feats (taijutsuArchetypeFeatSlugs)
+// — the template gates the whole tile on this being non-nil, same "real DOM
+// removal" treatment CustomResources/PuppetTactics already get.
 func (s *server) loadMartialDice(characterID int64, sheet *charsheet.Sheet) (*martialDiceView, error) {
 	taijutsuLevel, err := s.taijutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
 	}
-	if taijutsuLevel == 0 {
-		return nil, nil
-	}
 	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
+	}
+	if taijutsuLevel == 0 && !hasAnyGrantedFeature(grantedFeatures, taijutsuArchetypeFeatSlugs) {
+		return nil, nil
 	}
 	max, err := s.martialDiceMax(grantedFeatures, taijutsuLevel)
 	if err != nil {
@@ -348,7 +520,7 @@ func (s *server) handleSheetMartialDice(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if dice == nil {
-		http.Error(w, "character has no levels in Taijutsu Specialist", http.StatusBadRequest)
+		http.Error(w, "character has no Taijutsu Specialist mechanics", http.StatusBadRequest)
 		return
 	}
 	newValue := dice.Current + delta
@@ -390,7 +562,7 @@ func (s *server) handleSheetMartialDiceNewTurn(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if dice == nil {
-		http.Error(w, "character has no levels in Taijutsu Specialist", http.StatusBadRequest)
+		http.Error(w, "character has no Taijutsu Specialist mechanics", http.StatusBadRequest)
 		return
 	}
 	if err := charstore.SetCustomResourceValue(s.charDB, id, martialDiceResourceKey, dice.Max); err != nil {
@@ -467,25 +639,28 @@ type fightingStanceView struct {
 
 // martialTechniquesTabData is the sheet_martial_techniques box's full data.
 type martialTechniquesTabData struct {
-	Cap              int
-	Used             int
-	Known            []knownMartialTechnique
-	Available        []martialTechniqueOption
-	UnarmedDamageDie string
-	Stance           *fightingStanceView
-	PassionateFlame  *passionateFlameView
-	Ruin             *ruinAntiChakraView
+	Cap                     int
+	Used                    int
+	Known                   []knownMartialTechnique
+	Available               []martialTechniqueOption
+	UnarmedDamageDie        string
+	Stance                  *fightingStanceView
+	PassionateFlame         *passionateFlameView
+	Ruin                    *ruinAntiChakraView
+	StancerMixedMartialArts *fightingStanceView
+	StancerStanceBlending   *fightingStanceView
 }
 
 // buildFightingStanceView assembles one granting feature's own Taijutsu
 // Stance pick view from the character's stored feature choices — shared by
-// Taijutsu Specialist's Unarmed Technique and Combat Medic's Martial
-// Competency (medical_nin.go), since a character with both grants gets two
-// INDEPENDENT stance picks (Martial Competency's own text: "You can't take
-// a stance more than once even if you gain a stance choice again" implies
-// exactly this — a second grant is a second, separate choice), not one
-// shared pick. Each caller passes its own featureSlug so the two picks are
-// stored under two different ChoiceKeys.
+// Taijutsu Specialist's Unarmed Technique, the Martial Arts Training feat
+// (taijutsuStanceFeatureSlug picks whichever of the two applies), and Combat
+// Medic's Martial Competency (medical_nin.go), since a character with more
+// than one of these grants gets INDEPENDENT stance picks (Martial
+// Competency's own text: "You can't take a stance more than once even if
+// you gain a stance choice again" implies exactly this — a second grant is
+// a second, separate choice), not one shared pick. Each caller passes its
+// own featureSlug so the picks are stored under different ChoiceKeys.
 func buildFightingStanceView(choices map[features.ChoiceKey]string, options []stanceOption, featureSlug string) *fightingStanceView {
 	stance := &fightingStanceView{
 		Current: choices[features.ChoiceKey{FeatureSlug: featureSlug, ChoiceIndex: 0}],
@@ -568,21 +743,34 @@ func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
 	return s.loadStanceOptionsByType("taijutsu")
 }
 
-// loadMartialTechniquesTabData returns nil for a character with no
-// Taijutsu Specialist levels — the template gates the whole box's
+// loadMartialTechniquesTabData returns nil for a character with no Taijutsu
+// Specialist levels AND none of the archetype-training feats
+// (taijutsuArchetypeFeatSlugs) — the template gates the whole box's
 // existence on this being non-nil, same treatment PuppetTactics gets.
+//
+// Martial Arts Enthusiast's own "Select one Taijutsu Specialist Class,
+// Taijutsu Style (Subclass). You gain its 3rd Level Martial Techniques." is
+// NOT modeled here: it needs a genuinely new picker (8 Taijutsu Styles, none
+// of which this feat-only character has actually chosen a real subclass
+// for) with its own template markup and route, which is more than this pass
+// safely covers without the ability to build/run the app to verify a new
+// template renders correctly. The feat is still recognized by
+// taijutsuArchetypeFeatSlugs (so a character who has ONLY this feat still
+// sees the rest of the box — Martial Dice, if any other archetype feat also
+// applies, and the class-wide technique picker), it just grants none of its
+// own bespoke techniques yet.
 func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charsheet.Sheet) (*martialTechniquesTabData, error) {
 	taijutsuLevel, err := s.taijutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
 	}
-	if taijutsuLevel == 0 {
-		return nil, nil
-	}
 
 	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
+	}
+	if taijutsuLevel == 0 && !hasAnyGrantedFeature(grantedFeatures, taijutsuArchetypeFeatSlugs) {
+		return nil, nil
 	}
 
 	cap, err := s.martialTechniqueCap(grantedFeatures, taijutsuLevel)
@@ -645,14 +833,6 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 	}
 	sort.Slice(known, func(i, j int) bool { return known[i].Name < known[j].Name })
 
-	data := &martialTechniquesTabData{
-		Cap:              cap,
-		Used:             len(picks),
-		Known:            known,
-		Available:        available,
-		UnarmedDamageDie: unarmedDamageDieSize(taijutsuLevel),
-	}
-
 	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -662,7 +842,16 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 	if err != nil {
 		return nil, err
 	}
-	data.Stance = buildFightingStanceView(choices, stanceOptions, unarmedTechniqueFeatureSlug)
+	stance := buildFightingStanceView(choices, stanceOptions, taijutsuStanceFeatureSlug(taijutsuLevel))
+
+	data := &martialTechniquesTabData{
+		Cap:              cap,
+		Used:             len(picks),
+		Known:            known,
+		Available:        available,
+		UnarmedDamageDie: unarmedDamageDieSize(taijutsuLevel, grantedFeatures, stance.Current),
+		Stance:           stance,
+	}
 
 	if subclassSlug == passionateFlameSubclassSlug || subclassSlug == ruinSubclassSlug {
 		if subclassSlug == passionateFlameSubclassSlug {
@@ -685,6 +874,24 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 				Keyword2: choices[features.ChoiceKey{FeatureSlug: antiChakraWavelengthFeatureSlug, ChoiceIndex: 1}],
 				Options:  antiChakraWavelengthKeywords,
 			}
+		}
+	}
+
+	// Stancer's Mixed Martial Arts (3rd level) and Stance Blending (9th
+	// level) each independently grant one more "learn a Taijutsu Stance you
+	// don't know" pick, on top of the base Unarmed Technique stance above —
+	// same buildFightingStanceView shape as Medical-Nin's Martial
+	// Competency (medical_nin.go), just two more independent grants under
+	// their own feature slugs rather than a shared capped list. Only the
+	// KNOWN-stance pick is tracked here; actually holding more than one
+	// stance's benefit at once by spending Martial Dice stays manual (see
+	// CLASS_AUDIT.md's Stancer row).
+	if subclassSlug == stancerSubclassSlug {
+		if hasGrantedFeature(grantedFeatures, mixedMartialArtsFeatureSlug) {
+			data.StancerMixedMartialArts = buildFightingStanceView(choices, stanceOptions, mixedMartialArtsFeatureSlug)
+		}
+		if hasGrantedFeature(grantedFeatures, stanceBlendingFeatureSlug) {
+			data.StancerStanceBlending = buildFightingStanceView(choices, stanceOptions, stanceBlendingFeatureSlug)
 		}
 	}
 
@@ -722,7 +929,7 @@ func (s *server) handleMartialTechniqueAdd(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if data == nil {
-		http.Error(w, "character has no levels in Taijutsu Specialist", http.StatusBadRequest)
+		http.Error(w, "character has no Taijutsu Specialist mechanics", http.StatusBadRequest)
 		return
 	}
 	if data.Used >= data.Cap {
@@ -782,7 +989,12 @@ func (s *server) handleMartialTechniqueDelete(w http.ResponseWriter, r *http.Req
 
 // handleFightingStance records Unarmed Technique's Taijutsu Stance pick —
 // class-wide (not subclass-gated), freely re-editable same boundary as Hand
-// Wraps of Passion below.
+// Wraps of Passion below. Also serves Martial Arts Training's own identical
+// stance pick for a character with no real Taijutsu Specialist levels
+// (taijutsuStanceFeatureSlug picks the right ChoiceKey for either case) —
+// the gate below reuses loadMartialTechniquesTabData's own check (data.Stance
+// non-nil) rather than re-deriving the "does this character have Taijutsu
+// mechanics" condition a second time.
 func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -794,14 +1006,26 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("stance_slug"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for fighting stance:", err)
+		return
+	}
+	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load martial techniques for fighting stance:", err)
+		return
+	}
+	if data == nil || data.Stance == nil {
+		http.Error(w, "character has no Taijutsu Specialist mechanics", http.StatusBadRequest)
+		return
+	}
 	taijutsuLevel, err := s.taijutsuSpecialistClassLevel(id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load taijutsu level for fighting stance:", err)
-		return
-	}
-	if taijutsuLevel == 0 {
-		http.Error(w, "character has no levels in Taijutsu Specialist", http.StatusBadRequest)
 		return
 	}
 	options, err := s.loadTaijutsuStanceOptions()
@@ -810,12 +1034,114 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 		log.Println("load taijutsu stance options:", err)
 		return
 	}
-	if err := s.storeFightingStanceChoice(id, unarmedTechniqueFeatureSlug, options, slug); err != nil {
+	if err := s.storeFightingStanceChoice(id, taijutsuStanceFeatureSlug(taijutsuLevel), options, slug); err != nil {
 		if err == errInvalidStance {
 			http.Error(w, "not a valid stance", http.StatusBadRequest)
 		} else {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("set fighting stance:", err)
+		}
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_martial_techniques")
+}
+
+// handleStancerMixedMartialArtsStance records Stancer's own Mixed Martial
+// Arts (3rd level) known-stance pick — an independent grant from the base
+// Unarmed Technique stance above, stored under its own feature slug so a
+// Stancer's two picks never collide (see buildFightingStanceView's own doc
+// comment). Reuses loadMartialTechniquesTabData's own gate (the field is
+// nil unless the character actually has the granting feature) instead of
+// re-deriving the granted-features check here, same shape handleFightingStance
+// already uses for the base Stance pick.
+func (s *server) handleStancerMixedMartialArtsStance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("stance_slug"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for mixed martial arts stance:", err)
+		return
+	}
+	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load martial techniques for mixed martial arts stance:", err)
+		return
+	}
+	if data == nil || data.StancerMixedMartialArts == nil {
+		http.Error(w, "character has no Mixed Martial Arts stance choice available", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadTaijutsuStanceOptions()
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load taijutsu stance options:", err)
+		return
+	}
+	if err := s.storeFightingStanceChoice(id, mixedMartialArtsFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			http.Error(w, "not a valid stance", http.StatusBadRequest)
+		} else {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("set mixed martial arts stance:", err)
+		}
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_martial_techniques")
+}
+
+// handleStancerStanceBlendingStance records Stancer's own Stance Blending
+// (9th level) known-stance pick — a third independent stance grant on the
+// same character (base Unarmed Technique + Mixed Martial Arts), stored
+// under its own feature slug.
+func (s *server) handleStancerStanceBlendingStance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("stance_slug"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for stance blending stance:", err)
+		return
+	}
+	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load martial techniques for stance blending stance:", err)
+		return
+	}
+	if data == nil || data.StancerStanceBlending == nil {
+		http.Error(w, "character has no Stance Blending stance choice available", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadTaijutsuStanceOptions()
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load taijutsu stance options:", err)
+		return
+	}
+	if err := s.storeFightingStanceChoice(id, stanceBlendingFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			http.Error(w, "not a valid stance", http.StatusBadRequest)
+		} else {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("set stance blending stance:", err)
 		}
 		return
 	}

@@ -19,7 +19,7 @@ func TestComputeCustomResourcesCCDUsesOwnClassLevel(t *testing.T) {
 	// character's total level (10).
 	classLevels := map[string]int{"class/science-nin": 4, "class/other-class": 6}
 
-	entries := computeCustomResources(features, classLevels, 2 /* conMod */, 0, 0, 0, 10 /* characterLevel */, nil)
+	entries := computeCustomResources(features, classLevels, 2 /* conMod */, 0, 0, 0, 0 /* wisMod */, 10 /* characterLevel */, nil)
 	if len(entries) != 1 {
 		t.Fatalf("entries = %+v, want exactly 1", entries)
 	}
@@ -37,7 +37,7 @@ func TestComputeCustomResourcesCCDGatedByMinLevel(t *testing.T) {
 	}
 	classLevels := map[string]int{"class/science-nin": 1}
 
-	entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, 1, nil)
+	entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 1, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below CCD's MinLevel 2", entries)
 	}
@@ -57,14 +57,14 @@ func TestComputeCustomResourcesBraveOrders(t *testing.T) {
 	}
 	for _, c := range cases {
 		classLevels := map[string]int{"class/intelligence-operative": c.level}
-		entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, c.level, nil)
+		entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, 0 /* wisMod */, c.level, nil)
 		if len(entries) != 1 || entries[0].Key != "brave_orders" || entries[0].Max != c.want {
 			t.Errorf("level %d: entries = %+v, want brave_orders with Max=%d", c.level, entries, c.want)
 		}
 	}
 
 	// Below Master Planner's own MinLevel 2: no entry.
-	entries := computeCustomResources(features, map[string]int{"class/intelligence-operative": 1}, 0, 0, 0, 0, 1, nil)
+	entries := computeCustomResources(features, map[string]int{"class/intelligence-operative": 1}, 0, 0, 0, 0, 0 /* wisMod */, 1, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below MinLevel 2", entries)
 	}
@@ -76,12 +76,33 @@ func TestComputeCustomResourcesCheckmateActivationGate(t *testing.T) {
 	}
 	classLevels := map[string]int{"class/intelligence-operative": 20}
 
-	entries := computeCustomResources(features, classLevels, 0, 0, 0, 3, 20, nil)
+	entries := computeCustomResources(features, classLevels, 0, 0, 0, 3, 0 /* wisMod */, 20, nil)
 	if len(entries) != 1 || entries[0].Key != "checkmate_activation" || entries[0].Max != 1 {
 		t.Fatalf("entries = %+v, want checkmate_activation with Max=1", entries)
 	}
 	if entries[0].ShortRegen != regenNone || entries[0].LongRegen != regenFull {
 		t.Errorf("regen = short:%v long:%v, want short:regenNone long:regenFull", entries[0].ShortRegen, entries[0].LongRegen)
+	}
+}
+
+func TestComputeCustomResourcesUndeadFortitudeActivationGate(t *testing.T) {
+	features := []grantedFeatureRow{
+		{Slug: "class/intelligence-operative/group/master-strategies/grave-controller/feature/undead-fortitude", Name: "Undead Fortitude", Level: 9},
+	}
+	classLevels := map[string]int{"class/intelligence-operative": 9}
+
+	entries := computeCustomResources(features, classLevels, 0, 0, 0, 3, 0 /* wisMod */, 9, nil)
+	if len(entries) != 1 || entries[0].Key != "undead_fortitude_activation" || entries[0].Max != 2 {
+		t.Fatalf("entries = %+v, want undead_fortitude_activation with Max=2", entries)
+	}
+	if entries[0].ShortRegen != regenNone || entries[0].LongRegen != regenFull {
+		t.Errorf("regen = short:%v long:%v, want short:regenNone long:regenFull", entries[0].ShortRegen, entries[0].LongRegen)
+	}
+
+	// Below Undead Fortitude's own MinLevel 9: no entry.
+	entries = computeCustomResources(features, map[string]int{"class/intelligence-operative": 8}, 0, 0, 0, 3, 0 /* wisMod */, 8, nil)
+	if len(entries) != 0 {
+		t.Errorf("entries = %+v, want none below MinLevel 9", entries)
 	}
 }
 
@@ -92,13 +113,13 @@ func TestComputeCustomResourcesPerformanceScroll(t *testing.T) {
 	classLevels := map[string]int{"class/puppet-master": 10}
 
 	// Below MinLevel 10: no entry at all.
-	entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, 9, nil)
+	entries := computeCustomResources(features, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 9, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below MinLevel 10", entries)
 	}
 
 	// At MinLevel 10: a single-charge resource, "once per long rest."
-	entries = computeCustomResources(features, classLevels, 0, 0, 0, 0, 10, nil)
+	entries = computeCustomResources(features, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 10, nil)
 	if len(entries) != 1 {
 		t.Fatalf("entries = %+v, want exactly 1", entries)
 	}
@@ -116,14 +137,14 @@ func TestComputeCustomResourcesWhiteChakraSurgeStacksOntoBaseGrant(t *testing.T)
 	classLevels := map[string]int{"class/hatake-something": 10}
 
 	// Base grant alone: 5 + level.
-	entries := computeCustomResources([]grantedFeatureRow{base}, classLevels, 0, 0, 0, 0, 10, nil)
+	entries := computeCustomResources([]grantedFeatureRow{base}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 10, nil)
 	if len(entries) != 1 || entries[0].Key != "white_chakra" || entries[0].Max != 15 {
 		t.Fatalf("base alone: got %+v, want white_chakra Max=15", entries)
 	}
 
 	// Base + Surge: Surge's own formula (5 + 2*level = 25) wins since it's
 	// higher, but there is still only ONE white_chakra entry, not two.
-	entries = computeCustomResources([]grantedFeatureRow{base, surge}, classLevels, 0, 0, 0, 0, 10, nil)
+	entries = computeCustomResources([]grantedFeatureRow{base, surge}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 10, nil)
 	if len(entries) != 1 {
 		t.Fatalf("base+surge: got %d entries, want 1 combined white_chakra entry: %+v", len(entries), entries)
 	}
@@ -135,25 +156,69 @@ func TestComputeCustomResourcesWhiteChakraSurgeStacksOntoBaseGrant(t *testing.T)
 	}
 }
 
+func TestComputeCustomResourcesActualizationDieFromArchetypeFeats(t *testing.T) {
+	training := grantedFeatureRow{Slug: illusionistTrainingFeatSlug, Name: "Illusionist Training", Level: 5}
+	expert := grantedFeatureRow{Slug: illusionistExpertFeatSlug, Name: "Illusionist Expert", Level: 10}
+	specialist := grantedFeatureRow{Slug: illusionistSpecialistFeatSlug, Name: "Illusionist Specialist", Level: 15}
+	classLevels := map[string]int{} // no real Genjutsu Specialist levels at all
+
+	// Training alone, below its own MinLevel 5: no entry yet.
+	entries := computeCustomResources([]grantedFeatureRow{training}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 4, nil)
+	if len(entries) != 0 {
+		t.Errorf("entries = %+v, want none below Illusionist Training's MinLevel 5", entries)
+	}
+
+	// Training alone, at 5th+ character level: 2 Actualization Die.
+	entries = computeCustomResources([]grantedFeatureRow{training}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 5, nil)
+	if len(entries) != 1 || entries[0].Key != "actualization_die" || entries[0].Max != 2 {
+		t.Fatalf("training alone: got %+v, want actualization_die Max=2", entries)
+	}
+
+	// Training + Expert, at 10th+ character level: 3 (cumulative, one
+	// combined entry, Expert's higher Max wins the merge).
+	entries = computeCustomResources([]grantedFeatureRow{training, expert}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 10, nil)
+	if len(entries) != 1 {
+		t.Fatalf("training+expert: got %d entries, want 1 combined actualization_die entry: %+v", len(entries), entries)
+	}
+	if entries[0].Max != 3 {
+		t.Errorf("training+expert: Max = %d, want 3", entries[0].Max)
+	}
+
+	// All three, at 15th+ character level: 4.
+	entries = computeCustomResources([]grantedFeatureRow{training, expert, specialist}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 15, nil)
+	if len(entries) != 1 || entries[0].Max != 4 {
+		t.Fatalf("training+expert+specialist: got %+v, want actualization_die Max=4", entries)
+	}
+
+	// A real Genjutsu Specialist's own Proficiency-Bonus-sized pool
+	// overtakes these once it exceeds 4 (Proficiency Bonus 6, e.g.).
+	base := grantedFeatureRow{Slug: "class/genjutsu-specialist/feature/actualization", Name: "Actualization Die", Level: 1}
+	realClassLevels := map[string]int{"class/genjutsu-specialist": 20}
+	entries = computeCustomResources([]grantedFeatureRow{training, expert, specialist, base}, realClassLevels, 0, 0, 0, 6, 0 /* wisMod */, 20, nil)
+	if len(entries) != 1 || entries[0].Max != 6 {
+		t.Fatalf("with real class levels too: got %+v, want actualization_die Max=6 (Proficiency Bonus wins)", entries)
+	}
+}
+
 func TestComputeCustomResourcesStarChakraAndCalories(t *testing.T) {
 	star := grantedFeatureRow{Slug: "clan/hoshi/feature/star-chakra", Name: "Star Chakra", Level: 1}
 	classLevels := map[string]int{"class/whatever": 5}
 
 	// CON mod 3, level 5 -> Max 8.
-	entries := computeCustomResources([]grantedFeatureRow{star}, classLevels, 3, 0, 0, 0, 5, nil)
+	entries := computeCustomResources([]grantedFeatureRow{star}, classLevels, 3, 0, 0, 0, 0 /* wisMod */, 5, nil)
 	if len(entries) != 1 || entries[0].Max != 8 {
 		t.Fatalf("got %+v, want star_chakra Max=8", entries)
 	}
 
 	// A negative CON mod is floored at 1 for the Max formula (book text:
 	// "your constitution modifier (min 1)").
-	entries = computeCustomResources([]grantedFeatureRow{star}, classLevels, -2, 0, 0, 0, 5, nil)
+	entries = computeCustomResources([]grantedFeatureRow{star}, classLevels, -2, 0, 0, 0, 0 /* wisMod */, 5, nil)
 	if entries[0].Max != 6 {
 		t.Errorf("Max = %d, want 6 (CON mod floored to 1, +5 level)", entries[0].Max)
 	}
 
 	calories := grantedFeatureRow{Slug: "clan/akimichi/feature/calories", Name: "Calories", Level: 1}
-	entries = computeCustomResources([]grantedFeatureRow{calories}, classLevels, 3, 0, 0, 0, 5, nil)
+	entries = computeCustomResources([]grantedFeatureRow{calories}, classLevels, 3, 0, 0, 0, 0 /* wisMod */, 5, nil)
 	if len(entries) != 1 || entries[0].Max != 8 {
 		t.Fatalf("got %+v, want calories Max=8", entries)
 	}
@@ -163,7 +228,7 @@ func TestComputeCustomResourcesReserveCellsAndChakraBarrier(t *testing.T) {
 	reserve := grantedFeatureRow{Slug: "clan/uzumaki/feature/chakra-reserves", Name: "Chakra Reserves", Level: 1}
 	classLevels := map[string]int{"class/whatever": 7}
 
-	entries := computeCustomResources([]grantedFeatureRow{reserve}, classLevels, 0, 0, 0, 0, 7, nil)
+	entries := computeCustomResources([]grantedFeatureRow{reserve}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 7, nil)
 	if len(entries) != 1 || entries[0].Max != 7 {
 		t.Fatalf("got %+v, want reserve_cells Max=7", entries)
 	}
@@ -174,11 +239,11 @@ func TestComputeCustomResourcesReserveCellsAndChakraBarrier(t *testing.T) {
 		Level: 3,
 	}
 	// Below MinLevel 3, not granted at all.
-	entries = computeCustomResources([]grantedFeatureRow{barrier}, classLevels, 0, 0, 0, 0, 2, nil)
+	entries = computeCustomResources([]grantedFeatureRow{barrier}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below Chakra Barrier's MinLevel 3", entries)
 	}
-	entries = computeCustomResources([]grantedFeatureRow{barrier}, classLevels, 0, 0, 0, 0, 7, nil)
+	entries = computeCustomResources([]grantedFeatureRow{barrier}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 7, nil)
 	if len(entries) != 1 || entries[0].Max != 14 {
 		t.Fatalf("got %+v, want chakra_barrier Max=14 (2x level 7)", entries)
 	}
@@ -189,7 +254,7 @@ func TestComputeCustomResourcesStoredCurrentClampsToMax(t *testing.T) {
 	classLevels := map[string]int{"class/whatever": 1}
 	// Max is 1 (con 0 floored to 1) + level 1 = 2, but a stale stored value
 	// from before a level/ability change claims 99 — must clamp to Max.
-	entries := computeCustomResources([]grantedFeatureRow{star}, classLevels, 0, 0, 0, 0, 1, map[string]int{"star_chakra": 99})
+	entries := computeCustomResources([]grantedFeatureRow{star}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 1, map[string]int{"star_chakra": 99})
 	if entries[0].Current != entries[0].Max {
 		t.Errorf("Current = %d, want clamped to Max = %d", entries[0].Current, entries[0].Max)
 	}
@@ -204,12 +269,12 @@ func TestComputeCustomResourcesSuperiorityDiceArbiterScout(t *testing.T) {
 	classLevels := map[string]int{"class/scout-nin": 6}
 
 	// Below MinLevel 3, not granted at all.
-	entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, 2, nil)
+	entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below Superiority Dice's MinLevel 3", entries)
 	}
 
-	entries = computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, 6, nil)
+	entries = computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 6, nil)
 	if len(entries) != 1 {
 		t.Fatalf("entries = %+v, want exactly 1", entries)
 	}
@@ -237,7 +302,7 @@ func TestComputeCustomResourcesSuperiorityDiceCloningScoutGrantingSlug(t *testin
 		Name:  "Cloning Tactics",
 		Level: 3,
 	}
-	entries := computeCustomResources([]grantedFeatureRow{cloningTactics}, classLevels, 0, 0, 0, 0, 9, nil)
+	entries := computeCustomResources([]grantedFeatureRow{cloningTactics}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 9, nil)
 	if len(entries) != 1 || entries[0].Key != "superiority_dice" {
 		t.Fatalf("Cloning Tactics got %+v, want it to grant superiority_dice", entries)
 	}
@@ -255,7 +320,7 @@ func TestComputeCustomResourcesSuperiorityDiceCloningScoutGrantingSlug(t *testin
 		Name:  "Superior Clones",
 		Level: 9,
 	}
-	entries = computeCustomResources([]grantedFeatureRow{superiorClones}, classLevels, 0, 0, 0, 0, 9, nil)
+	entries = computeCustomResources([]grantedFeatureRow{superiorClones}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 9, nil)
 	if len(entries) != 0 {
 		t.Errorf("Superior Clones alone got %+v, want no grant — it must not be treated as the pool's granting feature", entries)
 	}
@@ -283,7 +348,7 @@ func TestComputeCustomResourcesSuperiorityDiceAssaultScoutDieGrowth(t *testing.T
 	}
 	for _, c := range cases {
 		classLevels := map[string]int{"class/scout-nin": c.level}
-		entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, c.level, nil)
+		entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, c.level, nil)
 		if len(entries) != 1 {
 			t.Fatalf("level %d: entries = %+v, want exactly 1", c.level, entries)
 		}
@@ -300,12 +365,43 @@ func TestComputeCustomResourcesHuntersExploitsUsesProfBonus(t *testing.T) {
 	exploits := grantedFeatureRow{Slug: "class/hunter-nin/feature/hunters-exploits", Name: "Hunters Exploits", Level: 3}
 	classLevels := map[string]int{"class/hunter-nin": 10}
 
-	entries := computeCustomResources([]grantedFeatureRow{exploits}, classLevels, 0, 0, 0, 6 /* profBonus */, 10, nil)
+	entries := computeCustomResources([]grantedFeatureRow{exploits}, classLevels, 0, 0, 0, 6 /* profBonus */, 0 /* wisMod */, 10, nil)
 	if len(entries) != 1 || entries[0].Key != huntersExploitsResourceKey || entries[0].Max != 6 {
 		t.Fatalf("got %+v, want %s Max=6 (Proficiency Bonus, not level-derived)", entries, huntersExploitsResourceKey)
 	}
 	if entries[0].ShortRegen != regenFull {
 		t.Errorf("ShortRegen = %v, want regenFull — \"a number of times... per Short Rest\"", entries[0].ShortRegen)
+	}
+}
+
+// TestComputeCustomResourcesHuntersArchetypeFeats covers the Hunters
+// Training/Hunter Specialist customResourceGrants entries added alongside
+// hunter_nin.go's own class-level-gate widening — a feat-only character
+// (no real Hunter-Nin levels, so classLevels is empty) still gets a fixed,
+// non-Proficiency-Bonus-derived hunter_exploits pool.
+func TestComputeCustomResourcesHuntersArchetypeFeats(t *testing.T) {
+	training := grantedFeatureRow{Slug: huntersTrainingFeatSlug, Name: "Hunters Training", Level: 5}
+	specialist := grantedFeatureRow{Slug: hunterSpecialistFeatSlug, Name: "Hunter Specialist", Level: 15}
+
+	// Training alone: fixed 2, regardless of Proficiency Bonus.
+	entries := computeCustomResources([]grantedFeatureRow{training}, nil, 0, 0, 0, 6 /* profBonus */, 0 /* wisMod */, 5, nil)
+	if len(entries) != 1 || entries[0].Key != "hunter_exploits" || entries[0].Max != 2 {
+		t.Fatalf("training alone: got %+v, want hunter_exploits Max=2", entries)
+	}
+
+	// Training + Specialist: Specialist's own entry encodes the cumulative
+	// total (3), so the higher-Max-wins merge picks it directly — still
+	// only one hunter_exploits entry.
+	entries = computeCustomResources([]grantedFeatureRow{training, specialist}, nil, 0, 0, 0, 6, 0 /* wisMod */, 15, nil)
+	if len(entries) != 1 || entries[0].Max != 3 {
+		t.Fatalf("training+specialist: got %+v, want a single hunter_exploits entry Max=3", entries)
+	}
+
+	// Specialist's own entry is gated at character level 15 (MinLevel) —
+	// below that, even with the feat granted, it must not apply.
+	entries = computeCustomResources([]grantedFeatureRow{training, specialist}, nil, 0, 0, 0, 6, 0 /* wisMod */, 10, nil)
+	if len(entries) != 1 || entries[0].Max != 2 {
+		t.Fatalf("below level 15: got %+v, want Specialist's MinLevel gate to leave Training's Max=2 in effect", entries)
 	}
 }
 
@@ -341,13 +437,13 @@ func TestComputeCustomResourcesShinobiSnacksUsesProfPlusIntMod(t *testing.T) {
 	classLevels := map[string]int{"class/cooking-nin": 1}
 
 	// prof 2 + int mod 3 = 5.
-	entries := computeCustomResources([]grantedFeatureRow{snacks}, classLevels, 0, 3 /* intMod */, 0, 2 /* profBonus */, 1, nil)
+	entries := computeCustomResources([]grantedFeatureRow{snacks}, classLevels, 0, 3 /* intMod */, 0, 2 /* profBonus */, 0 /* wisMod */, 1, nil)
 	if len(entries) != 1 || entries[0].Key != "shinobi_snacks" || entries[0].Max != 5 {
 		t.Fatalf("got %+v, want shinobi_snacks Max=5 (prof 2 + int mod 3)", entries)
 	}
 
 	// A very low Intelligence score can't drive this negative — clamped to 0.
-	entries = computeCustomResources([]grantedFeatureRow{snacks}, classLevels, 0, -5 /* intMod */, 0, 2 /* profBonus */, 1, nil)
+	entries = computeCustomResources([]grantedFeatureRow{snacks}, classLevels, 0, -5 /* intMod */, 0, 2 /* profBonus */, 0 /* wisMod */, 1, nil)
 	if entries[0].Max != 0 {
 		t.Errorf("Max = %d, want 0 (clamped, not negative)", entries[0].Max)
 	}
@@ -358,11 +454,11 @@ func TestComputeCustomResourcesCookingFocusBonusAuras(t *testing.T) {
 
 	// 8 of the 9 subclasses escalate to 2 uses at 14th level.
 	battleCook := grantedFeatureRow{Slug: "class/cooking-nin/group/cooking-focus/battle-cook/feature/fighting-aura", Name: "Fighting Aura", Level: 9}
-	entries := computeCustomResources([]grantedFeatureRow{battleCook}, classLevels, 0, 0, 0, 0, 9, nil)
+	entries := computeCustomResources([]grantedFeatureRow{battleCook}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 9, nil)
 	if len(entries) != 1 || entries[0].Max != 1 {
 		t.Fatalf("got %+v, want battle_cook_aura Max=1 below 14th level", entries)
 	}
-	entries = computeCustomResources([]grantedFeatureRow{battleCook}, map[string]int{"class/cooking-nin": 14}, 0, 0, 0, 0, 14, nil)
+	entries = computeCustomResources([]grantedFeatureRow{battleCook}, map[string]int{"class/cooking-nin": 14}, 0, 0, 0, 0, 0 /* wisMod */, 14, nil)
 	if entries[0].Max != 2 {
 		t.Errorf("Max = %d, want 2 at 14th level", entries[0].Max)
 	}
@@ -370,7 +466,7 @@ func TestComputeCustomResourcesCookingFocusBonusAuras(t *testing.T) {
 	// Fry Cooks' Sunny Side Up genuinely has no 14th-level clause — stays
 	// flat 1 even at 20th level.
 	fryCooks := grantedFeatureRow{Slug: "class/cooking-nin/group/cooking-focus/fry-cooks/feature/sunny-side-up", Name: "Sunny Side Up", Level: 9}
-	entries = computeCustomResources([]grantedFeatureRow{fryCooks}, map[string]int{"class/cooking-nin": 20}, 0, 0, 0, 0, 20, nil)
+	entries = computeCustomResources([]grantedFeatureRow{fryCooks}, map[string]int{"class/cooking-nin": 20}, 0, 0, 0, 0, 0 /* wisMod */, 20, nil)
 	if len(entries) != 1 || entries[0].Max != 1 {
 		t.Fatalf("got %+v, want fry_cooks_aura Max=1 even at 20th level (no escalation, confirmed RAW)", entries)
 	}
@@ -382,11 +478,11 @@ func TestComputeCustomResourcesSugarRushMinimumOne(t *testing.T) {
 
 	// "with a minimum bonus of +1" — even a 0 or negative Charisma modifier
 	// still grants at least 1 use.
-	entries := computeCustomResources([]grantedFeatureRow{sugarRush}, classLevels, 0, 0, -3 /* chaMod */, 0, 13, nil)
+	entries := computeCustomResources([]grantedFeatureRow{sugarRush}, classLevels, 0, 0, -3 /* chaMod */, 0, 0 /* wisMod */, 13, nil)
 	if len(entries) != 1 || entries[0].Max != 1 {
 		t.Fatalf("got %+v, want sugar_rush Max=1 (floored at the stated minimum)", entries)
 	}
-	entries = computeCustomResources([]grantedFeatureRow{sugarRush}, classLevels, 0, 0, 4 /* chaMod */, 0, 13, nil)
+	entries = computeCustomResources([]grantedFeatureRow{sugarRush}, classLevels, 0, 0, 4 /* chaMod */, 0, 0 /* wisMod */, 13, nil)
 	if entries[0].Max != 4 {
 		t.Errorf("Max = %d, want 4 (Charisma modifier)", entries[0].Max)
 	}
@@ -403,14 +499,14 @@ func TestComputeCustomResourcesChakraScalpelChargesBracket(t *testing.T) {
 	}
 	for _, c := range cases {
 		classLevels := map[string]int{"class/medical-nin": c.level}
-		entries := computeCustomResources([]grantedFeatureRow{scalpel}, classLevels, 0, 0, 0, 0, c.level, nil)
+		entries := computeCustomResources([]grantedFeatureRow{scalpel}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, c.level, nil)
 		if len(entries) != 1 || entries[0].Max != c.want {
 			t.Errorf("Medical-Nin level %d: got %+v, want chakra_scalpel_charges Max=%d", c.level, entries, c.want)
 		}
 	}
 
 	// Below MinLevel 3: not granted at all.
-	entries := computeCustomResources([]grantedFeatureRow{scalpel}, map[string]int{"class/medical-nin": 2}, 0, 0, 0, 0, 2, nil)
+	entries := computeCustomResources([]grantedFeatureRow{scalpel}, map[string]int{"class/medical-nin": 2}, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below Chakra Scalpel's MinLevel 3", entries)
 	}
@@ -426,7 +522,7 @@ func TestComputeCustomResourcesPreserveTakeLifeMendingPresenceStacks(t *testing.
 
 	// Base grant alone at 5th level: 2 uses.
 	classLevels := map[string]int{"class/medical-nin": 5}
-	entries := computeCustomResources([]grantedFeatureRow{preserveTakeLife}, classLevels, 0, 0, 0, 4 /* profBonus */, 5, nil)
+	entries := computeCustomResources([]grantedFeatureRow{preserveTakeLife}, classLevels, 0, 0, 0, 4 /* profBonus */, 0 /* wisMod */, 5, nil)
 	if len(entries) != 1 || entries[0].Key != "preserve_take_life" || entries[0].Max != 2 {
 		t.Fatalf("base alone: got %+v, want preserve_take_life Max=2", entries)
 	}
@@ -435,12 +531,44 @@ func TestComputeCustomResourcesPreserveTakeLifeMendingPresenceStacks(t *testing.
 	// Bonus onto the SAME pool — only one entry, with the higher combined
 	// total winning, same "higher Max wins" shape White Chakra Surge uses.
 	classLevels = map[string]int{"class/medical-nin": 6}
-	entries = computeCustomResources([]grantedFeatureRow{preserveTakeLife, mendingPresence}, classLevels, 0, 0, 0, 4 /* profBonus */, 6, nil)
+	entries = computeCustomResources([]grantedFeatureRow{preserveTakeLife, mendingPresence}, classLevels, 0, 0, 0, 4 /* profBonus */, 0 /* wisMod */, 6, nil)
 	if len(entries) != 1 {
 		t.Fatalf("base+mending presence: got %d entries, want 1 combined preserve_take_life entry: %+v", len(entries), entries)
 	}
 	if entries[0].Max != 4 {
 		t.Errorf("Max = %d, want 4 (base 2 + half of profBonus 4)", entries[0].Max)
+	}
+}
+
+// TestComputeCustomResourcesMedicalDoctrinePicks verifies the two Medical
+// Doctrine pools' own Max/MinLevel, and — the actual bug this gating
+// guards against — that computeCustomResources only ever sees the doctrine
+// a character picked, never the other one, since medicalDoctrinePickedRows
+// (medical_nin.go) is what filters Medical Doctrine's 4 unconditionally-
+// returned NULL-level class_features rows down to just the picked subset
+// before this function ever runs.
+func TestComputeCustomResourcesMedicalDoctrinePicks(t *testing.T) {
+	notAllowedToDie := grantedFeatureRow{Slug: "class/medical-nin/feature/not-allowed-to-die", Name: "Not Allowed to Die"}
+	untilTheirHeartStops := grantedFeatureRow{Slug: "class/medical-nin/feature/until-their-heart-stops", Name: "Until Their Heart Stops"}
+	classLevels := map[string]int{"class/medical-nin": 3}
+
+	// Only the picked doctrine's row reaches computeCustomResources — a
+	// character who picked Not Allowed to Die never sees Until Their Heart
+	// Stops' pool, and vice versa.
+	entries := computeCustomResources([]grantedFeatureRow{notAllowedToDie}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
+	if len(entries) != 1 || entries[0].Key != "not_allowed_to_die_uses" || entries[0].Max != 1 {
+		t.Fatalf("Not Allowed to Die alone: got %+v, want a single not_allowed_to_die_uses entry Max=1", entries)
+	}
+
+	entries = computeCustomResources([]grantedFeatureRow{untilTheirHeartStops}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
+	if len(entries) != 1 || entries[0].Key != "until_their_heart_stops_uses" || entries[0].Max != 2 {
+		t.Fatalf("Until Their Heart Stops alone: got %+v, want a single until_their_heart_stops_uses entry Max=2", entries)
+	}
+
+	// Below MinLevel 3: not granted at all.
+	entries = computeCustomResources([]grantedFeatureRow{notAllowedToDie, untilTheirHeartStops}, map[string]int{"class/medical-nin": 2}, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
+	if len(entries) != 0 {
+		t.Errorf("entries = %+v, want none below MinLevel 3", entries)
 	}
 }
 
@@ -565,18 +693,17 @@ func TestComputeCustomResourcesScoutNinGroup1Pools(t *testing.T) {
 		{"Chakra Sphere / Repelling Burst at MinLevel", "class/scout-nin/group/scouting-technique/barrier-scout/feature/projected-barrier", "Projected Barrier", 3, 3, "projected_barrier", 2, 0, 2},
 		{"Ghastly Leech at MinLevel", "class/scout-nin/group/scouting-technique/phantom-scout/feature/ghastly-leech", "Ghastly Leech", 14, 14, "ghastly_leech", 5, 0, 5},
 		{"Willpower Surge, positive Charisma", "class/scout-nin/group/scouting-technique/trickster-scout/feature/willpower-surge", "Willpower Surge", 14, 14, "willpower_surge", 0, 3, 3},
-		{"Tricksters Words, positive Charisma", "class/scout-nin/group/scouting-technique/trickster-scout/feature/tricksters-soul-binding", "Tricksters Soul Binding", 6, 6, "tricksters_words", 0, 4, 4},
 	}
 	classLevels := map[string]int{"class/scout-nin": 20}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			feature := grantedFeatureRow{Slug: c.slug, Name: c.featName, Level: c.level}
 			// Below MinLevel, not granted at all.
-			entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, c.cha, c.prof, c.minLevel-1, nil)
+			entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, c.cha, c.prof, 0 /* wisMod */, c.minLevel-1, nil)
 			if len(entries) != 0 {
 				t.Errorf("entries = %+v, want none below MinLevel %d", entries, c.minLevel)
 			}
-			entries = computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, c.cha, c.prof, c.minLevel, nil)
+			entries = computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, c.cha, c.prof, 0 /* wisMod */, c.minLevel, nil)
 			if len(entries) != 1 || entries[0].Key != c.key || entries[0].Max != c.want {
 				t.Fatalf("got %+v, want Key=%q Max=%d", entries, c.key, c.want)
 			}
@@ -584,22 +711,64 @@ func TestComputeCustomResourcesScoutNinGroup1Pools(t *testing.T) {
 	}
 }
 
+// Tricksters Soul Binding grants two independent pools off the same feature
+// slug (see customResourceSecondaryGrants' own comment): "tricksters_words"
+// (Charisma-modifier uses of the Words sub-benefit) and "tricksters_fusion"
+// (a flat 1 free fusion activation per rest, unrelated to Charisma). Kept
+// out of the shared table above since it's the only case yielding 2 entries
+// instead of 1.
+func TestComputeCustomResourcesScoutNinTrickstersSoulBindingDualPools(t *testing.T) {
+	classLevels := map[string]int{"class/scout-nin": 20}
+	feature := grantedFeatureRow{Slug: "class/scout-nin/group/scouting-technique/trickster-scout/feature/tricksters-soul-binding", Name: "Tricksters Soul Binding", Level: 6}
+
+	entries := computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 4, 0, 0 /* wisMod */, 5, nil)
+	if len(entries) != 0 {
+		t.Errorf("entries = %+v, want none below MinLevel 6", entries)
+	}
+
+	entries = computeCustomResources([]grantedFeatureRow{feature}, classLevels, 0, 0, 4, 0, 0 /* wisMod */, 6, nil)
+	if len(entries) != 2 {
+		t.Fatalf("got %+v, want 2 entries (tricksters_words + tricksters_fusion)", entries)
+	}
+	byKey := map[string]int{}
+	for _, e := range entries {
+		byKey[e.Key] = e.Max
+	}
+	if byKey["tricksters_words"] != 4 {
+		t.Errorf("tricksters_words Max = %d, want 4 (Charisma modifier)", byKey["tricksters_words"])
+	}
+	if byKey["tricksters_fusion"] != 1 {
+		t.Errorf("tricksters_fusion Max = %d, want 1 (flat, not Charisma-scaled)", byKey["tricksters_fusion"])
+	}
+}
+
 // Willpower Surge and Tricksters Words state no minimum use count (unlike
 // Sugar Rush's own explicit "minimum bonus of +1"), so a non-positive
 // Charisma modifier floors at 0 uses, not 1 — same precedent Perfected
-// Formula already establishes for this exact wording shape.
+// Formula already establishes for this exact wording shape. Tricksters
+// Fusion is unaffected — it's a flat count, not Charisma-scaled.
 func TestComputeCustomResourcesScoutNinCharismaPoolsFloorAtZero(t *testing.T) {
 	classLevels := map[string]int{"class/scout-nin": 20}
 	willpower := grantedFeatureRow{Slug: "class/scout-nin/group/scouting-technique/trickster-scout/feature/willpower-surge", Name: "Willpower Surge", Level: 14}
-	entries := computeCustomResources([]grantedFeatureRow{willpower}, classLevels, 0, 0, -2, 0, 14, nil)
+	entries := computeCustomResources([]grantedFeatureRow{willpower}, classLevels, 0, 0, -2, 0, 0 /* wisMod */, 14, nil)
 	if len(entries) != 1 || entries[0].Max != 0 {
 		t.Fatalf("got %+v, want willpower_surge Max=0 with a -2 Charisma modifier", entries)
 	}
 
 	tricksters := grantedFeatureRow{Slug: "class/scout-nin/group/scouting-technique/trickster-scout/feature/tricksters-soul-binding", Name: "Tricksters Soul Binding", Level: 6}
-	entries = computeCustomResources([]grantedFeatureRow{tricksters}, classLevels, 0, 0, -1, 0, 6, nil)
-	if len(entries) != 1 || entries[0].Max != 0 {
-		t.Fatalf("got %+v, want tricksters_words Max=0 with a -1 Charisma modifier", entries)
+	entries = computeCustomResources([]grantedFeatureRow{tricksters}, classLevels, 0, 0, -1, 0, 0 /* wisMod */, 6, nil)
+	if len(entries) != 2 {
+		t.Fatalf("got %+v, want 2 entries (tricksters_words + tricksters_fusion)", entries)
+	}
+	byKey := map[string]int{}
+	for _, e := range entries {
+		byKey[e.Key] = e.Max
+	}
+	if byKey["tricksters_words"] != 0 {
+		t.Errorf("tricksters_words Max = %d, want 0 with a -1 Charisma modifier", byKey["tricksters_words"])
+	}
+	if byKey["tricksters_fusion"] != 1 {
+		t.Errorf("tricksters_fusion Max = %d, want 1 (flat, unaffected by Charisma)", byKey["tricksters_fusion"])
 	}
 }
 

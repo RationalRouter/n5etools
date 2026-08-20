@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/sergio/n5e/internal/charsheet"
+)
 
 func TestParseJutsuGrants_RankFirst(t *testing.T) {
 	cases := []struct {
@@ -189,6 +193,30 @@ func TestParseJutsuGrants_NoRankPhrasing(t *testing.T) {
 	}
 }
 
+// TestParseJutsuGrants_AddPhrasing covers Scout-Nin's Tajū Kage Bunshin
+// (class/scout-nin/group/scouting-technique/cloning-scout/feature/
+// taju-kage-bunshin), the one feature in the book phrased "you add the X
+// Ninjutsu to your known jutsu list" rather than "you learn"/"you gain" —
+// rank-less like TestParseJutsuGrants_NoRankPhrasing above, so it's
+// jutsuGrantNoRankPattern's verb alternation being exercised here, not a
+// new pattern.
+func TestParseJutsuGrants_AddPhrasing(t *testing.T) {
+	description := "Starting at 3rd Level, you add the Shadow Clone Technique Ninjutsu " +
+		"to your known jutsu list and can learn any Ninjutsu with the Clone keyword, " +
+		"excluding jutsu with the Hijutsu keyword."
+
+	grants := parseJutsuGrants(description, 3)
+	if len(grants) != 1 {
+		t.Fatalf("parseJutsuGrants(taju-kage-bunshin) = %d grants, want 1: %+v", len(grants), grants)
+	}
+	if grants[0].Name != "Shadow Clone Technique" {
+		t.Errorf("Name = %q, want %q", grants[0].Name, "Shadow Clone Technique")
+	}
+	if grants[0].Level != 3 {
+		t.Errorf("Level = %d, want 3 (fallback level)", grants[0].Level)
+	}
+}
+
 // TestParseJutsuGrants_NoRankPatternDoesNotDoubleMatchRankedGrants confirms
 // the new rank-agnostic pattern doesn't add a second, wrongly-named grant
 // for a sentence one of the other three patterns already resolves
@@ -288,5 +316,181 @@ func TestWhiteTechniqueChakraStringBonusJutsuSlots(t *testing.T) {
 
 	if got := whiteTechniqueChakraStringBonusJutsuSlots(nil, 14); got != 0 {
 		t.Errorf("whiteTechniqueChakraStringBonusJutsuSlots(no feature) = %d, want 0", got)
+	}
+}
+
+// TestNinjutsuFocusReleaseBonusJutsuSlots covers the five Ninjutsu Focus
+// "[Element] Release" subclass features' own conditional +2 known-jutsu
+// bonus — e.g. Blaze Walker's Fire Release: "If you can already do this you
+// learn 2 additional Fire Release Ninjutsu that you qualify for." Only the
+// bonus SLOT COUNT is tracked here; which 2 jutsu fill it is still the
+// player's own pick via the known-jutsu picker. Mirrors
+// TestWaterAndOilBonusJutsuSlots' own "no access from elsewhere" vs. "real
+// clan affinity" cases, since both go through natureReleaseBonusJutsuSlots.
+func TestNinjutsuFocusReleaseBonusJutsuSlots(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/ninjutsu-specialist', 'Ninjutsu Specialist', 8, 8)`)
+
+	features := []grantedFeatureRow{{
+		Slug: "class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/fire-release",
+		Name: "Fire Release",
+	}}
+
+	// No Fire access from elsewhere: the feature's own flat affinity grant
+	// (elemental_affinity.go's subclassFlatAffinity) is excluded from this
+	// check by natureReleaseBonusJutsuSlots' own delete(grantedSlugs, ...)
+	// step, so gaining the keyword fresh from this same feature earns
+	// nothing extra.
+	bonus, err := s.ninjutsuFocusReleaseBonusJutsuSlots(1, features, "class/ninjutsu-specialist", "")
+	if err != nil {
+		t.Fatalf("ninjutsuFocusReleaseBonusJutsuSlots (no other Fire access): %v", err)
+	}
+	if bonus != 0 {
+		t.Errorf("bonus = %d, want 0 (no Fire access from elsewhere)", bonus)
+	}
+
+	// A real Fire affinity from elsewhere (an Uchiha clan trait) triggers
+	// the flat +2.
+	bonus, err = s.ninjutsuFocusReleaseBonusJutsuSlots(1, features, "class/ninjutsu-specialist", "clan/uchiha")
+	if err != nil {
+		t.Fatalf("ninjutsuFocusReleaseBonusJutsuSlots (Uchiha Fire affinity): %v", err)
+	}
+	if bonus != 2 {
+		t.Errorf("bonus = %d, want 2 (flat +2 known jutsu via a real clan Fire affinity)", bonus)
+	}
+
+	noFeature, err := s.ninjutsuFocusReleaseBonusJutsuSlots(1, nil, "class/ninjutsu-specialist", "clan/uchiha")
+	if err != nil {
+		t.Fatalf("ninjutsuFocusReleaseBonusJutsuSlots (no feature): %v", err)
+	}
+	if noFeature != 0 {
+		t.Errorf("bonus = %d, want 0 (character doesn't have any Release feature)", noFeature)
+	}
+}
+
+// TestNinjutsuSpecializationBonusJutsuSlots covers the four Ninjutsu Focus
+// "[Discipline] Specialization" subclass features' own unconditional flat
+// bonus known-jutsu count — Hijutsu and Hemomantic Specialization grant +1
+// each, Fuinjutsu and Void Specialization grant +2 each. Unlike the five
+// Release features, none of these four are gated on already having access
+// from elsewhere, so this is a plain flat-map lookup with no rulesDB
+// interaction needed.
+func TestNinjutsuSpecializationBonusJutsuSlots(t *testing.T) {
+	if got := ninjutsuSpecializationBonusJutsuSlots(nil); got != 0 {
+		t.Errorf("ninjutsuSpecializationBonusJutsuSlots(no features) = %d, want 0", got)
+	}
+
+	fuinjutsu := []grantedFeatureRow{{
+		Slug: "class/ninjutsu-specialist/group/ninjutsu-focus/scribe-master/feature/fuinjutsu-specialization",
+		Name: "Fuinjutsu Specialization",
+	}}
+	if got := ninjutsuSpecializationBonusJutsuSlots(fuinjutsu); got != 2 {
+		t.Errorf("ninjutsuSpecializationBonusJutsuSlots(Fuinjutsu Specialization) = %d, want 2", got)
+	}
+
+	hijutsu := []grantedFeatureRow{{
+		Slug: "class/ninjutsu-specialist/group/ninjutsu-focus/hijutsu-elitist/feature/hijutsu-specialization",
+		Name: "Hijutsu Specialization",
+	}}
+	if got := ninjutsuSpecializationBonusJutsuSlots(hijutsu); got != 1 {
+		t.Errorf("ninjutsuSpecializationBonusJutsuSlots(Hijutsu Specialization) = %d, want 1", got)
+	}
+}
+
+// TestAdaptiveMovementGrantedJutsu covers Mech Crafter's Adaptive Movement
+// (3rd level): "You learn the Body Flicker and Chakra Leaping Ninjutsu."
+// jutsuGrantNoRankPattern captures the whole "Body Flicker and Chakra
+// Leaping" span as one bogus name that resolves against neither jutsu, so
+// both are hand-added by loadGrantedJutsuLabels's own special case rather
+// than parsed out of the sentence. Confirms both jutsu land with the
+// Subclass Feature badge once the character reaches 3rd level, and neither
+// lands before then.
+func TestAdaptiveMovementGrantedJutsu(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/science-nin', 'Science-Nin', 8, 8)`)
+	mustExecRules(`INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/science-nin/group/scientific-inquiry', 'class/science-nin', 'Scientific Inquiry')`)
+	mustExecRules(`INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/science-nin/group/scientific-inquiry/mech-crafter', 'class/science-nin/group/scientific-inquiry', 'Mech Crafter')`)
+	mustExecRules(`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		('class/science-nin/group/scientific-inquiry/mech-crafter/feature/adaptive-movement',
+		 'class/science-nin/group/scientific-inquiry/mech-crafter', 'Adaptive Movement', 3,
+		 'Also at 3rd level, to complement your fighting style you are always moving to either keep your distance or put on the pressure. You learn the Body Flicker and Chakra Leaping Ninjutsu. This does not count against your known jutsu. You can cast these jutsu using chakra from your CCD. When you cast one of these jutsu, you automatically gain the benefits of other jutsu you did not cast (You are considered as casting both). While under either jutsu''s effect, you ignore difficult terrain, can walk on walls and water without reduction to your speed and can use Intelligence in place of Strength for calculating your jump distance.', 1)`)
+	for _, j := range [][2]string{
+		{"jutsu/body-flicker", "Body Flicker"},
+		{"jutsu/chakra-leaping", "Chakra Leaping"},
+	} {
+		mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+			VALUES (?, ?, 'Ninjutsu', 'D', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1 Chakra', 'Ninjutsu', 'test jutsu')`,
+			j[0], j[1])
+	}
+
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Kabuto', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', 2, 0)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/science-nin/group/scientific-inquiry/mech-crafter', 3)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// Below level 3 (character_classes.levels, what subclass features are
+	// actually gated on — sheet.Level alone doesn't restrict this): feature
+	// not yet reached, neither jutsu granted.
+	labels, err := s.loadGrantedJutsuLabels(characterID, &charsheet.Sheet{Level: 2})
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels at level 2: %v", err)
+	}
+	if len(labels) != 0 {
+		t.Errorf("labels at level 2 = %v, want none (Adaptive Movement not yet reached)", labels)
+	}
+
+	if _, err := s.charDB.Exec(
+		`UPDATE character_classes SET levels = 3 WHERE character_id = ? AND class_slug = 'class/science-nin'`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// At level 3: both jutsu land with the Subclass Feature badge.
+	labels, err = s.loadGrantedJutsuLabels(characterID, &charsheet.Sheet{Level: 3})
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels at level 3: %v", err)
+	}
+	want := map[string]string{
+		"jutsu/body-flicker":   "Subclass Feature",
+		"jutsu/chakra-leaping": "Subclass Feature",
+	}
+	if len(labels) != len(want) {
+		t.Fatalf("labels at level 3 = %v, want %v", labels, want)
+	}
+	for slug, label := range want {
+		if labels[slug] != label {
+			t.Errorf("labels[%q] at level 3 = %q, want %q", slug, labels[slug], label)
+		}
 	}
 }

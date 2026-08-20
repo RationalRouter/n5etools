@@ -1573,6 +1573,89 @@ func TestLoadGrantedJutsuLabels(t *testing.T) {
 	}
 }
 
+// TestControlledChakraFlowGrantedJutsu covers Puppet Master's Controlled
+// Chakra Flow (Green Technique Marionettist, 6th level) — a choice between
+// 2 named jutsu (features.ChoiceNamedJutsuGrant), unlike every other grant
+// loadGrantedJutsuLabels resolves by parsing a fixed sentence. Confirms
+// neither jutsu shows up until the player actually picks one, and that the
+// resolved pick lands with the same "Subclass Feature" label an
+// auto-parsed subclass grant would get.
+func TestControlledChakraFlowGrantedJutsu(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/puppet-master', 'Puppet Master', 8, 6)`)
+	mustExecRules(`INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/puppet-master/group/puppet-techniques', 'class/puppet-master', 'Puppet Techniques')`)
+	mustExecRules(`INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/puppet-master/group/puppet-techniques/green-technique-marionettist', 'class/puppet-master/group/puppet-techniques', 'Green Technique Marionettist')`)
+	mustExecRules(`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		('class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/controlled-chakra-flow',
+		 'class/puppet-master/group/puppet-techniques/green-technique-marionettist', 'Controlled Chakra Flow', 6,
+		 'Also at 6th level, you learn one of the following E-Rank jutsu. Depending on your choice, you gain an extra effect; Firecracker Flash (Ninjutsu)... Feather Burst (Genjutsu)...', 1)`)
+	for _, j := range [][2]string{
+		{"jutsu/firecracker-flash", "Firecracker Flash"},
+		{"jutsu/feather-burst", "Feather Burst"},
+	} {
+		mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+			VALUES (?, ?, 'Ninjutsu', 'E', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1 Chakra', 'Ninjutsu', 'test jutsu')`,
+			j[0], j[1])
+	}
+
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Sasori', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/puppet-master', 6, 0)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/puppet-master/group/puppet-techniques/green-technique-marionettist', 2)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet := &charsheet.Sheet{Level: 6}
+	labels, err := s.loadGrantedJutsuLabels(characterID, sheet)
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels before a pick: %v", err)
+	}
+	if _, ok := labels["jutsu/firecracker-flash"]; ok {
+		t.Errorf("labels before a pick = %v, want neither named jutsu present yet", labels)
+	}
+	if _, ok := labels["jutsu/feather-burst"]; ok {
+		t.Errorf("labels before a pick = %v, want neither named jutsu present yet", labels)
+	}
+
+	if err := charstore.SetFeatureChoice(s.charDB, characterID,
+		"class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/controlled-chakra-flow",
+		0, "jutsu/feather-burst"); err != nil {
+		t.Fatalf("SetFeatureChoice: %v", err)
+	}
+
+	labels, err = s.loadGrantedJutsuLabels(characterID, sheet)
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels after a pick: %v", err)
+	}
+	if labels["jutsu/feather-burst"] != "Subclass Feature" {
+		t.Errorf("labels[jutsu/feather-burst] = %q, want %q", labels["jutsu/feather-burst"], "Subclass Feature")
+	}
+	if _, ok := labels["jutsu/firecracker-flash"]; ok {
+		t.Errorf("labels = %v, want the UNPICKED option absent", labels)
+	}
+}
+
 // TestLoadGrantedFeaturesIncludesSubclass covers subclass_features never
 // being queried at all — loadGrantedFeatures only ever looked at
 // class_features and clan_features, so a chosen subclass's own features

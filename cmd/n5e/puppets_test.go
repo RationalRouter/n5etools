@@ -54,6 +54,27 @@ func TestPuppetToolDefaultAC(t *testing.T) {
 	}
 }
 
+// TestPuppetMendingHealDie: "2d6 + half your Puppet Master level... This
+// die increases to 2d8 at 9th level and 2d10 at 15th level."
+func TestPuppetMendingHealDie(t *testing.T) {
+	cases := []struct {
+		level int
+		want  string
+	}{
+		{1, "2d6"},
+		{8, "2d6"},
+		{9, "2d8"},
+		{14, "2d8"},
+		{15, "2d10"},
+		{20, "2d10"},
+	}
+	for _, c := range cases {
+		if got := puppetMendingHealDie(c.level); got != c.want {
+			t.Errorf("puppetMendingHealDie(%d) = %q, want %q", c.level, got, c.want)
+		}
+	}
+}
+
 // Enhanced Durability's own per-technique formulas moved to
 // internal/puppetupgrades together with every other modeled upgrade bonus;
 // their tests live beside them there (bonuses_test.go).

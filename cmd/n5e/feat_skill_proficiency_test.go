@@ -13,6 +13,7 @@ import (
 func TestParseFeatSkillProficiency(t *testing.T) {
 	cases := []struct {
 		name        string
+		slug        string
 		description string
 		want        string
 		wantOK      bool
@@ -21,6 +22,32 @@ func TestParseFeatSkillProficiency(t *testing.T) {
 			name:        "period-terminated, with skill suffix",
 			description: "You gain proficiency in the Acrobatics skill. If you are already proficient, you instead gain Mastery.",
 			want:        "Acrobatics",
+			wantOK:      true,
+		},
+		{
+			name:        "'proficiency with' preposition, no article",
+			description: "You gain proficiency with performance. If you are already proficient, you instead gain Mastery.",
+			want:        "Performance",
+			wantOK:      true,
+		},
+		{
+			name: "feat/master-of-disguise: skill clause follows an unrelated tool clause",
+			slug: "feat/master-of-disguise",
+			description: "You gain proficiency with the disguise kit. " +
+				"You gain proficiency with performance. If you are already proficient, you instead gain Mastery.",
+			want:   "Performance",
+			wantOK: true,
+		},
+		{
+			name:        "'proficiency with' a tool/kit is still excluded",
+			description: "You gain proficiency with the Alchemist Kit. If you are already proficient, you instead gain Mastery.",
+			wantOK:      false,
+		},
+		{
+			name:        "feat/crafter override: Crafting grant buried in a kit-choice sentence",
+			slug:        "feat/crafter",
+			description: "You gain proficiency in Crafting and either Weaponsmiths or Armorsmith Kit (Pick one). If you are already proficient, you instead gain Mastery.",
+			want:        "Crafting",
 			wantOK:      true,
 		},
 		{
@@ -53,6 +80,20 @@ func TestParseFeatSkillProficiency(t *testing.T) {
 			wantOK:      false,
 		},
 		{
+			name:        "feat/konjiki/steel-weapon-manifestation override: Martial Arts grant buried in a weapon-proficiency sentence",
+			slug:        "feat/konjiki/steel-weapon-manifestation",
+			description: "You gain proficiency in Martial Weapons and the Martial Arts skill.",
+			want:        "Martial Arts",
+			wantOK:      true,
+		},
+		{
+			name:        "feat/konjiki/steel-smith override: Crafting grant buried in a tool+Mastery sentence",
+			slug:        "feat/konjiki/steel-smith",
+			description: "You gain proficiency in Crafting and Weaponsmith kits, gaining +1 ranks of Mastery if already proficient.",
+			want:        "Crafting",
+			wantOK:      true,
+		},
+		{
 			name:        "excluded — parenthetical tool-or-skill choice",
 			description: "You gain proficiency in Investigation or the Forensics Kit (Pick one). If you are already proficient, you instead gain Mastery.",
 			wantOK:      false,
@@ -81,12 +122,64 @@ func TestParseFeatSkillProficiency(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, ok := parseFeatSkillProficiency(c.description)
+			got, ok := parseFeatSkillProficiency(c.slug, c.description)
 			if ok != c.wantOK {
 				t.Fatalf("ok = %v, want %v (got %q)", ok, c.wantOK, got)
 			}
 			if ok && got != c.want {
 				t.Errorf("skill = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// TestFeatSkillProficiencyMasteryRe pins the three real-corpus phrasings of
+// the Mastery-upgrade clause, plus the feat/elite-* shape that must NOT
+// match (a separate "You gain Mastery in one X skill... which you already
+// have proficiency in" sentence — a player-choice Mastery grant, not a
+// conditional upgrade of a proficiency clause this package parses).
+func TestFeatSkillProficiencyMasteryRe(t *testing.T) {
+	cases := []struct {
+		name        string
+		description string
+		want        bool
+	}{
+		{
+			name:        "majority phrasing: already proficient, you instead gain Mastery",
+			description: "You gain proficiency in Acrobatics. If you are already proficient, you instead gain Mastery.",
+			want:        true,
+		},
+		{
+			name:        "feat/vesper/echo-location: reversed word order",
+			description: "You gain proficiency in Perception, or +1 ranks of Mastery if already proficient.",
+			want:        true,
+		},
+		{
+			name:        "feat/yamada/asayama-pills: reversed word order, skill named twice",
+			description: "You gain proficiency in Medicine, or +1 ranks of Mastery in Medicine if already proficient.",
+			want:        true,
+		},
+		{
+			name:        "feat/konjiki/steel-smith: reversed word order, 'gaining' instead of 'gain'",
+			description: "You gain proficiency in Crafting and Weaponsmith kits, gaining +1 ranks of Mastery if already proficient.",
+			want:        true,
+		},
+		{
+			name:        "feat/class/witches-training: 'already have Proficiency ... one rank of Mastery'",
+			description: "You gain Proficiency in Nature. If you already have Proficiency, you instead gain one rank of Mastery.",
+			want:        true,
+		},
+		{
+			name:        "feat/elite-* shape: 'already have proficiency in' is a trailing relative clause, not an upgrade of THIS grant",
+			description: "You gain Mastery in one Wisdom skill which you already have proficiency in.",
+			want:        false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := featSkillProficiencyMasteryRe.MatchString(c.description); got != c.want {
+				t.Errorf("match = %v, want %v", got, c.want)
 			}
 		})
 	}
@@ -115,7 +208,9 @@ func TestFeatSkillProficiencyCorpusCoverage(t *testing.T) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT slug, description FROM feats WHERE description LIKE '%roficiency in%' ORDER BY slug`)
+	rows, err := db.Query(`SELECT slug, description FROM feats
+		WHERE description LIKE '%roficiency in%' OR description LIKE '%roficiency with%'
+		ORDER BY slug`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +223,7 @@ func TestFeatSkillProficiencyCorpusCoverage(t *testing.T) {
 			t.Fatal(err)
 		}
 		checked++
-		skill, ok := parseFeatSkillProficiency(description)
+		skill, ok := parseFeatSkillProficiency(slug, description)
 		if !ok {
 			continue
 		}

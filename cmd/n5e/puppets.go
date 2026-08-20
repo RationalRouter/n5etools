@@ -93,6 +93,28 @@ func puppetToolDefaultAC(acBase, masterProficiencyBonus int) int {
 	return acBase + masterProficiencyBonus
 }
 
+// puppetMendingHealDie returns Puppet Tool's own Mending-casting die size at
+// the given Puppet Master level — "restore a number of hit points equal to
+// 2d6 + half your Puppet Master level. This die increases to 2d8 at 9th
+// level and 2d10 at 15th level" (base class, Puppet Tool). No
+// class_level_resources chart row backs this (only the 5 material-tier rows
+// exist for this class), so it's a hardcoded level-threshold helper, the
+// same shape puppetAlwaysPreparedBulkBonus below already uses. Reference-
+// only: actually rolling and applying the heal, and the alternative "cast
+// for the full duration within 5ft to heal half max HP" branch, both stay
+// entirely manual — only the current die size is surfaced, as a readout on
+// the Puppet Tool Traits card.
+func puppetMendingHealDie(puppetMasterLevel int) string {
+	switch {
+	case puppetMasterLevel >= 15:
+		return "2d10"
+	case puppetMasterLevel >= 9:
+		return "2d8"
+	default:
+		return "2d6"
+	}
+}
+
 // Numeric-bonus autocompute audit: every Puppet Master upgrade's own
 // description across all six technique lists was swept for flat numeric
 // benefits (AC, HP, speed, damage, or any other "+X"), and the outcome —
@@ -656,6 +678,22 @@ func (s *server) puppetChassisPropertyBulkBonus(characterID int64) (float64, err
 		return puppetupgrades.PowerfulBuildBulkBonus, nil
 	}
 	return 0, nil
+}
+
+// backupPlanBulkBonus returns the max-bulk bonus from the Backup Plan (New)
+// feat (feat/class/backup-plan-new, prerequisite 10+ Puppet Master levels):
+// "Increase your maximum bulk by half your Puppet Master class level." — 0
+// if the character doesn't have the feat.
+func (s *server) backupPlanBulkBonus(characterID int64) (float64, error) {
+	has, err := s.characterHasFeat(characterID, "feat/class/backup-plan-new")
+	if err != nil || !has {
+		return 0, err
+	}
+	level, err := s.puppetMasterClassLevel(characterID)
+	if err != nil {
+		return 0, err
+	}
+	return float64(level / 2), nil
 }
 
 // puppetCompanionCount counts a character's own kind="puppet" companions —
@@ -1780,7 +1818,10 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 		return nil, err
 	}
 	foundationBonusCaps := puppetFoundationBonusTierCapsFromPicks(foundationPicks)
-	featureBonusCaps := puppetUpgradeFeatureBonusTierCaps(subclassColor, puppetMasterLevel)
+	featureBonusCaps, err := s.puppetUpgradeFeatureBonusTierCapsForCharacter(characterID, subclassColor, puppetMasterLevel)
+	if err != nil {
+		return nil, err
+	}
 	for i := range materialCaps {
 		materialCaps[i] += foundationBonusCaps[i] + featureBonusCaps[i]
 	}
@@ -2314,6 +2355,12 @@ type puppetCompanionView struct {
 	// only; see puppetElevatedDesignAbilityBonus's own doc for why it is
 	// never folded into the editable ability score fields.
 	ElevatedDesignBonus map[string]int
+	// PuppetToolASIBonus is Puppet Tool's own base-class per-ASI-breakpoint
+	// ability bonus (map[ability]amount), applied to every Puppet Tool the
+	// character possesses — nil if no breakpoint has been resolved yet.
+	// Same display-only annotation treatment as ElevatedDesignBonus; see
+	// puppetToolASIAbilityBonus's own doc for the bonus math.
+	PuppetToolASIBonus map[string]int
 	// SymphonyEnhancement is set only for the (at most two) Puppet Tools
 	// Symphony of Puppetry's Enhancement branch applies to, once that
 	// branch has been chosen — nil otherwise.
@@ -2367,6 +2414,410 @@ func (s *server) loadFightingStanceOptions() ([]stanceOption, error) {
 	return options, rows.Err()
 }
 
+// transformerWeaponTypeFeatureSlug is Blue Technique Warmaster's own L14
+// Transformer feature — "on a long rest select a second Puppet Weapon Type
+// for your Puppet Tool." A distinct feature slug from the character's
+// PRIMARY Weapon Type pick, which isn't a feature choice at all (it's a
+// Foundation catalog pick — a real character_companion_upgrades row, see
+// puppet_foundation.go), so the two can never collide in storage.
+const transformerWeaponTypeFeatureSlug = "class/puppet-master/group/puppet-techniques/blue-technique-warmaster/feature/transformer"
+
+// puppetWeaponTypeOption is one Puppet Weapon Type offered by Transformer's
+// own second-Weapon-Type pick, read straight from class_options (the same 3
+// rows internal/puppetupgrades/foundation.go's FoundationEntries table
+// curates for the PRIMARY pick's own ability-score/size/natural-weapon
+// auto-builder) rather than through that curated table — this pick is
+// display-only reference text, deliberately NOT run through the Foundation
+// auto-builder: the puppet alternates between its two Weapon Types rather
+// than having both active at once, so auto-applying the second one's
+// bonuses on top of the first would double-stack them.
+type puppetWeaponTypeOption struct {
+	Slug        string
+	Name        string
+	Description string
+}
+
+// puppetWeaponTypeChoiceView holds Transformer's own second-Weapon-Type
+// pick — freely re-editable ("on a long rest select…"), same boundary as
+// Blue Technique's own Fighting Stance pick (fightingStanceView) above.
+type puppetWeaponTypeChoiceView struct {
+	Current            string // weapon-type slug, "" if unpicked
+	CurrentName        string
+	CurrentDescription string
+	Options            []puppetWeaponTypeOption
+}
+
+// loadPuppetWeaponTypeOptions catalogs the 3 Puppet Weapon Types (Drone/
+// Ogre/Sentinel Weapon) directly from class_options, for Transformer's own
+// display-only second pick.
+func (s *server) loadPuppetWeaponTypeOptions() ([]puppetWeaponTypeOption, error) {
+	rows, err := s.rulesDB.Query(
+		`SELECT slug, name, description FROM class_options WHERE list_name = 'Puppet Weapon Types' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var options []puppetWeaponTypeOption
+	for rows.Next() {
+		var o puppetWeaponTypeOption
+		if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
+			return nil, err
+		}
+		options = append(options, o)
+	}
+	return options, rows.Err()
+}
+
+// masterOfGreenTechniqueFeatureSlug is Green Technique Marionettist's own
+// L20 capstone — "Each long rest, select one Ninjutsu or Genjutsu of B-Rank
+// or lower that you could learn… Your Puppets are now always under the
+// effects of your chosen jutsu as long as you are conscious."
+const masterOfGreenTechniqueFeatureSlug = "class/puppet-master/group/puppet-techniques/green-technique-marionettist/feature/master-of-the-green-technique"
+
+// threadSavantFeatureSlug is White Technique Weaver's own L14 feature —
+// "Select one jutsu that you know… you may switch your chosen jutsu at the
+// conclusion of a full rest."
+const threadSavantFeatureSlug = "class/puppet-master/group/puppet-techniques/white-technique-weaver/feature/thread-savant"
+
+// puppetJutsuChoiceOption is one jutsu candidate offered by a long-rest/
+// full-rest re-pickable single jutsu choice (Master of the Green Technique,
+// Thread Savant) — both freely re-editable via charstore.SetFeatureChoice
+// rather than a capped catalog pick (choices.go's own ChoiceKind/
+// choiceSlotDefs engine locks a resolved pick permanently, wrong for a
+// feature the player must reselect every rest), so both share this same
+// small view shape despite sourcing from different catalogs. Value is the
+// string actually stored as the ChoiceKey's value: a rules-db jutsu slug
+// for Master of the Green Technique, or a character_jutsu row id (as
+// decimal text) for Thread Savant, whose own candidates can include a
+// player-created custom jutsu with no slug of its own.
+type puppetJutsuChoiceOption struct {
+	Value       string
+	Name        string
+	Rank        string
+	Description string
+}
+
+// puppetJutsuChoiceView holds one of these single re-pickable jutsu
+// choices' current pick — same shape fightingStanceView already
+// establishes for a freely re-editable single choice.
+type puppetJutsuChoiceView struct {
+	Current            string
+	CurrentName        string
+	CurrentRank        string
+	CurrentDescription string
+	Options            []puppetJutsuChoiceOption
+}
+
+// buildPuppetJutsuChoiceView resolves featureSlug's own stored pick against
+// options — shared by Master of the Green Technique and Thread Savant, same
+// role buildFightingStanceView (taijutsu.go) plays for stance picks.
+func buildPuppetJutsuChoiceView(choices map[features.ChoiceKey]string, options []puppetJutsuChoiceOption, featureSlug string) *puppetJutsuChoiceView {
+	view := &puppetJutsuChoiceView{
+		Current: choices[features.ChoiceKey{FeatureSlug: featureSlug, ChoiceIndex: 0}],
+		Options: options,
+	}
+	for _, o := range options {
+		if o.Value == view.Current {
+			view.CurrentName = o.Name
+			view.CurrentRank = o.Rank
+			view.CurrentDescription = o.Description
+		}
+	}
+	return view
+}
+
+// masterOfGreenTechniqueMaxRank is Master of the Green Technique's own
+// fixed "B-Rank or lower" cap — unlike the ordinary highestRankForLevel
+// gate most rank-limited picks in this app use, this feature's own text
+// never scales the cap by character level.
+var masterOfGreenTechniqueMaxRank = jutsuRankOrder["B"]
+
+// loadGreenTechniqueJutsuOptions catalogs every Ninjutsu/Genjutsu of B-Rank
+// or lower the character could learn (jutsuEligible: class/clan origin +
+// elemental affinity, the same gate handleSheetJutsuAdd enforces), for
+// Master of the Green Technique's own long-rest jutsu pick. Eligibility is
+// computed once via loadJutsuEligibilityContext and reused for every
+// candidate — jutsuEligibleForCharacter's own per-slug query cost would
+// otherwise be paid once per candidate jutsu (several hundred rows even
+// after the rank filter below). The book's further restrictions — "does
+// not deal damage or affect any other creature," "casting time of 1 action
+// or Bonus Action" — have no queryable rules-db column to filter on, so
+// they're left as player-enforced text in the picker's own label rather
+// than silently mis-filtering the list.
+func (s *server) loadGreenTechniqueJutsuOptions(characterID int64) ([]puppetJutsuChoiceOption, error) {
+	rows, err := s.rulesDB.Query(`
+		SELECT slug, name, rank, keywords, description FROM v_jutsu
+		WHERE classification IN ('Ninjutsu', 'Genjutsu') ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	type candidate struct {
+		slug, name, keywords, description string
+		rank                              sql.NullString
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.slug, &c.name, &c.rank, &c.keywords, &c.description); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if !c.rank.Valid || jutsuRankOrder[c.rank.String] > masterOfGreenTechniqueMaxRank {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, err := s.loadJutsuEligibilityContext(characterID)
+	if err != nil {
+		return nil, err
+	}
+	var out []puppetJutsuChoiceOption
+	for _, c := range candidates {
+		if !ctx.eligible(c.slug, c.keywords) {
+			continue
+		}
+		out = append(out, puppetJutsuChoiceOption{Value: c.slug, Name: c.name, Rank: c.rank.String, Description: c.description})
+	}
+	return out, nil
+}
+
+// loadThreadSavantJutsuOptions catalogs every jutsu the character already
+// knows (character_jutsu, published and custom alike) as candidates for
+// Thread Savant's own full-rest re-pickable jutsu choice — unlike Master of
+// the Green Technique, the book's text scopes this to jutsu "that you
+// know," not the full catalog. A stale published jutsu_slug (removed in a
+// rules update) is silently skipped, same tolerance ninjutsu_specialist.go's
+// loadKnownNinjutsu already extends. The book's further restrictions — "does
+// not deal damage, does not inflict a condition," "casting time of 1 action
+// or Bonus Action" — have no queryable rules-db column to filter on (custom
+// jutsu doubly so), so they're left as player-enforced text in the picker's
+// own label rather than silently mis-filtering the list.
+func (s *server) loadThreadSavantJutsuOptions(characterID int64) ([]puppetJutsuChoiceOption, error) {
+	rows, err := s.charDB.Query(
+		`SELECT id, jutsu_slug, custom_jutsu_id FROM character_jutsu WHERE character_id = ?`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	type stored struct {
+		id        int64
+		jutsuSlug sql.NullString
+		customID  sql.NullInt64
+	}
+	var picks []stored
+	for rows.Next() {
+		var p stored
+		if err := rows.Scan(&p.id, &p.jutsuSlug, &p.customID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		picks = append(picks, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var out []puppetJutsuChoiceOption
+	for _, p := range picks {
+		var name, rank, description string
+		switch {
+		case p.jutsuSlug.Valid:
+			err := s.rulesDB.QueryRow(
+				`SELECT name, rank, description FROM v_jutsu WHERE slug = ?`, p.jutsuSlug.String,
+			).Scan(&name, &rank, &description)
+			if err == sql.ErrNoRows {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+		case p.customID.Valid:
+			err := s.charDB.QueryRow(
+				`SELECT name, rank, description FROM custom_jutsu WHERE id = ?`, p.customID.Int64,
+			).Scan(&name, &rank, &description)
+			if err == sql.ErrNoRows {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+		default:
+			continue
+		}
+		out = append(out, puppetJutsuChoiceOption{Value: strconv.FormatInt(p.id, 10), Name: name, Rank: rank, Description: description})
+	}
+	return out, nil
+}
+
+// alwaysPreparedTemporaryUpgradeFeatureSlug is Always Prepared's own
+// 18th-level clause — "after a rest of any type, you can select and create
+// a temporary version of an Upgrade from your Puppet Technique you are
+// qualified to take but do not have. This Upgrade must be of Silver tier or
+// lower. You have this Upgrade until you complete a rest." A base-class
+// feature (available to every Puppet Technique, not gated to one subclass),
+// distinct from this same feature's own twice-per-full-rest kit/pill
+// conversion clause, which is tracked separately via customResourceGrants'
+// "always_prepared_conversion" key (custom_resources.go) — a completely
+// different table (character_feature_choices via charstore.SetFeatureChoice,
+// here, vs. character_custom_resources there), so the two can never collide
+// despite sharing this same class_features slug as their common key.
+const alwaysPreparedTemporaryUpgradeFeatureSlug = "class/puppet-master/feature/always-prepared"
+
+// alwaysPreparedMaxTierRank is Always Prepared's own fixed "Silver tier or
+// lower" cap on its 18th-level temporary-Upgrade pick — the same fixed-cap
+// simplification masterOfGreenTechniqueMaxRank uses above, just resolved
+// against puppetUpgradeTierRanks instead of jutsuRankOrder.
+var alwaysPreparedMaxTierRank = puppetUpgradeTierRanks["Silver Tier"]
+
+// puppetUpgradeChoiceOption is one not-yet-held Puppet Upgrade entry offered
+// by Always Prepared's own temporary-Upgrade pick — same role
+// puppetJutsuChoiceOption plays for the jutsu-flavored single-pick features
+// above, just sourced from the Upgrade catalog (class_option_entries)
+// instead of v_jutsu/character_jutsu.
+type puppetUpgradeChoiceOption struct {
+	Slug        string
+	Name        string
+	Tier        string
+	Description string
+}
+
+// puppetUpgradeChoiceView holds Always Prepared's own current temporary-
+// Upgrade pick — same shape puppetJutsuChoiceView already establishes for a
+// freely re-editable single choice.
+type puppetUpgradeChoiceView struct {
+	Current            string
+	CurrentName        string
+	CurrentTier        string
+	CurrentDescription string
+	Options            []puppetUpgradeChoiceOption
+}
+
+// buildPuppetUpgradeChoiceView resolves alwaysPreparedTemporaryUpgradeFeatureSlug's
+// own stored pick against options — same role buildPuppetJutsuChoiceView
+// plays for the jutsu-flavored single-pick features above.
+func buildPuppetUpgradeChoiceView(choices map[features.ChoiceKey]string, options []puppetUpgradeChoiceOption, featureSlug string) *puppetUpgradeChoiceView {
+	view := &puppetUpgradeChoiceView{
+		Current: choices[features.ChoiceKey{FeatureSlug: featureSlug, ChoiceIndex: 0}],
+		Options: options,
+	}
+	for _, o := range options {
+		if o.Slug == view.Current {
+			view.CurrentName = o.Name
+			view.CurrentTier = o.Tier
+			view.CurrentDescription = o.Description
+		}
+	}
+	return view
+}
+
+// loadAlwaysPreparedUpgradeOptions catalogs every Puppet Upgrade of Silver
+// tier or lower the character is qualified to take but doesn't already
+// have, for Always Prepared's own 18th-level temporary-Upgrade pick.
+// Eligibility runs through puppetUpgradeEntryPrereqMet — the exact same
+// server-side gate handlePuppetUpgradeAdd itself uses for a REAL Upgrade
+// pick — checked against the character's first Puppet Tool companion, since
+// (like Transformer/Master of the Green Technique/Thread Savant above) this
+// pick is stored character-wide via charstore.SetFeatureChoice, not scoped
+// to one companion. An "already held" entry is excluded if ANY of the
+// character's puppet companions has it for real (puppetEntryTotalPicksAcrossCompanions'
+// own "pool across the whole roster" treatment, not just the one companion
+// used for the prerequisite check), so a second Puppet Tool that already
+// carries an Upgrade for real is never re-offered here as if it were still
+// available. Untiered rows (Puppet Weapon Types, Puppeteer Chassis, Puppet
+// Frameworks, Puppet Roles — none of them a puppetUpgradeTierRanks tier)
+// are naturally excluded by the same rank filter that caps out at Silver:
+// the book's own "Upgrade... of Silver tier or lower" phrase only ever
+// refers to the tiered Upgrade catalog, never those untiered Foundation-style
+// picks.
+func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUpgradeChoiceOption, error) {
+	companions, err := charstore.ListCompanions(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	var companionID int64
+	var armorChassis string
+	haveEntry := map[string]bool{}
+	for _, c := range companions {
+		if c.Kind != "puppet" {
+			continue
+		}
+		if companionID == 0 {
+			companionID = c.ID
+			armorChassis = c.ArmorChassis
+		}
+		picks, err := charstore.ListCompanionUpgrades(s.charDB, characterID, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range picks {
+			haveEntry[p.UpgradeEntrySlug] = true
+		}
+	}
+	if companionID == 0 {
+		return nil, nil // no Puppet Tool yet — nothing to check eligibility against
+	}
+
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(characterID)
+	if err != nil {
+		return nil, err
+	}
+	subclassColor := puppetSubclassColorBySlug[subclassSlug]
+
+	rows, err := s.rulesDB.Query(`
+		SELECT e.slug, e.name, e.description, o.name
+		FROM class_option_entries e
+		JOIN class_options o ON o.slug = e.class_option_slug
+		WHERE o.class_slug = 'class/puppet-master' AND (o.subclass_slug IS NULL OR o.subclass_slug = ?)
+		ORDER BY o.list_name, o.sort_order, e.sort_order`, subclassSlug)
+	if err != nil {
+		return nil, err
+	}
+	type candidate struct {
+		slug, name, description, tierName string
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.slug, &c.name, &c.description, &c.tierName); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		candidates = append(candidates, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var out []puppetUpgradeChoiceOption
+	for _, c := range candidates {
+		if haveEntry[c.slug] {
+			continue
+		}
+		rank, ok := puppetUpgradeTierRanks[c.tierName]
+		if !ok || rank > alwaysPreparedMaxTierRank {
+			continue
+		}
+		if !puppetUpgradeAvailableToColor(c.description, subclassColor) {
+			continue
+		}
+		met, err := s.puppetUpgradeEntryPrereqMet(characterID, companionID, c.slug, armorChassis)
+		if err != nil {
+			return nil, err
+		}
+		if !met {
+			continue
+		}
+		out = append(out, puppetUpgradeChoiceOption{Slug: c.slug, Name: c.name, Tier: c.tierName, Description: c.description})
+	}
+	return out, nil
+}
+
 type puppetsTabData struct {
 	PuppetMasterLevel     int
 	Companions            []puppetCompanionView
@@ -2392,6 +2843,27 @@ type puppetsTabData struct {
 	// PuppetSwarm is set only for Red Technique Performer at L10+
 	// (Performance of 10 Puppets) — see puppet_swarm.go.
 	PuppetSwarm *puppetSwarmStatsView
+	// TransformerWeaponType is set only for Blue Technique Warmaster at
+	// L14+ (Transformer) — its own long-rest second Puppet Weapon Type
+	// pick, display-only (see transformerWeaponTypeFeatureSlug's own doc).
+	TransformerWeaponType *puppetWeaponTypeChoiceView
+	// GreenTechniqueJutsu is set only for Green Technique Marionettist at
+	// L20+ (Master of the Green Technique) — its own long-rest jutsu pick.
+	GreenTechniqueJutsu *puppetJutsuChoiceView
+	// ThreadSavantJutsu is set only for White Technique Weaver at L14+
+	// (Thread Savant) — its own full-rest re-pickable jutsu choice.
+	ThreadSavantJutsu *puppetJutsuChoiceView
+	// AlwaysPreparedUpgrade is set for every Puppet Technique at L18+ (base
+	// class Always Prepared's own 18th-level clause) — its own rest-
+	// re-pickable temporary Upgrade choice, unlike the three subclass-gated
+	// pickers above. See alwaysPreparedTemporaryUpgradeFeatureSlug's own doc
+	// for the exact automation boundary.
+	AlwaysPreparedUpgrade *puppetUpgradeChoiceView
+	// MendingHealDie is Puppet Tool's own current Mending-casting die size
+	// (puppetMendingHealDie) — a readout on the Puppet Tool Traits card,
+	// not a spendable resource (Mending itself is unlimited, gated only by
+	// action economy/chakra which are already tracked elsewhere).
+	MendingHealDie string
 }
 
 func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (puppetsTabData, error) {
@@ -2405,6 +2877,18 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	if level == 0 {
 		return data, nil
 	}
+	data.MendingHealDie = puppetMendingHealDie(level)
+
+	// Resolved once, up front, and reused everywhere below a subclass-color
+	// gate is needed: Generalized Skill's own Green Technique Genjutsu-
+	// modifier substitution (puppetGeneralizedSkillCap), the Blue/Green/
+	// White-only upgrade pickers, and the roster-wide upgrade bonuses noted
+	// further down.
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(characterID)
+	if err != nil {
+		return data, err
+	}
+	subclassColor := puppetSubclassColorBySlug[subclassSlug]
 
 	generalizedPicks, err := charstore.ListGeneralizedSkills(s.charDB, characterID)
 	if err != nil {
@@ -2420,7 +2904,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		data.GeneralizedSkillPicks[i] = generalizedSkillPickRow{Name: name, Modifier: mod}
 	}
 	data.GeneralizedSkillUsed = len(generalizedPicks)
-	data.GeneralizedSkillCap = puppetGeneralizedSkillCap(sheet, level)
+	data.GeneralizedSkillCap = puppetGeneralizedSkillCap(sheet, level, subclassColor)
 	picked := map[string]bool{}
 	for _, n := range generalizedPicks {
 		picked[n] = true
@@ -2429,11 +2913,6 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		if !picked[sk.Name] {
 			data.AllSkillNames = append(data.AllSkillNames, sk.Name)
 		}
-	}
-
-	subclassSlug, _, err := s.puppetMasterSubclassSlug(characterID)
-	if err != nil {
-		return data, err
 	}
 
 	allCompanions, err := charstore.ListCompanions(s.charDB, characterID)
@@ -2466,8 +2945,8 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	// just the companion being computed (Red Technique's Enhanced Durability
 	// raises every Puppet Tool's HP from a single take; its Hovering
 	// Mechanism reaches two puppets), so every puppet's picks are counted
-	// up front rather than per companion inside the loop below.
-	subclassColor := puppetSubclassColorBySlug[subclassSlug]
+	// up front rather than per companion inside the loop below. subclassColor
+	// itself was already resolved near the top of this function.
 
 	// Loaded once and reused below by the Blue Technique fighting-stance
 	// picker, Elevated Design's ability bonus, and Symphony of Puppetry's
@@ -2496,6 +2975,93 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		data.FightingStance = stance
 	}
 
+	// Transformer (Blue Technique Warmaster, L14): "on a long rest select a
+	// second Puppet Weapon Type for your Puppet Tool." Freely re-editable,
+	// same boundary as Blue Technique's own Fighting Stance pick just
+	// above (a distinct feature slug, so the two can never collide), but
+	// display-only: NOT run through the Foundation catalog's ability-
+	// score/size/natural-weapon auto-builder the PRIMARY Weapon Type pick
+	// uses — see puppetWeaponTypeOption's own doc for why. Transforming
+	// in/out mid-combat, the object-interaction HP-split mechanic, and the
+	// Bonus-Action Tactic swap in the same feature's last sentence all
+	// stay fully manual/narrated — only WHICH second Weapon Type is
+	// currently selected is tracked.
+	if subclassColor == "Blue" && level >= 14 {
+		weaponTypeOptions, err := s.loadPuppetWeaponTypeOptions()
+		if err != nil {
+			return data, err
+		}
+		choice := &puppetWeaponTypeChoiceView{
+			Current: resolvedFeatureChoices[features.ChoiceKey{FeatureSlug: transformerWeaponTypeFeatureSlug, ChoiceIndex: 0}],
+			Options: weaponTypeOptions,
+		}
+		for _, o := range weaponTypeOptions {
+			if o.Slug == choice.Current {
+				choice.CurrentName = o.Name
+				choice.CurrentDescription = o.Description
+			}
+		}
+		data.TransformerWeaponType = choice
+	}
+
+	// Master of the Green Technique (Green Technique Marionettist, L20):
+	// "Each long rest, select one Ninjutsu or Genjutsu of B-Rank or lower
+	// that you could learn… Your Puppets are now always under the effects
+	// of your chosen jutsu as long as you are conscious." Freely
+	// re-editable, sourced from the full rank/eligibility-filtered rules-db
+	// catalog (loadGreenTechniqueJutsuOptions), not the character's own
+	// known jutsu — the book's own text is "that you could learn," not
+	// "that you know." The continuous "Puppets are always under its
+	// effects" application stays entirely manual — only which jutsu is
+	// currently selected is tracked.
+	if subclassColor == "Green" && level >= 20 {
+		jutsuOptions, err := s.loadGreenTechniqueJutsuOptions(characterID)
+		if err != nil {
+			return data, err
+		}
+		data.GreenTechniqueJutsu = buildPuppetJutsuChoiceView(resolvedFeatureChoices, jutsuOptions, masterOfGreenTechniqueFeatureSlug)
+	}
+
+	// Thread Savant (White Technique Weaver, L14): "Select one jutsu that
+	// you know… you may switch your chosen jutsu at the conclusion of a
+	// full rest." Freely re-editable, sourced from the character's own
+	// already-known jutsu (loadThreadSavantJutsuOptions) rather than the
+	// full catalog — the book's text is scoped to jutsu the character
+	// already knows. The simultaneous-cast-on-thread-connect application,
+	// and the "cannot benefit from Grandmaster Manipulation" interaction,
+	// stay fully manual/narrated — only which known jutsu is currently
+	// selected (and its full-rest re-selectability) is tracked.
+	if subclassColor == "White" && level >= 14 {
+		jutsuOptions, err := s.loadThreadSavantJutsuOptions(characterID)
+		if err != nil {
+			return data, err
+		}
+		data.ThreadSavantJutsu = buildPuppetJutsuChoiceView(resolvedFeatureChoices, jutsuOptions, threadSavantFeatureSlug)
+	}
+
+	// Always Prepared (base class, L18): "...select and create a temporary
+	// version of an Upgrade from your Puppet Technique you are qualified to
+	// take but do not have. This Upgrade must be of Silver tier or lower.
+	// You have this Upgrade until you complete a rest." Available to every
+	// Puppet Technique, unlike the three subclass-gated pickers above.
+	// Freely re-editable every rest — only WHICH temporary Upgrade is
+	// currently selected is tracked. The selected entry's own name/tier/
+	// description resolve for display, and its eligibility is checked
+	// through the same puppetUpgradeEntryPrereqMet gate a real Upgrade pick
+	// uses (see loadAlwaysPreparedUpgradeOptions' own doc), but the entry's
+	// own mechanical bonus is NOT applied to the companion stat block the
+	// way a permanently-held Upgrade of the same entry would be — creating
+	// and un-creating it as a temporary Upgrade every rest stays the
+	// player's own bookkeeping, same as Transformer's second Weapon Type
+	// above.
+	if level >= 18 {
+		upgradeOptions, err := s.loadAlwaysPreparedUpgradeOptions(characterID)
+		if err != nil {
+			return data, err
+		}
+		data.AlwaysPreparedUpgrade = buildPuppetUpgradeChoiceView(resolvedFeatureChoices, upgradeOptions, alwaysPreparedTemporaryUpgradeFeatureSlug)
+	}
+
 	if subclassColor == "Red" && level >= 10 {
 		swarm := puppetSwarmStats(allCompanions, level)
 		refText, err := s.loadPuppetSwarmReferenceText()
@@ -2507,6 +3073,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	}
 
 	elevatedDesignBonus := puppetElevatedDesignAbilityBonus(resolvedFeatureChoices)
+	puppetToolASIBonus := puppetToolASIAbilityBonus(resolvedFeatureChoices)
 
 	symphonyEnhancementViews, err := s.puppetSymphonyEnhancementViews(characterID, resolvedFeatureChoices, allCompanions)
 	if err != nil {
@@ -2736,6 +3303,9 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		view.IsMatryoshkaFramework = isMatryoshkaFramework
 		if len(elevatedDesignBonus) > 0 {
 			view.ElevatedDesignBonus = elevatedDesignBonus
+		}
+		if len(puppetToolASIBonus) > 0 {
+			view.PuppetToolASIBonus = puppetToolASIBonus
 		}
 		view.SymphonyEnhancement = symphonyEnhancementViews[c.ID]
 		if baseline != nil {
@@ -3072,7 +3642,12 @@ func (s *server) handlePuppetUpgradeAdd(w http.ResponseWriter, r *http.Request) 
 			log.Println("resolve subclass for upgrade tier caps:", err)
 			return
 		}
-		featureBonusCaps := puppetUpgradeFeatureBonusTierCaps(puppetSubclassColorBySlug[subclassSlug], level)
+		featureBonusCaps, err := s.puppetUpgradeFeatureBonusTierCapsForCharacter(id, puppetSubclassColorBySlug[subclassSlug], level)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load feature bonus tier caps:", err)
+			return
+		}
 		for i := range caps {
 			caps[i] += foundationBonusCaps[i] + featureBonusCaps[i]
 		}
@@ -3343,6 +3918,245 @@ func (s *server) handlePuppetFightingStance(w http.ResponseWriter, r *http.Reque
 	if err := charstore.SetFeatureChoice(s.charDB, id, blueTechniqueProficiencyFeatureSlug, 0, slug); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set puppet fighting stance:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_puppet_tab")
+}
+
+// handlePuppetTransformerWeaponType records Blue Technique Warmaster's own
+// L14 Transformer feature — "on a long rest select a second Puppet Weapon
+// Type for your Puppet Tool." See transformerWeaponTypeFeatureSlug's own
+// doc for why this is a display-only reference pick, never routed through
+// the Foundation catalog's auto-builder. Freely re-editable, same boundary
+// as handlePuppetFightingStance above.
+func (s *server) handlePuppetTransformerWeaponType(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("weapon_type_slug"))
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master subclass for transformer weapon type:", err)
+		return
+	}
+	if puppetSubclassColorBySlug[subclassSlug] != "Blue" {
+		http.Error(w, "character is not a Blue Technique Warmaster", http.StatusBadRequest)
+		return
+	}
+	level, err := s.puppetMasterClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master level for transformer weapon type:", err)
+		return
+	}
+	if level < 14 {
+		http.Error(w, "character has not reached Transformer (14th level) yet", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadPuppetWeaponTypeOptions()
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon type options for transformer:", err)
+		return
+	}
+	valid := false
+	for _, o := range options {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid Puppet Weapon Type", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, transformerWeaponTypeFeatureSlug, 0, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set transformer weapon type:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_puppet_tab")
+}
+
+// handlePuppetGreenTechniqueJutsu records Green Technique Marionettist's own
+// L20 Master of the Green Technique feature — "Each long rest, select one
+// Ninjutsu or Genjutsu of B-Rank or lower that you could learn…" Freely
+// re-editable, sourced from loadGreenTechniqueJutsuOptions (the full
+// rank/eligibility-filtered catalog, not just known jutsu).
+func (s *server) handlePuppetGreenTechniqueJutsu(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("jutsu_slug"))
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master subclass for green technique jutsu:", err)
+		return
+	}
+	if puppetSubclassColorBySlug[subclassSlug] != "Green" {
+		http.Error(w, "character is not a Green Technique Marionettist", http.StatusBadRequest)
+		return
+	}
+	level, err := s.puppetMasterClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master level for green technique jutsu:", err)
+		return
+	}
+	if level < 20 {
+		http.Error(w, "character has not reached Master of the Green Technique (20th level) yet", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadGreenTechniqueJutsuOptions(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load jutsu options for green technique:", err)
+		return
+	}
+	valid := false
+	for _, o := range options {
+		if o.Value == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid jutsu choice", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, masterOfGreenTechniqueFeatureSlug, 0, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set green technique jutsu:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_puppet_tab")
+}
+
+// handlePuppetThreadSavantJutsu records White Technique Weaver's own L14
+// Thread Savant feature — "Select one jutsu that you know… you may switch
+// your chosen jutsu at the conclusion of a full rest." Freely re-editable,
+// sourced from loadThreadSavantJutsuOptions (the character's own known
+// jutsu only) — the stored value is a character_jutsu row id (decimal
+// text), not a rules-db slug, so a player-created custom jutsu can be
+// picked too.
+func (s *server) handlePuppetThreadSavantJutsu(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("jutsu_id"))
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master subclass for thread savant:", err)
+		return
+	}
+	if puppetSubclassColorBySlug[subclassSlug] != "White" {
+		http.Error(w, "character is not a White Technique Weaver", http.StatusBadRequest)
+		return
+	}
+	level, err := s.puppetMasterClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master level for thread savant:", err)
+		return
+	}
+	if level < 14 {
+		http.Error(w, "character has not reached Thread Savant (14th level) yet", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadThreadSavantJutsuOptions(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load jutsu options for thread savant:", err)
+		return
+	}
+	valid := false
+	for _, o := range options {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid jutsu choice", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, threadSavantFeatureSlug, 0, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set thread savant jutsu:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_puppet_tab")
+}
+
+// handlePuppetAlwaysPreparedUpgrade records Always Prepared's own 18th-level
+// temporary-Upgrade pick — "after a rest of any type, select and create a
+// temporary version of an Upgrade... of Silver tier or lower... until you
+// complete a rest." A base-class feature available to every Puppet
+// Technique, unlike handlePuppetTransformerWeaponType/
+// handlePuppetGreenTechniqueJutsu/handlePuppetThreadSavantJutsu above, which
+// each also check the character's subclass.
+func (s *server) handlePuppetAlwaysPreparedUpgrade(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("upgrade_entry_slug"))
+	level, err := s.puppetMasterClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load puppet master level for always prepared upgrade:", err)
+		return
+	}
+	if level < 18 {
+		http.Error(w, "character has not reached Always Prepared's temporary Upgrade clause (18th level) yet", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadAlwaysPreparedUpgradeOptions(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load always prepared upgrade options:", err)
+		return
+	}
+	valid := false
+	for _, o := range options {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid upgrade choice", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, alwaysPreparedTemporaryUpgradeFeatureSlug, 0, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set always prepared temporary upgrade:", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_puppet_tab")

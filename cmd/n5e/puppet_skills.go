@@ -66,12 +66,30 @@ type generalizedSkillPickRow struct {
 // puppetGeneralizedSkillCap returns how many skills a character can have
 // chosen for Generalized Skill right now: 0 before level 5 (not unlocked
 // yet), 2 + Intelligence modifier from level 5 on, floored at 0 (a very low
-// Int score should never produce a negative cap).
-func puppetGeneralizedSkillCap(sheet *charsheet.Sheet, level int) int {
+// Int score should never produce a negative cap). Green Technique
+// Marionettist's own proficiency text also reads "...You can also
+// substitute your Genjutsu ability modifier for your Intelligence, for
+// Puppet Master features" — when subclassColor is "Green", the resolved
+// Genjutsu modifier is used instead of Intelligence if it's higher, read
+// off sheet.JutsuAttacks the same way genjutsuVisceralLanguagePool
+// (custom_resources.go) does rather than re-deriving the Wis/Cha/override
+// priority chain by hand. Every other subclass color is unaffected.
+func puppetGeneralizedSkillCap(sheet *charsheet.Sheet, level int, subclassColor string) int {
 	if level < 5 || sheet == nil {
 		return 0
 	}
-	cap := 2 + sheet.Abilities["int"].Modifier
+	effective := sheet.Abilities["int"].Modifier
+	if subclassColor == "Green" {
+		for _, a := range sheet.JutsuAttacks {
+			if a.Kind == "Genjutsu" {
+				if genjutsuMod := sheet.Abilities[a.Ability].Modifier; genjutsuMod > effective {
+					effective = genjutsuMod
+				}
+				break
+			}
+		}
+	}
+	cap := 2 + effective
 	if cap < 0 {
 		return 0
 	}
@@ -229,13 +247,19 @@ func (s *server) handleGeneralizedSkillAdd(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for generalized skill add:", err)
 		return
 	}
+	subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load subclass for generalized skill add:", err)
+		return
+	}
 	picks, err := charstore.ListGeneralizedSkills(s.charDB, id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load generalized skills for add:", err)
 		return
 	}
-	if len(picks) >= puppetGeneralizedSkillCap(sheet, level) {
+	if len(picks) >= puppetGeneralizedSkillCap(sheet, level, puppetSubclassColorBySlug[subclassSlug]) {
 		http.Error(w, "no generalized skill slots remaining", http.StatusBadRequest)
 		return
 	}

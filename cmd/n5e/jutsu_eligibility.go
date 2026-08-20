@@ -63,6 +63,78 @@ func (s *server) characterElementalAffinities(characterID int64, clanSlug string
 	return resolveElementalAffinities(clanSlug, hasFeat, grantedFeatureSlugs, picks), nil
 }
 
+// jutsuEligibilityContext bundles everything jutsuEligible needs about one
+// character (class/clan origin map, elemental affinity set) — computed
+// once via loadJutsuEligibilityContext and reused across every candidate
+// jutsu a caller needs to filter, rather than each candidate re-deriving
+// origins/affinities from scratch the way a naive per-slug loop over
+// jutsuEligibleForCharacter would (Master of the Green Technique's own
+// jutsu picker, cmd/n5e/puppets.go's loadGreenTechniqueJutsuOptions, is
+// exactly this shape — several hundred candidate jutsu, one eligibility
+// check each).
+type jutsuEligibilityContext struct {
+	origins        map[string]string
+	affinities     map[string]bool
+	hasAnyAffinity bool
+}
+
+// eligible reports whether the jutsu named by slug/keywords is eligible for
+// the character this context was built for.
+func (c jutsuEligibilityContext) eligible(slug, keywords string) bool {
+	return jutsuEligible(c.origins[slug], keywords, c.affinities, c.hasAnyAffinity)
+}
+
+// loadJutsuEligibilityContext computes a character's own class/clan jutsu
+// origins and elemental affinity set once — the same setup
+// jutsuEligibleForCharacter below performs for a single jutsu, factored out
+// so a caller filtering many candidates against the same character pays
+// this cost once, not once per candidate.
+func (s *server) loadJutsuEligibilityContext(characterID int64) (jutsuEligibilityContext, error) {
+	var ctx jutsuEligibilityContext
+
+	classes, err := s.loadCharacterClassLevels(characterID)
+	if err != nil {
+		return ctx, err
+	}
+	classSlugs := make([]string, len(classes))
+	for i, c := range classes {
+		classSlugs[i] = c.Slug
+	}
+
+	var clanSlug sql.NullString
+	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&clanSlug); err != nil {
+		return ctx, err
+	}
+
+	origins, err := s.loadJutsuOrigins(classSlugs, clanSlug.String)
+	if err != nil {
+		return ctx, err
+	}
+
+	level := s.characterLevel(characterID)
+	grantedFeatures, err := s.loadGrantedFeatures(characterID, clanSlug.String, level)
+	if err != nil {
+		return ctx, err
+	}
+	grantedSlugs := map[string]bool{}
+	for _, f := range grantedFeatures {
+		grantedSlugs[f.Slug] = true
+	}
+	affinityList, err := s.characterElementalAffinities(characterID, clanSlug.String, grantedSlugs)
+	if err != nil {
+		return ctx, err
+	}
+	affinitySet := map[string]bool{}
+	for _, a := range affinityList {
+		affinitySet[a.Element] = true
+	}
+
+	ctx.origins = origins
+	ctx.affinities = affinitySet
+	ctx.hasAnyAffinity = len(affinityList) > 0
+	return ctx, nil
+}
+
 // jutsuEligibleForCharacter is handleSheetJutsuAdd's own server-side gate —
 // the library row's disabled state (the main sheet render) is what a
 // player actually sees, but a POST reaching the add handler is trusted no
@@ -79,42 +151,9 @@ func (s *server) jutsuEligibleForCharacter(characterID int64, slug string) (bool
 		return false, err
 	}
 
-	classes, err := s.loadCharacterClassLevels(characterID)
+	ctx, err := s.loadJutsuEligibilityContext(characterID)
 	if err != nil {
 		return false, err
 	}
-	classSlugs := make([]string, len(classes))
-	for i, c := range classes {
-		classSlugs[i] = c.Slug
-	}
-
-	var clanSlug sql.NullString
-	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&clanSlug); err != nil {
-		return false, err
-	}
-
-	origins, err := s.loadJutsuOrigins(classSlugs, clanSlug.String)
-	if err != nil {
-		return false, err
-	}
-
-	level := s.characterLevel(characterID)
-	grantedFeatures, err := s.loadGrantedFeatures(characterID, clanSlug.String, level)
-	if err != nil {
-		return false, err
-	}
-	grantedSlugs := map[string]bool{}
-	for _, f := range grantedFeatures {
-		grantedSlugs[f.Slug] = true
-	}
-	affinityList, err := s.characterElementalAffinities(characterID, clanSlug.String, grantedSlugs)
-	if err != nil {
-		return false, err
-	}
-	affinitySet := map[string]bool{}
-	for _, a := range affinityList {
-		affinitySet[a.Element] = true
-	}
-
-	return jutsuEligible(origins[slug], keywords, affinitySet, len(affinityList) > 0), nil
+	return ctx.eligible(slug, keywords), nil
 }

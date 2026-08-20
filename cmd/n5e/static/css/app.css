@@ -4210,6 +4210,18 @@ summary.companion-card-header::before {
 .sheet-subclass-detail { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--panel-border); }
 .sheet-subclass-detail > .section-hint { margin-top: 0.4rem; }
 
+/* Signature Jutsu (Scout-Nin): each slot is 2 independent single-select
+   forms (jutsu half, benefit half) side by side — .sheet-inline-form's own
+   default `margin: 0.3rem 0` collapses between adjacent block siblings to
+   well under the ~3mm breathing-room floor this project targets between
+   two distinct actions, so both margins are zeroed here and replaced with
+   an explicit flex gap instead. The dashed divider (all but the last
+   slot) keeps a 2nd/3rd slot visually separate from the first without
+   another full .sheet-subclass-detail's own larger border-top treatment. */
+.sheet-signature-jutsu-slot { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem 1.5rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px dashed var(--panel-border); }
+.sheet-signature-jutsu-slot:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.sheet-signature-jutsu-slot .sheet-inline-form { margin: 0; }
+
 /* Generalized Skill's own picker, above the companion card list — see
    sheet_puppet_tab's own doc for why it's character-wide, not per-puppet. */
 .puppet-generalized-skill { margin-bottom: 1.5rem; }

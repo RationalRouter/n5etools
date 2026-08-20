@@ -10,7 +10,8 @@ import (
 
 // puppetGeneralizedSkillCap reads directly off Generalized Skill's own
 // printed text: "select a number of skills equal to 2 + your Intelligence
-// Modifier," granted starting at 5th level.
+// Modifier," granted starting at 5th level. Green Technique Marionettist can
+// substitute a higher resolved Genjutsu modifier for Intelligence here.
 func TestPuppetGeneralizedSkillCap(t *testing.T) {
 	sheet := &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{
 		"int": {Score: 16, Modifier: 3},
@@ -18,19 +19,41 @@ func TestPuppetGeneralizedSkillCap(t *testing.T) {
 	lowIntSheet := &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{
 		"int": {Score: 6, Modifier: -2},
 	}}
+	// Green Technique with a Genjutsu attack resolved against Wisdom, higher
+	// than the character's own Intelligence modifier.
+	greenHigherGenjutsu := &charsheet.Sheet{
+		Abilities: map[string]charsheet.AbilityScore{
+			"int": {Score: 10, Modifier: 0},
+			"wis": {Score: 18, Modifier: 4},
+		},
+		JutsuAttacks: []charsheet.JutsuAttack{{Kind: "Genjutsu", Ability: "wis"}},
+	}
+	// Green Technique, but Intelligence still beats the resolved Genjutsu
+	// modifier — the substitution only ever helps, never hurts.
+	greenLowerGenjutsu := &charsheet.Sheet{
+		Abilities: map[string]charsheet.AbilityScore{
+			"int": {Score: 16, Modifier: 3},
+			"wis": {Score: 10, Modifier: 0},
+		},
+		JutsuAttacks: []charsheet.JutsuAttack{{Kind: "Genjutsu", Ability: "wis"}},
+	}
 	cases := []struct {
-		name  string
-		sheet *charsheet.Sheet
-		level int
-		want  int
+		name          string
+		sheet         *charsheet.Sheet
+		level         int
+		subclassColor string
+		want          int
 	}{
-		{"below level 5", sheet, 4, 0},
-		{"level 5, +3 int", sheet, 5, 5},
-		{"level 20, +3 int", sheet, 20, 5},
-		{"floored at 0 for a very low Int", lowIntSheet, 5, 0},
+		{"below level 5", sheet, 4, "", 0},
+		{"level 5, +3 int", sheet, 5, "", 5},
+		{"level 20, +3 int", sheet, 20, "", 5},
+		{"floored at 0 for a very low Int", lowIntSheet, 5, "", 0},
+		{"non-Green subclass ignores a higher Genjutsu mod", greenHigherGenjutsu, 5, "Blue", 2},
+		{"Green substitutes a higher Genjutsu mod for Intelligence", greenHigherGenjutsu, 5, "Green", 6},
+		{"Green keeps Intelligence when it's already higher", greenLowerGenjutsu, 5, "Green", 5},
 	}
 	for _, c := range cases {
-		if got := puppetGeneralizedSkillCap(c.sheet, c.level); got != c.want {
+		if got := puppetGeneralizedSkillCap(c.sheet, c.level, c.subclassColor); got != c.want {
 			t.Errorf("%s: puppetGeneralizedSkillCap() = %d, want %d", c.name, got, c.want)
 		}
 	}

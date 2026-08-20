@@ -14,16 +14,26 @@ import (
 
 // Weapon Specialist's Weapon Focus feature (class_features, level 1) is the
 // one piece of this class with a real numeric bonus reaching an existing
-// tracked field: buildAttacks' AttackBonus/DamageBonus. Each of the 8
+// tracked field: buildAttacks' AttackBonus/DamageBonus. Two feats
+// (feat/class/expanded-focus, feat/class/weapon-arts-expert) add bonus
+// Weapon Focus slots on top of the class-level schedule — see
+// weaponFocusBonusSlots below for both feats' exact text and the
+// repeatable-take limitation on Expanded Focus. Each of the 8
 // Weapon Forms also grants two mechanics at 3rd level: "[Form] Techniques"
 // (2-3 bespoke Flurry Techniques, always known, no player choice — see
 // weaponFormTechniqueAutoGrants) and "[Form] Styles" (a real pick from a
 // 4-6 option list, capped by class_level_resources' "Styles Known" — see
-// loadWeaponFormTabData). Everything else this class grants is either
-// Group 2 (conditional/activated Flurry Techniques and Styles themselves —
-// spend-a-die-for-a-temporary-effect, the same classification
-// internal/puppetupgrades established) or Group 3 with no receiving
-// field/catalog:
+// loadWeaponFormTabData). Slayer Form's own 6th-level Stalking Predator
+// (a freely re-selectable pick between its two named Predator Exploits —
+// see stalkingPredatorOptions) and the base class's own 14th/18th-level
+// Superior Weapon Flurry (a cap-gated 2-of-4-then-3-of-4 benefit pick —
+// see superiorWeaponFlurryCatalog) are both tracked the same way: WHICH
+// option is selected is a real Group 1 pick, even though the option's own
+// triggered effect stays manual/narrated. Everything else this class
+// grants is either Group 2 (conditional/activated Flurry Techniques and
+// Styles themselves — spend-a-die-for-a-temporary-effect, the same
+// classification internal/puppetupgrades established) or Group 3 with no
+// receiving field/catalog:
 //
 //   - Weapon Stance (2nd level, base class) IS implemented, alongside
 //     Weapon Focus in the same sheet_weapon_focus box below — it picks
@@ -201,17 +211,86 @@ type weaponFocusTabData struct {
 	Stance *fightingStanceView
 }
 
+// expandedFocusFeatSlug and weaponArtsExpertFeatSlug are the two feats that
+// grant a bonus Weapon Focus slot on top of WeaponFocusSlotCap's
+// class-level schedule — see weaponFocusBonusSlots.
+const (
+	expandedFocusFeatSlug    = "feat/class/expanded-focus"
+	weaponArtsExpertFeatSlug = "feat/class/weapon-arts-expert"
+)
+
+// weaponFocusBonusSlots returns the bonus Weapon Focus slots granted by
+// feats, on top of charstore.WeaponFocusSlotCap's class-level schedule.
+// This app doesn't enforce feat prerequisites anywhere (prerequisites are
+// shown on the feat's card as reference text only — see characters.go), so
+// both grants below apply purely off whether the feat is taken, regardless
+// of whether the character's build actually satisfies the book's stated
+// prerequisite for it.
+//
+//   - feat/class/expanded-focus ("Select one weapon type... This chosen
+//     weapon becomes known as your Weapon Focus... You can take this Feat
+//     more than once, selecting either a new weapon type, or the same
+//     weapon you previously selected") grants one slot per copy taken —
+//     but character_feats' primary key is (character_id, feat_slug), so
+//     this app has no mechanism to record the same feat slug more than
+//     once per character. Only a single copy is ever reflected here; a
+//     character who narratively took this feat twice still only gets +1,
+//     not +2. This is a real, documented limitation, not a bug — tracking
+//     repeatable feats is a bigger change than this slot count itself and
+//     is out of scope here.
+//   - feat/class/weapon-arts-expert ("Select one weapon type you have
+//     proficiency with... The chosen weapon becomes your Weapon Focus")
+//     grants one slot outright. Its prerequisite chain (Weapon Arts
+//     Training, itself gated on the character NOT having Weapon Specialist
+//     levels) means this is frequently a non-Weapon-Specialist's ONLY
+//     Weapon Focus slot — WeaponFocusSlotCap alone returns 0 for a
+//     level-0 Weapon Specialist, so both callers below add this bonus on
+//     top of the class-level cap rather than gating on class level alone.
+//     This feat's other two picks (a Flurry Technique, a Weapon Trait) are
+//     not modeled — no catalog/field exists for either pick's own
+//     mechanical effect yet.
+func weaponFocusBonusSlots(grantedFeatures []grantedFeatureRow) int {
+	bonus := 0
+	if hasGrantedFeature(grantedFeatures, expandedFocusFeatSlug) {
+		bonus++
+	}
+	if hasGrantedFeature(grantedFeatures, weaponArtsExpertFeatSlug) {
+		bonus++
+	}
+	return bonus
+}
+
+// weaponFocusTotalBonus mirrors charstore.WeaponFocusBonus's own "the
+// shared bonus equals the number of Weapon Focus slots" rule, once bonus
+// slots from feats are folded into the slot count too — capped at +3 per
+// Expanded Focus's own text ("A Weapon Focus can only have a +3 bonus to
+// Attack and Damage rolls as a result of being a Weapon Focus"), even when
+// the total slot count itself climbs past 3.
+func weaponFocusTotalBonus(totalSlots int) int {
+	if totalSlots > 3 {
+		return 3
+	}
+	return totalSlots
+}
+
 // loadWeaponFocusTabData returns nil for a character with no Weapon
-// Specialist levels — the template gates the whole box's existence on this
-// being non-nil, same treatment MartialTechniques gets.
-func (s *server) loadWeaponFocusTabData(characterID int64) (*weaponFocusTabData, error) {
+// Specialist levels AND no feat-granted Weapon Focus slot — the template
+// gates the whole box's existence on this being non-nil, same treatment
+// MartialTechniques gets.
+func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Sheet) (*weaponFocusTabData, error) {
 	level, err := s.weaponSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
 	}
-	if level == 0 {
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	bonusSlots := weaponFocusBonusSlots(grantedFeatures)
+	if level == 0 && bonusSlots == 0 {
 		return nil, nil
 	}
+	totalSlots := charstore.WeaponFocusSlotCap(level) + bonusSlots
 
 	catalog, err := s.loadWeaponFocusCatalog()
 	if err != nil {
@@ -236,9 +315,9 @@ func (s *server) loadWeaponFocusTabData(characterID int64) (*weaponFocusTabData,
 	}
 
 	data := &weaponFocusTabData{
-		Cap:       charstore.WeaponFocusSlotCap(level),
+		Cap:       totalSlots,
 		Used:      len(known),
-		Bonus:     charstore.WeaponFocusBonus(level),
+		Bonus:     weaponFocusTotalBonus(totalSlots),
 		DieSize:   flurryDieSize(level),
 		Known:     known,
 		Available: available,
@@ -263,11 +342,22 @@ func (s *server) loadWeaponFocusTabData(characterID int64) (*weaponFocusTabData,
 // slugs and the shared bonus to apply to each, for buildAttacks to
 // consult — nil set (bonus irrelevant) for a character with no Weapon
 // Focus picks, same "empty means untouched" shape opt-in overrides
-// elsewhere in buildAttacks already use.
-func (s *server) weaponFocusBonusSet(characterID int64) (map[string]bool, int, error) {
+// elsewhere in buildAttacks already use. sheet is the caller's own
+// already-computed sheet (buildAttacks already has one), consulted only
+// for ClanSlug/Level to resolve feat-granted bonus slots via
+// weaponFocusBonusSlots.
+func (s *server) weaponFocusBonusSet(characterID int64, sheet *charsheet.Sheet) (map[string]bool, int, error) {
 	level, err := s.weaponSpecialistClassLevel(characterID)
-	if err != nil || level == 0 {
+	if err != nil {
 		return nil, 0, err
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, 0, err
+	}
+	bonusSlots := weaponFocusBonusSlots(grantedFeatures)
+	if level == 0 && bonusSlots == 0 {
+		return nil, 0, nil
 	}
 	picks, err := charstore.ListWeaponFocus(s.charDB, characterID)
 	if err != nil || len(picks) == 0 {
@@ -277,7 +367,8 @@ func (s *server) weaponFocusBonusSet(characterID int64) (map[string]bool, int, e
 	for _, slug := range picks {
 		set[slug] = true
 	}
-	return set, charstore.WeaponFocusBonus(level), nil
+	totalSlots := charstore.WeaponFocusSlotCap(level) + bonusSlots
+	return set, weaponFocusTotalBonus(totalSlots), nil
 }
 
 // handleWeaponFocusAdd learns one Weapon Focus type, gated by the
@@ -298,14 +389,20 @@ func (s *server) handleWeaponFocusAdd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing weapon", http.StatusBadRequest)
 		return
 	}
-	data, err := s.loadWeaponFocusTabData(id)
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for weapon focus add:", err)
+		return
+	}
+	data, err := s.loadWeaponFocusTabData(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon focus for add:", err)
 		return
 	}
 	if data == nil {
-		http.Error(w, "character has no levels in Weapon Specialist", http.StatusBadRequest)
+		http.Error(w, "character has no Weapon Focus slots", http.StatusBadRequest)
 		return
 	}
 	if data.Used >= data.Cap {
@@ -424,6 +521,143 @@ type weaponFormStyleOption struct {
 	Description string
 }
 
+// slayerFormSubclassSlug is Slayer Form's own subclass slug — Stalking
+// Predator (below) is gated on this specific Form, unlike Weapon Stance
+// (base class, every Form shares it) or Weapon Focus/Styles (per-Form, but
+// structurally identical across all 8 Forms).
+const slayerFormSubclassSlug = "class/weapon-specialist/group/weapon-forms/slayer-form"
+
+// stalkingPredatorFeatureSlug identifies Stalking Predator (subclass_
+// features, Slayer Form, 6th level: "you can select one of two Predator
+// Exploits you gain access to. You can switch which exploit you are using
+// when you would complete a short rest.") as the granting feature for its
+// own re-selectable pick — same ChoiceKey role foodForTheSoulFeatureSlug
+// plays for Cooking-Nin's Food For the Soul.
+const stalkingPredatorFeatureSlug = "class/weapon-specialist/group/weapon-forms/slayer-form/feature/stalking-predator"
+
+// stalkingPredatorOptions: freely re-editable "when you would complete a
+// short rest" (RAW; this app doesn't enforce rest timing, same "trust the
+// player" boundary Food For the Soul already draws). Both Exploits' own
+// triggered effect (adding a Flurry die to the named skill check, and
+// Vipers Tongue's/Apex Glare's own follow-on effects on a good roll) stays
+// manual/Group 2-3 — nothing in this app adds a die to a skill check or
+// tracks Fear/Concussed ranks — so this only records WHICH Exploit is
+// currently active.
+var stalkingPredatorOptions = []featureChoiceOption{
+	{
+		Value: "vipers-tongue", Label: "Vipers Tongue",
+		Description: "Skill: Deception. When you would attempt the Lie or Impersonate skill action, you can add 1 Flurry die to the check. On a success, your lie is passed off as genuine based on the context of the lie itself. If you beat the DC by 5 or more, the lie is accepted as the absolute truth and contesting thoughts or opposing truths are treated as the lie, and they must attempt to convince affected individuals of the truth.",
+	},
+	{
+		Value: "apex-glare", Label: "Apex Glare",
+		Description: "Skill: Intimidation. When you would take the Coerce or Demoralize skill action, you can add 1 Flurry die to the check. If a creature gained a rank of Fear as a result of a skill action you take, they also gain 1 rank of Concussed.",
+	},
+}
+
+// stalkingPredatorView holds Slayer Form's own Stalking Predator pick —
+// nil unless the character is 6th level or higher in Weapon Specialist
+// with Slayer Form as their chosen Weapon Form.
+type stalkingPredatorView struct {
+	Current string // "vipers-tongue"/"apex-glare"/"" if unpicked
+	Options []featureChoiceOption
+}
+
+// superiorWeaponFlurryOption is one of Superior Weapon Flurry's own 4
+// named benefits.
+type superiorWeaponFlurryOption struct {
+	Slug        string
+	Name        string
+	Description string
+}
+
+// superiorWeaponFlurryCatalog: Superior Weapon Flurry's own 4 benefits
+// (base class, 14th level: "Select two of the following benefits. You gain
+// an additional benefit at 18th level.") — hardcoded here rather than
+// sourced from class_options, since no rows exist there for these 4
+// benefits (confirmed by direct query), the same "hardcode a small
+// catalog in Go" precedent weaponFormTechniqueAutoGrants already sets for
+// this class. Each benefit modifies an existing Flurry Technique's own
+// duration or effect; none of that reaches a computed field anywhere in
+// this app (no duration tracker, no AC-swap toggle, no Dash-effect flag),
+// so only WHICH benefits are selected is tracked here — applying a
+// selected benefit's effect stays manual/narrated.
+var superiorWeaponFlurryCatalog = []superiorWeaponFlurryOption{
+	{
+		Slug: "enhanced-deflection-duration", Name: "Enhanced Deflection: Extended Duration",
+		Description: "Your Enhanced Deflection Flurry Technique now lasts until the beginning of your next turn.",
+	},
+	{
+		Slug: "enhanced-deflection-ac-swap", Name: "Enhanced Deflection: AC Option",
+		Description: "Your Enhanced Deflection Flurry Technique allows you to choose to add a third of your maximum Flurry Die to your AC instead.",
+	},
+	{
+		Slug: "perceptive-augmentation-duration", Name: "Perceptive Augmentation: Extended Duration",
+		Description: "Your Perceptive Augmentation Flurry Technique now lasts until the end of your next turn.",
+	},
+	{
+		Slug: "perceptive-augmentation-dash", Name: "Perceptive Augmentation: Dash Effect",
+		Description: "Your Perceptive Augmentation Flurry Technique now also grants you the effects of the Dash action.",
+	},
+}
+
+// superiorWeaponFlurryCap is Superior Weapon Flurry's own 2-of-4-then-
+// 3-of-4 pick cap. Not in class_level_resources (confirmed no such row for
+// this feature), so hardcoded directly rather than a rules.db lookup, same
+// "hardcode a small cap in Go" precedent the catalog above sets. 0 below
+// 14th level.
+func superiorWeaponFlurryCap(level int) int {
+	switch {
+	case level >= 18:
+		return 3
+	case level >= 14:
+		return 2
+	default:
+		return 0
+	}
+}
+
+// superiorWeaponFlurryTabData is the sheet_weapon_form box's Superior
+// Weapon Flurry sub-section — nil below 14th level in Weapon Specialist,
+// same "no empty state" treatment every other cap-gated pick in this file
+// gets.
+type superiorWeaponFlurryTabData struct {
+	Cap       int
+	Used      int
+	Known     []superiorWeaponFlurryOption
+	Available []superiorWeaponFlurryOption
+}
+
+// loadSuperiorWeaponFlurryTabData returns nil below 14th level in Weapon
+// Specialist.
+func (s *server) loadSuperiorWeaponFlurryTabData(characterID int64, level int) (*superiorWeaponFlurryTabData, error) {
+	cap := superiorWeaponFlurryCap(level)
+	if cap == 0 {
+		return nil, nil
+	}
+	picks, err := charstore.ListSuperiorWeaponFlurryBenefits(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	pickedSet := make(map[string]bool, len(picks))
+	for _, slug := range picks {
+		pickedSet[slug] = true
+	}
+	var known, available []superiorWeaponFlurryOption
+	for _, o := range superiorWeaponFlurryCatalog {
+		if pickedSet[o.Slug] {
+			known = append(known, o)
+		} else {
+			available = append(available, o)
+		}
+	}
+	return &superiorWeaponFlurryTabData{
+		Cap:       cap,
+		Used:      len(known),
+		Known:     known,
+		Available: available,
+	}, nil
+}
+
 // weaponFormTabData is the sheet_weapon_form box's full data — nil for a
 // character with no Weapon Specialist levels, or who hasn't chosen a
 // Weapon Form yet (both Techniques and Styles are tied to a specific Form,
@@ -436,6 +670,15 @@ type weaponFormTabData struct {
 	Used       int
 	Known      []weaponFormStyleOption
 	Available  []weaponFormStyleOption
+	// StalkingPredator is Slayer Form's own 6th-level re-selectable
+	// Predator Exploit pick — nil for any other Form, or below 6th level.
+	StalkingPredator *stalkingPredatorView
+	// SuperiorWeaponFlurry is the base class's own 14th/18th-level
+	// cap-gated benefit pick — nil below 14th level. Not Form-specific
+	// (unlike Techniques/Styles/StalkingPredator above), but rendered in
+	// this same box since a character can't reach 14th level without
+	// having chosen a Weapon Form first.
+	SuperiorWeaponFlurry *superiorWeaponFlurryTabData
 }
 
 // loadWeaponFormTabData returns nil for a character with no Weapon
@@ -511,14 +754,33 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 	}
 	sort.Slice(techniques, func(i, j int) bool { return techniques[i].Name < techniques[j].Name })
 
+	var stalkingPredator *stalkingPredatorView
+	if subclassSlug == slayerFormSubclassSlug && level >= 6 {
+		choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+		if err != nil {
+			return nil, err
+		}
+		stalkingPredator = &stalkingPredatorView{
+			Current: choices[features.ChoiceKey{FeatureSlug: stalkingPredatorFeatureSlug, ChoiceIndex: 0}],
+			Options: stalkingPredatorOptions,
+		}
+	}
+
+	superiorWeaponFlurry, err := s.loadSuperiorWeaponFlurryTabData(characterID, level)
+	if err != nil {
+		return nil, err
+	}
+
 	return &weaponFormTabData{
-		FormName:   subclassName,
-		FlurryDie:  flurryDieSize(level),
-		Techniques: techniques,
-		Cap:        cap,
-		Used:       len(picks),
-		Known:      known,
-		Available:  available,
+		FormName:             subclassName,
+		FlurryDie:            flurryDieSize(level),
+		Techniques:           techniques,
+		Cap:                  cap,
+		Used:                 len(picks),
+		Known:                known,
+		Available:            available,
+		StalkingPredator:     stalkingPredator,
+		SuperiorWeaponFlurry: superiorWeaponFlurry,
 	}, nil
 }
 
@@ -601,6 +863,139 @@ func (s *server) handleWeaponFormStyleDelete(w http.ResponseWriter, r *http.Requ
 	if err := charstore.RemoveWeaponFormStyle(s.charDB, id, slug); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("remove weapon form style:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_weapon_form")
+}
+
+// handleStalkingPredator records Slayer Form's own Stalking Predator pick
+// (form field "value", one of stalkingPredatorOptions) — reuses
+// charstore.SetFeatureChoice exactly the way handleFoodForTheSoul does for
+// Cooking-Nin's own re-selectable pick.
+func (s *server) handleStalkingPredator(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	valid := false
+	for _, o := range stalkingPredatorOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid pick", http.StatusBadRequest)
+		return
+	}
+	level, err := s.weaponSpecialistClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon specialist level for stalking predator:", err)
+		return
+	}
+	subclassSlug, _, err := s.weaponSpecialistSubclassSlug(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon specialist subclass for stalking predator:", err)
+		return
+	}
+	if level < 6 || subclassSlug != slayerFormSubclassSlug {
+		http.Error(w, "character has not reached Stalking Predator", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, stalkingPredatorFeatureSlug, 0, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set stalking predator:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_weapon_form")
+}
+
+// handleSuperiorWeaponFlurryAdd selects one Superior Weapon Flurry
+// benefit, gated by the character's own current cap — server-side, defense
+// in depth regardless of what the UI already disables.
+func (s *server) handleSuperiorWeaponFlurryAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if slug == "" {
+		http.Error(w, "missing benefit", http.StatusBadRequest)
+		return
+	}
+	level, err := s.weaponSpecialistClassLevel(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load weapon specialist level for superior weapon flurry add:", err)
+		return
+	}
+	data, err := s.loadSuperiorWeaponFlurryTabData(id, level)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load superior weapon flurry for add:", err)
+		return
+	}
+	if data == nil {
+		http.Error(w, "character has not reached Superior Weapon Flurry", http.StatusBadRequest)
+		return
+	}
+	if data.Used >= data.Cap {
+		http.Error(w, "no superior weapon flurry slots remaining", http.StatusBadRequest)
+		return
+	}
+	valid := false
+	for _, o := range data.Available {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		http.Error(w, "not a valid benefit to select", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.AddSuperiorWeaponFlurryBenefit(s.charDB, id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("add superior weapon flurry benefit:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_weapon_form")
+}
+
+// handleSuperiorWeaponFlurryDelete drops one selected benefit. The slug is
+// a form field, not a URL path segment, same reason
+// handleWeaponFormStyleDelete's own slug is.
+func (s *server) handleSuperiorWeaponFlurryDelete(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if slug == "" {
+		http.Error(w, "missing benefit", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.RemoveSuperiorWeaponFlurryBenefit(s.charDB, id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("remove superior weapon flurry benefit:", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_weapon_form")

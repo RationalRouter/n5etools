@@ -129,6 +129,21 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 	"feat/endurance-realized": {
 		{Category: traitDamage, Target: "Chakra", Level: levelResistance},
 	},
+	"feat/ranton/storming-rain": {
+		{Category: traitDamage, Target: "Lightning", Level: levelResistance},
+	},
+	// The dojutsu's own activation-gated bullet immediately before this one
+	// ("While you are gaining the benefit of your Kurugan, you cannot be
+	// surprised") stays unmodeled as Group 2 — it's explicitly tied to the
+	// base feature's 10-minute Bonus Action activation (clan/kuru/feature/
+	// kurugan). This bullet carries no such qualifier and says "constantly",
+	// reading as a permanent upgrade to the dojutsu's baseline rather than
+	// another activation-gated effect, the same always-on shape as
+	// clan/keton/feature/stargazer's Dazzled immunity above.
+	"feat/kuru/adept-kurugan": {
+		{Category: traitCondition, Target: "Dazzled", Level: levelImmunity},
+		{Category: traitCondition, Target: "Demoralized", Level: levelImmunity},
+	},
 
 	// Subclass features.
 	"class/intelligence-operative/group/master-strategies/precognitive/feature/precognition": {
@@ -218,6 +233,14 @@ var senseGrants = map[string][]senseGrant{
 		{Sense: "Darkvision", Feet: 60},
 		{Sense: "Tremorsense", Feet: 30},
 	},
+	// Increases (not stacks onto) Serpent Mimicry's own 30ft Tremorsense
+	// grant — both resolve through the same non-Stacks "higher Feet wins"
+	// path, matching the feat's own "Your tremor sense range is increased
+	// to 45 feet." Requires Hebi Clan, Level 4+, so Serpent Mimicry's own
+	// grant is always present alongside this one.
+	"feat/hebi/apex-heritage": {
+		{Sense: "Tremorsense", Feet: 45},
+	},
 	"clan/vesper/feature/supreme-nightvision": {
 		{Sense: "Darkvision", Feet: 60},
 	},
@@ -241,6 +264,9 @@ var senseGrants = map[string][]senseGrant{
 	},
 	"clan/konjiki/feature/blood-of-the-earth": {
 		{Sense: "Tremorsense", Feet: 60, MinLevel: 11},
+	},
+	"feat/kuru/adept-kurugan": {
+		{Sense: "Blindsight", Feet: 30},
 	},
 }
 

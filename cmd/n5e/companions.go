@@ -670,6 +670,9 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		if bonus := puppetElevatedDesignAbilityBonus(resolvedFeatureChoices); len(bonus) > 0 {
 			data["ElevatedDesignBonus"] = bonus
 		}
+		if bonus := puppetToolASIAbilityBonus(resolvedFeatureChoices); len(bonus) > 0 {
+			data["PuppetToolASIBonus"] = bonus
+		}
 		allCompanions, err := charstore.ListCompanions(s.charDB, id)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)

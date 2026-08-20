@@ -347,3 +347,77 @@ func TestParseSubclassesLevelTypoSquish(t *testing.T) {
 		t.Errorf("Blade's Aggression description still contains the typo: %q", aggression.Description)
 	}
 }
+
+// Real shape from two of Hunter-Nin's Hunters Creeds: a subclass option
+// table with its own ALL-CAPS heading gets glued by the flat PDF text
+// extractor onto a LATER, unrelated sibling feature instead of the
+// 3rd-level "Proficiency" feature that actually grants the choice.
+// Necrotic Hand's table lands cleanly at the end of Necrotic Touch's
+// description; Grave Stalker's lands spliced into the MIDDLE of Master
+// Ambusher's own closing sentence. redistributeMistaggedTables must move
+// each table onto its real granting feature, and — for Grave Stalker —
+// stitch the interrupted sentence back together on the feature it came
+// from.
+func TestParseSubclassesRedistributesMistaggedTables(t *testing.T) {
+	c := &Class{
+		Name: "Hunter-Nin", SourcePage: 150, GroupHeading: "HUNTERS CREEDS",
+		SubclassLines: mkLines(150,
+			"HUNTERS CREEDS",
+			"Starting at 3rd level, you choose a Hunters Creed.",
+			"Your choice grants you features at 3rd and 7th levels.",
+			"NECROTIC HAND",
+			"You blend medicine with murder.",
+			"MEDICAL PROFICIENCY",
+			"At 3rd level, you gain proficiency in Medicine. Select one of the following techniques.",
+			"NECROTIC TOUCH",
+			"At 7th level, you deal necrotic damage. MEDICAL ASSASSINATION TECHNIQUE TABLE Assassination Technique Effect Cell Failure The target is weakened.",
+			"GRAVE STALKER",
+			"You stalk your prey through shadow.",
+			"STALKERS PROFICIENCY",
+			"At 3rd level, you gain proficiency in Stealth. Select one of the following Shadow assassination techniques.",
+			"MASTER AMBUSHER",
+			"At 7th level, you excel at ambushes, both socially and in combat. You SHADOW ASSASSINATION TECHNIQUE TABLE Assassination Technique Effect Shadow Shuriken This jutsu becomes a shuriken. can attempt to interject socially in this way, once every 10 minutes.",
+		),
+	}
+	sections := []extract.OutlineNode{
+		{Title: "Hunters Creeds", Children: []extract.OutlineNode{
+			{Title: "Necrotic Hand", Children: []extract.OutlineNode{
+				{Title: "Medical Proficiency"},
+				{Title: "Necrotic Touch"},
+			}},
+			{Title: "Grave Stalker", Children: []extract.OutlineNode{
+				{Title: "Stalkers Proficiency"},
+				{Title: "Master Ambusher"},
+			}},
+		}},
+	}
+	ParseSubclasses(c, sections)
+
+	if len(c.Group.Subclasses) != 2 {
+		t.Fatalf("subclasses = %+v", c.Group.Subclasses)
+	}
+
+	necroticHand := c.Group.Subclasses[0]
+	if necroticHand.Name != "Necrotic Hand" || len(necroticHand.Features) != 2 {
+		t.Fatalf("Necrotic Hand = %+v", necroticHand)
+	}
+	medicalProficiency, necroticTouch := necroticHand.Features[0], necroticHand.Features[1]
+	if !strings.HasSuffix(medicalProficiency.Description, "MEDICAL ASSASSINATION TECHNIQUE TABLE Assassination Technique Effect Cell Failure The target is weakened.") {
+		t.Errorf("Medical Proficiency did not receive the table: %q", medicalProficiency.Description)
+	}
+	if necroticTouch.Description != "At 7th level, you deal necrotic damage." {
+		t.Errorf("Necrotic Touch still holds the table: %q", necroticTouch.Description)
+	}
+
+	graveStalker := c.Group.Subclasses[1]
+	if graveStalker.Name != "Grave Stalker" || len(graveStalker.Features) != 2 {
+		t.Fatalf("Grave Stalker = %+v", graveStalker)
+	}
+	stalkersProficiency, masterAmbusher := graveStalker.Features[0], graveStalker.Features[1]
+	if !strings.HasSuffix(stalkersProficiency.Description, "SHADOW ASSASSINATION TECHNIQUE TABLE Assassination Technique Effect Shadow Shuriken This jutsu becomes a shuriken.") {
+		t.Errorf("Stalkers Proficiency did not receive the table: %q", stalkersProficiency.Description)
+	}
+	if masterAmbusher.Description != "At 7th level, you excel at ambushes, both socially and in combat. You can attempt to interject socially in this way, once every 10 minutes." {
+		t.Errorf("Master Ambusher's sentence was not stitched back together: %q", masterAmbusher.Description)
+	}
+}

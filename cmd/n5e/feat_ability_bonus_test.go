@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
+	"regexp"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -26,6 +27,16 @@ func TestParseFeatAbilityIncrease(t *testing.T) {
 				"• Increase your Intelligence or Wisdom score by 1, to a maximum of 20. " +
 				"• When you would make a check to maintain concentration on an Aburame clan Jutsu, you may instead make an Intelligence (Chakra Control) check.",
 			wantAbil:   []string{"int", "wis"},
+			wantAmount: 1,
+			wantOK:     true,
+		},
+		{
+			name: "Apex Heritage — three named abilities, Oxford-comma-or",
+			slug: "feat/hebi/apex-heritage",
+			description: "You consumed the knowledge passed down by your ancestors about the truth of your blood right. You gain the following benefits; " +
+				"• Increase your Strength, Dexterity or Constitution score by 1, to a maximum of 20. " +
+				"• Your tremor sense range is increased to 45 feet.",
+			wantAbil:   []string{"str", "dex", "con"},
 			wantAmount: 1,
 			wantOK:     true,
 		},
@@ -117,6 +128,14 @@ func TestFeatAbilityIncreaseCorpusCoverage(t *testing.T) {
 	}
 	defer rows.Close()
 
+	// abilityNameOccurrenceRe independently counts ability-name words inside
+	// the regex-captured ability-list clause, deliberately not built from
+	// splitAbilityList/abilityNameToKey — a check built from the same
+	// machinery it's meant to catch regressions in would just be tautological
+	// (this is exactly how the Oxford-comma bug shipped: len(abilities) == 0
+	// still passed even when names were silently dropped).
+	abilityNameOccurrenceRe := regexp.MustCompile(`(?i)\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\b`)
+
 	var checked, matched int
 	for rows.Next() {
 		var slug, description string
@@ -133,6 +152,23 @@ func TestFeatAbilityIncreaseCorpusCoverage(t *testing.T) {
 			}
 			if amount < 1 {
 				t.Errorf("%s: parsed amount %d, want >= 1", slug, amount)
+			}
+			// Cross-check the parsed count against an independent scan of
+			// the matched ability-list clause itself (not the whole
+			// description, which can name abilities again later in
+			// unrelated text — e.g. Hive Minded's own "Intelligence
+			// (Chakra Control) check" later in its description). Skipped
+			// for featAbilityIncreaseOverrides entries ("Increase one
+			// Ability score by 1"): those bypass featAbilityIncreaseRe
+			// entirely (no "your"/"the" ability list to match), so the
+			// clause-extraction regex below naturally returns no match for
+			// them.
+			if m := featAbilityIncreaseRe.FindStringSubmatch(description); m != nil {
+				wantCount := len(abilityNameOccurrenceRe.FindAllString(m[1], -1))
+				if wantCount > 0 && len(abilities) != wantCount {
+					t.Errorf("%s: parsed %d abilities %v but ability-list clause %q names %d abilities — some were silently dropped",
+						slug, len(abilities), abilities, m[1], wantCount)
+				}
 			}
 		case featAbilityIncreaseExcluded[slug]:
 			// Known non-ability-score clause; correctly unmatched.

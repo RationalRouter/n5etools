@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -30,10 +31,12 @@ import (
 // class_features table.
 //
 // Everything else (the per-subclass "motes/marks/vials/gems/shards" combat
-// resources, the 22 bespoke Efficient Molding auto-grants, Refined
-// Ninjutsu's own which-benefit-this-casting choice, Ninjutsu Master's
-// always-max-damage payload) is documented, not modeled — see
-// CLASS_AUDIT.md's Ninjutsu Specialist detail entry for the full breakdown.
+// resources, Refined Ninjutsu's own which-benefit-this-casting choice,
+// Ninjutsu Master's always-max-damage payload) is documented, not modeled —
+// see CLASS_AUDIT.md's Ninjutsu Specialist detail entry for the full
+// breakdown. The 22 bespoke per-subclass Efficient Molding auto-grants
+// (ninjutsuMoldingAutoGrants below) ARE modeled: each subclass's 6th- and
+// 18th-level feature grants one free, uncapped Efficient Molding pick.
 const ninjutsuSpecialistSlug = "class/ninjutsu-specialist"
 
 // ninjutsuSpecialistClassLevel returns the character's own Ninjutsu
@@ -60,14 +63,55 @@ type ninjutsuMoldingOption struct {
 }
 
 // knownNinjutsuMolding is one entry on the Known Efficient Moldings list —
-// same shape knownMartialTechnique/knownIntelligenceOperativePick already
-// establish (no auto-grants exist for this catalog yet — see the 22
-// bespoke per-subclass Efficient Molding auto-grants deferral above — so
-// Granted is always false for now, kept for consistency should that ever
-// be built).
+// either a player pick (Slug set, has a remove button, counts against
+// MoldingCap) or an auto-granted bespoke molding (Granted true, no Slug, no
+// remove button, doesn't count against the cap) — same shape
+// knownMartialTechnique (taijutsu.go) already establishes for the identical
+// pattern. Description is only populated for a Granted entry (the granting
+// feature's own text, which already states the molding's Alternate Cost
+// inline) — a player pick's own description is fetched fresh by
+// handleNinjutsuMoldingDetail's popup route instead.
 type knownNinjutsuMolding struct {
-	Slug string
-	Name string
+	Slug        string
+	Name        string
+	Granted     bool
+	Description string
+}
+
+// ninjutsuMoldingAutoGrants: feature slug -> the bespoke Efficient Molding
+// name it grants for free. Every one of the 11 Ninjutsu Focus subclasses has
+// a 6th-level and an 18th-level feature each granting one unique molding
+// technique — unlike martialTechniqueAutoGrants (taijutsu.go), each of these
+// 22 moldings is its OWN distinct subclass_features row (not 2 bundled into
+// 1 feature), so this map holds one name per slug rather than a slice. None
+// of the 22 has a class_options row of its own (only the 17-row class-wide
+// catalog does), so — same as Martial Techniques' auto-grants — this map
+// only needs names: the granting feature's own description (already shown
+// in the Features & Traits panel, and reused verbatim here) carries the
+// molding's full text, Alternate Cost included.
+var ninjutsuMoldingAutoGrants = map[string]string{
+	"class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/crimson-molding":                  "Crimson Molding",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/blaze-walker/feature/blaze-walker-technique":           "Blaze Walker Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/hijutsu-elitist/feature/generational-molding":          "Generational Molding",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/hijutsu-elitist/feature/elitist-technique":             "Elitist Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/gigawatt-molding":            "Gigawatt Molding",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/lightning-breaker-technique": "Lightning Breaker Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/sanguine-master/feature/macabre-techniques":            "Macabre Techniques",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/sanguine-master/feature/sanguine-master-technique":     "Sanguine Master Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/scribe-master/feature/seal-break":                      "Seal Break",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/scribe-master/feature/scribe-master":                   "Scribe Master",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/tectonic-plate-technique":        "Tectonic Plate Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/stone-crusher/feature/stone-crusher-technique":         "Stone Crusher Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/storm-terror/feature/swirling-technique":               "Swirling Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/storm-terror/feature/storm-terror-technique":           "Storm Terror Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/summoner/feature/combination-technique":                "Combination Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/summoner/feature/synchronization-technique":            "Synchronization Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/chakra-infusion-technique":       "Chakra Infusion Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/the-final-lesson":                "The Final Lesson",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/trace-talent/feature/void-break-technique":             "Void Break Technique",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/trace-talent/feature/talent-voider":                    "Talent Voider",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/tsunami/feature/raining-vortex":                        "Raining Vortex",
+	"class/ninjutsu-specialist/group/ninjutsu-focus/tsunami/feature/tsunami-technique":                     "Tsunami Technique",
 }
 
 // loadEfficientMoldingCatalog reads Efficient Molding's 17-row class-wide
@@ -210,6 +254,29 @@ func ninjutsuMasterCap(level int) int {
 	return 0
 }
 
+// refinedRefinementFeatSlug is feat/class/refined-refinement ("You can
+// Refine 1 additional Ninjutsu. You can Refine additional Ninjutsu at 12th
+// and 20th Ninjutsu Specialist levels."), prerequisite "At least 4+ levels
+// in Ninjutsu Specialist".
+const refinedRefinementFeatSlug = "feat/class/refined-refinement"
+
+// refinedRefinementBonus mirrors weaponFocusBonusSlots' shape: a flat +1 for
+// taking the feat at all, plus a further +1 at 12th and +1 at 20th Ninjutsu
+// Specialist levels, per the feat's own text.
+func refinedRefinementBonus(grantedFeatures []grantedFeatureRow, level int) int {
+	if !hasGrantedFeature(grantedFeatures, refinedRefinementFeatSlug) {
+		return 0
+	}
+	bonus := 1
+	if level >= 12 {
+		bonus++
+	}
+	if level >= 20 {
+		bonus++
+	}
+	return bonus
+}
+
 // ninjutsuSpecialistTabData is the sheet_ninjutsu_specialist box's full
 // data.
 type ninjutsuSpecialistTabData struct {
@@ -243,6 +310,11 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		return nil, nil
 	}
 
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+
 	data := &ninjutsuSpecialistTabData{}
 
 	data.MoldingCap, err = s.classLevelResourceInt(ninjutsuSpecialistSlug, "Efficient Moldings", level)
@@ -264,12 +336,24 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		}
 		data.MoldingUsed = len(picks)
 		data.KnownMolding, data.AvailableMolding = splitNinjutsuMoldingPicks(catalog, pickedSet)
+
+		// The 22 bespoke per-subclass moldings (ninjutsuMoldingAutoGrants)
+		// are auto-known, free molding techniques — they never occupy one of
+		// MoldingUsed's cap-gated slots, so they're appended to KnownMolding
+		// after the cap accounting above, not folded into it.
+		for _, f := range grantedFeatures {
+			if name, ok := ninjutsuMoldingAutoGrants[f.Slug]; ok {
+				data.KnownMolding = append(data.KnownMolding, knownNinjutsuMolding{Name: name, Granted: true, Description: f.Description})
+			}
+		}
+		sort.Slice(data.KnownMolding, func(i, j int) bool { return data.KnownMolding[i].Name < data.KnownMolding[j].Name })
 	}
 
 	data.RefinedCap, err = s.classLevelResourceInt(ninjutsuSpecialistSlug, "Refined Ninjutsu", level)
 	if err != nil {
 		return nil, err
 	}
+	data.RefinedCap += refinedRefinementBonus(grantedFeatures, level)
 	if data.RefinedCap > 0 || ninjutsuMasterCap(level) > 0 {
 		known, err := s.loadKnownNinjutsu(characterID)
 		if err != nil {

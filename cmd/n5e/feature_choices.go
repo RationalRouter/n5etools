@@ -137,8 +137,18 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 					Value: ab,
 					Label: fmt.Sprintf("%s (+%d)", abilityLabels[ab], slot.Amount),
 					Description: fmt.Sprintf(
-						"Increases every Puppet Tool you possess's %s score by +%d (max 22). This pick cannot be changed later.",
-						abilityLabels[ab], slot.Amount),
+						"Increases every Puppet Tool you possess's %s score by +%d (max %d). This pick cannot be changed later.",
+						abilityLabels[ab], slot.Amount, slot.Cap),
+				})
+			}
+		case features.ChoiceNamedJutsuGrant:
+			for _, jutsuSlug := range slot.Options {
+				var name, description string
+				if err := s.rulesDB.QueryRow(`SELECT name, description FROM jutsu WHERE slug = ?`, jutsuSlug).Scan(&name, &description); err != nil && err != sql.ErrNoRows {
+					return nil, err
+				}
+				row.Options = append(row.Options, featureChoiceOption{
+					Value: jutsuSlug, Label: name, Description: description,
 				})
 			}
 		case features.ChoiceArmorProperty:
@@ -211,7 +221,7 @@ func featureChoiceOptionValid(kind features.ChoiceKind, options []string, value 
 	case features.ChoiceUpgradeEntry:
 		_, ok := puppetUpgradeEntryChoiceLabels[value]
 		return ok
-	case features.ChoiceSavingThrowProficiency, features.ChoiceAbilityScoreIncrease, features.ChoiceSymphonyBranch, features.ChoiceCompanionAbilityScoreIncrease:
+	case features.ChoiceSavingThrowProficiency, features.ChoiceAbilityScoreIncrease, features.ChoiceSymphonyBranch, features.ChoiceCompanionAbilityScoreIncrease, features.ChoiceNamedJutsuGrant:
 		for _, o := range options {
 			if o == value {
 				return true
@@ -569,10 +579,19 @@ func (s *server) handleSheetASI(w http.ResponseWriter, r *http.Request) {
 		}
 		// Same fixed-single-skill auto-apply as handleSheetFeatAdd, for the
 		// same reason as the ability bonus above.
-		if skill, ok := parseFeatSkillProficiency(featDescription); ok {
-			if err := charstore.ApplyFeatSkillProficiency(s.charDB, id, featSlug, skill); err != nil {
+		if skill, ok := parseFeatSkillProficiency(featSlug, featDescription); ok {
+			if err := s.applyFeatProficiencyGrant(id, featSlug, "skill", skill, featDescription); err != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("apply feat skill proficiency (asi feat alternative):", err)
+				return
+			}
+		}
+		// Same fixed-single-category auto-apply as handleSheetFeatAdd, for a
+		// weapon-category grant instead.
+		if category, ok := parseFeatWeaponProficiency(featDescription); ok {
+			if err := charstore.ApplyFeatWeaponProficiency(s.charDB, id, featSlug, category); err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("apply feat weapon proficiency (asi feat alternative):", err)
 				return
 			}
 		}

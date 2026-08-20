@@ -212,6 +212,26 @@ func ClashAbilityField(discipline string) string {
 //     overridable from Taijutsu's, same as its Attack ability already is.
 //   - Hijutsu has no entry: no rule is stated for it anywhere, same
 //     precedent as its absence from AttackKinds above.
+//
+// Each discipline's Mastery term reuses the SAME rank an ordinary skill
+// check for its governing skill already reads (sheet.MasteryRanks —
+// Ninshou/Illusions/Martial Arts), through MasteryBonus, exactly the way
+// sheet.Skills folds MasteryBonus(rank) into its own Modifier above. Until
+// this was added, Clash checks read no Mastery term at all — not a
+// per-discipline gap, the term was entirely absent. There is no separate
+// "Clash Mastery" rank anywhere in the schema (character_mastery is keyed
+// by skill/toolkit NAME, the same names SkillAbility and the governing
+// skills above already use) — Clash simply reuses whatever Mastery rank the
+// character already has in the discipline's governing skill. This closes
+// the base gap feat/clashing-adept, feat/clashing-expert, and
+// feat/jiton/magnetic-pull were all found blocked on; it does NOT model
+// Clashing Adept's/Expert's own extra "+1 rank in your CHOSEN skill, Clash
+// only" bonus, which needs a stored player pick (Ninshou vs. Martial Arts)
+// that exists nowhere in this schema — guessing which skill would be wrong
+// as often as right, so it's left unmodeled rather than guessed. Magnetic
+// Pull's own Clash bonus ("+1d6") is a dice roll, not a Mastery rank, and
+// stays unmodeled too: ClashCheck.Modifier is a single static int with no
+// slot for a variable dice term.
 func clashChecks(sheet *Sheet, overrides map[string]string) []ClashCheck {
 	_, ninshouProficient := SkillModifier(sheet, "Ninshou")
 	_, illusionsProficient := SkillModifier(sheet, "Illusions")
@@ -226,11 +246,12 @@ func clashChecks(sheet *Sheet, overrides map[string]string) []ClashCheck {
 		Discipline     string
 		DefaultAbility string
 		Proficient     bool
+		MasterySkill   string // key into sheet.MasteryRanks — the discipline's governing skill
 	}{
-		{"Ninjutsu", "int", ninshouProficient},
-		{"Genjutsu", "wis", illusionsProficient},
-		{"Taijutsu", martialArtsDefault, martialArtsProficient},
-		{"Bukijutsu", martialArtsDefault, martialArtsProficient},
+		{"Ninjutsu", "int", ninshouProficient, "Ninshou"},
+		{"Genjutsu", "wis", illusionsProficient, "Illusions"},
+		{"Taijutsu", martialArtsDefault, martialArtsProficient, "Martial Arts"},
+		{"Bukijutsu", martialArtsDefault, martialArtsProficient, "Martial Arts"},
 	}
 
 	checks := make([]ClashCheck, 0, len(kinds))
@@ -239,10 +260,12 @@ func clashChecks(sheet *Sheet, overrides map[string]string) []ClashCheck {
 		if picked := abilityAbbrev(overrides[ClashAbilityField(k.Discipline)]); picked != "" && abilityIndex(picked) < len(Abilities) {
 			ability = picked
 		}
+		modifier := CheckModifier(sheet.Abilities[ability].Modifier, sheet.ProficiencyBonus, k.Proficient) +
+			MasteryBonus(sheet.MasteryRanks[k.MasterySkill])
 		checks = append(checks, ClashCheck{
 			Discipline: k.Discipline,
 			Ability:    ability,
-			Modifier:   CheckModifier(sheet.Abilities[ability].Modifier, sheet.ProficiencyBonus, k.Proficient),
+			Modifier:   modifier,
 		})
 	}
 	return checks
@@ -338,6 +361,101 @@ const shinobiWareFullMetalShinobiFeatureSlug = "class/science-nin/group/scientif
 // site in Compute below.
 const elementalInnovationistExoskeletonFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/exoskeleton"
 
+// scienceNinMixedStudiesFeatureSlug is Mixed Studies, an 18th-level BASE
+// Science-Nin class feature: "You gain the 3rd Level features of another
+// Scientific Inquiry. You cannot select the one you chose at 3rd Level."
+// See mergeMixedStudiesFeatures below.
+const scienceNinMixedStudiesFeatureSlug = "class/science-nin/feature/mixed-studies"
+
+// mixedStudiesInquiryFeatureSlugs mirrors cmd/n5e's own
+// mixedStudiesInquiryOptions (science_nin.go): each of Science-Nin's ten
+// real Scientific Inquiries' own subclass slug, paired with the two
+// feature slugs v_subclass_features grants that Inquiry's own holders at
+// 3rd level. This package can't import cmd/n5e (cmd/n5e imports charsheet,
+// not the reverse), so the pairing is duplicated here rather than shared —
+// same "small string, not worth a cross-package API" call
+// shinobiWareFullMetalShinobiFeatureSlug/
+// elementalInnovationistExoskeletonFeatureSlug above already made. Keep
+// both copies in sync if a rules update ever renames one of these slugs.
+var mixedStudiesInquiryFeatureSlugs = map[string][2]string{
+	"class/science-nin/group/scientific-inquiry/elemental-innovationist": {elementalInnovationistExoskeletonFeatureSlug, "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/elemental-infused-perks-e-i-ps"},
+	"class/science-nin/group/scientific-inquiry/grenadier":               {"class/science-nin/group/scientific-inquiry/grenadier/feature/explosive-tendencies", "class/science-nin/group/scientific-inquiry/grenadier/feature/b-i-m"},
+	"class/science-nin/group/scientific-inquiry/mad-scientist":           {"class/science-nin/group/scientific-inquiry/mad-scientist/feature/biotic-mastery", "class/science-nin/group/scientific-inquiry/mad-scientist/feature/inversion-serums"},
+	"class/science-nin/group/scientific-inquiry/mech-crafter":            {"class/science-nin/group/scientific-inquiry/mech-crafter/feature/ordnance-training", "class/science-nin/group/scientific-inquiry/mech-crafter/feature/adaptive-movement"},
+	"class/science-nin/group/scientific-inquiry/ninjaneer":               {"class/science-nin/group/scientific-inquiry/ninjaneer/feature/enhanced-arsenal", "class/science-nin/group/scientific-inquiry/ninjaneer/feature/a-weapon-to-surpass"},
+	"class/science-nin/group/scientific-inquiry/s-n-b-specialist":        {"class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/scientific-ninja-beast", "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/s-n-b-upgrades"},
+	"class/science-nin/group/scientific-inquiry/shinobi-ware":            {shinobiWareFullMetalShinobiFeatureSlug, "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/edge-runner"},
+	"class/science-nin/group/scientific-inquiry/spyware":                 {"class/science-nin/group/scientific-inquiry/spyware/feature/ghost-in-the-shell", "class/science-nin/group/scientific-inquiry/spyware/feature/cruel-angels-thesis"},
+	"class/science-nin/group/scientific-inquiry/storm-rider":             {"class/science-nin/group/scientific-inquiry/storm-rider/feature/air-trecks", "class/science-nin/group/scientific-inquiry/storm-rider/feature/wing-road"},
+	"class/science-nin/group/scientific-inquiry/technobi":                {"class/science-nin/group/scientific-inquiry/technobi/feature/the-best-laid-trap", "class/science-nin/group/scientific-inquiry/technobi/feature/s-e-n-ts"},
+}
+
+// mergeMixedStudiesFeatures appends synthetic granted-feature rows for a
+// Mixed Studies pick (base Science-Nin, 18th level) onto an already-loaded
+// granted-features list — the chosen OTHER Scientific Inquiry's own two
+// 3rd-level feature rows, looked up live against rules.db for Name/
+// Description. Mirrors cmd/n5e's own (*server).mergeMixedStudiesFeatures
+// (science_nin.go) almost exactly; see that function's own doc for why
+// this needs to run in BOTH packages rather than just once: this
+// package's own AC-override switch below (shinobiWare/exoskeletonGranted)
+// and cmd/n5e's has[slug] catalog-picker gates both key off the SAME
+// granted-features slug list, but each package builds its own independent
+// copy via its own call to features.LoadGrantedFeatures.
+//
+// A no-op when grantedFeatures doesn't already contain the real Mixed
+// Studies feature itself (a delevel below 18 drops the bonus the same way
+// every other subclass override here already stops matching once its own
+// gating feature no longer qualifies), or when the character has no Mixed
+// Studies pick stored. Whatever the picked Inquiry's own 3rd-level
+// mechanics still depend on (Mech Crafter's Titan, S.N.B Specialist's own
+// companion) stays exactly as unbuilt as it already is for a native holder
+// — this only widens who can reach mechanics that already exist elsewhere
+// in this package/cmd/n5e, it builds nothing new.
+func mergeMixedStudiesFeatures(rulesDB, charDB *sql.DB, characterID int64, granted []features.GrantedFeatureRow) ([]features.GrantedFeatureRow, error) {
+	hasMixedStudies := false
+	for _, f := range granted {
+		if f.Slug == scienceNinMixedStudiesFeatureSlug {
+			hasMixedStudies = true
+			break
+		}
+	}
+	if !hasMixedStudies {
+		return granted, nil
+	}
+	picks, err := charstore.ListScienceNinSubclassPicks(charDB, characterID, charstore.ScienceNinPickMixedStudiesInquiry)
+	if err != nil {
+		return nil, err
+	}
+	if len(picks) == 0 {
+		return granted, nil
+	}
+	slugs, ok := mixedStudiesInquiryFeatureSlugs[picks[0].OptionSlug]
+	if !ok {
+		return granted, nil // stale pick pointing at a since-renamed/removed subclass slug
+	}
+	var inquiryName string
+	if err := rulesDB.QueryRow(`SELECT name FROM subclasses WHERE slug = ?`, picks[0].OptionSlug).Scan(&inquiryName); err != nil {
+		inquiryName = picks[0].OptionSlug
+	}
+	for _, slug := range slugs {
+		var name, description string
+		if err := rulesDB.QueryRow(`SELECT name, description FROM v_subclass_features WHERE slug = ?`, slug).Scan(&name, &description); err != nil {
+			if err == sql.ErrNoRows {
+				continue
+			}
+			return nil, err
+		}
+		granted = append(granted, features.GrantedFeatureRow{
+			Slug:        slug,
+			Name:        name,
+			Description: description,
+			SourceLabel: "Mixed Studies: " + inquiryName,
+			Level:       18,
+		})
+	}
+	return granted, nil
+}
+
 // stoneAdeptFeatureSlug: Stone Crusher's 2nd-level "Increase your maximum
 // hit points by 2. Each time you gain a level in this class, you increase
 // your hit point maximum by 1." — a flat HP bonus equal to the character's
@@ -350,12 +468,195 @@ const stoneAdeptFeatureSlug = "class/ninjutsu-specialist/group/ninjutsu-focus/st
 // by features.LoadGrantedFeatures, so a granted Stone Adept always implies
 // classLevels[ninjutsuSpecialistClassSlug] >= 2.
 func ninjutsuStoneAdeptHPBonus(granted []features.GrantedFeatureRow, classLevels map[string]int) int {
-	for _, f := range granted {
-		if f.Slug == stoneAdeptFeatureSlug {
-			return classLevels[ninjutsuSpecialistClassSlug]
-		}
+	if hasFeature(granted, stoneAdeptFeatureSlug) {
+		return classLevels[ninjutsuSpecialistClassSlug]
 	}
 	return 0
+}
+
+// featMaxPoolBonusSlugs is a small, closed table of feat and clan-feature
+// slugs that grant a flat, permanent Max HP and/or Max Chakra bonus scaling
+// with the character's CURRENT total level — narrowly scoped to these seven
+// confirmed entries, not a general "any feature can modify max HP/chakra"
+// framework. Six entries are feats; one (wellspring-of-chakra) is a clan
+// feature slug — clan features flow through the same grantedFeatures list
+// under their own DB slug, so the same table and lookup work unmodified.
+//
+// Every one of the book's own clauses reads "[the pool] increases by an
+// amount equal to [N×] your level when you gain this feat. Whenever you
+// gain a level thereafter, [the pool] increases by an additional [N]
+// point(s)" — gained at level L0, that is +N*L0 immediately and +N per
+// level after, which is algebraically just N*L at any later level L,
+// independent of what level the feat was actually taken at. That is the
+// exact same collapse ninjutsuStoneAdeptHPBonus above already applies to
+// Stone Adept's "+2 at 2nd level, +1/level thereafter" text, and matches
+// this package's own stated rule for HP/Chakra (see the header comment on
+// MaxHPAuto/MaxChakraAuto's own level*conMod term): recompute fresh from
+// the character's current level on every read, never bake in when a bonus
+// was first granted. Verified directly against each feat's own rules.db
+// description (2026-08-19):
+//   - feat/durable: "hit points maximum increases by an amount equal to
+//     TWICE your level... an additional 2 hit points" thereafter → 2 HP/level.
+//   - feat/senju/hashiramas-legacy: "Increase your Hit Point total by your
+//     level... increase your hit point total by +1" thereafter → 1 HP/level.
+//   - feat/hoshigaki/tailless-tailed-beasts: "Increase your Hit & Chakra
+//     Point total by an amount equal to your level... Increase your Hit &
+//     Chakra Point total by +1" thereafter → 1 HP/level AND 1 Chakra/level.
+//   - feat/endurance-latent: "chakra point maximum increases by an amount
+//     equal to your level... an additional 1 chakra point" thereafter →
+//     1 Chakra/level.
+//   - feat/endurance-realized: identical shape to Endurance, Latent →
+//     1 Chakra/level.
+//   - clan/uzumaki/feature/wellspring-of-chakra: "Beginning at level 1,
+//     increase your Chakra point total by 2, thereafter, each time you
+//     gain a level, increase your Chakra point total by 2" → 2 Chakra/level.
+//   - feat/uzumaki/monstrous-reserves: "Double the bonus chakra provided
+//     by your Wellspring of Chakra Clan feature" — modeled as its own
+//     2 Chakra/level entry rather than a multiplier on the clan feature's
+//     entry, since featMaxPoolBonus below SUMS every matching slug's
+//     contribution: a character with both entries granted gets 2+2=4
+//     Chakra/level, i.e. double the base 2/level, matching the feat text.
+var featMaxPoolBonusSlugs = map[string]struct{ hpPerLevel, chakraPerLevel int }{
+	"feat/durable":                              {hpPerLevel: 2},
+	"feat/senju/hashiramas-legacy":              {hpPerLevel: 1},
+	"feat/hoshigaki/tailless-tailed-beasts":     {hpPerLevel: 1, chakraPerLevel: 1},
+	"feat/endurance-latent":                     {chakraPerLevel: 1},
+	"feat/endurance-realized":                   {chakraPerLevel: 1},
+	"clan/uzumaki/feature/wellspring-of-chakra": {chakraPerLevel: 2},
+	"feat/uzumaki/monstrous-reserves":           {chakraPerLevel: 2},
+}
+
+// featMaxPoolBonus sums every granted feat's Max HP/Max Chakra bonus from
+// featMaxPoolBonusSlugs, scaled by the character's current total level —
+// see that table's own doc comment for why "current level" is correct
+// regardless of what level the feat was actually taken at.
+func featMaxPoolBonus(granted []features.GrantedFeatureRow, level int) (hp, chakra int) {
+	for _, f := range granted {
+		if b, ok := featMaxPoolBonusSlugs[f.Slug]; ok {
+			hp += b.hpPerLevel * level
+			chakra += b.chakraPerLevel * level
+		}
+	}
+	return hp, chakra
+}
+
+// quickWittedFeatSlug identifies feat/quick-witted — "You can use your
+// Intelligence modifier instead of your Dexterity modifier when making
+// Initiative checks" is modeled as InitiativeAbility's own default ability
+// swapping to Intelligence once granted; the player's own initiative_ability
+// override, if set, still wins — the same override-beats-default shape
+// every other ability slot in this file already follows. This feat's second
+// clause (swap a failing Dexterity save for an Intelligence one, twice per
+// long rest) is a limited-use, per-roll player choice, not modeled here — no
+// per-roll resource-spend mechanism exists on this sheet for it.
+const quickWittedFeatSlug = "feat/quick-witted"
+
+// alertFeatSlug identifies feat/alert — "You add your full proficiency
+// bonus to your initiative, instead of half. You may add your Wisdom
+// modifier in place of Dexterity to your Initiative bonus." is modeled as
+// InitiativeProf's own default switching to ProfFull and InitiativeAbility's
+// own default switching to Wisdom once granted, mirroring quickWittedFeatSlug's
+// precedent above for equally permissive "may ... in place of" book wording.
+const alertFeatSlug = "feat/alert"
+
+// genjutsuExpertiseFeatSlug identifies feat/genjutsu-expertise — "You may
+// instead use Charisma instead of Wisdom as your Genjutsu Modifier" is
+// modeled as the Genjutsu JutsuAttacks entry's own default ability swapping
+// to Charisma once granted. AttackKinds' own doc comment above already
+// cites "Genjutsu off Charisma" as a real played example of this exact
+// override; this feat is what actually produces that example, rather than
+// requiring the player to set it by hand. This feat's second clause
+// ("Charisma instead of Wisdom for Illusions Checks") swaps the governing
+// ability of the Illusions SKILL check itself, not an attack or Clash roll —
+// SkillAbility has no per-character override slot for any skill, so that
+// clause is not modeled here. That is a wholly new per-skill
+// ability-override mechanism, the same gap feat/chakra-guidance and
+// feat/chakra-intensity are also blocked on.
+const genjutsuExpertiseFeatSlug = "feat/genjutsu-expertise"
+
+// mentalBoonsFeatSlug identifies feat/yamanaka/mental-boons — "You may use
+// your Charisma instead of Wisdom as your Genjutsu ability modifier" is
+// textually identical in effect to feat/genjutsu-expertise's own "You may
+// instead use Charisma instead of Wisdom as your Genjutsu Modifier" clause
+// above, so it drives the exact same JutsuAttacks ability override.
+const mentalBoonsFeatSlug = "feat/yamanaka/mental-boons"
+
+// gaseousHazeFeatureSlug identifies the Herbalist entry feature "You may use
+// Charisma in place of Wisdom for calculating your Genjutsu attack bonus and
+// DC" — the attack-bonus half drives the same JutsuAttacks Genjutsu ability
+// override as genjutsuExpertiseFeatSlug/mentalBoonsFeatSlug above. The DC
+// half has nothing to attach to: no Genjutsu save DC field exists anywhere
+// in this app (Compute never derives one, and no template or JS reads a DC
+// off JutsuAttacks either), so it stays undocumented rather than half-wired.
+const gaseousHazeFeatureSlug = "class/cooking-nin/group/cooking-focus/herbalist/feature/gaseous-haze"
+
+// spiritedFighterFeatureSlug identifies Battle Cook's 5th-level feature
+// "Beginning at 5th level, you can use Charisma as your Taijutsu modifier
+// when casting Bukijutsu" — drives the Bukijutsu JutsuAttacks entry's own
+// default ability, the same way genjutsuExpertiseFeatSlug drives Genjutsu's.
+const spiritedFighterFeatureSlug = "class/cooking-nin/group/cooking-focus/battle-cook/feature/spirited-fighter"
+
+// hunterNinSwiftResponseFeatureSlug identifies Hunter-Nin's 1st-level base
+// feature "you add your full Proficiency Bonus to initiative rolls instead
+// of half" — drives InitiativeProf's own default the same way alertFeatSlug
+// does below. This feature's other clause (ignore difficult terrain) has no
+// terrain-movement field anywhere on this sheet and stays manual, the same
+// boundary Taijutsu Specialist's Mighty Mobility is already left at.
+const hunterNinSwiftResponseFeatureSlug = "class/hunter-nin/feature/swift-response"
+
+// blueTechniqueProficiencyFeatureSlug identifies Blue Technique Warmaster's
+// 2nd-level feature, whose closing clause reads "Lastly, add your full
+// proficiency to initiative checks" — drives InitiativeProf's own default
+// the same way alertFeatSlug does below. This is a separate, same-named
+// constant from cmd/n5e/puppets.go's own blueTechniqueProficiencyFeatureSlug
+// (a different package, gating the Fighting Stance picker there) — the rest
+// of the feature (Martial Weapons/Heavy Armor proficiency, the Martial Arts
+// skill's governing ability, the free Fighting Stance) is out of scope here.
+const blueTechniqueProficiencyFeatureSlug = "class/puppet-master/group/puppet-techniques/blue-technique-warmaster/feature/blue-technique-proficiency"
+
+// scienceNinFutureOfShinobiAetherFeatureSlug identifies Elemental
+// Innovationist's 20th-level capstone "While wearing your Exoskeleton, gain
+// a +2 bonuses to AC, DR, and reduce the cost of the saving throw bonus
+// granted by it to 0. You also reduce the bulk and chakra cost of E.I.Ps by
+// half." Only the +2 AC clause is modeled (see the Exoskeleton-donned AC
+// block below) — DR has no field anywhere on this sheet, and E.I.Ps have no
+// per-item cost-modifier concept to reduce, so both stay undocumented gaps
+// rather than half-wired.
+const scienceNinFutureOfShinobiAetherFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/the-future-of-shinobi-aether"
+
+// fastAndFuriousFeatureSlug identifies Entremetier Chef's 2nd-level feature
+// "you can use your intelligence or charisma instead of your dexterity for
+// Initiative rolls" — a genuine 2-option pick, unlike the single-ability
+// defaults above, so it can't just flip InitiativeAbility on its own. The
+// player's pick is recorded via a feature-choice slot (cmd/n5e/cooking_nin.go's
+// fastAndFuriousOptions/handleFastAndFurious) and read back here as
+// InitiativeAbility's own default. This is a separate, same-named constant
+// from cmd/n5e/cooking_nin.go's own copy — cmd/n5e imports this package, not
+// the reverse, so the literal is duplicated rather than shared, the same
+// precedent mixedStudiesInquiryFeatureSlugs' own doc comment above already
+// explains for shinobiWareFullMetalShinobiFeatureSlug.
+const fastAndFuriousFeatureSlug = "class/cooking-nin/group/cooking-focus/entremetier-chef/feature/fast-and-furious"
+
+// trickPathsFeatureSlug identifies Storm Rider's 6th-level subclass feature
+// Trick Paths — "when you roll initiative you can use your Intelligence
+// modifier instead of Dexterity modifier" drives InitiativeAbility's own
+// default the same way quickWittedFeatSlug/alertFeatSlug do above. This
+// feature's other two clauses — permanent immunity to the Surprised
+// condition, and a once-per-round hover on jump/fall — are out of scope
+// here: the Surprised immunity is already modeled separately
+// (passive_traits.go's traitCondition/Surprised grant), and the hover
+// clause has no computed field to land in.
+const trickPathsFeatureSlug = "class/science-nin/group/scientific-inquiry/storm-rider/feature/trick-paths"
+
+// hasFeature reports whether granted contains a feature or feat with the
+// given slug.
+func hasFeature(granted []features.GrantedFeatureRow, slug string) bool {
+	for _, f := range granted {
+		if f.Slug == slug {
+			return true
+		}
+	}
+	return false
 }
 
 // ProfModes is the accepted set, in the order the sheet offers them.
@@ -764,6 +1065,39 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load granted features: %w", err)
 	}
+	// Mixed Studies (18th level, base Science-Nin): folds the picked
+	// Inquiry's own 3rd Level feature rows into grantedFeatures right here,
+	// before anything below reads it — see mergeMixedStudiesFeatures's own
+	// doc for why this needs its own call in this package rather than
+	// relying on cmd/n5e's identical merge, which runs too late for this
+	// package's own AC-override switch below to ever see it.
+	grantedFeatures, err = mergeMixedStudiesFeatures(rulesDB, charDB, characterID, grantedFeatures)
+	if err != nil {
+		return nil, fmt.Errorf("load mixed studies features: %w", err)
+	}
+	// internal/features.LoadGrantedFeatures deliberately excludes feats (see
+	// that package's own header comment: "Feats are deliberately out of
+	// scope here"). cmd/n5e's own mergeFeatFeatures performs an equivalent
+	// merge, but into a SEPARATE grantedFeatureRow slice built by its own,
+	// independent call to features.LoadGrantedFeatures made entirely after
+	// this function has already returned sheet — that later merge only ever
+	// reaches cmd/n5e's own display code (Features & Traits, passive traits,
+	// senses, custom resources), never this package's own grantedFeatures.
+	// Confirmed live: several speedGrants entries below (grants.go) are
+	// keyed to feat slugs with a comment claiming they "resolve with no
+	// other code change" via that merge — false until this call existed,
+	// since without it those entries could never match anything here. Every
+	// slug-keyed grant table this package reads (speedGrants,
+	// fixedProficiencyGrants, fixedAbilityScoreGrants, acSwapGrants,
+	// flatACBonusGrants, saveMasteryGrants, choiceSlotDefs) was checked
+	// before adding this: none of them currently key off a "feat/..." slug
+	// except the speedGrants entries this merge is what actually activates,
+	// so appending feats here changes no other computation.
+	featFeatures, err := loadFeatGrantedFeatures(rulesDB, charDB, characterID)
+	if err != nil {
+		return nil, fmt.Errorf("load character feats: %w", err)
+	}
+	grantedFeatures = append(grantedFeatures, featFeatures...)
 	armorCategory, err := equippedArmorCategory(rulesDB, charDB, characterID)
 	if err != nil {
 		return nil, fmt.Errorf("load equipped armor category: %w", err)
@@ -911,20 +1245,49 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			break
 		}
 	}
+	sheet.PassivePerception += features.ResolvePassivePerceptionBonus(grantedFeatures)
 	sheet.ClashChecks = clashChecks(sheet, overrides)
 
 	// Initiative's three parts, each falling back to the N5E default when the
 	// override is absent or unrecognised — a stale value must not compute off
 	// ability score 0 or quietly drop the proficiency share.
 	sheet.InitiativeAbility = "dex"
+	if hasFeature(grantedFeatures, quickWittedFeatSlug) {
+		sheet.InitiativeAbility = "int"
+	}
+	if hasFeature(grantedFeatures, alertFeatSlug) {
+		sheet.InitiativeAbility = "wis"
+	}
+	if hasFeature(grantedFeatures, trickPathsFeatureSlug) {
+		sheet.InitiativeAbility = "int"
+	}
+	// Fast and Furious (Entremetier Chef, 2nd level) offers a genuine choice
+	// between two abilities rather than one fixed swap, so its default reads
+	// the player's own recorded pick (cmd/n5e/cooking_nin.go's
+	// fastAndFuriousOptions/handleFastAndFurious) instead of hardcoding a
+	// single value the way quickWittedFeatSlug/alertFeatSlug/
+	// trickPathsFeatureSlug do above. resolvedChoices is already loaded once
+	// earlier in Compute for the pending-choice-slot machinery; reused here
+	// rather than reloaded.
+	if pick := resolvedChoices[features.ChoiceKey{FeatureSlug: fastAndFuriousFeatureSlug, ChoiceIndex: 0}]; pick == "int" || pick == "cha" {
+		sheet.InitiativeAbility = pick
+	}
 	if picked := abilityAbbrev(overrides["initiative_ability"]); picked != "" && abilityIndex(picked) < len(Abilities) {
 		sheet.InitiativeAbility = picked
 	}
 	sheet.InitiativeProf = ProfHalf
+	if hasFeature(grantedFeatures, alertFeatSlug) || hasFeature(grantedFeatures, hunterNinSwiftResponseFeatureSlug) || hasFeature(grantedFeatures, blueTechniqueProficiencyFeatureSlug) {
+		sheet.InitiativeProf = ProfFull
+	}
 	if mode := strings.ToLower(strings.TrimSpace(overrides["initiative_prof"])); slices.Contains(ProfModes, mode) {
 		sheet.InitiativeProf = mode
 	}
-	sheet.InitiativeBonus, _ = strconv.Atoi(strings.TrimSpace(overrides["initiative_bonus"]))
+	sheet.InitiativeBonus = features.ResolveInitiativeBonus(grantedFeatures, sheet.Level)
+	if v := strings.TrimSpace(overrides["initiative_bonus"]); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			sheet.InitiativeBonus = n
+		}
+	}
 	sheet.Initiative = InitiativeModifier(
 		sheet.Abilities[sheet.InitiativeAbility].Modifier,
 		sheet.ProficiencyBonus, sheet.InitiativeProf, sheet.InitiativeBonus)
@@ -972,6 +1335,23 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		}
 	}
 
+	// Lethal Precision (class/hunter-nin/feature/lethal-precision, 1st
+	// level): "Select one between Taijutsu & Bukijutsu. You can cast the
+	// chosen Jutsu type using Dexterity in place of Strength for all
+	// calculations. You cannot switch this choice later." The pick itself
+	// is tracked (charstore.HunterPickLethalPrecision, cap 1, no re-cap —
+	// see internal/charstore/hunter_nin_picks.go and
+	// cmd/n5e/hunter_nin.go), which is what actually enforces "cannot
+	// switch this choice later"; lethalPrecisionKind just resolves which of
+	// the two disciplines (if either) was chosen, "" for a character with
+	// no pick yet.
+	lethalPrecisionKind := ""
+	if picks, err := charstore.ListHunterNinPicks(charDB, characterID, charstore.HunterPickLethalPrecision); err != nil {
+		return nil, fmt.Errorf("load lethal precision pick: %w", err)
+	} else if len(picks) > 0 {
+		lethalPrecisionKind = picks[0]
+	}
+
 	// Ninjutsu/Genjutsu/Taijutsu attack modifiers: the governing ability's
 	// modifier plus the FULL proficiency bonus, always — casting your own
 	// jutsu is never a non-proficient roll, so there is no half-proficiency
@@ -980,6 +1360,15 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// falls back to the default rather than silently computing off score 0.
 	for _, k := range AttackKinds {
 		ability := k.Ability
+		if k.Kind == "Genjutsu" && (hasFeature(grantedFeatures, genjutsuExpertiseFeatSlug) || hasFeature(grantedFeatures, mentalBoonsFeatSlug) || hasFeature(grantedFeatures, gaseousHazeFeatureSlug)) {
+			ability = "cha"
+		}
+		if k.Kind == "Bukijutsu" && hasFeature(grantedFeatures, spiritedFighterFeatureSlug) {
+			ability = "cha"
+		}
+		if (k.Kind == "Taijutsu" || k.Kind == "Bukijutsu") && lethalPrecisionKind == strings.ToLower(k.Kind) {
+			ability = "dex"
+		}
 		if picked := abilityAbbrev(overrides[AttackAbilityField(k.Kind)]); picked != "" && abilityIndex(picked) < len(Abilities) {
 			ability = picked
 		}
@@ -1096,8 +1485,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			chakraSum += FixedGain(c.ChakraDie, first)
 		}
 	}
-	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels)
-	sheet.MaxChakraAuto = chakraSum + sheet.Level*sheet.Abilities["con"].Modifier
+	featHPBonus, featChakraBonus := featMaxPoolBonus(grantedFeatures, sheet.Level)
+	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels) + featHPBonus
+	sheet.MaxChakraAuto = chakraSum + sheet.Level*sheet.Abilities["con"].Modifier + featChakraBonus
 	sheet.MaxHP, sheet.MaxHPPinned = sheet.MaxHPAuto, false
 	sheet.MaxChakra, sheet.MaxChakraPinned = sheet.MaxChakraAuto, false
 	if v, ok := overrideInt(overrides, "maxhp"); ok {
@@ -1179,6 +1569,18 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 				v := *sheet.AC + bonus
 				sheet.AC = &v
 			}
+		}
+		// The Future of Shinobi: Aether (Elemental Innovationist, 20th
+		// level): "+2 bonuses to AC" while the Exoskeleton is donned —
+		// additive on top of whatever formula/swap/bonus already ran above,
+		// same shape as Battle Ready Catalyst's own flat +1 just above,
+		// gated on the same donned toggle the ability-swap check already
+		// reads. Only the AC clause is modeled; see
+		// scienceNinFutureOfShinobiAetherFeatureSlug's own doc comment for
+		// the DR/E.I.P clauses left out.
+		if sheet.AC != nil && hasFeature(grantedFeatures, scienceNinFutureOfShinobiAetherFeatureSlug) && exoskeletonGranted && sheet.ExoskeletonDonned {
+			v := *sheet.AC + 2
+			sheet.AC = &v
 		}
 	}
 	if v, ok := overrideInt(overrides, "ac"); ok {
@@ -1279,6 +1681,68 @@ func loadLevelGains(charDB *sql.DB, characterID int64) (map[levelGainKey]struct{
 		out[k] = g
 	}
 	return out, rows.Err()
+}
+
+// loadFeatGrantedFeatures reads the character's taken feats
+// (character_feats, joined back to rules.db's own feats table for
+// name/category/description) and returns them shaped as
+// features.GrantedFeatureRow — the same representation LoadGrantedFeatures
+// already returns for class/subclass/clan features, so slug-keyed grant
+// tables and checks elsewhere in this file can key off a feat's own slug
+// (e.g. "feat/maneuverable") with no separate feat-only code path. See the
+// Compute call site's own comment for why this merge has to happen inside
+// this package specifically. A feat slug with no matching rules.db row (a
+// rules update that removed or renamed one) still participates, listed by
+// its slug — the same graceful-degrade loadClasses already gives a stale
+// class slug.
+func loadFeatGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64) ([]features.GrantedFeatureRow, error) {
+	rows, err := charDB.Query(
+		`SELECT feat_slug, chosen_at_level FROM character_feats WHERE character_id = ?`, characterID)
+	if err != nil {
+		return nil, err
+	}
+	type takenFeat struct {
+		slug  string
+		level sql.NullInt64
+	}
+	var taken []takenFeat
+	for rows.Next() {
+		var t takenFeat
+		if err := rows.Scan(&t.slug, &t.level); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		taken = append(taken, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]features.GrantedFeatureRow, 0, len(taken))
+	for _, t := range taken {
+		var name, category, description sql.NullString
+		err := rulesDB.QueryRow(
+			`SELECT name, category, description FROM feats WHERE slug = ?`, t.slug,
+		).Scan(&name, &category, &description)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+		resolvedName := name.String
+		if resolvedName == "" {
+			resolvedName = t.slug
+		}
+		prefix := "Feat"
+		if category.String != "" {
+			prefix = "Feat: " + category.String
+		}
+		out = append(out, features.GrantedFeatureRow{
+			Slug: t.slug, Name: resolvedName, Description: description.String,
+			SourceLabel: features.FeatureSourceLabel(prefix, t.level),
+			Level:       int(t.level.Int64),
+		})
+	}
+	return out, nil
 }
 
 func sumAbilityBonuses(charDB *sql.DB, characterID int64) (map[string]int, error) {

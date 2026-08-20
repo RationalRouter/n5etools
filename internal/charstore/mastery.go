@@ -30,6 +30,23 @@ func RemoveMastery(charDB *sql.DB, characterID int64, skillName string) error {
 	return err
 }
 
+// MasteryRankFor returns a character's current stored Mastery rank for one
+// skill/toolkit name, or 0 if they have no entry for it yet — used by
+// applyFeatProficiencyGrant (cmd/n5e/feat_skill_proficiency.go) to compute
+// the next rank when a feat's grant upgrades an existing proficiency to (or
+// further into) Mastery instead of duplicating it.
+func MasteryRankFor(charDB *sql.DB, characterID int64, skillName string) (int, error) {
+	var rank int
+	err := charDB.QueryRow(
+		`SELECT rank FROM character_mastery WHERE character_id = ? AND skill_name = ?`,
+		characterID, skillName,
+	).Scan(&rank)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return rank, err
+}
+
 // ListMastery returns every Mastery entry a character has.
 func ListMastery(charDB *sql.DB, characterID int64) ([]MasteryEntry, error) {
 	rows, err := charDB.Query(
