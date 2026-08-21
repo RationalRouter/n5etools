@@ -24,7 +24,7 @@
   // Grouping is off because the display doubles as the next operand's
   // starting value.
   function show(value) {
-    display.textContent = typeof value === "string"
+    display.value = typeof value === "string"
       ? value
       : value.toLocaleString("en-US", { maximumFractionDigits: 10, useGrouping: false });
   }
@@ -133,7 +133,12 @@
 
   // Keyboard entry, scoped to the calculator: the listener is on the
   // widget itself, not the document, so typing anywhere else on the sheet
-  // (the chat box, the HP boxes, a Bio textarea) is untouched.
+  // (the chat box, the HP boxes, a Bio textarea) is untouched. The display
+  // is a `readonly` <input> rather than an <output> specifically so it's
+  // clickable/focusable — an <output> can never receive focus, so clicking
+  // it and typing did nothing. `readonly` still blocks the browser's own
+  // native text editing, so every digit still goes through press() below
+  // and the "physical calculator, no eval()" model above holds.
   root.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const keys = {

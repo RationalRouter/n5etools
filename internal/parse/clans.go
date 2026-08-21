@@ -436,7 +436,7 @@ func parseFeat(ls []Line, i int) (Feat, int) {
 		}
 		i++
 	}
-	f.Description = strings.TrimSpace(desc.String())
+	f.Description = stripArtistCredit(strings.TrimSpace(desc.String()))
 	return f, i
 }
 

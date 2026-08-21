@@ -263,17 +263,60 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleCreateFinish is also reachable from an already-complete character
+// (the hub's own subtitle: "revisited any time before or after
+// finishing"), so the draft->complete transition is captured before
+// calling charstore.Finish — current_hp/current_chakra are seeded to their
+// computed maximum only on that first transition. Re-finishing an
+// already-complete character (e.g. after only editing Ambitions) must not
+// heal current_hp/current_chakra back to full; a character who has taken
+// damage or spent chakra since finishing keeps that state.
 func (s *server) handleCreateFinish(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
+
+	var creationStatus string
+	if err := s.charDB.QueryRow(
+		`SELECT creation_status FROM characters WHERE id = ?`, id,
+	).Scan(&creationStatus); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("query creation status:", err)
+		return
+	}
+
 	if err := charstore.Finish(s.charDB, id); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("finish creation:", err)
 		return
 	}
+
+	if creationStatus != "complete" {
+		// A brand-new character's current_hp/current_chakra are still at
+		// the schema's default of 0 (nothing in any prior creation step
+		// sets them) — seed them to the same computed maximum a long/full
+		// rest heals to, via the same charsheet.Compute +
+		// charstore.SetRestGains pair handleSheetRest uses, rather than
+		// re-deriving the Max HP/Max Chakra formula here. Temp HP is
+		// deliberately left untouched: it starts at 0 and should stay
+		// there for a new character.
+		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("compute sheet for creation finish:", err)
+			return
+		}
+		hp := sheet.MaxHP - sheet.CurrentHP
+		chakra := sheet.MaxChakra - sheet.CurrentChakra
+		if err := charstore.SetRestGains(s.charDB, id, hp, chakra, 0, 0); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("seed starting hp/chakra:", err)
+			return
+		}
+	}
+
 	http.Redirect(w, r, "/characters/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
@@ -3720,12 +3763,12 @@ func (s *server) weaponSpecialistCritRangeThreshold(characterID int64) (int, err
 
 var damageDicePattern = regexp.MustCompile(`^(\d*)d(\d+)$`)
 
-// buildAttacks turns the character's equipped weapons into rollable attack
-// rows. Two rules decide the ability used, both read off the weapon's
-// printed properties text because the ingested equipment rows have
-// weapon_category set to NULL throughout — the source book prints
-// properties but no simple/martial column, so properties are the only
-// signal actually present in the data:
+// buildAttacks turns the character's equipped weapons — and equipped
+// explosive tags/bombs, see below — into rollable attack rows. Two rules
+// decide the ability used, both read off the weapon's printed properties
+// text because the ingested equipment rows have weapon_category set to NULL
+// throughout — the source book prints properties but no simple/martial
+// column, so properties are the only signal actually present in the data:
 //
 //   - Finesse: the better of Strength and Dexterity, the player's choice in
 //     the book, resolved here as "whichever is higher" since no sheet-side
@@ -3748,6 +3791,21 @@ var damageDicePattern = regexp.MustCompile(`^(\d*)d(\d+)$`)
 // of proficiency, the damage ability, and add a flat extra to either. A weapon
 // with no override row stays entirely derived, so nothing has to be configured
 // for the common case.
+//
+// equipment.kind is not always "weapon" for something that belongs in this
+// table: Paper Bombs, Flash Tags, Fire/Ice/Shock Bombs, Breaching Tags and
+// Poison Tags (and every upgrade tier of each) are catalogued as kind='tool'
+// — the book prints them as a tool-slot item, not a weapon — but they are
+// thrown/planted consumables with a printed damage roll and/or Save DC, same
+// shape as any other rollable attack. equipment.save_dc (added by migration
+// 0017, "explosive tags/bombs' own Save DC") is the signal that separates
+// this family from an ordinary tool: it is NULL for every ordinary tool row
+// (lockpicks, radios, kits) and set for exactly these bomb/tag rows, so
+// "kind='tool' AND save_dc IS NOT NULL" is included below alongside
+// "kind='weapon'". A row with no printed damage_dice (Flash Tag, Poison Tag)
+// still gets an attack row with an empty damage column ("—", the same
+// fallback an ordinary weapon with no damage_dice would get) — its Save DC
+// and effect are on the item's own card, linked from the row's name.
 func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet *charsheet.Sheet) ([]attackRow, error) {
 	options, err := charstore.ListWeaponAttackOptions(s.charDB, characterID)
 	if err != nil {
@@ -3769,6 +3827,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
+	cookingToolSlug, cookingToolDieSize, cookingToolDamageType, cookingToolCritBonus, err := s.cookingToolInfusionAttackOverrides(characterID, sheet)
+	if err != nil {
+		return nil, err
+	}
 	var out []attackRow
 	for _, item := range inventory {
 		if !item.Equipped || item.Slug == "" {
@@ -3776,6 +3838,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		}
 		var kind string
 		var damageDice, damageType, properties sql.NullString
+		var saveDC sql.NullInt64
 		if strings.HasPrefix(item.Slug, "custom/") {
 			// A custom item's rollable flag (custom_items.rollable_kind) is
 			// the gate here, not its free-text Kind/Type — see CustomItem's
@@ -3796,16 +3859,20 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			properties = sql.NullString{String: ci.Properties, Valid: ci.Properties != ""}
 		} else {
 			err := s.rulesDB.QueryRow(
-				`SELECT kind, damage_dice, damage_type, properties FROM equipment WHERE slug = ?`,
+				`SELECT kind, damage_dice, damage_type, properties, save_dc FROM equipment WHERE slug = ?`,
 				item.Slug,
-			).Scan(&kind, &damageDice, &damageType, &properties)
+			).Scan(&kind, &damageDice, &damageType, &properties, &saveDC)
 			if err == sql.ErrNoRows {
 				continue // stale slug after a rules update — already handled the same way in loadCharacterInventory
 			}
 			if err != nil {
 				return nil, err
 			}
-			if kind != "weapon" {
+			// See the doc comment above: a tool-kind row only qualifies when
+			// it is one of the explosive tag/bomb family (save_dc set).
+			// Every other tool (and every armor/gear/toolkit/scroll/
+			// enhancement_seal row) is excluded, same as before.
+			if kind != "weapon" && !(kind == "tool" && saveDC.Valid) {
 				continue
 			}
 		}
@@ -3822,6 +3889,21 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		case !strings.Contains(props, "thrown") &&
 			(strings.Contains(props, "ammunition") || strings.Contains(props, "range")):
 			ability = "dex"
+		}
+
+		// Cooking Tool Infusion's own text: "you can choose to use
+		// Intelligence in place of Strength when determining your attack
+		// and damage rolls" — applied unconditionally once the implement is
+		// equipped, same "always-on once known" treatment Storm Rider's Air
+		// Trecks weapon gets for its own identical clause. This replaces the
+		// derived ability outright (still overridable below by a manual
+		// per-weapon Adjust, same as every other bonus in this function).
+		isCookingTool := cookingToolSlug != "" && item.Slug == cookingToolSlug
+		if isCookingTool {
+			ability = "int"
+			if cookingToolDamageType != "" {
+				damageType.String = cookingToolDamageType
+			}
 		}
 
 		// Apply the character's override for this weapon, if any. Each part
@@ -3892,11 +3974,32 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			}
 		}
 
+		// Cooking Tool Infusion's own text: "Your cooking tool deals damage
+		// equal to your Cooking Dice" — the level-scaling chart
+		// (cookingDieSize, 1d4 at 1st-4th up to 1d12 at 17th+) replaces the
+		// catalog row's own inert 1d4 outright, and the Critical/Critical 2
+		// property picks widen this weapon's own crit-threat range (+1 per
+		// rank, same "0 means untouched" shape weaponSpecialistCritRangeThreshold
+		// already uses) — the narrower of the two thresholds (Critical Focus's
+		// own class-wide threshold, if any) wins, since either alone widens
+		// the range and they don't stack per weapon_properties' own text.
+		rowCritRangeThreshold := critRangeThreshold
+		if isCookingTool {
+			if cookingToolDieSize != "" {
+				effectiveDamageDice = cookingToolDieSize
+			}
+			if cookingToolCritBonus > 0 {
+				if ct := 20 - cookingToolCritBonus; rowCritRangeThreshold == 0 || ct < rowCritRangeThreshold {
+					rowCritRangeThreshold = ct
+				}
+			}
+		}
+
 		row := attackRow{
 			Name:               item.Name,
 			Slug:               item.Slug,
 			InventoryID:        item.ID,
-			CritRangeThreshold: critRangeThreshold,
+			CritRangeThreshold: rowCritRangeThreshold,
 			Ability:            strings.ToUpper(attackAbility),
 			AttackBonus: charsheet.ComposeModifier(
 				sheet.Abilities[attackAbility].Modifier, sheet.ProficiencyBonus, prof, opt.AttackBonus+weaponFocusBonus),
@@ -3959,6 +4062,57 @@ type jutsuSheetRow struct {
 	// player chose — it has no character_jutsu row of its own, doesn't
 	// count against JutsuKnownCap, and can't be forgotten from the sheet.
 	SourceLabel string
+
+	// CostOverride is the player's own manual override of this jutsu's
+	// Chakra cost (feats, clan, or class features that cast it for less —
+	// or more — than the printed cost_chakra), separate from CostChakra
+	// (the resulting EFFECTIVE cost after every automatic and manual
+	// override is applied) so the modify-jutsu box's input can show only
+	// what the player actually typed, not e.g. Martial Technique's own
+	// automatic value. nil means no manual override is set.
+	CostOverride *int
+
+	// FreeCast is set when a Malleable Mirage the character has picked
+	// grants a LIMITED free-or-half-cost cast of this specific jutsu
+	// (genjutsuMirageJutsuGrants, genjutsu.go) — nil for a jutsu with no
+	// such grant, and also nil for an UNLIMITED grant (Beast Speech/Myriad
+	// Forms/Piece of Mind), which instead applies straight to CostChakra
+	// above with no separate use-limit to choose between. A limited grant
+	// can't just overwrite CostChakra the way the unlimited ones do: the
+	// player must be free to spend a normal chakra-cost cast instead of a
+	// scarce Mirage use, so the sheet renders a SEPARATE "Cast via
+	// <Mirage>" button alongside the normal Cast button rather than
+	// replacing it.
+	FreeCast *jutsuFreeCastGrant
+}
+
+// jutsuFreeCastGrant is the per-row, per-character view of a limited
+// alternate-cost jutsu grant paid out of a rest-scoped pool instead of
+// Chakra — originally Malleable Mirages' own free/half-cost grants
+// (genjutsu.go), now also Wolves Legacy's Wolf Techniques (hunter_nin.go),
+// Interrogationist's Unerring Eye/Perfect Mind (intelligence_operative.go),
+// and Mech Crafter's Adaptive Movement (science_nin.go). MirageName/
+// ResourceKey/Uses/Max come from the matching customResourceGrants entry
+// (custom_resources.go) via loadCustomResources, the same rest-scoped pool
+// already tracked on the sheet's Resources list; Cost is the Chakra still
+// paid alongside the pool spend (0 for a free grant, the jutsu's own book
+// cost halved — rounded down — for a half-cost one, always 0 for Wolf
+// Techniques and Adaptive Movement, both of which pay the pool spend
+// instead of Chakra rather than alongside it). UsesPerCast is how many pool
+// uses one cast spends (1 for every Mirage grant; Wolf Techniques spends a
+// flat 2; Adaptive Movement spends the jutsu's own printed cost_chakra,
+// since the pool it draws from — CCD — is itself measured in Chakra rather
+// than a discrete use count). CastRank overrides the rank the cast (and its
+// concentration tracking) is recorded at — "" means the jutsu's own printed
+// Rank, the only value any Mirage or Adaptive Movement grant ever needs;
+// Wolf Techniques fixes this to "B" regardless of the jutsu's own rank.
+type jutsuFreeCastGrant struct {
+	MirageName  string
+	ResourceKey string
+	Cost        int
+	Uses, Max   int
+	UsesPerCast int
+	CastRank    string
 }
 
 // jutsuUpcastOption is one selectable rank a jutsu can be cast at, paired
@@ -4257,7 +4411,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load mastery:", err)
 		return
 	}
-	summonsTab, err := s.loadSummonsTabData(id, sheet.Level)
+	summonsTab, err := s.loadSummonsTabData(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load summons tab:", err)
@@ -4284,7 +4438,15 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load hunter-nin pattern rows:", err)
 		return
 	}
-	passiveTraits := computePassiveTraits(append(grantedFeatures, patternRows...), sheet.Level)
+	passiveTraitFeatures := append(grantedFeatures, patternRows...)
+	if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(id); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load genjutsu mirage demon sight row:", err)
+		return
+	} else if demonSightRow != nil {
+		passiveTraitFeatures = append(passiveTraitFeatures, *demonSightRow)
+	}
+	passiveTraits := computePassiveTraits(passiveTraitFeatures, sheet.Level)
 	customResources, err := s.loadCustomResources(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4748,6 +4910,78 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	if err != nil {
 		return nil, err
 	}
+	// Malleable Mirages (Genjutsu Specialist): a picked Mirage can grant a
+	// specific jutsu the character may not otherwise know — see
+	// genjutsuMirageJutsuGrants' own doc comment for which of the 79
+	// Mirages this covers and why the rest are excluded. poolResources is
+	// only needed for the LIMITED grants (genjutsuGrantFreeLimited/
+	// genjutsuGrantHalfCostLimited), to read each Mirage's own current/max
+	// use count off the same rest-scoped pool already tracked on the
+	// sheet's Resources list.
+	mirageGrants, err := s.genjutsuMirageJutsuGrantsForCharacter(characterID)
+	if err != nil {
+		return nil, err
+	}
+	// Genjutsu Pledges' own unconditional free-jutsu base features (Inspired
+	// Appearance, Shaping Your World): same genjutsuGrantFreeUnlimited
+	// CostChakra-override shape as the three unconditional Malleable Mirage
+	// grants above, just always-on rather than gated behind a Mirage pick —
+	// see genjutsuPledgeJutsuGrants' own doc comment (genjutsu.go). Merged
+	// directly into mirageGrants so both sources feed the same
+	// CostChakra-override block below uniformly; no slug collides between
+	// the two maps (no Mirage grants Transform or Minor Illusion).
+	pledgeGrants, err := s.genjutsuPledgeJutsuGrantsForCharacter(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	for slug, grant := range pledgeGrants {
+		mirageGrants[slug] = grant
+	}
+	// Wolves Legacy's Wolf Techniques (Hunter-Nin): a picked Wolf Technique
+	// can be cast by spending Prosthetic Attachment uses instead of Chakra —
+	// same "read the pool's own current/max off the Resources list" need as
+	// the Mirage grants above, see hunterNinJutsuGrantsForCharacter's own
+	// doc comment (hunter_nin.go).
+	hunterGrants, err := s.hunterNinJutsuGrantsForCharacter(characterID)
+	if err != nil {
+		return nil, err
+	}
+	// Necrotic Hand's Dr. Death (Hunter-Nin, 17th level): an unconditional
+	// rank-threshold override on Necrosis's own Chakra cost, not a spendable
+	// pool — see hunterNinRankCeilingGrantsForCharacter's own doc comment
+	// (hunter_nin.go) for why this needs no customResourceGrants entry at
+	// all, unlike the two grant maps above.
+	rankCeilingGrants, err := s.hunterNinRankCeilingGrantsForCharacter(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	// Interrogationist's Unerring Eye/Perfect Mind (Intelligence Operative):
+	// spend a Brave Order to cast a specific named jutsu instead of Chakra —
+	// same "read the pool's own current/max off the Resources list" need as
+	// the Mirage/Wolf Technique grants above, see
+	// intelligenceOperativeJutsuGrantsForCharacter's own doc comment
+	// (intelligence_operative.go).
+	ioGrants, err := s.intelligenceOperativeJutsuGrantsForCharacter(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	// Mech Crafter's Adaptive Movement (Science-Nin): Body Flicker/Chakra
+	// Leaping can be cast paying their own full printed Chakra cost out of
+	// CCD instead of the normal Chakra pool — same "read the pool's own
+	// current/max off the Resources list" need as the grants above, see
+	// scienceNinAdaptiveMovementJutsuGrantsForCharacter's own doc comment
+	// (science_nin.go).
+	amGrants, err := s.scienceNinAdaptiveMovementJutsuGrantsForCharacter(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	var poolResources []CustomResourceEntry
+	if len(mirageGrants) > 0 || len(hunterGrants) > 0 || len(ioGrants) > 0 || len(amGrants) > 0 {
+		poolResources, err = s.loadCustomResources(characterID, sheet)
+		if err != nil {
+			return nil, err
+		}
+	}
 	rows, err := s.charDB.Query(`
 		SELECT jutsu_slug FROM character_jutsu
 		WHERE character_id = ? AND jutsu_slug IS NOT NULL`, characterID)
@@ -4771,6 +5005,14 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	if err != nil {
 		return nil, err
 	}
+	// loadGrantedJutsuLabels returns a nil map for a character with no
+	// granted features at all (e.g. a class with no class_features rows of
+	// its own) — every block below writes into grantLabels regardless of
+	// whether loadGrantedJutsuLabels itself found anything to seed it with,
+	// so it must be non-nil before any of them run.
+	if grantLabels == nil {
+		grantLabels = map[string]string{}
+	}
 	if pmLevel, err := s.puppetMasterClassLevel(characterID); err != nil {
 		return nil, err
 	} else if pmLevel > 0 {
@@ -4792,6 +5034,47 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			return nil, err
 		}
 		for slug, label := range mobileSavantGrants {
+			if _, exists := grantLabels[slug]; !exists {
+				grantLabels[slug] = label
+			}
+		}
+	}
+	if medicalNinLevel, err := s.medicalNinClassLevel(characterID); err != nil {
+		return nil, err
+	} else if medicalNinLevel > 0 {
+		chartGrants, err := s.medicalNinJutsuChartGrantedJutsu(characterID, medicalNinLevel)
+		if err != nil {
+			return nil, err
+		}
+		for slug, label := range chartGrants {
+			if _, exists := grantLabels[slug]; !exists {
+				grantLabels[slug] = label
+			}
+		}
+	}
+	if hunterNinLevel, err := s.hunterNinClassLevel(characterID); err != nil {
+		return nil, err
+	} else if hunterNinLevel > 0 {
+		// Arsenal Item (Arsenalist) and Wolf Technique (Wolves Legacy) both
+		// grant a specific named jutsu as a side effect of a catalog pick —
+		// same "compute from the picks table, merge into the label map"
+		// shape as Puppet Upgrade/Mobile Savant/Medical Doctrine above, see
+		// hunterNinArsenalItemGrantedJutsu/hunterNinWolfTechniqueGrantedJutsu's
+		// own doc comments (hunter_nin.go).
+		arsenalGrants, err := s.hunterNinArsenalItemGrantedJutsu(characterID)
+		if err != nil {
+			return nil, err
+		}
+		for slug, label := range arsenalGrants {
+			if _, exists := grantLabels[slug]; !exists {
+				grantLabels[slug] = label
+			}
+		}
+		wolfGrants, err := s.hunterNinWolfTechniqueGrantedJutsu(characterID)
+		if err != nil {
+			return nil, err
+		}
+		for slug, label := range wolfGrants {
 			if _, exists := grantLabels[slug]; !exists {
 				grantLabels[slug] = label
 			}
@@ -4838,6 +5121,149 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 				effectiveBaseCost = sql.NullInt64{Int64: int64(flat), Valid: true}
 			}
 		}
+		// A Malleable Mirage's own jutsu grant sits at the same precedence
+		// spot as Martial Technique above — after the printed cost, before
+		// the player's own manual override. genjutsuGrantFreeUnlimited
+		// applies permanently, the same way Martial Technique's flat cost
+		// does, since the book prints no rest-scoped limit for it to
+		// respect. The limited modes deliberately do NOT touch CostChakra/
+		// effectiveBaseCost here — j.FreeCast surfaces them as a separate
+		// "Cast via <Mirage>" button instead (see character_sheet.html),
+		// so the player keeps the choice between spending a scarce Mirage
+		// use and casting normally.
+		if grant, ok := mirageGrants[slug]; ok {
+			switch grant.Mode {
+			case genjutsuGrantFreeUnlimited:
+				v := 0
+				j.CostChakra = &v
+				effectiveBaseCost = sql.NullInt64{Int64: 0, Valid: true}
+			case genjutsuGrantFreeLimited, genjutsuGrantHalfCostLimited:
+				if def, ok := customResourceGrants["genjutsu-mirage/"+grant.ResourceSuffix]; ok {
+					for _, entry := range poolResources {
+						if entry.Key != def.Key {
+							continue
+						}
+						cost := 0
+						if grant.Mode == genjutsuGrantHalfCostLimited && costChakra.Valid {
+							cost = int(costChakra.Int64) / 2
+						}
+						j.FreeCast = &jutsuFreeCastGrant{
+							MirageName:  def.Name,
+							ResourceKey: def.Key,
+							Cost:        cost,
+							Uses:        entry.Current,
+							Max:         entry.Max,
+							UsesPerCast: 1,
+						}
+						break
+					}
+				}
+			}
+		}
+		// Wolves Legacy's Wolf Techniques (Hunter-Nin): the alternate-cost
+		// clause spends Prosthetic Attachment uses instead of Chakra, so this
+		// sits at the same "separate Cast-via-<Pool> button, don't touch
+		// CostChakra" precedence spot as the Mirage limited grants above —
+		// the player keeps the choice between spending Prosthetic Attachment
+		// uses and casting normally. A jutsu can only ever carry one of
+		// mirageGrants/hunterGrants (no jutsu is both a Malleable Mirage
+		// grant and a Wolf Technique pick), so overwriting j.FreeCast here
+		// rather than checking it's still nil is safe.
+		//
+		// Read straight off poolResources' own Key/Name rather than through
+		// customResourceGrants, unlike the Mirage branch above:
+		// customResourceGrants is keyed by the GRANTING FEATURE's slug, not
+		// by its own Key field's value, and grant.ResourceKey here already
+		// IS that Key value ("prosthetic_attachments") — genjutsu.go's own
+		// synthetic "genjutsu-mirage/<suffix>" slugs happen to equal their
+		// matching customResourceGrants map key directly, which is what lets
+		// the Mirage branch index the map by ResourceSuffix in the first
+		// place; Hunter-Nin's grant has no such synthetic-slug-as-map-key
+		// relationship to lean on.
+		if grant, ok := hunterGrants[slug]; ok {
+			for _, entry := range poolResources {
+				if entry.Key != grant.ResourceKey {
+					continue
+				}
+				j.FreeCast = &jutsuFreeCastGrant{
+					MirageName:  entry.Name,
+					ResourceKey: entry.Key,
+					Cost:        grant.Cost,
+					Uses:        entry.Current,
+					Max:         entry.Max,
+					UsesPerCast: grant.UsesPerCast,
+					CastRank:    grant.CastRank,
+				}
+				break
+			}
+		}
+		// Interrogationist's Unerring Eye/Perfect Mind: same alternate-cost
+		// shape as the Wolf Techniques branch above — spend a Brave Order
+		// instead of Chakra. A jutsu can only ever carry one of
+		// mirageGrants/hunterGrants/ioGrants (no jutsu overlaps two of these
+		// three classes' own grant sources), so overwriting j.FreeCast here
+		// rather than checking it's still nil is safe.
+		if grant, ok := ioGrants[slug]; ok {
+			for _, entry := range poolResources {
+				if entry.Key != grant.ResourceKey {
+					continue
+				}
+				j.FreeCast = &jutsuFreeCastGrant{
+					MirageName:  entry.Name,
+					ResourceKey: entry.Key,
+					Cost:        grant.Cost,
+					Uses:        entry.Current,
+					Max:         entry.Max,
+					UsesPerCast: grant.UsesPerCast,
+				}
+				break
+			}
+		}
+		// Mech Crafter's Adaptive Movement (Science-Nin): Body Flicker/Chakra
+		// Leaping can be cast paying their own full printed Chakra cost out of
+		// CCD instead of Chakra — same alternate-cost shape as the three
+		// branches above, except the pool spent (CCD) is itself measured in
+		// Chakra, so UsesPerCast (the amount decremented from it) is the
+		// jutsu's own printed cost_chakra rather than a fixed per-cast use
+		// count, and Cost (paid from the normal Chakra pool alongside the
+		// pool spend) is always 0 — the full cost comes out of CCD instead,
+		// nothing is paid twice. A jutsu can only ever carry one of
+		// mirageGrants/hunterGrants/ioGrants/amGrants (no jutsu overlaps two
+		// of these four classes' own grant sources), so overwriting
+		// j.FreeCast here rather than checking it's still nil is safe.
+		if amGrants[slug] && costChakra.Valid {
+			for _, entry := range poolResources {
+				if entry.Key != scienceNinAdaptiveMovementResourceKey {
+					continue
+				}
+				j.FreeCast = &jutsuFreeCastGrant{
+					MirageName:  entry.Name,
+					ResourceKey: entry.Key,
+					Cost:        0,
+					Uses:        entry.Current,
+					Max:         entry.Max,
+					UsesPerCast: int(costChakra.Int64),
+				}
+				break
+			}
+		}
+		// A manual cost override (feats/clan/class features that let a jutsu
+		// be cast for less — or more — than its printed cost) takes
+		// precedence over even Martial Technique's automatic flat cost,
+		// since it is the player's own explicit call from the modify-jutsu
+		// box. Unlike Martial Technique, this IS allowed on a "Special"-cost
+		// jutsu: a class feature that grants a fixed-cost cast of an
+		// otherwise textual-cost jutsu needs exactly this to become
+		// castable at all. This is a separate mechanic from upcasting
+		// (jutsu_upcast_rules/buildUpcastOptions) — it moves the anchor
+		// buildUpcastOptions starts from, the same way Martial Technique's
+		// override already does above, but nothing here changes chakraPerRank.
+		if opt, ok := options[slug]; ok && opt.CostChakraOverride != nil {
+			v := *opt.CostChakraOverride
+			j.CostChakra = &v
+			j.CostOverride = opt.CostChakraOverride
+			effectiveBaseCost = sql.NullInt64{Int64: int64(v), Valid: true}
+		}
 		// Only jutsu with BOTH a fixed base cost and a parsed per-rank delta
 		// get upcast options — a jutsu with no cost_chakra already has no
 		// Cast button at all (see character_sheet.html), and one whose
@@ -4850,6 +5276,29 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 		// rank delta) unmodified, only the anchor moves.
 		if effectiveBaseCost.Valid && chakraPerRank.Valid {
 			j.UpcastOptions = buildUpcastOptions(j.Rank, int(effectiveBaseCost.Int64), int(chakraPerRank.Int64))
+		}
+		// Necrotic Hand's Dr. Death (Hunter-Nin, 17th level): "Casting
+		// Necrosis at C-Rank or fewer costs 0 Chakra" — applied AFTER
+		// buildUpcastOptions above computes the jutsu's real per-rank cost
+		// table (from its own unmodified printed cost/per-rank delta, or
+		// Martial Technique's/the player's own override if either applies —
+		// this always runs last), zeroing only the ranks at or below the
+		// threshold. Every rank above the threshold keeps the cost
+		// buildUpcastOptions already computed, unlike a flat
+		// genjutsuGrantFreeUnlimited-style override, which would zero the
+		// anchor BEFORE buildUpcastOptions runs and undercharge every rank
+		// above the threshold too.
+		if ceiling, ok := rankCeilingGrants[slug]; ok {
+			thresholdOrder := jutsuRankOrder[ceiling.MaxFreeRank]
+			for i := range j.UpcastOptions {
+				if jutsuRankOrder[j.UpcastOptions[i].Rank] <= thresholdOrder {
+					j.UpcastOptions[i].Cost = 0
+				}
+			}
+			if j.CostChakra != nil && jutsuRankOrder[j.Rank] <= thresholdOrder {
+				v := 0
+				j.CostChakra = &v
+			}
 		}
 
 		// What the jutsu's own description implies, before any override.
@@ -5748,7 +6197,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 		}
 		data["PuppetsTab"] = puppetsTab
 	case "sheet_summon_tab":
-		summonsTab, err := s.loadSummonsTabData(characterID, sheet.Level)
+		summonsTab, err := s.loadSummonsTabData(characterID, sheet)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load summons tab for fragment:", err)
@@ -5768,7 +6217,15 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load hunter-nin pattern rows for passive traits fragment:", err)
 			return
 		}
-		traits := computePassiveTraits(append(grantedFeatures, patternRows...), sheet.Level)
+		passiveTraitFeatures := append(grantedFeatures, patternRows...)
+		if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(characterID); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load genjutsu mirage demon sight row for passive traits fragment:", err)
+			return
+		} else if demonSightRow != nil {
+			passiveTraitFeatures = append(passiveTraitFeatures, *demonSightRow)
+		}
+		traits := computePassiveTraits(passiveTraitFeatures, sheet.Level)
 		// Elemental Resistance (Elemental Scout, 6th level) — see the main
 		// sheet render's identical merge for why this can't live in the
 		// static passiveTraitGrants table itself.
@@ -6081,6 +6538,66 @@ func (s *server) handleSheetJutsuCast(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "bad delta", http.StatusBadRequest)
 		return
+	}
+	// A Malleable Mirage's own "Cast via <Mirage>" button (jutsuFreeCastGrant,
+	// character_sheet.html) carries a resource_key naming which of that
+	// Mirage's rest-scoped uses (customResourceGrants) to spend — decremented
+	// here, alongside the chakra delta and concentration tracking below,
+	// rather than through handleSheetCustomResource's own generic spend
+	// endpoint, since routing it through there would silently skip the
+	// concentration-tracking side effect a normal cast of a concentration
+	// jutsu needs. resource_uses is how many uses that one cast spends —
+	// optional, defaulting to 1 (every Mirage grant's own shape); Wolves
+	// Legacy's Wolf Techniques (jutsuFreeCastGrant.UsesPerCast, hunter_nin.go)
+	// is the one grant that spends more than one use per cast, so the
+	// button submits its own count explicitly rather than this endpoint
+	// assuming a fixed spend everywhere.
+	if resourceKey := strings.TrimSpace(r.FormValue("resource_key")); resourceKey != "" {
+		if !validCustomResourceKey(resourceKey) {
+			http.NotFound(w, r)
+			return
+		}
+		uses := 1
+		if rawUses := strings.TrimSpace(r.FormValue("resource_uses")); rawUses != "" {
+			uses, err = strconv.Atoi(rawUses)
+			if err != nil || uses < 1 {
+				http.Error(w, "bad resource_uses", http.StatusBadRequest)
+				return
+			}
+		}
+		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("compute sheet for jutsu cast resource:", err)
+			return
+		}
+		entries, err := s.loadCustomResources(id, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load custom resources for jutsu cast:", err)
+			return
+		}
+		found := false
+		for _, e := range entries {
+			if e.Key != resourceKey {
+				continue
+			}
+			found = true
+			if e.Current < uses {
+				http.Error(w, "no uses left", http.StatusBadRequest)
+				return
+			}
+			if err := charstore.SetCustomResourceValue(s.charDB, id, resourceKey, e.Current-uses); err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("set custom resource for jutsu cast:", err)
+				return
+			}
+			break
+		}
+		if !found {
+			http.NotFound(w, r)
+			return
+		}
 	}
 	if err := charstore.SetChakra(s.charDB, id, delta); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -7623,15 +8140,16 @@ func (s *server) handleSheetJutsuOptions(w http.ResponseWriter, r *http.Request)
 		prof = charsheet.ProfFull
 	}
 	opts := charstore.JutsuOptions{
-		Slug:          slug,
-		AttackAbility: formAbility(r, "attack_ability"),
-		AttackProf:    prof,
-		AttackBonus:   formInt(r, "attack_bonus"),
-		DamageCount:   formInt(r, "damage_count"),
-		DamageSides:   formInt(r, "damage_sides"),
-		DamageAbility: formAbility(r, "damage_ability"),
-		DamageBonus:   formInt(r, "damage_bonus"),
-		DamageType:    strings.TrimSpace(r.FormValue("damage_type")),
+		Slug:               slug,
+		AttackAbility:      formAbility(r, "attack_ability"),
+		AttackProf:         prof,
+		AttackBonus:        formInt(r, "attack_bonus"),
+		DamageCount:        formInt(r, "damage_count"),
+		DamageSides:        formInt(r, "damage_sides"),
+		DamageAbility:      formAbility(r, "damage_ability"),
+		DamageBonus:        formInt(r, "damage_bonus"),
+		DamageType:         strings.TrimSpace(r.FormValue("damage_type")),
+		CostChakraOverride: formIntPtr(r, "cost_chakra_override"),
 	}
 	if err := charstore.SetJutsuOptions(s.charDB, id, opts); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -7659,6 +8177,22 @@ func formAbility(r *http.Request, field string) string {
 func formInt(r *http.Request, field string) int {
 	n, _ := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(r.FormValue(field), "+")))
 	return n
+}
+
+// formIntPtr reads a signed whole number the same way formInt does, but
+// returns nil for a blank or unparseable field instead of treating blank as
+// zero — for fields where 0 is itself a meaningful value (e.g. a jutsu that
+// costs no Chakra to cast) and must stay distinguishable from "leave unset".
+func formIntPtr(r *http.Request, field string) *int {
+	raw := strings.TrimSpace(strings.TrimPrefix(r.FormValue(field), "+"))
+	if raw == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return nil
+	}
+	return &n
 }
 
 // handleSheetWeaponAttackOptions overrides how one equipped weapon's attack

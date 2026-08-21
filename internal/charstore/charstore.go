@@ -405,10 +405,28 @@ func SetEquipment(charDB *sql.DB, characterID int64, lines []EquipmentLine) erro
 			}
 			continue
 		}
+		// A free-text equipment-pack line (background prose the ingest
+		// couldn't resolve to a real item) needs a real item_slug now, same
+		// as every other character_inventory row — lookupCarriedItem and
+		// DetailHref both key off item_slug, and a bare custom_name with no
+		// slug renders as a blank, unbulked row. Same insert-then-stamp-slug
+		// two-step AddCustomItem/UnpackInventoryItem already use.
+		res, err := tx.Exec(`INSERT INTO custom_items (slug, name) VALUES ('', ?)`, l.Text)
+		if err != nil {
+			return fmt.Errorf("create custom item for equipment text line: %w", err)
+		}
+		ciID, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("create custom item for equipment text line: %w", err)
+		}
+		slug := customItemSlug(l.Text, ciID)
+		if _, err := tx.Exec(`UPDATE custom_items SET slug = ? WHERE id = ?`, slug, ciID); err != nil {
+			return fmt.Errorf("stamp custom item slug: %w", err)
+		}
 		if _, err := tx.Exec(
-			`INSERT INTO character_inventory (character_id, custom_name, quantity, notes)
+			`INSERT INTO character_inventory (character_id, item_slug, quantity, notes)
 			 VALUES (?, ?, ?, 'creation-equipment')`,
-			characterID, l.Text, qty,
+			characterID, slug, qty,
 		); err != nil {
 			return fmt.Errorf("insert equipment text line: %w", err)
 		}

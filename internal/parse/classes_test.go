@@ -470,3 +470,59 @@ func TestParseClassBookFullCompendium(t *testing.T) {
 		t.Errorf("total class features = %d, want 168", totFeatures)
 	}
 }
+
+// stripArtistCredit must handle every leaked-credit shape confirmed in the
+// live corpus (2026-08-20 audit): the original "Artist Credit:" form, a bare
+// "Credit:" with no prefix, the "ART CREDIT" heading glued inline instead of
+// sitting on its own line, and "Wiki The second picture comes from ...". Two
+// of the confirmed rows had the credit line sitting mid-paragraph with real
+// content following it (bullet-separated), so the fix must be surgical
+// rather than a truncate-to-end-of-string strip.
+func TestStripArtistCredit(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{
+			"trailing artist credit",
+			"Real rules text here. Artist Credit: KSatoshiK on DeviantArt",
+			"Real rules text here.",
+		},
+		{
+			"trailing bare credit",
+			"Real rules text here. Credit: Kidcurious on DeviantArt",
+			"Real rules text here.",
+		},
+		{
+			"mid-paragraph credit before a bullet",
+			"unless otherwise specified. Credit: Antilous Chao on Artstation • Angry Peppers: does a thing.",
+			"unless otherwise specified. • Angry Peppers: does a thing.",
+		},
+		{
+			"mid-paragraph credit between bullets",
+			"• Ranged (60/120ft) Credit: TofuBlock/Jauni on Twitter • A Little Extra: does a thing.",
+			"• Ranged (60/120ft) • A Little Extra: does a thing.",
+		},
+		{
+			"ART CREDIT glued inline",
+			"gain resistance to lightning damage.  ART CREDIT This picture comes from KiriSharingan on the Naruto Fanon Wiki",
+			"gain resistance to lightning damage.",
+		},
+		{
+			"Wiki second picture credit",
+			"your chakra network is throttled by your overuse. Wiki The second picture comes from Strawberry-senpai on Tumblr",
+			"your chakra network is throttled by your overuse.",
+		},
+		{
+			"no credit line, unchanged",
+			"Real rules text with no credit line at all.",
+			"Real rules text with no credit line at all.",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := stripArtistCredit(c.in); got != c.want {
+				t.Errorf("stripArtistCredit(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}

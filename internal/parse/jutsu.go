@@ -276,9 +276,9 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 		case "Keywords":
 			entry.Keywords = v
 		case "Description":
-			entry.Description = v
+			entry.Description = stripArtistCredit(v)
 		case "At Higher Ranks", "At Higher Levels":
-			entry.AtHigherRanks = v
+			entry.AtHigherRanks = stripArtistCredit(v)
 		}
 		value.Reset()
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/charstore"
 )
 
 func TestParseJutsuGrants_RankFirst(t *testing.T) {
@@ -492,5 +493,114 @@ func TestAdaptiveMovementGrantedJutsu(t *testing.T) {
 		if labels[slug] != label {
 			t.Errorf("labels[%q] at level 3 = %q, want %q", slug, labels[slug], label)
 		}
+	}
+}
+
+// TestMixedStudiesGrantedJutsuBadge covers a Mixed Studies pick's own
+// synthetic SourceLabel ("Mixed Studies: <Inquiry>", mergeMixedStudiesFeatures
+// in science_nin.go) reaching loadGrantedJutsuLabels' switch correctly. The
+// switch only recognized "Class:"/"Subclass:"/"Racial:" prefixes before this
+// fix, so a Mixed-Studies-borrowed feature's own named-jutsu grant fell into
+// "default: continue" and was silently dropped — never a live bug against
+// real game content (only Mech Crafter's Adaptive Movement names a jutsu
+// among the 20 candidate Mixed Studies features, and that grant is hand-added
+// independently of the switch via a plain hasFeature check), but a real blind
+// spot for any future rules text using the ordinary "you learn the X Y-Rank
+// Ninjutsu" phrasing. Exercises Mech Crafter's OTHER 3rd-level feature
+// (Ordnance Training) specifically so this test can't accidentally pass via
+// the independent Adaptive Movement special case.
+func TestMixedStudiesGrantedJutsuBadge(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/science-nin', 'Science-Nin', 8, 8)`)
+	mustExecRules(`INSERT INTO class_features (slug, class_slug, name, level, description, sort_order) VALUES
+		('class/science-nin/feature/mixed-studies', 'class/science-nin', 'Mixed Studies', 18,
+		 'At 18th level, you may select a Scientific Inquiry other than your own.', 1)`)
+	mustExecRules(`INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/science-nin/group/scientific-inquiry', 'class/science-nin', 'Scientific Inquiry')`)
+	mustExecRules(`INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/science-nin/group/scientific-inquiry/mech-crafter', 'class/science-nin/group/scientific-inquiry', 'Mech Crafter')`)
+	mustExecRules(`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		('class/science-nin/group/scientific-inquiry/mech-crafter/feature/ordnance-training',
+		 'class/science-nin/group/scientific-inquiry/mech-crafter', 'Ordnance Training', 3,
+		 'Also at 3rd level, you learn the Test Grant E-Rank Ninjutsu.', 1)`)
+	mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/test-grant', 'Test Grant', 'Ninjutsu', 'E', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1 Chakra', 'Ninjutsu', 'test jutsu')`)
+
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Mixed Studies Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', 18, 0)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, characterID, charstore.ScienceNinPickMixedStudiesInquiry,
+		"class/science-nin/group/scientific-inquiry/mech-crafter", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	labels, err := s.loadGrantedJutsuLabels(characterID, &charsheet.Sheet{Level: 18})
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels: %v", err)
+	}
+	if got := labels["jutsu/test-grant"]; got != "Subclass Feature" {
+		t.Errorf("labels[jutsu/test-grant] = %q, want %q (Mixed Studies' own synthetic SourceLabel prefix must reach the switch)", got, "Subclass Feature")
+	}
+}
+
+// TestFeatGrantedJutsuBadge covers the two feats in the book that grant a
+// specific named jutsu via ordinary "you learn the X Y-Rank Ninjutsu"-shaped
+// text (Hanami's Mass Release -> Release Genjutsu, Hebi's Serpentine Ally ->
+// Summoning Technique Ninjutsu). Before this fix, neither grant was reachable
+// at all: loadGrantedJutsuLabels called loadGrantedFeatures directly rather
+// than loadMergedGrantedFeatures, so a character's own taken feats never
+// entered the granted-features list the regex scan iterates over, and even
+// if they had, mergeFeatFeatures' own "Feat"/"Feat: <Category>" SourceLabel
+// prefix matched none of the switch's three cases.
+func TestFeatGrantedJutsuBadge(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO feats (slug, name, category, description) VALUES
+		('feat/hanami/mass-release', 'Mass Release', 'clan',
+		 'Increase your Constitution or Wisdom score by 1. You learn the Release Genjutsu. When you cast this jutsu the range is increased to 60 feet.')`)
+	mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/release', 'Release', 'Genjutsu', 'E', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1 Chakra', 'Genjutsu', 'test jutsu')`)
+
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Feat Grant Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_feats (character_id, feat_slug, chosen_at_level, source) VALUES (?, 'feat/hanami/mass-release', 4, 'asi')`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	labels, err := s.loadGrantedJutsuLabels(characterID, &charsheet.Sheet{Level: 4})
+	if err != nil {
+		t.Fatalf("loadGrantedJutsuLabels: %v", err)
+	}
+	if got := labels["jutsu/release"]; got != "Feat" {
+		t.Errorf("labels[jutsu/release] = %q, want %q (Mass Release's own free jutsu grant must reach the badge)", got, "Feat")
 	}
 }

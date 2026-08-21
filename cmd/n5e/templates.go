@@ -225,7 +225,25 @@ var templateFuncs = template.FuncMap{
 	"masteryRankName": func(rank int) string {
 		return charsheet.MasteryRankLabel(rank, true)
 	},
-	"hasOptionDescription": hasOptionDescription,
+	"hasOptionDescription":  hasOptionDescription,
+	"ninDogReferenceOrZero": ninDogReferenceOrZero,
+	"titanReferenceOrZero":  titanReferenceOrZero,
+	"companionKindLabel":    companionKindLabel,
+	"companionSupportsStructuredAttacks": companionSupportsStructuredAttacks,
+	// firstNonEmpty: picks whichever companion-kind reference's own
+	// Expected* string field is actually set — the Companions tab's
+	// sheet_summon_tab and the companion popup both build one shared
+	// Expected* dict (companion_stat_fields' own doc) from EVERY kind's
+	// reference at once (ninDogReferenceOrZero/titanReferenceOrZero), even
+	// though a single companion is only ever one kind — so exactly one of
+	// the two args is ever non-empty for a given companion, same reasoning
+	// "add" already relies on for the numeric Expected* fields.
+	"firstNonEmpty": func(a, b string) string {
+		if a != "" {
+			return a
+		}
+		return b
+	},
 }
 
 func init() {

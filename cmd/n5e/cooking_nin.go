@@ -207,6 +207,391 @@ func gastrochemistEnhancementLabel(value string) string {
 	return value
 }
 
+// cookingToolInfusionFeatureSlug is the base class feature (1st level)
+// granting the Cooking Tool itself: an implement, a damage type, and a
+// weapon property at 1st level, one more property at 6th, and one more at
+// 11th (class_features.description's own prose — see this file's own
+// package doc comment and CLASS_AUDIT.md for the full verbatim text). The
+// 9 subclasses' own "Bonus Tool Infusion" 2nd/3rd-level features each grant
+// a second, wholly bespoke weapon with subclass-specific (non-generic)
+// properties — out of scope here; only the base weapon this feature grants
+// is modeled.
+const cookingToolInfusionFeatureSlug = "class/cooking-nin/feature/cooking-tool-infusion"
+
+// The 5 independent picks Cooking Tool Infusion offers are stored as
+// separate ChoiceIndex slots under cookingToolInfusionFeatureSlug in the
+// shared character_feature_choices table (features.LoadFeatureChoices/
+// charstore.SetFeatureChoice) — the same "one feature slug, several
+// independent slots" shape Food For the Soul/Fast and Furious already use
+// above, just with more slots. No dedicated table needed.
+//
+// Unlike Food For the Soul/Fast and Furious (both explicitly re-pickable at
+// will by their own rule text), each of these 5 slots is locked once it
+// holds a non-empty value: the feature's own text ("You gain a Cooking
+// Tool... you can choose a damage type... and one of the following
+// properties...", repeated once per level tier) describes each pick as a
+// one-time selection made at a specific level, with no mention anywhere of
+// re-selecting or swapping it afterward. Silence read as permanent is the
+// same reasoning this app already applies to Titan Specialization
+// (charstore.SetCompanionFields' titan_specialization CASE guard) and
+// Purple Technique's Armor Chassis (armor_chassis CASE guard, same
+// function) — both equally silent on re-editability in their own printed
+// text. character_feature_choices is a shared table whose own
+// SetFeatureChoice/ClearFeatureChoice stay a plain upsert/delete (they also
+// serve OTHER features that use the same table and genuinely are freely
+// re-editable), so the lock is enforced by each of the 5 handlers below
+// itself, checking the slot's current value before writing rather than in
+// the shared storage functions.
+const (
+	cookingToolChoiceImplement = iota
+	cookingToolChoiceDamageType
+	cookingToolChoicePropertyL1
+	cookingToolChoicePropertyL6
+	cookingToolChoicePropertyL11
+)
+
+// cookingToolChoiceKey builds the features.ChoiceKey for one of the 5 slots
+// above, so each handler's own lock check reads the same key
+// loadCookingToolInfusionView's get closure and charstore.SetFeatureChoice/
+// ClearFeatureChoice already address by.
+func cookingToolChoiceKey(idx int) features.ChoiceKey {
+	return features.ChoiceKey{FeatureSlug: cookingToolInfusionFeatureSlug, ChoiceIndex: idx}
+}
+
+// cookingToolDamageTypeOptions: "At 1st level you can choose a damage type
+// between Bludgeoning, Piercing or Slashing."
+var cookingToolDamageTypeOptions = []featureChoiceOption{
+	{Value: "Bludgeoning", Label: "Bludgeoning", Description: "Your Cooking Tool deals Bludgeoning damage."},
+	{Value: "Piercing", Label: "Piercing", Description: "Your Cooking Tool deals Piercing damage."},
+	{Value: "Slashing", Label: "Slashing", Description: "Your Cooking Tool deals Slashing damage."},
+}
+
+// cookingToolPropertyL1Options: 1st level's own property table — "one
+// following properties: Blocking, Hidden, Thrown (45/90), Unarmed,
+// Deadly." Descriptions are transcribed from weapon_properties (rules.db)
+// verbatim, since these are real, shared weapon properties, not bespoke
+// Cooking-Nin text. Thrown's own printed range is fixed at 45/90 by this
+// feature's own text, overriding the property's normal per-weapon range.
+var cookingToolPropertyL1Options = []featureChoiceOption{
+	{Value: "blocking", Label: "Blocking", Description: "While equipped, increase your AC by +1. This bonus can only be applied once. If applied to a weapon with the Unarmed property, you do not gain this benefit if using another weapon."},
+	{Value: "hidden", Label: "Hidden", Description: "You have advantage on Dexterity (Sleight of Hand) checks made to conceal this weapon."},
+	{Value: "thrown", Label: "Thrown (45/90)", Description: "You can throw this weapon to make a ranged attack (range 45/90) using your Strength instead of Dexterity for attack and damage rolls."},
+	{Value: "unarmed", Label: "Unarmed", Description: "Equipped to both hands and cannot be disarmed. Uses your Unarmed Damage as its base damage (otherwise its listed die). Usable to cast both Taijutsu and Bukijutsu."},
+	{Value: "deadly", Label: "Deadly", Description: "Adds +1 additional damage die on a critical hit, once per turn."},
+}
+
+// cookingToolPropertyL6Options: 6th level's own property table — "Light
+// (you also gain an additional Cooking Tool, an exact copy of this one,
+// usable only while wielding this Cooking Tool), Lethal 2, Returning (this
+// can only be taken if your Cooking Tool has the Thrown Property),
+// Critical, Trip, Disarm, Grapple." The last bullet is printed as one
+// comma-joined property, read here as one combined pick granting all
+// three, not three separate options — same reading multi-property
+// equipment.properties rows elsewhere in this ruleset already use.
+// Returning's own gate (requires "thrown" from the 1st-level pick) is
+// enforced by handleCookingToolPropertyL6, not filtered out of this fixed
+// list — filterCookingToolPropertyL6Options (below) does the actual
+// per-character filtering.
+var cookingToolPropertyL6Options = []featureChoiceOption{
+	{Value: "light", Label: "Light", Description: "You also gain a second, exact-copy Cooking Tool, usable only while wielding this one. Once per turn, while wielding both, an attack with one lets you make a second attack with the other as part of the same action."},
+	{Value: "lethal-2", Label: "Lethal 2", Description: "Increases this weapon's damage die by +2 against a surprised creature, or one that can't see its attacker, once per turn."},
+	{Value: "returning", Label: "Returning", Description: "After throwing it to make a ranged attack, you can call it back to you if it was thrown less than 30 feet from you — one hand must be free to catch it. Requires the Thrown property."},
+	{Value: "critical", Label: "Critical", Description: "+1 bonus to Critical Threat range when attacking with this weapon."},
+	{Value: "trip-disarm-grapple", Label: "Trip, Disarm, Grapple", Description: "In place of one weapon attack, attempt to Trip/Shove, Disarm, or Grapple a target creature with this weapon."},
+}
+
+// cookingToolPropertyL11Options: 11th level's own property table — "Reach
+// 3, Multiattack, Tactical, Critical 2 (this can only be taken if your
+// Cooking Tool has the Critical Property)." Critical 2's own gate (requires
+// "critical" from the 6th-level pick) is enforced by
+// handleCookingToolPropertyL11, filtered per-character by
+// filterCookingToolPropertyL11Options (below).
+var cookingToolPropertyL11Options = []featureChoiceOption{
+	{Value: "reach-3", Label: "Reach 3", Description: "Adds 15 feet to your reach when you attack with this weapon."},
+	{Value: "multiattack", Label: "Multiattack", Description: "Can also be used to attack as a bonus action. That bonus-action attack adds no ability modifier or other bonus to its damage roll."},
+	{Value: "tactical", Label: "Tactical", Description: "Once per turn, deals +1 additional damage to a target for each rank of any Physical condition the target has."},
+	{Value: "critical-2", Label: "Critical 2", Description: "A second rank of Critical: a further +1 bonus to Critical Threat range (total +2) when attacking with this weapon. Requires the Critical property."},
+}
+
+// cookingToolOptionLabel resolves a stored option value back to its
+// display label within one of the 4 hand-curated catalogs above — mirrors
+// gastrochemistEnhancementLabel, generalized to take the catalog as a
+// parameter since there are 4 of these instead of 1.
+func cookingToolOptionLabel(options []featureChoiceOption, value string) string {
+	for _, o := range options {
+		if o.Value == value {
+			return o.Label
+		}
+	}
+	return value
+}
+
+// filterCookingToolPropertyL6Options drops Returning from the offered list
+// unless the character's own 1st-level property pick is Thrown — except a
+// character who already holds Returning keeps seeing it (so the select
+// still shows their current pick even if the 1st-level pick was changed
+// out from under it afterward; the "trust the player" boundary this app's
+// picks already draw elsewhere, not a hard lock).
+func filterCookingToolPropertyL6Options(propertyL1, current string) []featureChoiceOption {
+	if propertyL1 == "thrown" {
+		return cookingToolPropertyL6Options
+	}
+	out := make([]featureChoiceOption, 0, len(cookingToolPropertyL6Options))
+	for _, o := range cookingToolPropertyL6Options {
+		if o.Value == "returning" && current != "returning" {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+// filterCookingToolPropertyL11Options drops Critical 2 unless the
+// character's own 6th-level property pick is Critical — same "keep
+// showing an already-made pick even if its own prerequisite pick changed
+// later" treatment as filterCookingToolPropertyL6Options.
+func filterCookingToolPropertyL11Options(propertyL6, current string) []featureChoiceOption {
+	if propertyL6 == "critical" {
+		return cookingToolPropertyL11Options
+	}
+	out := make([]featureChoiceOption, 0, len(cookingToolPropertyL11Options))
+	for _, o := range cookingToolPropertyL11Options {
+		if o.Value == "critical-2" && current != "critical-2" {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+// cookingToolInfusionLevel resolves the effective level Cooking Tool
+// Infusion's own picks gate against: the character's real Cooking-Nin
+// level, or (for a character with none — the archetype-training feats'
+// own prerequisite makes the two mutually exclusive) the level Chef
+// Trainee/Chefs Expert/Chefs Specialist's own text grants this feature
+// "as though" — 1st/6th/11th respectively, matching wardenWeaponCap's own
+// "level > 0 wins outright, otherwise fall back to the archetype tier"
+// shape.
+func cookingToolInfusionLevel(level int, arch cookingArchetypeFeats) int {
+	if level > 0 {
+		return level
+	}
+	switch {
+	case arch.Specialist:
+		return 11
+	case arch.Expert:
+		return 6
+	case arch.Trainee:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// loadCookingToolImplementCatalog reads every Cooking Tool implement off
+// the equipment table (slug prefix weapon/cooking-tool-, added by
+// 0059_cooking_tool_infusion_implements.sql) — a real, DB-backed catalog
+// rather than free text, same "read the catalog, don't hand-transcribe it"
+// shape loadWardenWeaponCatalog already established, just filtered by slug
+// prefix instead of weapon_category (Cooking Tool implements have no
+// weapon_category of their own — they aren't a purchasable starting-gear
+// weapon type).
+func (s *server) loadCookingToolImplementCatalog() ([]featureChoiceOption, error) {
+	rows, err := s.rulesDB.Query(`
+		SELECT slug, name, COALESCE(description, '')
+		FROM equipment WHERE slug LIKE 'weapon/cooking-tool-%' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []featureChoiceOption
+	for rows.Next() {
+		var o featureChoiceOption
+		if err := rows.Scan(&o.Value, &o.Label, &o.Description); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// cookingToolInfusionView is the Cooking Tool Infusion box's own sub-panel
+// — 5 independent picks (implement, damage type, and one property each at
+// 1st/6th/11th level), each locked once chosen (see the doc comment above
+// cookingToolChoiceImplement's own const block) and rendered as its own
+// select-plus-Set-button row (same shape Food For the Soul/Fast and
+// Furious above already use, since every one of these picks is a single
+// current value, not a multi-entry known/available catalog the way Martial
+// Techniques needs). Nil unless the character has reached the feature's
+// own 1st-level gate (real or archetype-feat-equivalent).
+type cookingToolInfusionView struct {
+	Implement        string // equipment slug, "" unpicked
+	ImplementName    string
+	ImplementOptions []featureChoiceOption
+
+	DamageType        string
+	DamageTypeOptions []featureChoiceOption
+
+	PropertyL1        string
+	PropertyL1Label   string
+	PropertyL1Options []featureChoiceOption
+
+	PropertyL6Available bool // true once effective level >= 6
+	PropertyL6          string
+	PropertyL6Label     string
+	PropertyL6Options   []featureChoiceOption
+
+	PropertyL11Available bool // true once effective level >= 11
+	PropertyL11          string
+	PropertyL11Label     string
+	PropertyL11Options   []featureChoiceOption
+}
+
+// loadCookingToolInfusionView loads every current pick plus the option
+// lists the sheet's picker forms need — toolLevel is the value
+// cookingToolInfusionLevel already resolved (0 means "don't call this at
+// all", enforced by the caller).
+func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int) (*cookingToolInfusionView, error) {
+	catalog, err := s.loadCookingToolImplementCatalog()
+	if err != nil {
+		return nil, err
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	get := func(idx int) string {
+		return choices[features.ChoiceKey{FeatureSlug: cookingToolInfusionFeatureSlug, ChoiceIndex: idx}]
+	}
+
+	v := &cookingToolInfusionView{
+		Implement:         get(cookingToolChoiceImplement),
+		ImplementOptions:  catalog,
+		DamageType:        get(cookingToolChoiceDamageType),
+		DamageTypeOptions: cookingToolDamageTypeOptions,
+		PropertyL1:        get(cookingToolChoicePropertyL1),
+		PropertyL1Options: cookingToolPropertyL1Options,
+		PropertyL6:        get(cookingToolChoicePropertyL6),
+		PropertyL11:       get(cookingToolChoicePropertyL11),
+	}
+	v.PropertyL1Label = cookingToolOptionLabel(cookingToolPropertyL1Options, v.PropertyL1)
+	for _, o := range catalog {
+		if o.Value == v.Implement {
+			v.ImplementName = o.Label
+			break
+		}
+	}
+	if toolLevel >= 6 {
+		v.PropertyL6Available = true
+		v.PropertyL6Options = filterCookingToolPropertyL6Options(v.PropertyL1, v.PropertyL6)
+		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPropertyL6Options, v.PropertyL6)
+	}
+	if toolLevel >= 11 {
+		v.PropertyL11Available = true
+		v.PropertyL11Options = filterCookingToolPropertyL11Options(v.PropertyL6, v.PropertyL11)
+		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPropertyL11Options, v.PropertyL11)
+	}
+	return v, nil
+}
+
+// syncCookingToolInfusionInventory keeps the character's inventory in step
+// with the implement pick: any previously auto-added Cooking Tool
+// implement (slug prefix weapon/cooking-tool-) is removed first — there is
+// only ever one, since the implement pick's own cap is 1 — before the
+// newly picked one (if any) is added back, equipped by default so it
+// immediately shows up in the Attacks table the same way any other
+// equipped weapon does. newSlug == "" just clears the old one, for
+// "un-pick my implement."
+func (s *server) syncCookingToolInfusionInventory(characterID int64, newSlug string) error {
+	rows, err := s.charDB.Query(
+		`SELECT id FROM character_inventory WHERE character_id = ? AND item_slug LIKE 'weapon/cooking-tool-%'`,
+		characterID)
+	if err != nil {
+		return err
+	}
+	var staleIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		staleIDs = append(staleIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range staleIDs {
+		if err := charstore.DeleteInventoryItem(s.charDB, characterID, id); err != nil {
+			return err
+		}
+	}
+	if newSlug == "" {
+		return nil
+	}
+	return charstore.AddInventoryItemWithEquipped(s.charDB, characterID, newSlug, 1, true)
+}
+
+// cookingToolInfusionAttackOverrides resolves the flat, always-on bonuses
+// buildAttacks (characters.go) applies to whichever equipped item matches
+// the character's own picked Cooking Tool implement: the level-scaling
+// Cooking Die as its damage dice (in place of the catalog row's own inert
+// 1d4), the player's chosen damage type, and a Critical-threat-range widen
+// for the Critical/Critical 2 property picks (the one property whose
+// numeric effect this app already has an existing per-attack mechanism
+// for — weaponSpecialistCritRangeThreshold's own CritRangeThreshold field).
+// implementSlug == "" means "no pick yet, or no Cooking Tool Infusion at
+// all" — buildAttacks treats that as "never matches any equipped item",
+// same "empty means untouched" shape hunterNinWardenWeaponBonuses already
+// uses. Every other property (Blocking's AC, Deadly/Lethal's extra damage
+// die, Light's second weapon, Multiattack's bonus-action attack, Reach,
+// Tactical, Trip/Disarm/Grapple, Returning, Hidden) stays narrated, not
+// modeled — the same boundary this app already draws around Hunter-Nin's
+// own Warden Weapon Property pick.
+func (s *server) cookingToolInfusionAttackOverrides(characterID int64, sheet *charsheet.Sheet) (implementSlug, dieSize, damageType string, critRangeBonus int, err error) {
+	level, err := s.cookingNinClassLevel(characterID)
+	if err != nil {
+		return "", "", "", 0, err
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return "", "", "", 0, err
+	}
+	arch := loadCookingArchetypeFeats(grantedFeatures)
+	toolLevel := cookingToolInfusionLevel(level, arch)
+	if toolLevel == 0 {
+		return "", "", "", 0, nil
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return "", "", "", 0, err
+	}
+	get := func(idx int) string {
+		return choices[features.ChoiceKey{FeatureSlug: cookingToolInfusionFeatureSlug, ChoiceIndex: idx}]
+	}
+	implementSlug = get(cookingToolChoiceImplement)
+	if implementSlug == "" {
+		return "", "", "", 0, nil
+	}
+	if level > 0 {
+		dieSize, err = s.cookingDieSize(level)
+		if err != nil {
+			return "", "", "", 0, err
+		}
+	} else {
+		dieSize = arch.dieSize()
+	}
+	damageType = get(cookingToolChoiceDamageType)
+	if get(cookingToolChoicePropertyL6) == "critical" {
+		critRangeBonus++
+	}
+	if get(cookingToolChoicePropertyL11) == "critical-2" {
+		critRangeBonus++
+	}
+	return implementSlug, dieSize, damageType, critRangeBonus, nil
+}
+
 // knownBlendEnhancementPick is one entry on the Nature's Blend Enhancement
 // Known list — a known jutsu (see knownJutsuOption, ninjutsu_specialist.go)
 // paired with which of the 4 Enhancement types it was given.
@@ -353,6 +738,12 @@ type cookingNinTabData struct {
 	FoodForTheSoul *foodForTheSoulView
 	FastAndFurious *fastAndFuriousView
 
+	// CookingToolInfusion is the base class's own 1st-level weapon
+	// pick (implement, damage type, and 3 level-gated properties) — nil
+	// until the character (or an archetype-training feat) reaches the
+	// feature's own 1st-level gate.
+	CookingToolInfusion *cookingToolInfusionView
+
 	// Gastrochemist's Nature's Blend Enhancement pick (2nd level, cap
 	// 1->6 across 2nd/3rd/5th/9th/13th/17th level) — only rendered when
 	// BlendEnhancementCap > 0, i.e. the character actually holds the
@@ -395,6 +786,13 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 		dieSize = arch.dieSize()
 	}
 	data := &cookingNinTabData{CookingDieSize: dieSize}
+
+	if toolLevel := cookingToolInfusionLevel(level, arch); toolLevel > 0 {
+		data.CookingToolInfusion, err = s.loadCookingToolInfusionView(characterID, toolLevel)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if level >= 2 {
 		choices, err := features.LoadFeatureChoices(s.charDB, characterID)
@@ -554,6 +952,386 @@ func (s *server) handleFastAndFurious(w http.ResponseWriter, r *http.Request) {
 	if err := charstore.SetFeatureChoice(s.charDB, id, fastAndFuriousFeatureSlug, 0, value); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set fast and furious:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// cookingToolInfusionEffectiveLevel resolves the level Cooking Tool
+// Infusion's own picks gate against for one character — real Cooking-Nin
+// level, or the matching archetype-training feat's own "as though" tier
+// (cookingToolInfusionLevel). 0 means the character holds neither.
+func (s *server) cookingToolInfusionEffectiveLevel(characterID int64, sheet *charsheet.Sheet) (int, error) {
+	level, err := s.cookingNinClassLevel(characterID)
+	if err != nil {
+		return 0, err
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return 0, err
+	}
+	return cookingToolInfusionLevel(level, loadCookingArchetypeFeats(grantedFeatures)), nil
+}
+
+// handleCookingToolImplement records which catalog implement is infused as
+// the character's Cooking Tool. Locked once chosen — see the doc comment
+// above cookingToolChoiceImplement's own const block for why the feature's
+// silence on re-editability is read as permanent here, the same as Titan
+// Specialization/Armor Chassis. Setting it re-syncs the character's own
+// inventory (syncCookingToolInfusionInventory) so the pick is a real,
+// equipped item, not just an abstract tracked choice.
+func (s *server) handleCookingToolImplement(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool implement:", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Cooking Tool Infusion", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool implement:", err)
+		return
+	}
+	if choices[cookingToolChoiceKey(cookingToolChoiceImplement)] != "" {
+		http.Error(w, "Cooking Tool implement is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		catalog, err := s.loadCookingToolImplementCatalog()
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load cooking tool implement catalog:", err)
+			return
+		}
+		valid := false
+		for _, o := range catalog {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid Cooking Tool implement", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		if err := charstore.ClearFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoiceImplement); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("clear cooking tool implement:", err)
+			return
+		}
+	} else if err := charstore.SetFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoiceImplement, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool implement:", err)
+		return
+	}
+	if err := s.syncCookingToolInfusionInventory(id, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("sync cooking tool infusion inventory:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolDamageType records the 1st-level damage-type pick
+// (Bludgeoning/Piercing/Slashing) — locked once chosen (see the doc comment
+// above cookingToolChoiceImplement's own const block), no inventory sync
+// needed (the damage TYPE isn't a separate item, just an attribute
+// buildAttacks reads back via cookingToolInfusionAttackOverrides).
+func (s *server) handleCookingToolDamageType(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool damage type:", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Cooking Tool Infusion", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool damage type:", err)
+		return
+	}
+	if choices[cookingToolChoiceKey(cookingToolChoiceDamageType)] != "" {
+		http.Error(w, "Cooking Tool damage type is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolDamageTypeOptions {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid damage type", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoiceDamageType)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoiceDamageType, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool damage type:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPropertyL1 records the 1st-level weapon-property pick
+// (Blocking/Hidden/Thrown/Unarmed/Deadly) — locked once chosen (see the doc
+// comment above cookingToolChoiceImplement's own const block).
+func (s *server) handleCookingToolPropertyL1(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool property (1st):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Cooking Tool Infusion", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool property (1st):", err)
+		return
+	}
+	if choices[cookingToolChoiceKey(cookingToolChoicePropertyL1)] != "" {
+		http.Error(w, "Cooking Tool 1st-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPropertyL1Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 1st-level property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL1)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL1, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool property (1st):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPropertyL6 records the 6th-level weapon-property pick
+// (Light/Lethal 2/Returning/Critical/Trip,Disarm,Grapple) — gated on the
+// character having reached 6th level's own effective tier, Returning
+// specifically gated on the 1st-level pick already being Thrown ("this can
+// only be taken if your Cooking Tool has the Thrown Property"), and locked
+// once chosen (see the doc comment above cookingToolChoiceImplement's own
+// const block).
+func (s *server) handleCookingToolPropertyL6(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool property (6th):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion level:", err)
+		return
+	}
+	if toolLevel < 6 {
+		http.Error(w, "character has not reached 6th level in Cooking Tool Infusion", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool property (6th):", err)
+		return
+	}
+	if choices[cookingToolChoiceKey(cookingToolChoicePropertyL6)] != "" {
+		http.Error(w, "Cooking Tool 6th-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPropertyL6Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 6th-level property", http.StatusBadRequest)
+			return
+		}
+		if value == "returning" && choices[cookingToolChoiceKey(cookingToolChoicePropertyL1)] != "thrown" {
+			http.Error(w, "Returning requires the Thrown property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL6)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL6, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool property (6th):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPropertyL11 records the 11th-level weapon-property pick
+// (Reach 3/Multiattack/Tactical/Critical 2) — gated on the character
+// having reached 11th level's own effective tier, Critical 2 specifically
+// gated on the 6th-level pick already being Critical ("this can only be
+// taken if your Cooking Tool has the Critical Property"), and locked once
+// chosen (see the doc comment above cookingToolChoiceImplement's own const
+// block).
+func (s *server) handleCookingToolPropertyL11(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool property (11th):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion level:", err)
+		return
+	}
+	if toolLevel < 11 {
+		http.Error(w, "character has not reached 11th level in Cooking Tool Infusion", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool property (11th):", err)
+		return
+	}
+	if choices[cookingToolChoiceKey(cookingToolChoicePropertyL11)] != "" {
+		http.Error(w, "Cooking Tool 11th-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPropertyL11Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 11th-level property", http.StatusBadRequest)
+			return
+		}
+		if value == "critical-2" && choices[cookingToolChoiceKey(cookingToolChoicePropertyL6)] != "critical" {
+			http.Error(w, "Critical 2 requires the Critical property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL11)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, cookingToolInfusionFeatureSlug, cookingToolChoicePropertyL11, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool property (11th):", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")

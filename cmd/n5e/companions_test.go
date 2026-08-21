@@ -11,6 +11,73 @@ import (
 	"github.com/sergio/n5e/internal/charstore"
 )
 
+// TestCompanionKindLabel covers the one shared kind-to-display-label
+// mapping every companion-kind badge render site (the Core tab's
+// Companions box, the Companions tab's per-companion card header, the
+// standalone companion popup) now goes through, for all five kinds this
+// app creates plus a defensive fallback for anything not in the table.
+// "custom" must map to "Other" specifically — matching the Add Companion
+// dropdown's own option text, not a generic Title Case of the raw value —
+// and "titan" must resolve correctly here even though this pass's own
+// main focus is nin-dog, since a later Titan-specific stage relies on this
+// helper already being correct for every kind, not just the ones a given
+// stage happens to be working on.
+func TestCompanionKindLabel(t *testing.T) {
+	cases := []struct{ kind, want string }{
+		{"puppet", "Puppet"},
+		{"summon", "Summon"},
+		{"nin-dog", "Nin-Dog"},
+		{"titan", "Titan"},
+		{"custom", "Other"},
+		{"some-future-kind", "some-future-kind"}, // fallback: raw value, not blank
+	}
+	for _, c := range cases {
+		if got := companionKindLabel(c.kind); got != c.want {
+			t.Errorf("companionKindLabel(%q) = %q, want %q", c.kind, got, c.want)
+		}
+	}
+}
+
+// TestCompanionSupportsStructuredAttacks pins the whitelist gating the
+// structured/rollable Attacks presentation, both for the template data a
+// popup/tab card is given and for the attack add/delete handlers'
+// server-side guard. Titan had the identical free-text bug and fix shape
+// as Nin-Dog (see companionStructuredAttackKinds' own doc) and is now in
+// the whitelist too.
+func TestCompanionSupportsStructuredAttacks(t *testing.T) {
+	cases := []struct {
+		kind string
+		want bool
+	}{
+		{"puppet", true},
+		{"nin-dog", true},
+		{"titan", true},
+		{"summon", false},
+		{"custom", false},
+	}
+	for _, c := range cases {
+		if got := companionSupportsStructuredAttacks(c.kind); got != c.want {
+			t.Errorf("companionSupportsStructuredAttacks(%q) = %v, want %v", c.kind, got, c.want)
+		}
+	}
+}
+
+// TestCompanionAttacksFragment pins which sheet fragment a structured
+// attack add/delete responds with per kind: puppet-kind companions only
+// ever render structured Attacks on the Puppets tab, every other
+// structured-attacks kind (nin-dog, titan) renders on the Companions tab.
+func TestCompanionAttacksFragment(t *testing.T) {
+	if got := companionAttacksFragment("puppet"); got != "sheet_puppet_tab" {
+		t.Errorf("companionAttacksFragment(puppet) = %q, want sheet_puppet_tab", got)
+	}
+	if got := companionAttacksFragment("nin-dog"); got != "sheet_summon_tab" {
+		t.Errorf("companionAttacksFragment(nin-dog) = %q, want sheet_summon_tab", got)
+	}
+	if got := companionAttacksFragment("titan"); got != "sheet_summon_tab" {
+		t.Errorf("companionAttacksFragment(titan) = %q, want sheet_summon_tab", got)
+	}
+}
+
 func TestHighestRankForLevel(t *testing.T) {
 	cases := []struct {
 		level int

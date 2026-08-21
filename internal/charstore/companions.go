@@ -10,7 +10,7 @@ import (
 // value rather than anything derived.
 type Companion struct {
 	ID              int64
-	Kind            string // "puppet", "summon", "custom"
+	Kind            string // "puppet", "summon", "custom", "nin-dog", "titan"
 	Name            string
 	SummonTribeSlug string
 
@@ -50,6 +50,30 @@ type Companion struct {
 	// migration 0032). Blank means never set.
 	Size string
 
+	// NinDogBreed is only meaningful (and player-editable) for kind =
+	// "nin-dog" — the Inuzuka clan's Beast Master feature's one-time Young
+	// Inuit/Young Kugsha/Young Tamaskan pick (see migration 0065). Locked
+	// once set, the same "permanent crafting-style choice" treatment
+	// ArmorChassis already gets, since the book's own text never mentions
+	// re-selecting a breed.
+	NinDogBreed string
+	// JutsuSlotsCurrent/JutsuSlotsMax: a Nin-Dog's own spendable Jutsu Slots
+	// resource, delta-editable exactly like AC/HPMax (see migration 0065's
+	// own doc for why this is a separate pair of columns from HP).
+	JutsuSlotsCurrent sql.NullInt64
+	JutsuSlotsMax     sql.NullInt64
+
+	// TitanSpecialization is only meaningful (and player-editable) for
+	// kind = "titan" — Ordnance Training's one-time Legion/Monarch/Ronin
+	// pick (see migration 0066). Locked once set, same pattern as
+	// NinDogBreed above.
+	TitanSpecialization string
+	// BarrierCurrent/BarrierMax: a Titan's own Battery Powered Barrier hit
+	// points, delta-editable exactly like AC/HPMax (see migration 0066's
+	// own doc for why this is a separate pair of columns from HP).
+	BarrierCurrent sql.NullInt64
+	BarrierMax     sql.NullInt64
+
 	// MatryoshkaGroupID/MatryoshkaJutsuSlots: Matryoshka Framework's own
 	// multi-body split (see migration 0034_matryoshka_bodies.sql).
 	// MatryoshkaGroupID is NULL for an ordinary, unsplit companion; a
@@ -68,7 +92,9 @@ type Companion struct {
 const companionSelectColumns = `id, kind, name, summon_tribe_slug,
 	ac, hp_current, hp_max, speed, fly_speed, str_score, dex_score, con_score, int_score, wis_score, cha_score,
 	attacks, traits, notes, armor_chassis, is_armor_form, size,
-	matryoshka_group_id, matryoshka_jutsu_slots, sort_order`
+	matryoshka_group_id, matryoshka_jutsu_slots, sort_order,
+	nin_dog_breed, jutsu_slots_current, jutsu_slots_max,
+	titan_specialization, barrier_current, barrier_max`
 
 func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 	var c Companion
@@ -78,6 +104,8 @@ func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 		&c.AC, &c.HPCurrent, &c.HPMax, &c.Speed, &c.FlySpeed, &c.Str, &c.Dex, &c.Con, &c.Int, &c.Wis, &c.Cha,
 		&c.Attacks, &c.Traits, &c.Notes, &c.ArmorChassis, &isArmorForm, &c.Size,
 		&c.MatryoshkaGroupID, &c.MatryoshkaJutsuSlots, &c.SortOrder,
+		&c.NinDogBreed, &c.JutsuSlotsCurrent, &c.JutsuSlotsMax,
+		&c.TitanSpecialization, &c.BarrierCurrent, &c.BarrierMax,
 	)
 	c.IsArmorForm = isArmorForm != 0
 	return c, err
@@ -185,7 +213,8 @@ func GetCompanion(charDB *sql.DB, characterID, companionID int64) (Companion, er
 // stale or hand-crafted form POST sends.
 func SetCompanionFields(charDB *sql.DB, characterID, companionID int64, name, summonTribeSlug string,
 	speed, flySpeed, str, dex, con, intScore, wis, cha sql.NullInt64,
-	attacks, traits, notes, armorChassis string, isArmorForm bool, size string,
+	attacks, traits, notes, armorChassis string, isArmorForm bool, size string, ninDogBreed string,
+	titanSpecialization string,
 ) error {
 	armorFormValue := 0
 	if isArmorForm {
@@ -198,12 +227,16 @@ func SetCompanionFields(charDB *sql.DB, characterID, companionID int64, name, su
 			str_score = ?, dex_score = ?, con_score = ?, int_score = ?, wis_score = ?, cha_score = ?,
 			attacks = ?, traits = ?, notes = ?,
 			armor_chassis = CASE WHEN armor_chassis = '' THEN ? ELSE armor_chassis END,
-			is_armor_form = ?, size = ?, updated_at = datetime('now')
+			is_armor_form = ?, size = ?,
+			nin_dog_breed = CASE WHEN nin_dog_breed = '' THEN ? ELSE nin_dog_breed END,
+			titan_specialization = CASE WHEN titan_specialization = '' THEN ? ELSE titan_specialization END,
+			updated_at = datetime('now')
 		WHERE id = ? AND character_id = ?`,
 		name, summonTribeSlug,
 		speed, flySpeed,
 		str, dex, con, intScore, wis, cha,
-		attacks, traits, notes, armorChassis, armorFormValue, size,
+		attacks, traits, notes, armorChassis, armorFormValue, size, ninDogBreed,
+		titanSpecialization,
 		companionID, characterID,
 	)
 	return err
@@ -263,6 +296,75 @@ func SetCompanionStatDefaults(charDB *sql.DB, characterID, companionID int64,
 	return err
 }
 
+// SetNinDogStatDefaults prefills AC/HP-current/HP-max/Speed/Jutsu-Slots-Max/
+// six ability scores on a freshly created nin-dog companion from Beast
+// Master's own computed baseline (see cmd/n5e/nindog.go's
+// prefillNinDogStatDefaults) — the Nin-Dog equivalent of
+// SetCompanionStatDefaults just above, kept as its own function rather than
+// folded into that one so puppet's flySpeed/size params (meaningless for a
+// Nin-Dog) don't have to grow two more kind-specific nullable params
+// (jutsuSlotsMax, and a future Titan barrierMax) neither kind would ever
+// both use at once. Every column is written via COALESCE(column, ?), the
+// same "never overwrite an already-set value" contract
+// SetCompanionStatDefaults documents — a field the player has already set
+// (through play, or through an earlier partial version of this prefill) is
+// never touched, which is what makes this safe to call again later (e.g. a
+// future per-render backfill for older companions) without risk of
+// clobbering a manual edit.
+func SetNinDogStatDefaults(charDB *sql.DB, characterID, companionID int64,
+	ac, hpCurrent, hpMax, speed, jutsuSlotsMax int64,
+	str, dex, con, intScore, wis, cha int64,
+) error {
+	_, err := charDB.Exec(`
+		UPDATE character_companions SET
+			ac = COALESCE(ac, ?), hp_current = COALESCE(hp_current, ?), hp_max = COALESCE(hp_max, ?),
+			speed = COALESCE(speed, ?), jutsu_slots_max = COALESCE(jutsu_slots_max, ?),
+			str_score = COALESCE(str_score, ?), dex_score = COALESCE(dex_score, ?),
+			con_score = COALESCE(con_score, ?), int_score = COALESCE(int_score, ?),
+			wis_score = COALESCE(wis_score, ?), cha_score = COALESCE(cha_score, ?),
+			updated_at = datetime('now')
+		WHERE id = ? AND character_id = ?`,
+		ac, hpCurrent, hpMax, speed, jutsuSlotsMax, str, dex, con, intScore, wis, cha,
+		companionID, characterID,
+	)
+	return err
+}
+
+// SetTitanStatDefaults prefills HP-current/HP-max/Speed/Barrier-current/
+// Barrier-max/six ability scores on a freshly created titan companion from
+// Ordnance Training's own computed baseline (see cmd/n5e/titan.go's
+// prefillTitanStatDefaults) — the Titan equivalent of SetNinDogStatDefaults
+// just above. No ac param, unlike that function: no AC formula exists
+// anywhere in the Titan's own source text (see titan.go's own header doc on
+// titan_unit_card.raw_text never stating one), so a Titan's AC stays a
+// plain player-entered field like every other companion kind's default,
+// never prefilled — this mirrors loadTitanReference's own ExpectedAC never
+// being set. Every column is written via COALESCE(column, ?), the same
+// "never overwrite an already-set value" contract SetCompanionStatDefaults/
+// SetNinDogStatDefaults document — a field the player has already set is
+// never touched, which is what makes this safe to call again later (e.g. a
+// future per-render backfill for older companions) without risk of
+// clobbering a manual edit.
+func SetTitanStatDefaults(charDB *sql.DB, characterID, companionID int64,
+	hpCurrent, hpMax, speed, barrierCurrent, barrierMax int64,
+	str, dex, con, intScore, wis, cha int64,
+) error {
+	_, err := charDB.Exec(`
+		UPDATE character_companions SET
+			hp_current = COALESCE(hp_current, ?), hp_max = COALESCE(hp_max, ?),
+			speed = COALESCE(speed, ?),
+			barrier_current = COALESCE(barrier_current, ?), barrier_max = COALESCE(barrier_max, ?),
+			str_score = COALESCE(str_score, ?), dex_score = COALESCE(dex_score, ?),
+			con_score = COALESCE(con_score, ?), int_score = COALESCE(int_score, ?),
+			wis_score = COALESCE(wis_score, ?), cha_score = COALESCE(cha_score, ?),
+			updated_at = datetime('now')
+		WHERE id = ? AND character_id = ?`,
+		hpCurrent, hpMax, speed, barrierCurrent, barrierMax, str, dex, con, intScore, wis, cha,
+		companionID, characterID,
+	)
+	return err
+}
+
 // AddCompanionHP applies a signed delta to one companion's hp_current,
 // floored at 0 — the companion-popup equivalent of the main sheet's SetHP,
 // minus the temp-HP cascade (companions have no temp HP field to absorb
@@ -314,6 +416,8 @@ func SetCompanionHP(charDB *sql.DB, characterID, companionID int64, value sql.Nu
 // cmd/n5e/characters.go's own sheetOverrideFields).
 var companionIntFields = map[string]bool{
 	"ac": true, "hp_max": true, "matryoshka_jutsu_slots": true,
+	"jutsu_slots_current": true, "jutsu_slots_max": true,
+	"barrier_current": true, "barrier_max": true,
 }
 
 // AddCompanionIntField applies a signed delta to one of a companion's own

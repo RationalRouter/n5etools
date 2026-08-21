@@ -241,6 +241,7 @@ var genjutsuMirageRestLimitedSlugs = map[string]string{
 	"psyche-drinker":         "Psyche Drinker",
 	"shaken-up":              "Shaken Up",
 	"shroud-of-shadows":      "Shroud of Shadows",
+	"signature-work":         "Signature Work",
 	"song-of-the-end":        "Song of the End",
 	"superior-thoughts":      "Superior Thoughts",
 	"tentative-escape":       "Tentative Escape",
@@ -281,6 +282,207 @@ func (s *server) genjutsuMiragePickedRows(characterID int64) ([]grantedFeatureRo
 	return out, nil
 }
 
+// genjutsuMirageJutsuGrantMode distinguishes how a Malleable Mirage's jutsu
+// grant behaves once picked. genjutsuGrantFreeUnlimited applies as a
+// permanent 0-cost override straight onto the jutsu's CostChakra, the same
+// precedence spot Martial Technique's own flat cost sits at — the Mirage's
+// printed text carries no rest-scoped cap at all (e.g. Beast Speech's "at no
+// cost" with no "once per rest" qualifier), so there's no separate use-limit
+// to spend from. genjutsuGrantFreeLimited and genjutsuGrantHalfCostLimited
+// instead need the player to actively choose, per cast, between spending a
+// limited Mirage use (tracked in customResourceGrants under the matching
+// "genjutsu-mirage/<suffix>" key, same pool genjutsuMirageRestLimitedSlugs
+// already surfaces on the sheet's Resources list) or casting normally —
+// surfaced as jutsuSheetRow.FreeCast (characters.go) rather than touching
+// CostChakra directly.
+type genjutsuMirageJutsuGrantMode int
+
+const (
+	genjutsuGrantFreeUnlimited genjutsuMirageJutsuGrantMode = iota
+	genjutsuGrantFreeLimited
+	genjutsuGrantHalfCostLimited
+)
+
+// genjutsuMirageJutsuGrant names one jutsu a Malleable Mirage lets its owner
+// cast without already knowing it. ResourceSuffix is the
+// genjutsuMirageRestLimitedSlugs/customResourceGrants key
+// ("genjutsu-mirage/<ResourceSuffix>") backing a limited grant's use count —
+// left "" for genjutsuGrantFreeUnlimited, since there's nothing to track.
+type genjutsuMirageJutsuGrant struct {
+	JutsuSlug      string
+	JutsuName      string
+	Mode           genjutsuMirageJutsuGrantMode
+	ResourceSuffix string
+}
+
+// genjutsuMirageJutsuGrants maps each Malleable Mirage's own class_options
+// suffix (genjutsuMirageOptionSlugPrefix trimmed) to the jutsu it lets its
+// owner cast without already knowing it — resolved directly against the
+// printed text of all 79 Mirages against dist/rules.db's v_jutsu, not
+// guessed. Three Mirages (Beast Speech, Myriad Forms, Piece of Mind) print
+// an unconditional "at no cost" with no rest-scoped qualifier at all, so
+// they get genjutsuGrantFreeUnlimited instead of a limited entry with no
+// matching customResourceGrants pool.
+//
+// Deliberately excluded, despite naming a specific granted effect, because
+// the jutsu can't be resolved to one unambiguous v_jutsu row or isn't
+// actually a fixed-jutsu grant at all:
+//   - Illusionary Chronicle: "cast a D-rank Genjutsu" — any D-rank of the
+//     player's own choice, not a named jutsu.
+//   - Superior Thoughts: "cast 1 S-Rank Genjutsu of your choice" — same,
+//     player's own choice.
+//   - Shroud of Shadows: "cast the Darkness ninjutsu" — no v_jutsu row is
+//     named exactly "Darkness"; several same-named-in-spirit candidates
+//     exist (Sealing Art: Darkness, Encroaching Darkness, …) with no
+//     unambiguous match, so this is left unmapped rather than guessed.
+//   - Tentative Escape: "you can cast Release" — Release itself resolves
+//     cleanly (jutsu/release), but unlike every other entry here this one's
+//     printed text never says "at no cost" or "as if you know the jutsu",
+//     so whether the cast is actually free (as opposed to just permitted
+//     via Reaction, at its normal cost) is genuinely unclear from the text
+//     alone — left unmapped rather than assumed.
+//
+// Demon Sight ("see normally in darkness... up to a distance of 120 feet")
+// grants a passive sense, not a jutsu cast, and needs its own separate
+// mechanism (see passive_traits.go) rather than an entry here.
+var genjutsuMirageJutsuGrants = map[string][]genjutsuMirageJutsuGrant{
+	"ascendant-image":     {{JutsuSlug: "jutsu/haze-clone", JutsuName: "Haze Clone", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "ascendant-image"}},
+	"battle-ready-minds":  {{JutsuSlug: "jutsu/bless", JutsuName: "Bless", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "battle-ready-minds"}},
+	"beast-speech":        {{JutsuSlug: "jutsu/animal-companion", JutsuName: "Animal Companion", Mode: genjutsuGrantFreeUnlimited}},
+	"beneath-the-boot":    {{JutsuSlug: "jutsu/psionics-crush", JutsuName: "Psionics: Crush!", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "beneath-the-boot"}},
+	"berserk-thoughts":    {{JutsuSlug: "jutsu/shadow-monsters", JutsuName: "Shadow Monsters", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "berserk-thoughts"}},
+	"bewitching-whispers": {{JutsuSlug: "jutsu/charming-dissonance", JutsuName: "Charming Dissonance", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "bewitching-whispers"}},
+	"black-fangs":         {{JutsuSlug: "jutsu/shadow-bite", JutsuName: "Shadow Bite", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "black-fangs"}},
+	"blade-song":          {{JutsuSlug: "jutsu/dancing-blades", JutsuName: "Dancing Blades", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "blade-song"}},
+	"blinding-lights":     {{JutsuSlug: "jutsu/color-spray", JutsuName: "Color Spray", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "blinding-lights"}},
+	"chained-mind":        {{JutsuSlug: "jutsu/mind-spike", JutsuName: "Mind Spike", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "chained-mind"}},
+	"chains-of-madness":   {{JutsuSlug: "jutsu/tree-binding-death", JutsuName: "Tree Binding Death", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "chains-of-madness"}},
+	"dreadful-word":       {{JutsuSlug: "jutsu/effortless-paralysis", JutsuName: "Effortless Paralysis", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "dreadful-word"}},
+	"dulled-mind":         {{JutsuSlug: "jutsu/slow", JutsuName: "Slow", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "dulled-mind"}},
+	"evil-thoughts":       {{JutsuSlug: "jutsu/psionics-mind-crunch", JutsuName: "Mind Crunch", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "evil-thoughts"}},
+	"freedom-of-frenzy":   {{JutsuSlug: "jutsu/frenzy-burst", JutsuName: "Frenzy: Burst", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "freedom-of-frenzy"}},
+	"ghastly-mist":        {{JutsuSlug: "jutsu/fog-of-war", JutsuName: "Fog of War", Mode: genjutsuGrantHalfCostLimited, ResourceSuffix: "ghastly-mist"}},
+	"illusionary-brawler": {{JutsuSlug: "jutsu/psionics-strike", JutsuName: "Psionics: Strike!", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "illusionary-brawler"}},
+	"magnum-opus": {
+		{JutsuSlug: "jutsu/bringer-of-darkness", JutsuName: "Bringer of Darkness", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "magnum-opus"},
+		{JutsuSlug: "jutsu/geas", JutsuName: "Geas", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "magnum-opus"},
+	},
+	"misty-thoughts":      {{JutsuSlug: "jutsu/cajolery-of-glamour", JutsuName: "Cajolery of Glamour", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "misty-thoughts"}},
+	"misty-visions":       {{JutsuSlug: "jutsu/innocuous-aspect", JutsuName: "Innocuous Aspect", Mode: genjutsuGrantHalfCostLimited, ResourceSuffix: "misty-visions"}},
+	"myriad-forms":        {{JutsuSlug: "jutsu/transform", JutsuName: "Transform", Mode: genjutsuGrantFreeUnlimited}},
+	"no-light-at-the-end": {{JutsuSlug: "jutsu/word-of-the-lost", JutsuName: "Word of the Lost", Mode: genjutsuGrantHalfCostLimited, ResourceSuffix: "no-light-at-the-end"}},
+	"pause":               {{JutsuSlug: "jutsu/psionics-pause", JutsuName: "Psionics: Pause!", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "pause"}},
+	"piece-of-mind":       {{JutsuSlug: "jutsu/mind-sliver", JutsuName: "Mind Sliver", Mode: genjutsuGrantFreeUnlimited}},
+	"shaken-up":           {{JutsuSlug: "jutsu/startle", JutsuName: "Startle", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "shaken-up"}},
+	"signature-work":      {{JutsuSlug: "jutsu/programmed-illusions", JutsuName: "Programmed Illusions", Mode: genjutsuGrantHalfCostLimited, ResourceSuffix: "signature-work"}},
+	"song-of-the-end":     {{JutsuSlug: "jutsu/ringing-bell-distortion", JutsuName: "Ringing Bell Distortion", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "song-of-the-end"}},
+	"thieving-confidence": {{JutsuSlug: "jutsu/ineptitude", JutsuName: "Ineptitude", Mode: genjutsuGrantFreeLimited, ResourceSuffix: "thieving-confidence"}},
+}
+
+// genjutsuMirageDemonSightSlug is the synthetic key
+// genjutsuMirageDemonSightPassiveRow emits when the character has picked
+// Demon Sight specifically ("You can see normally in darkness and
+// chakra-based darkness, up to a distance of 120 feet.") — a permanent
+// passive sense grant, not a rest-scoped resource pool
+// (genjutsuMirageRestLimitedSlugs, which Demon Sight has no entry in) or a
+// jutsu-cast grant (genjutsuMirageJutsuGrants), so it needs its own small
+// lookup into computePassiveTraits' senseGrants table (passive_traits.go)
+// rather than fitting either of those two mechanisms.
+const genjutsuMirageDemonSightSlug = "genjutsu-mirage/demon-sight"
+
+// genjutsuMirageDemonSightPassiveRow returns a synthetic grantedFeatureRow
+// for senseGrants' "genjutsu-mirage/demon-sight" entry if the character has
+// picked Demon Sight, or nil otherwise — same "picked Mirages never reach
+// loadMergedGrantedFeatures' own output" reasoning genjutsuMiragePickedRows'
+// doc comment explains, just for computePassiveTraits' input instead of
+// computeCustomResources'.
+func (s *server) genjutsuMirageDemonSightPassiveRow(characterID int64) (*grantedFeatureRow, error) {
+	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickMirage)
+	if err != nil {
+		return nil, err
+	}
+	for _, slug := range picks {
+		if strings.TrimPrefix(slug, genjutsuMirageOptionSlugPrefix) == "demon-sight" {
+			return &grantedFeatureRow{Slug: genjutsuMirageDemonSightSlug, Name: "Demon Sight"}, nil
+		}
+	}
+	return nil, nil
+}
+
+// genjutsuMirageJutsuGrantsForCharacter resolves every Malleable Mirage
+// jutsu grant (genjutsuMirageJutsuGrants) the character actually qualifies
+// for — i.e. has picked the granting Mirage — keyed by the granted jutsu's
+// own slug. At most one grant per slug in practice: no two Mirages in the
+// current book name the same jutsu, and Magnum Opus's own two entries
+// (Bringer of Darkness, Geas) key off different slugs, not each other.
+func (s *server) genjutsuMirageJutsuGrantsForCharacter(characterID int64) (map[string]genjutsuMirageJutsuGrant, error) {
+	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickMirage)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]genjutsuMirageJutsuGrant{}
+	for _, slug := range picks {
+		suffix := strings.TrimPrefix(slug, genjutsuMirageOptionSlugPrefix)
+		for _, grant := range genjutsuMirageJutsuGrants[suffix] {
+			out[grant.JutsuSlug] = grant
+		}
+	}
+	return out, nil
+}
+
+// genjutsuPledgeJutsuGrants keys the two Genjutsu Pledge subclass features
+// (of the 7 total, each an always-on 2nd-level base feature rather than a
+// player pick) whose printed text both names a specific E-Rank Genjutsu the
+// character may not otherwise know AND makes that jutsu castable at 0
+// Chakra unconditionally, with no rest-scoped qualifier — the same
+// genjutsuGrantFreeUnlimited shape Malleable Mirages' own Beast Speech/
+// Myriad Forms/Piece of Mind entries use in genjutsuMirageJutsuGrants above,
+// just keyed by the granting subclass feature's own slug (a
+// grantedFeatureRow, resolved via loadGrantedFeatures) instead of a
+// charstore.ListGenjutsuPicks pick, since neither feature is a choice.
+//
+// Confirmed against dist/rules.db against all 7 Genjutsu Pledge subclasses'
+// own 2nd-level base features: Beguiler's Inspired Appearance ("you gain
+// the E-Rank Genjutsu Transform... You can cast Transform at 0 Cost, as a
+// Bonus Action") and Illusionist's Shaping Your World ("...you gain the
+// E-Rank Genjutsu, Minor Illusion... Minor Illusion costs no chakra to
+// cast") are the only two of the 7 that name a specific jutsu AND grant it
+// an unconditional free cast; the other 5 Pledges' own 2nd-level features
+// either grant no named jutsu at all or (Corrupt Thoughts' Vicious Mockery,
+// Siren's Visceral Language) grant a triggered effect with no separate
+// named-jutsu cast to override.
+var genjutsuPledgeJutsuGrants = map[string]genjutsuMirageJutsuGrant{
+	"class/genjutsu-specialist/group/genjutsu-pledges/beguiler/feature/inspired-appearance": {
+		JutsuSlug: "jutsu/transform", JutsuName: "Transform", Mode: genjutsuGrantFreeUnlimited,
+	},
+	"class/genjutsu-specialist/group/genjutsu-pledges/illusionist/feature/shaping-your-world": {
+		JutsuSlug: "jutsu/minor-illusion", JutsuName: "Minor Illusion", Mode: genjutsuGrantFreeUnlimited,
+	},
+}
+
+// genjutsuPledgeJutsuGrantsForCharacter resolves every genjutsuPledgeJutsuGrants
+// entry the character actually qualifies for — i.e. has the granting
+// subclass feature at their current level — keyed by the granted jutsu's
+// own slug, the same output shape genjutsuMirageJutsuGrantsForCharacter
+// returns so both maps can feed the same CostChakra-override spot in
+// loadCharacterJutsuSheet (characters.go). Reads loadGrantedFeatures
+// directly rather than a stored pick, the same "always-on feature, not a
+// player choice" shape hunterNinRankCeilingGrantsForCharacter
+// (hunter_nin.go) already uses for its own unconditional cost override.
+func (s *server) genjutsuPledgeJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]genjutsuMirageJutsuGrant, error) {
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]genjutsuMirageJutsuGrant{}
+	for _, f := range granted {
+		if grant, ok := genjutsuPledgeJutsuGrants[f.Slug]; ok {
+			out[grant.JutsuSlug] = grant
+		}
+	}
+	return out, nil
+}
+
 // actualizationDieSize: d4 base, d6 at 9th, d8 at 17th — the die's own
 // COUNT (equal to Proficiency Bonus, recovers on short or long rest) is a
 // customResourceGrants entry (custom_resources.go); this is only the size.
@@ -313,7 +515,8 @@ func viciousMockeryDice(genjutsuLevel int) (damage, penalty string) {
 // visceralLanguageDie: Siren's own damage/temp-HP die chart — 1d6 base,
 // 2d6@6th, 3d6@10th, 4d6@14th, 5d6@18th. The feature's own numeric use-pool
 // ("a combined number of times equal to your Genjutsu Ability Modifier per
-// long rest") is explicitly deferred — see the doc comment above.
+// long rest") is implemented separately via genjutsuVisceralLanguagePool
+// (custom_resources.go), not by this function.
 func visceralLanguageDie(genjutsuLevel int) string {
 	switch {
 	case genjutsuLevel >= 18:

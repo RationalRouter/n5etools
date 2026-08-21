@@ -213,6 +213,25 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/ac", s.handleCompanionIntField("ac"))
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/hp_max", s.handleCompanionIntField("hp_max"))
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka_jutsu_slots", s.handleCompanionIntField("matryoshka_jutsu_slots"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_current", s.handleCompanionIntField("jutsu_slots_current"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_max", s.handleCompanionIntField("jutsu_slots_max"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_current", s.handleCompanionIntField("barrier_current"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_max", s.handleCompanionIntField("barrier_max"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-feature", s.handleNinDogFeaturePick)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-hijutsu-trait", s.handleNinDogHijutsuTraitPick)
+	// Titan (Science-Nin Mech Crafter's Ordnance Training) upgrade picks are
+	// character-scoped, not companion-scoped (see titan.go's own doc on why
+	// — "You can only have 1 Titan created at a time" means the Creation
+	// Points budget and Titan Slots belong to the character, independent of
+	// which companion row the live Titan happens to be), so these live
+	// under /characters/{id}/sheet/... like every other Science-Nin
+	// subclass pick, not under /companions/{cid}/....
+	mux.HandleFunc("POST /characters/{id}/sheet/titan-upgrade", s.handleTitanUpgradeAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/titan-upgrade/delete", s.handleTitanPickDelete(charstore.ScienceNinPickTitanUpgrade))
+	mux.HandleFunc("POST /characters/{id}/sheet/titan-exosuit-upgrade", s.handleTitanExoSuitUpgradeAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/titan-exosuit-upgrade/delete", s.handleTitanPickDelete(charstore.ScienceNinPickTitanExosuitUpgrade))
+	mux.HandleFunc("POST /characters/{id}/sheet/titan-specialist-crafting-keyword", s.handleTitanSpecialistCraftingKeywordSet)
+	mux.HandleFunc("GET /titan-upgrades/{slug...}", s.handleTitanUpgradeDetail)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka-split", s.handlePuppetMatryoshkaSplit)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka-merge", s.handlePuppetMatryoshkaMerge)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/upgrades", s.handlePuppetUpgradeAdd)
@@ -261,6 +280,11 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/anti-chakra-wavelength", s.handleAntiChakraWavelength)
 	mux.HandleFunc("POST /characters/{id}/sheet/food-for-the-soul", s.handleFoodForTheSoul)
 	mux.HandleFunc("POST /characters/{id}/sheet/fast-and-furious", s.handleFastAndFurious)
+	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-implement", s.handleCookingToolImplement)
+	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-damage-type", s.handleCookingToolDamageType)
+	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l1", s.handleCookingToolPropertyL1)
+	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l6", s.handleCookingToolPropertyL6)
+	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l11", s.handleCookingToolPropertyL11)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement", s.handleCookingNinBlendEnhancementAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement/delete", s.handleCookingNinBlendEnhancementDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine", s.handleMedicalDoctrineAdd)
@@ -336,11 +360,12 @@ func (s *server) routes() http.Handler {
 	// The 8 Hunter's Creeds' own subclass-exclusive picks — see
 	// hunterTechniquesTabData's own doc comment (hunter_nin.go). Arsenal
 	// Item's add route is its own handler (handleHunterArsenalItemAdd), not
-	// the shared handleHunterPickAdd factory, since picking one of 3
-	// specific items also learns a jutsu; its delete route stays the
-	// generic handleHunterPickDelete, which does NOT forget that learned
-	// jutsu — matching every other "forget a pick" route on this sheet,
-	// none of which cascade into unrelated tables.
+	// the shared handleHunterPickAdd factory, since 3 of its 14 options are
+	// real jutsu; its delete route is still the generic handleHunterPickDelete
+	// with no cascade needed, since the jutsu grant itself is computed
+	// straight off this pick (hunterNinArsenalItemGrantedJutsu, hunter_nin.go)
+	// rather than stored as its own character_jutsu row — there is nothing
+	// for the delete route to forget beyond the pick itself.
 	mux.HandleFunc("POST /characters/{id}/sheet/warden-weapon", s.handleHunterPickAdd(charstore.HunterPickWardenWeapon,
 		func(d *hunterTechniquesTabData) int { return d.WardenWeaponUsed },
 		func(d *hunterTechniquesTabData) int { return d.WardenWeaponCap },
@@ -384,10 +409,10 @@ func (s *server) routes() http.Handler {
 		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableProstheticAttachment }))
 	mux.HandleFunc("POST /characters/{id}/sheet/prosthetic-attachment/delete", s.handleHunterPickDelete(charstore.HunterPickProstheticAttachment))
 	// Wolf Technique's add route is its own handler (handleHunterWolfTechniqueAdd),
-	// not the shared handleHunterPickAdd factory, since picking one always
-	// also learns the matching jutsu (same reason Arsenal Item above uses
-	// its own handler) — its delete route stays the generic
-	// handleHunterPickDelete, which does NOT forget that learned jutsu.
+	// not the shared handleHunterPickAdd factory, since every option is a
+	// real jutsu (same reason Arsenal Item above uses its own handler) —
+	// its delete route is still the generic handleHunterPickDelete, same
+	// "nothing to cascade" reasoning as Arsenal Item's own comment above.
 	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique", s.handleHunterWolfTechniqueAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique/delete", s.handleHunterPickDelete(charstore.HunterPickWolfTechnique))
 	mux.HandleFunc("GET /hunter-techniques/{category}/{slug...}", s.handleHunterPickDetail)

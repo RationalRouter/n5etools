@@ -255,6 +255,63 @@ var medicalAssassinationTechniques = []hunterPickOption{
 	{Slug: "salutary", Name: "Salutary", Description: "This jutsu reduces its base cost by 2."},
 }
 
+// hunterNinRankCeilingGrant names a jutsu whose Chakra cost is overridden to
+// 0 at or below a fixed rank threshold, with every rank above the threshold
+// left at its own normal, unmodified cost. This is a different shape from
+// genjutsuMirageJutsuGrantMode's three values (genjutsu.go): none of them
+// represent a rank-conditional override. genjutsuGrantFreeUnlimited zeroes
+// the cost anchor BEFORE buildUpcastOptions (characters.go) runs, so every
+// upcast rank reflows from that zeroed anchor — undercharging every rank
+// above the threshold instead of leaving it at full price, which is wrong
+// for a "free at C-Rank or fewer, full price above that" clause. The two
+// limited modes gate behind a per-rest use-count pool this feature has none
+// of — its own effect is unconditional and permanent once the granting
+// level is reached, not a spendable resource. See
+// hunterNinRankCeilingGrantsForCharacter below for how this is applied:
+// AFTER buildUpcastOptions computes the jutsu's real per-rank cost table,
+// zeroing only the entries at or below MaxFreeRank.
+type hunterNinRankCeilingGrant struct {
+	JutsuSlug   string
+	MaxFreeRank string // a jutsuRankOrder key (characters.go) — this rank and every rank below it costs 0
+}
+
+// hunterNinRankCeilingGrants: the granting feature's own slug -> the
+// rank-ceiling override it applies. Necrotic Hand's Dr. Death (17th level):
+// "Casting Necrosis at C-Rank or fewer costs 0 Chakra. You also increase
+// the upcasting damage bonus from 1d12, to 2d12 at each rank." Only the
+// Chakra-cost half is modeled here — the doubled upcasting damage bonus is
+// narrated, matching every other Necrotic Hand technique rider
+// (medicalAssassinationTechniques above) staying informational text.
+var hunterNinRankCeilingGrants = map[string]hunterNinRankCeilingGrant{
+	"class/hunter-nin/group/hunters-creeds/necrotic-hand/feature/dr-death": {
+		JutsuSlug:   "jutsu/medical-release-necrosis",
+		MaxFreeRank: "C",
+	},
+}
+
+// hunterNinRankCeilingGrantsForCharacter resolves every rank-ceiling grant
+// (hunterNinRankCeilingGrants) the character actually qualifies for, keyed
+// by the affected jutsu's own slug. Reads loadGrantedFeatures directly
+// rather than a stored pick, since Dr. Death is an automatic, always-on
+// 17th-level feature, not a player choice — loadGrantedFeatures already
+// gates a subclass feature by its own parent class's level (see that
+// function's own doc comment, characters.go), so a character below 17th
+// level in Hunter-Nin, or not Necrotic Hand at all, never has this slug in
+// its output.
+func (s *server) hunterNinRankCeilingGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]hunterNinRankCeilingGrant, error) {
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]hunterNinRankCeilingGrant{}
+	for _, f := range granted {
+		if grant, ok := hunterNinRankCeilingGrants[f.Slug]; ok {
+			out[grant.JutsuSlug] = grant
+		}
+	}
+	return out, nil
+}
+
 // shadowAssassinationTechniques: Grave Stalker's own 8-option Shadow
 // Assassination Technique table (cap 1->2@10th), augmenting the Weapons of
 // Darkness jutsu when cast. Transcribed from the 7th-level "Master
@@ -362,14 +419,16 @@ var prostheticAttachmentOptions = []hunterPickOption{
 // wolfTechniqueJutsuGrants for the "also learn the jutsu" side effect this
 // pick shares with arsenalItems' Manipulated Tools entries) — the rider
 // itself stays narrated, same as every other Hunter-Nin technique table.
-// Deliberately NOT modeled: the alternate casting cost the feature also
-// grants ("cast a jutsu counted as your Wolf Technique by spending two uses
-// of your Prosthetic Attachment instead of spending chakra... always cast
-// as if it were B-Rank... ignores its component requirement") — no analog
-// exists anywhere in the jutsu-casting-cost pipeline for an alternate
-// resource substituting for Chakra, so a player using this still spends
-// Prosthetic Attachment uses (tracked in Special Resources) and narrates
-// the cast manually.
+// The feature's alternate casting cost ("cast a jutsu counted as your Wolf
+// Technique by spending two uses of your Prosthetic Attachment instead of
+// spending chakra... always cast as if it were B-Rank") IS modeled — see
+// hunterNinJutsuGrantsForCharacter below, which surfaces it as a separate
+// "Cast via Prosthetic Attachments" button (jutsuSheetRow.FreeCast,
+// characters.go) alongside the normal Cast button. Only the Chakra
+// substitution and fixed B-Rank are tracked; the component-requirement
+// waiver ("ignores its component requirement, instead being able to be
+// cast using any weapon") stays narrated, since this app has no
+// component-requirement mechanic of any kind to waive.
 var wolfTechniqueOptions = []hunterPickOption{
 	{Slug: "jutsu/weapon-deflect", Name: "Weapon Deflect", Description: "Learns the Weapon Deflect jutsu, counted as your Wolf Technique. Bonus damage increases to a d10."},
 	{Slug: "jutsu/weapon-break", Name: "Weapon Break", Description: "Learns the Weapon Break jutsu, counted as your Wolf Technique. Your weapon is treated as a B-Rank or a +2, whichever is higher in the given scenario."},
@@ -380,12 +439,14 @@ var wolfTechniqueOptions = []hunterPickOption{
 }
 
 // wolfTechniqueJutsuGrants: wolfTechniqueOptions' own Slug -> the jutsu slug
-// charstore.AddJutsu should learn when that pick is added — "The jutsu
-// selected are added to your Jutsu known" (Wolf Techniques' own text). Every
-// wolfTechniqueOptions entry IS a jutsu slug already (unlike arsenalItems,
-// which mixes 3 jutsu among 11 non-jutsu items), so this is an identity map
-// kept as its own named lookup for the same "explicit map, not a prefix
-// check" reasoning arsenalJutsuGrants documents.
+// a Wolf Technique pick grants — "The jutsu selected are added to your Jutsu
+// known" (Wolf Techniques' own text). Every wolfTechniqueOptions entry IS a
+// jutsu slug already (unlike arsenalItems, which mixes 3 jutsu among 11
+// non-jutsu items), so this is an identity map kept as its own named lookup
+// for the same "explicit map, not a prefix check" reasoning arsenalJutsuGrants
+// documents. Consumed by hunterNinWolfTechniqueGrantedJutsu below, not by a
+// direct charstore.AddJutsu call at pick time — see that function's own doc
+// comment for why.
 var wolfTechniqueJutsuGrants = map[string]string{
 	"jutsu/weapon-deflect":         "jutsu/weapon-deflect",
 	"jutsu/weapon-break":           "jutsu/weapon-break",
@@ -395,17 +456,111 @@ var wolfTechniqueJutsuGrants = map[string]string{
 	"jutsu/judgement-cut":          "jutsu/judgement-cut",
 }
 
+// hunterNinWolfTechniqueGrantedJutsu returns the character's own picked Wolf
+// Technique(s) as slug -> a short badge label, the same "compute from a
+// picks table, never insert into character_jutsu" pattern
+// scoutNinMobileSavantGrantedJutsu (scout_nin.go) and
+// puppetUpgradeTableGrantedJutsu (puppet_upgrade_jutsu_grants.go) already
+// use — merged into characters.go's loadCharacterJutsuSheet alongside those
+// two. Wolf Techniques used to also call charstore.AddJutsu directly at pick
+// time (a real character_jutsu row, indistinguishable from a self-learned
+// jutsu — no SourceLabel, live delete button, counted against
+// JutsuKnownCap), which left the jutsu permanently unbadged and let the two
+// tables (character_jutsu and character_hunter_nin_picks) desync in either
+// direction: forgetting the pick left an orphaned jutsu row behind, and
+// deleting the jutsu directly from the Jutsu tab left the pick showing as
+// still known with nothing on the sheet to back it. Resolving this purely
+// from the picks table (already written by handleHunterWolfTechniqueAdd/
+// removed by handleHunterPickDelete) closes both directions at once: there
+// is no longer a second row to fall out of sync with the first.
+func (s *server) hunterNinWolfTechniqueGrantedJutsu(characterID int64) (map[string]string, error) {
+	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickWolfTechnique)
+	if err != nil {
+		return nil, err
+	}
+	if len(picks) == 0 {
+		return nil, nil
+	}
+	labels := make(map[string]string, len(picks))
+	for _, slug := range picks {
+		if jutsuSlug, ok := wolfTechniqueJutsuGrants[slug]; ok {
+			labels[jutsuSlug] = "Wolf Technique"
+		}
+	}
+	return labels, nil
+}
+
+// hunterNinJutsuGrant is Hunter-Nin's own version of genjutsuMirageJutsuGrant
+// (genjutsu.go) — a jutsu whose cast can be paid for from a rest-scoped pool
+// instead of Chakra. Two fields genjutsuMirageJutsuGrant has no need for:
+// every Malleable Mirage spends exactly one pool use and casts at the
+// jutsu's own printed rank, but Wolf Techniques' own alternate-cost clause
+// spends two Prosthetic Attachment uses per cast and locks the cast to
+// B-Rank regardless of the jutsu's own printed rank ("always cast as if it
+// were B-Rank"), so UsesPerCast and CastRank carry those two overrides
+// through to jutsuFreeCastGrant (characters.go).
+type hunterNinJutsuGrant struct {
+	JutsuSlug   string
+	ResourceKey string // a customResourceGrants key (custom_resources.go)
+	Cost        int    // Chakra cost paid alongside the pool spend
+	UsesPerCast int    // pool uses spent per cast
+	CastRank    string // fixed cast rank; "" means the jutsu's own printed Rank
+}
+
+// Wolves Legacy's Wolf Techniques (10th level): "You can cast a jutsu
+// counted as your Wolf Technique, by spending two uses of your Prosthetic
+// Attachment instead of spending chakra... always cast as if it were
+// B-Rank." ResourceKey must match custom_resources.go's own Key for the
+// "wolfs-proficiency" grant.
+const (
+	hunterNinWolfTechniqueResourceKey = "prosthetic_attachments"
+	hunterNinWolfTechniqueUsesPerCast = 2
+	hunterNinWolfTechniqueCastRank    = "B"
+)
+
+// hunterNinJutsuGrantsForCharacter resolves every Hunter-Nin jutsu grant
+// the character actually qualifies for, keyed by the affected jutsu's own
+// slug — mirrors genjutsuMirageJutsuGrantsForCharacter's own shape
+// (genjutsu.go). Wolf Techniques is the only source today: the alternate
+// cost only ever applies to a jutsu the character has actually picked as
+// their own Wolf Technique (charstore.HunterPickWolfTechnique), not offered
+// unconditionally to every Wolves Legacy character — every
+// wolfTechniqueOptions Slug is already the jutsu's own slug
+// (wolfTechniqueJutsuGrants is an identity map), so a stored pick maps
+// straight onto the jutsu it names.
+func (s *server) hunterNinJutsuGrantsForCharacter(characterID int64) (map[string]hunterNinJutsuGrant, error) {
+	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickWolfTechnique)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]hunterNinJutsuGrant{}
+	for _, slug := range picks {
+		jutsuSlug, ok := wolfTechniqueJutsuGrants[slug]
+		if !ok {
+			continue
+		}
+		out[jutsuSlug] = hunterNinJutsuGrant{
+			JutsuSlug:   jutsuSlug,
+			ResourceKey: hunterNinWolfTechniqueResourceKey,
+			Cost:        0,
+			UsesPerCast: hunterNinWolfTechniqueUsesPerCast,
+			CastRank:    hunterNinWolfTechniqueCastRank,
+		}
+	}
+	return out, nil
+}
+
 // arsenalItems: Arsenalist's own 14-option Arsenal catalog (cap 4->6@10th),
 // transcribed directly from Arsenal's Proficiency's own row (unlike its 6
 // sibling subclasses' tables, this one is NOT mistagged elsewhere). Three
 // entries are real jutsu (Manipulated Tools: Blade Kick/Rain/Wall) — see
-// arsenalJutsuGrants, which learns the matching jutsu automatically when
-// one of these three is picked, the same generic charstore.AddJutsu call
-// the Jutsu tab's own "Learn" button uses. Everything else about the
-// Arsenal stays Group 2/3 informational text (Arsenal Jutsu's -1/-2/-3
-// cost reduction, Arsenal Weapons' +2/+4/+6 damage and die-step, the
-// Lethal-Attack trigger override) — only which 4-6 items are in the
-// Arsenal, and the 3 jutsu grants, are tracked.
+// arsenalJutsuGrants, which grants the matching jutsu automatically
+// (computed off the pick, via hunterNinArsenalItemGrantedJutsu) when one of
+// these three is picked. Everything else about the Arsenal stays Group 2/3
+// informational text (Arsenal Jutsu's -1/-2/-3 cost reduction, Arsenal
+// Weapons' +2/+4/+6 damage and die-step, the Lethal-Attack trigger
+// override) — only which 4-6 items are in the Arsenal, and the 3 jutsu
+// grants, are tracked.
 var arsenalItems = []hunterPickOption{
 	{Slug: "jutsu/manipulated-tools-blade-kick", Name: "Manipulated Tools: Blade Kick", Description: "Learns the Manipulated Tools: Blade Kick jutsu, added to your Arsenal."},
 	{Slug: "jutsu/manipulated-tools-blade-rain", Name: "Manipulated Tools: Blade Rain", Description: "Learns the Manipulated Tools: Blade Rain jutsu, added to your Arsenal."},
@@ -424,15 +579,41 @@ var arsenalItems = []hunterPickOption{
 }
 
 // arsenalJutsuGrants: the 3 arsenalItems slugs that are real jutsu rows,
-// mapped to the jutsu slug charstore.AddJutsu should learn when that item
-// is picked — "If you select a jutsu, you learn it" (Arsenal's
-// Proficiency's own text). Keyed by the pick's own Slug rather than a
-// prefix check, the same explicit-map shape huntersExploitAutoGrants
-// already uses.
+// mapped to the jutsu slug an Arsenal Item pick grants — "If you select a
+// jutsu, you learn it" (Arsenal's Proficiency's own text). Keyed by the
+// pick's own Slug rather than a prefix check, the same explicit-map shape
+// huntersExploitAutoGrants already uses. Consumed by
+// hunterNinArsenalItemGrantedJutsu below, not by a direct charstore.AddJutsu
+// call at pick time — see that function's own doc comment for why.
 var arsenalJutsuGrants = map[string]string{
 	"jutsu/manipulated-tools-blade-kick": "jutsu/manipulated-tools-blade-kick",
 	"jutsu/manipulated-tools-blade-rain": "jutsu/manipulated-tools-blade-rain",
 	"jutsu/manipulated-tools-blade-wall": "jutsu/manipulated-tools-blade-wall",
+}
+
+// hunterNinArsenalItemGrantedJutsu returns the character's own picked
+// Arsenal Item(s) that are real jutsu (arsenalJutsuGrants) as slug -> a
+// short badge label — mirrors hunterNinWolfTechniqueGrantedJutsu's own
+// "compute from the picks table, never insert into character_jutsu"
+// approach and the same reasoning for why (see that function's doc
+// comment). Most arsenalItems picks aren't jutsu at all (Paper Bombs,
+// weapon-keyword entries, etc.), so a pick with no arsenalJutsuGrants entry
+// simply contributes nothing here.
+func (s *server) hunterNinArsenalItemGrantedJutsu(characterID int64) (map[string]string, error) {
+	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickArsenalItem)
+	if err != nil {
+		return nil, err
+	}
+	if len(picks) == 0 {
+		return nil, nil
+	}
+	labels := make(map[string]string, len(picks))
+	for _, slug := range picks {
+		if jutsuSlug, ok := arsenalJutsuGrants[slug]; ok {
+			labels[jutsuSlug] = "Arsenal Item"
+		}
+	}
+	return labels, nil
 }
 
 // hunterNinClassLevel returns the character's own Hunter-Nin class level, or
@@ -1337,13 +1518,13 @@ func (s *server) handleHunterPickAdd(
 }
 
 // handleHunterArsenalItemAdd is handleHunterPickAdd's own validation/cap
-// logic for the one category (Arsenal Items) that needs a side effect on
-// top of the plain pick: "If you select a jutsu, you learn it" (Arsenal's
-// Proficiency's own text) — 3 of the 14 Arsenal items are real jutsu (see
-// arsenalJutsuGrants), so a successful add also calls the same generic
-// charstore.AddJutsu the Jutsu tab's own "Learn" button uses. A thin
-// wrapper duplicating handleHunterPickAdd's body rather than threading an
-// optional callback through that shared factory for one caller.
+// logic for Arsenal Items, kept as its own handler (rather than the shared
+// handleHunterPickAdd factory) since 3 of the 14 items are real jutsu (see
+// arsenalJutsuGrants) — "If you select a jutsu, you learn it" (Arsenal's
+// Proficiency's own text). The jutsu grant itself is resolved separately by
+// hunterNinArsenalItemGrantedJutsu off the pick this handler writes, not by
+// a direct charstore.AddJutsu call here — see that function's own doc
+// comment for why storing a real character_jutsu row was the wrong shape.
 func (s *server) handleHunterArsenalItemAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1395,23 +1576,17 @@ func (s *server) handleHunterArsenalItemAdd(w http.ResponseWriter, r *http.Reque
 		log.Println("add arsenal item pick:", err)
 		return
 	}
-	if jutsuSlug, ok := arsenalJutsuGrants[slug]; ok {
-		if err := charstore.AddJutsu(s.charDB, id, jutsuSlug, sheet.Level); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("learn arsenal item jutsu:", err)
-			return
-		}
-	}
 	s.respondSheet(w, r, id, "sheet_hunter_techniques")
 }
 
 // handleHunterWolfTechniqueAdd mirrors handleHunterArsenalItemAdd's own
-// shape: "The jutsu selected are added to your Jutsu known" (Wolf
-// Techniques' own text) means every successful pick also learns the
-// matching jutsu via the same generic charstore.AddJutsu the Jutsu tab's
-// own "Learn" button uses. Unlike Arsenal Items, every wolfTechniqueOptions
-// entry grants a jutsu (see wolfTechniqueJutsuGrants), so this always fires
-// on a valid pick, not conditionally.
+// shape: kept as its own handler since every wolfTechniqueOptions entry is a
+// real jutsu (wolfTechniqueJutsuGrants) — "The jutsu selected are added to
+// your Jutsu known" (Wolf Techniques' own text). The jutsu grant itself is
+// resolved separately by hunterNinWolfTechniqueGrantedJutsu off the pick
+// this handler writes, not by a direct charstore.AddJutsu call here — see
+// that function's own doc comment for why storing a real character_jutsu
+// row was the wrong shape.
 func (s *server) handleHunterWolfTechniqueAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1462,13 +1637,6 @@ func (s *server) handleHunterWolfTechniqueAdd(w http.ResponseWriter, r *http.Req
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("add wolf technique pick:", err)
 		return
-	}
-	if jutsuSlug, ok := wolfTechniqueJutsuGrants[slug]; ok {
-		if err := charstore.AddJutsu(s.charDB, id, jutsuSlug, sheet.Level); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("learn wolf technique jutsu:", err)
-			return
-		}
 	}
 	s.respondSheet(w, r, id, "sheet_hunter_techniques")
 }

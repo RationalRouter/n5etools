@@ -217,22 +217,27 @@ var jutsuGrantNameAliases = map[string]string{
 	"necrosis": "jutsu/medical-release-necrosis",
 }
 
-// loadGrantedJutsuLabels finds every jutsu a character's class, subclass, or
-// clan features grant for free at their current level — "Beginning at 1st
-// level, as a Puppet Master you learn the Chakra Hands E-Rank Ninjutsu for
-// free" and its like — and returns them as slug -> a short badge label
-// ("Class Feature", "Subclass Feature", or "Clan").
+// loadGrantedJutsuLabels finds every jutsu a character's class, subclass,
+// clan, or feat features grant for free at their current level — "Beginning
+// at 1st level, as a Puppet Master you learn the Chakra Hands E-Rank
+// Ninjutsu for free" and its like — and returns them as slug -> a short
+// badge label ("Class Feature", "Subclass Feature", "Clan", or "Feat").
 //
-// Reuses loadGrantedFeatures rather than querying class_features/
-// clan_features again: that function already resolves the real level each
-// feature is gained at (COALESCE(level_override, level) via v_class_features
-// / v_clan_features) and already filters to features the character has
-// actually reached. A feature's own level is only the FALLBACK level for a
-// jutsu it grants, though — Hoshigaki's Commander of the Deep is itself a
-// 1st-level feature whose Summoning Technique grant explicitly starts at
-// 7th level, so the two can't be conflated.
+// Reuses loadMergedGrantedFeatures rather than querying class_features/
+// clan_features/character_feats again: that function already resolves the
+// real level each feature is gained at (COALESCE(level_override, level) via
+// v_class_features/v_clan_features, ChosenAtLevel for feats) and already
+// filters to features the character has actually reached, folding in taken
+// feats (mergeFeatFeatures) alongside the class/subclass/clan list — a plain
+// loadGrantedFeatures call would leave every feat invisible to the regex
+// scan below, silently dropping a feat's own named-jutsu grant (e.g.
+// Hanami's Mass Release, Hebi's Serpentine Ally) regardless of phrasing. A
+// feature's own level is only the FALLBACK level for a jutsu it grants,
+// though — Hoshigaki's Commander of the Deep is itself a 1st-level feature
+// whose Summoning Technique grant explicitly starts at 7th level, so the two
+// can't be conflated.
 func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Sheet) (map[string]string, error) {
-	grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
 	}
@@ -254,6 +259,15 @@ func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Shee
 			label = "Subclass Feature"
 		case strings.HasPrefix(f.SourceLabel, "Racial:"):
 			label = "Clan"
+		case strings.HasPrefix(f.SourceLabel, "Mixed Studies:"):
+			// Science-Nin's Mixed Studies (18th level, mergeMixedStudiesFeatures)
+			// borrows another Scientific Inquiry's own 3rd-level feature rows
+			// wholesale — functionally a subclass feature, just not the
+			// character's own native subclass, so it gets the same badge a
+			// native holder's "Subclass:"-prefixed row above would.
+			label = "Subclass Feature"
+		case strings.HasPrefix(f.SourceLabel, "Feat"):
+			label = "Feat"
 		default:
 			continue
 		}
@@ -311,6 +325,69 @@ func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Shee
 		}
 	}
 
+	// Spyware's Familiar Faces (9th level): "You can spend 1 charge of a
+	// disguise kit to cast the Transform Genjutsu as if it were on your
+	// jutsu list. You can spend 5 charges to cast the Advanced
+	// Transformation Ninjutsu as if it were on your jutsu list, paying 5
+	// CCD chakra." Same shape as Adaptive Movement just above — only the
+	// free known-jutsu grant reaching the Known Jutsu list is tracked here;
+	// the Disguise Kit/Hacker's Kit charge costs gating each cast, and
+	// Advanced Transformation's own 5-CCD-chakra payment, stay entirely
+	// manual/narrated (see scienceNinFamiliarFacesFeatureSlug's own doc
+	// comment, science_nin_subclasses.go, for why no kit-charge tracking
+	// mechanism exists anywhere in this app to build the alternate-cost
+	// half against).
+	if hasFeature(grantedFeatures, scienceNinFamiliarFacesFeatureSlug) {
+		for _, slug := range []string{"jutsu/transform", "jutsu/advanced-transformation"} {
+			if _, exists := labels[slug]; !exists {
+				labels[slug] = "Subclass Feature"
+			}
+		}
+	}
+
+	// Genjutsu Specialist's Malleable Mirages: a picked Mirage can let its
+	// owner cast a specific jutsu "as if you know it" (genjutsu.go's
+	// genjutsuMirageJutsuGrants) — same "Class Feature" badge and known-list
+	// membership every other free grant in this function gets, regardless
+	// of whether the player separately already knows the jutsu themselves
+	// (see loadCharacterJutsuSheet: SourceLabel is looked up for every slug
+	// in the union of character_jutsu and this map, not just newly-added
+	// ones, so an already-known jutsu still picks up the badge here). The
+	// actual reduced-chakra-cost mechanics are a separate concern, handled
+	// entirely in loadCharacterJutsuSheet/jutsuSheetRow.FreeCast — this only
+	// grants the jutsu's presence on the known list.
+	mirageGrants, err := s.genjutsuMirageJutsuGrantsForCharacter(characterID)
+	if err != nil {
+		return nil, err
+	}
+	for slug := range mirageGrants {
+		if _, exists := labels[slug]; !exists {
+			labels[slug] = "Class Feature"
+		}
+	}
+
+	// Interrogationist's Unerring Eye/Perfect Mind (Intelligence Operative):
+	// each lets its owner cast a specific named jutsu "as if you know it" —
+	// same known-list membership every other free grant in this function
+	// gets (see intelligenceOperativeJutsuGrants' own doc comment,
+	// intelligence_operative.go). Labeled "Subclass Feature" rather than
+	// "Class Feature" since both granting features are Interrogationist
+	// subclass features, not base-class features — the same label
+	// loadGrantedFeatures' own "Subclass:"-prefixed SourceLabel resolves to
+	// earlier in this function. The alternate-cost mechanics are a separate
+	// concern, handled entirely in loadCharacterJutsuSheet/
+	// jutsuSheetRow.FreeCast — this only grants the jutsu's presence on the
+	// known list.
+	ioGrants, err := s.intelligenceOperativeJutsuGrantsForCharacter(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	for slug := range ioGrants {
+		if _, exists := labels[slug]; !exists {
+			labels[slug] = "Subclass Feature"
+		}
+	}
+
 	return labels, nil
 }
 
@@ -364,9 +441,12 @@ func (s *server) controlledChakraFlowGrantedJutsu(characterID int64, grantedFeat
 }
 
 // jutsuKnownCount counts how many of a character's jutsu count against
-// JutsuKnownCap — every row except the free class-feature/clan grants
-// loadGrantedJutsuLabels adds, which the book states explicitly don't
-// count against what a character knows.
+// JutsuKnownCap — every row except the free grants this app tracks via a
+// non-empty SourceLabel (loadGrantedJutsuLabels' own class/subclass/clan/
+// feat scan, plus every other compute-only grant merged alongside it in
+// loadCharacterJutsuSheet — Puppet Upgrade, Mobile Savant, Medical Doctrine,
+// Arsenal Item, Wolf Technique), all of which the book states explicitly
+// don't count against what a character knows.
 func jutsuKnownCount(jutsu []jutsuSheetRow) int {
 	n := 0
 	for _, j := range jutsu {

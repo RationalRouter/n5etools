@@ -176,15 +176,21 @@ var puppetToolUnitCardRe = regexp.MustCompile(
 		`(\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) ` +
 		`Senses Passive Perception (\d+) (.+)$`)
 
-// artistCreditRe strips a stray "Artist Credit: <name> on <site>" image
-// caption the flat PDF text extractor sometimes glues onto the end of a
-// feature's real prose — confirmed on Weapon Specialist's Superior Weapon
-// Flurry ("... Artist Credit: KSatoshiK on DeviantArt"). The caption always
-// belongs to a nearby illustration, never the feature's own rules text, and
-// always trails whatever block it lands in, so a trailing-anchor strip is
-// enough — no per-instance customization needed, unlike puppetToolUnitCardRe
-// above.
-var artistCreditRe = regexp.MustCompile(`\s*Artist Credit:.*$`)
+// artistCreditRe strips a stray image/artist-credit caption the flat PDF
+// text extractor glues onto nearby rules prose — confirmed in the wild in
+// several distinct shapes: "Artist Credit: X on Y" (Weapon Specialist's
+// Superior Weapon Flurry), bare "Credit: X on Y" with no "Artist" prefix
+// (Cooking-Nin's Shinobi Snacks and most of its subclass features), the
+// standalone-heading form "ART CREDIT This picture comes from X on Y"
+// glued inline instead of sitting on its own line (a Konjiki feat), and
+// "Wiki The second picture comes from X on Y" (a Haruno jutsu). The caption
+// always belongs to a nearby illustration, never the rules text itself, but
+// it does not always trail the whole field — twice now it landed
+// mid-paragraph, immediately before the next bullet ("• Some Effect: ...").
+// [^•]* stops at that bullet when one follows, and otherwise (the more
+// common case) runs to the end of the string, so one regex covers both
+// shapes without per-instance customization.
+var artistCreditRe = regexp.MustCompile(`(?:(?:Artist )?Credit:|ART CREDIT|Wiki The (?:second )?picture comes from)[^•]*`)
 
 func stripArtistCredit(s string) string {
 	return strings.TrimSpace(artistCreditRe.ReplaceAllString(s, ""))

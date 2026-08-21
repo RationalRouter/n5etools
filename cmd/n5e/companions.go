@@ -53,6 +53,81 @@ func companionRespondFragment(r *http.Request) string {
 	}
 }
 
+// companionKindLabels maps a companion's raw stored Kind value to its
+// display label — the same small ordered-lookup-table shape items.go's own
+// itemKindLabel/itemKindLabels use for a different "kind" concept (item
+// categories), kept as a separate table since companion kind and item kind
+// are unrelated vocabularies, but the same "small table, fallback to the
+// raw value" pattern applies. "custom" maps to "Other" specifically to
+// match the Add Companion dropdown's own existing option text
+// (character_sheet.html's sheet_companions define block), not a generic
+// Title Case of "custom", so a companion's kind badge and the dropdown that
+// created it never disagree on what to call it.
+var companionKindLabels = []struct{ kind, label string }{
+	{"puppet", "Puppet"},
+	{"summon", "Summon"},
+	{"nin-dog", "Nin-Dog"},
+	{"titan", "Titan"},
+	{"custom", "Other"},
+}
+
+// companionKindLabel resolves one companion kind's display label — shared
+// by every place a companion's raw kind string would otherwise render
+// verbatim as user-facing text (the Core tab's Companions box, the
+// Companions tab's per-companion card header, the standalone companion
+// popup's own header), so a future new kind only needs adding here once
+// instead of at each render site individually, and so those render sites
+// can never drift on what a given kind is called. Falls back to the raw
+// kind string for anything not in the table (defensive; every kind
+// handleSheetCompanionAdd accepts already has an entry here).
+func companionKindLabel(kind string) string {
+	for _, k := range companionKindLabels {
+		if k.kind == kind {
+			return k.label
+		}
+	}
+	return kind
+}
+
+// companionStructuredAttackKinds whitelists which companion kinds have
+// reached the structured, rollable Attacks presentation (as opposed to the
+// plain freeform textarea every other kind still falls back to) — puppet
+// (the original), nin-dog, and titan (see the "Attacks section should be
+// rollable, not typed" fix, which had the identical free-text bug and fix
+// shape for both companion kinds — companion_fields.html's own doc on the
+// shared {{else}} textarea branch).
+var companionStructuredAttackKinds = map[string]bool{
+	"puppet":  true,
+	"nin-dog": true,
+	"titan":   true,
+}
+
+// companionSupportsStructuredAttacks reports whether kind has reached the
+// structured Attacks presentation — used both to gate the template data a
+// popup/tab card is given (ShowStructuredAttacks/ReadOnlyAttacks) and to
+// guard the attack add/delete handlers server-side, so a stale or
+// hand-crafted form POST can't add a structured attack row to a kind whose
+// own card still renders the plain textarea.
+func companionSupportsStructuredAttacks(kind string) bool {
+	return companionStructuredAttackKinds[kind]
+}
+
+// companionAttacksFragment returns which sheet fragment holds a companion's
+// own structured-attacks card, so the attack add/delete handlers can
+// respond with the fragment that actually contains the row that changed
+// instead of a fragment name hardcoded to one kind. Puppet-kind companions
+// only ever render their structured Attacks on the Puppets tab
+// (sheet_puppet_tab); every other kind that supports structured attacks
+// (nin-dog, titan) renders on the Companions tab instead (sheet_summon_tab
+// — see loadSummonsTabData's own no-kind-filter doc for why every non-puppet
+// kind lands there).
+func companionAttacksFragment(kind string) string {
+	if kind == "puppet" {
+		return "sheet_puppet_tab"
+	}
+	return "sheet_summon_tab"
+}
+
 // parseCharacterAndCompanionID reads the {id}/{cid} path values shared by
 // every companion route, the same "NotFound rather than a parse error"
 // contract parseCharacterAndRowID uses for inventory rows.
@@ -88,7 +163,7 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	kind := r.FormValue("kind")
-	if kind != "puppet" && kind != "summon" && kind != "custom" {
+	if kind != "puppet" && kind != "summon" && kind != "custom" && kind != "nin-dog" && kind != "titan" {
 		http.Error(w, "bad kind", http.StatusBadRequest)
 		return
 	}
@@ -105,6 +180,19 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 			// just leaves it starting blank like any other companion —
 			// not worth failing the whole add over.
 			log.Println("prefill puppet stat defaults:", err)
+		}
+	}
+	if kind == "nin-dog" {
+		if err := s.prefillNinDogStatDefaults(id, companionID); err != nil {
+			log.Println("prefill nin-dog stat defaults:", err)
+		}
+	}
+	if kind == "titan" {
+		if err := s.prefillTitanStatDefaults(id, companionID); err != nil {
+			// A character with no Ordnance Training yet just leaves the
+			// companion starting blank, same as prefillNinDogStatDefaults'
+			// own treatment of a load failure just above.
+			log.Println("prefill titan stat defaults:", err)
 		}
 	}
 	s.respondSheet(w, r, id, companionRespondFragment(r))
@@ -471,24 +559,42 @@ func (s *server) loadSummonTribeOptions() ([]summonTribeOption, error) {
 	return out, rows.Err()
 }
 
-// summonCompanionView is one kind="summon" companion plus its own tribe
-// reference (nil if no tribe chosen yet) — each summon can have a
-// different tribe, so unlike Puppets' single character-wide subclass
-// reference, this is resolved per companion.
+// summonCompanionView is one companion (any kind) plus its own summon-tribe
+// reference (nil for a companion with no tribe chosen — which in practice
+// means every kind except "summon", since only that kind's picker ever
+// writes SummonTribeSlug) — each summon can have a different tribe, so
+// unlike Puppets' single character-wide subclass reference, this is
+// resolved per companion.
 type summonCompanionView struct {
 	charstore.Companion
-	Reference *summonTribeReference
+	Reference       *summonTribeReference
+	NinDogReference *ninDogReference
+	TitanReference  *titanReference
+	// Attacks: only populated for a kind companionSupportsStructuredAttacks
+	// reports true for (nin-dog, titan — puppet has its own richer card on
+	// the Puppets tab instead, see sheet_puppet_tab's own doc). nil for
+	// every other kind, which keeps rendering the plain freeform textarea.
+	Attacks []companionAttackRow
 }
 
-// summonsTabData is everything the Summons tab (and its "sheet_summon_tab"
-// fragment) needs. Deliberately minimal — see the tab panel's own comment
-// for what's explicitly deferred.
+// summonsTabData is everything the main sheet's Companions tab (labeled
+// "Companions" in the UI; internal identifiers here and in
+// character_sheet.html/sheet-puppets.js keep the older "summons"/"summon"
+// naming from before the tab was broadened, rather than a repo-wide rename)
+// and its "sheet_summon_tab" fragment need. Companions is the one
+// companion-related tab shown regardless of class — unlike the Puppets tab
+// (gated on Puppet Master levels), it lists every companion the character
+// has, of any kind, so a companion is never invisible on every tab-level
+// view just because of which kind got picked when it was added (see
+// handleSheetCompanionAdd's own kind whitelist for the full kind list).
+// Deliberately minimal beyond that — see the tab panel's own comment for
+// what's explicitly deferred.
 type summonsTabData struct {
 	Tribes     []summonTribeOption
 	Companions []summonCompanionView
 }
 
-func (s *server) loadSummonsTabData(characterID int64, characterLevel int) (summonsTabData, error) {
+func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (summonsTabData, error) {
 	var data summonsTabData
 	tribes, err := s.loadSummonTribeOptions()
 	if err != nil {
@@ -501,16 +607,39 @@ func (s *server) loadSummonsTabData(characterID int64, characterLevel int) (summ
 		return data, err
 	}
 	for _, c := range all {
-		if c.Kind != "summon" {
-			continue
-		}
 		view := summonCompanionView{Companion: c}
-		if c.SummonTribeSlug != "" {
-			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, characterLevel)
+		if c.Kind == "summon" && c.SummonTribeSlug != "" {
+			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, sheet.Level)
 			if err != nil {
 				return data, err
 			}
 			view.Reference = ref
+		}
+		if c.Kind == "nin-dog" {
+			ref, err := s.loadNinDogReference(characterID, c, sheet.Level)
+			if err != nil {
+				return data, err
+			}
+			view.NinDogReference = ref
+
+			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Attacks = composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus)
+		}
+		if c.Kind == "titan" {
+			ref, err := s.loadTitanReference(characterID, sheet, c)
+			if err != nil {
+				return data, err
+			}
+			view.TitanReference = ref
+
+			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Attacks = composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus)
 		}
 		data.Companions = append(data.Companions, view)
 	}
@@ -703,6 +832,44 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			}
 			data["SummonReference"] = ref
 		}
+	case "nin-dog":
+		ref, err := s.loadNinDogReference(id, companion, sheet.Level)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load nin-dog reference:", err)
+			return
+		}
+		data["NinDogReference"] = ref
+
+		// Same "read-only quick reference, editing happens on the tab"
+		// treatment puppet's own popup case gives structured Attacks above.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for nin-dog popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+	case "titan":
+		ref, err := s.loadTitanReference(id, sheet, companion)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load titan reference:", err)
+			return
+		}
+		data["TitanReference"] = ref
+
+		// Same "read-only quick reference, editing happens on the tab"
+		// treatment nin-dog's own popup case gives structured Attacks above.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for titan popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	}
 
 	s.render(w, "companion_sheet.html", data)
@@ -768,7 +935,8 @@ func (s *server) handleCompanionSave(w http.ResponseWriter, r *http.Request) {
 		speed, flySpeed, str, dex, con, intScore, wis, cha,
 		r.FormValue("attacks"), r.FormValue("traits"), r.FormValue("notes"),
 		strings.TrimSpace(r.FormValue("armor_chassis")), r.FormValue("is_armor_form") == "1",
-		strings.TrimSpace(r.FormValue("size")),
+		strings.TrimSpace(r.FormValue("size")), strings.TrimSpace(r.FormValue("nin_dog_breed")),
+		strings.TrimSpace(r.FormValue("titan_specialization")),
 	)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)

@@ -296,6 +296,16 @@ func nullableCount(n int) any {
 	return n
 }
 
+// nullablePtr stores a nil override as SQL NULL — used for fields (like a
+// jutsu's manual Chakra cost override) where 0 is itself a meaningful,
+// storable value and can't reuse nullableCount's <=0-means-absent sentinel.
+func nullablePtr(n *int) any {
+	if n == nil {
+		return nil
+	}
+	return *n
+}
+
 // UpdateCustomAttack rewrites one custom attack in place, scoped to
 // characterID for the same reason DeleteCustomAttack is.
 //
@@ -442,6 +452,13 @@ type JutsuOptions struct {
 	DamageAbility string
 	DamageBonus   int
 	DamageType    string
+	// CostChakraOverride is a manual override of this jutsu's Chakra cost —
+	// feats, clan traits, or class features that cast a jutsu for a fixed
+	// lower (or occasionally higher) cost than its printed cost_chakra,
+	// independent of upcasting. nil means no override; 0 is itself a valid
+	// override (a jutsu cast for free), which is why this is a pointer
+	// rather than reusing the DamageCount-style <=0-means-absent sentinel.
+	CostChakraOverride *int
 }
 
 // IsDefault reports whether these options say nothing at all, in which case
@@ -449,7 +466,8 @@ type JutsuOptions struct {
 func (o JutsuOptions) IsDefault() bool {
 	return o.AttackAbility == "" && (o.AttackProf == "" || o.AttackProf == "full") &&
 		o.AttackBonus == 0 && o.DamageCount <= 0 && o.DamageSides <= 0 &&
-		o.DamageAbility == "" && o.DamageBonus == 0 && o.DamageType == ""
+		o.DamageAbility == "" && o.DamageBonus == 0 && o.DamageType == "" &&
+		o.CostChakraOverride == nil
 }
 
 // ListJutsuOptions returns every jutsu override this character has, by slug.
@@ -458,7 +476,8 @@ func (o JutsuOptions) IsDefault() bool {
 func ListJutsuOptions(charDB *sql.DB, characterID int64) (map[string]JutsuOptions, error) {
 	rows, err := charDB.Query(`
 		SELECT jutsu_slug, attack_ability, attack_prof, attack_bonus,
-		       damage_count, damage_sides, damage_ability, damage_bonus, COALESCE(damage_type, '')
+		       damage_count, damage_sides, damage_ability, damage_bonus, COALESCE(damage_type, ''),
+		       cost_chakra_override
 		FROM character_jutsu_options WHERE character_id = ?`, characterID)
 	if err != nil {
 		return nil, err
@@ -468,12 +487,17 @@ func ListJutsuOptions(charDB *sql.DB, characterID int64) (map[string]JutsuOption
 	out := map[string]JutsuOptions{}
 	for rows.Next() {
 		var o JutsuOptions
-		var count, sides sql.NullInt64
+		var count, sides, costOverride sql.NullInt64
 		if err := rows.Scan(&o.Slug, &o.AttackAbility, &o.AttackProf, &o.AttackBonus,
-			&count, &sides, &o.DamageAbility, &o.DamageBonus, &o.DamageType); err != nil {
+			&count, &sides, &o.DamageAbility, &o.DamageBonus, &o.DamageType,
+			&costOverride); err != nil {
 			return nil, err
 		}
 		o.DamageCount, o.DamageSides = int(count.Int64), int(sides.Int64)
+		if costOverride.Valid {
+			v := int(costOverride.Int64)
+			o.CostChakraOverride = &v
+		}
 		out[o.Slug] = o
 	}
 	return out, rows.Err()
@@ -492,8 +516,9 @@ func SetJutsuOptions(charDB *sql.DB, characterID int64, o JutsuOptions) error {
 	_, err := charDB.Exec(`
 		INSERT INTO character_jutsu_options
 			(character_id, jutsu_slug, attack_ability, attack_prof, attack_bonus,
-			 damage_count, damage_sides, damage_ability, damage_bonus, damage_type)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 damage_count, damage_sides, damage_ability, damage_bonus, damage_type,
+			 cost_chakra_override)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (character_id, jutsu_slug) DO UPDATE SET
 			attack_ability = excluded.attack_ability,
 			attack_prof    = excluded.attack_prof,
@@ -502,10 +527,12 @@ func SetJutsuOptions(charDB *sql.DB, characterID int64, o JutsuOptions) error {
 			damage_sides   = excluded.damage_sides,
 			damage_ability = excluded.damage_ability,
 			damage_bonus   = excluded.damage_bonus,
-			damage_type    = excluded.damage_type`,
+			damage_type    = excluded.damage_type,
+			cost_chakra_override = excluded.cost_chakra_override`,
 		characterID, o.Slug, o.AttackAbility, o.AttackProf, o.AttackBonus,
 		nullableCount(o.DamageCount), nullableCount(o.DamageSides),
 		o.DamageAbility, o.DamageBonus, o.DamageType,
+		nullablePtr(o.CostChakraOverride),
 	)
 	return err
 }

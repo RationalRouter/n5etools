@@ -34,6 +34,10 @@
   <script src="/static/js/character-sheet.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-fields.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-sheet.js?v={{assetVersion}}" defer></script>
+  {{/* Nin-Dog Breed's own rollover tooltip (companion_fields.html) reuses
+       this generic updater rather than a bespoke popup-only handler — see
+       that file's own comment. */}}
+  <script src="/static/js/sheet-option-tooltip.js?v={{assetVersion}}" defer></script>
 </body>
 </html>
 {{end}}

@@ -92,6 +92,16 @@ const (
 	scienceNinGloriousEvolutionFeatureSlug = "class/science-nin/group/scientific-inquiry/shinobi-ware/feature/glorious-evolution"
 	scienceNinCruelAngelsThesisFeatureSlug = "class/science-nin/group/scientific-inquiry/spyware/feature/cruel-angels-thesis"
 	scienceNinNetrunnerFeatureSlug         = "class/science-nin/group/scientific-inquiry/spyware/feature/netrunner"
+	// scienceNinFamiliarFacesFeatureSlug is Spyware's 9th-level Familiar
+	// Faces — see jutsu_grants.go's loadGrantedJutsuLabels for the two named
+	// jutsu (Transform, Advanced Transformation) it grants "as if it were on
+	// your jutsu list." The Disguise Kit/Hacker's Kit charge costs gating
+	// each cast, and Advanced Transformation's own 5-CCD-chakra payment,
+	// stay entirely manual/narrated — no kit-charge tracking mechanism
+	// exists anywhere in this app, the same deliberate carve-out Cruel
+	// Angel's Thesis's own "expend 7+ Hacker's Kit charges" Program-cast
+	// cost already gets elsewhere in this class.
+	scienceNinFamiliarFacesFeatureSlug = "class/science-nin/group/scientific-inquiry/spyware/feature/familiar-faces"
 	scienceNinAirTrecksFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/air-trecks"
 	scienceNinKingsRoadFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/kings-road"
 	scienceNinBestLaidTrapFeatureSlug      = "class/science-nin/group/scientific-inquiry/technobi/feature/the-best-laid-trap"

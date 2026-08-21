@@ -46,12 +46,16 @@
     {{/* Only shown once the character has at least 1 level in Puppet
          Master — real DOM removal via {{if}}, not just `hidden`, so an
          ungated character never even has a dead tab button sitting there.
-         Summons has no owning class the way Puppets does (see the tab
-         panel's own comment), so it's always present. */}}
+         Companions (data-tab="summons" internally — see the tab panel's own
+         comment for why the id wasn't renamed alongside the label) has no
+         owning class the way Puppets does, so it's always present and
+         lists every companion regardless of kind, including kind="puppet"
+         ones a non-Puppet-Master character could otherwise never see on
+         any tab. */}}
     {{if .PuppetsTab.PuppetMasterLevel}}
     <button type="button" class="sheet-tab-btn" data-tab="puppets">Puppets</button>
     {{end}}
-    <button type="button" class="sheet-tab-btn" data-tab="summons">Summons</button>
+    <button type="button" class="sheet-tab-btn" data-tab="summons">Companions</button>
   </div>
   <div class="sheet-tab-group sheet-tab-group-end">
     <button type="button" class="sheet-tab-btn" data-tab="jutsu">Jutsu</button>
@@ -266,17 +270,23 @@
     {{template "sheet_ryo" (dict "ID" .ID "Sheet" .Sheet)}}
     </div>
 
-    <div class="sheet-box" data-box-id="calculator" data-default-w-cm="7" data-default-h-cm="7">
+    <div class="sheet-box" data-box-id="calculator" data-default-w-cm="7" data-default-h-cm="9">
     <button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button>
     {{/* Moved to sit right under Ryo — it used to be
          after Languages, which has itself moved to the left column below
-         Skills. Collapsed by default so it costs no vertical space until
-         wanted. <details> gives the open/close behaviour natively — no JS,
-         no z-index to fight with the floating dice tray. */}}
-    <details class="sheet-calculator">
+         Skills. Open by default so the keypad is visible without a click;
+         the surrounding .sheet-box's own data-default-w-cm/data-default-h-cm
+         (7cm x 9cm) reserves enough space for the open keypad (measured
+         content height 330px; data-default-h-cm=9 rounds up to a 13-row
+         box, 356px, via computeDefaultState's cm-to-row formula in
+         sheet-layout.js) so it renders with no scrollbar at its default
+         size. <details> gives the open/close behaviour natively — no JS,
+         no z-index to fight with the floating dice tray — closing it still
+         collapses the box down to just the summary line on demand. */}}
+    <details class="sheet-calculator" open>
       <summary>Calculator</summary>
       <div class="sheet-calc">
-        <output class="sheet-calc-display" id="sheet-calc-display">0</output>
+        <input type="text" class="sheet-calc-display" id="sheet-calc-display" value="0" inputmode="decimal" autocomplete="off" readonly aria-label="Calculator display, click and type to enter numbers and operations">
         <div class="sheet-calc-keys">
           <button type="button" data-calc="clear" class="sheet-calc-wide">C</button>
           <button type="button" data-calc="back">←</button>
@@ -682,14 +692,21 @@
 </section>
 {{end}}
 
-{{/* Summons: always present, unlike Puppets — no single class owns
-     summoning the way Puppet Master owns puppets, and gating on "already
-     has a summon companion" would make it impossible to add a first one
-     from a hidden tab. This iteration only moves what the companion popup
-     already showed (tribe picker + rank-gated reference) inline; Puppet-
-     Upgrade-style structured picks and auto-computed baseline stats are
-     explicitly deferred, to be built the same way once this tab gets its
-     own real pass. */}}
+{{/* Companions tab (labeled "Companions" in the UI; internal
+     data-tab-panel/data-sheet-layout/box-id values keep the older
+     "summons" naming rather than a repo-wide rename — see
+     summonsTabData's own doc comment in companions.go): always present,
+     unlike Puppets — no single class owns companion-fielding the way
+     Puppet Master owns puppets, and gating on "already has a companion"
+     would make it impossible to add a first one from a hidden tab. Lists
+     every companion regardless of kind (broadened from the original
+     kind="summon"-only filter — see loadSummonsTabData) so a companion
+     added with any kind, including the "+ Add Companion" dropdown's
+     default selection, always has somewhere to show up. This iteration
+     only moves what the companion popup already showed (tribe picker +
+     rank-gated reference, summon-kind only) inline; Puppet-Upgrade-style
+     structured picks and auto-computed baseline stats stay Puppets-tab-
+     only, explicitly deferred here for non-puppet kinds. */}}
 <section data-tab-panel="summons" hidden class="sheet-summons-layout" data-sheet-layout="summons">
   <div class="sheet-layout-toolbar">
     <div class="sheet-layout-toolbar-left">
@@ -702,7 +719,7 @@
   <div class="sheet-col" data-column="left">
     <div class="sheet-box" data-box-id="summons-list">
       <button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button>
-      <h2>Summons</h2>
+      <h2>Companions</h2>
       {{/* Each summon can have a different tribe, so its reference is
            shown inline in its own card (like the popup already does),
            rather than one shared reference panel the way Puppets'
@@ -1427,7 +1444,7 @@
   <li>
     <a href="/characters/{{$.ID}}/companions/{{.ID}}" class="companion-open-btn" data-companion-popup
        title="Open {{.Name}}'s sheet in its own window">{{.Name}}</a>
-    <span class="option-picker-epithet">{{.Kind}}</span>
+    <span class="option-picker-epithet">{{companionKindLabel .Kind}}</span>
     <form method="post" action="/characters/{{$.ID}}/sheet/companions/{{.ID}}/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-companions" data-also-refresh="sheet-puppet-tab sheet-summon-tab">
       <button type="submit" class="sheet-delete-btn" aria-label="Delete {{.Name}}" title="Delete">&times;</button>
     </form>
@@ -1439,11 +1456,17 @@
 </ul>
 <form method="post" action="/characters/{{.ID}}/sheet/companions" class="sheet-panel-form sheet-fetch-form" data-target="sheet-companions" data-also-refresh="sheet-puppet-tab sheet-summon-tab">
   <input type="text" name="name" placeholder="Companion name" required>
-  <select name="kind">
-    <option value="puppet">Puppet</option>
-    <option value="summon">Summon</option>
-    <option value="custom">Other</option>
+  <select name="kind" class="sheet-option-tooltip-select">
+    <option value="puppet" data-description="A Puppet Tool fielded by a Puppet Master. Gets its own card on the Puppets tab with upgrade tiers and structured, rollable attacks.">Puppet</option>
+    <option value="summon" data-description="A creature from a Summoning Contract. Pick its Summon Tribe on the Companions tab to pull in that tribe's rank-gated reference stats.">Summon</option>
+    <option value="nin-dog" data-description="The Inuzuka clan's Beast Master companion. Pick its breed on the Companions tab to compute AC/HP/Speed baselines and unlock its rank-gated Special Feature picks.">Nin-Dog</option>
+    <option value="titan" data-description="Science-Nin's Mech Crafter companion. Pick its Titan Specialization on the Companions tab to compute HP/Speed/ability-score baselines and unlock its Titan Upgrades cap+catalog picker.">Titan</option>
+    <option value="custom" data-description="Any other companion or ally that doesn't fit the categories above. A blank sheet with no class-specific reference panel.">Other</option>
   </select>
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content">A Puppet Tool fielded by a Puppet Master. Gets its own card on the Puppets tab with upgrade tiers and structured, rollable attacks.</span>
+  </span>
   <button type="submit">+ Add Companion</button>
 </form>
 </div>
@@ -1689,6 +1712,8 @@
 <details class="companion-card" open data-companion-id="{{.ID}}">
   <summary class="companion-card-header">
     <input type="text" name="name" form="companion-form-{{.ID}}" value="{{.Name}}" required class="companion-field companion-name-field">
+    <a href="/characters/{{$.ID}}/companions/{{.ID}}" class="companion-open-btn" data-companion-popup
+       title="Open {{.Name}}'s sheet in its own window">Open ↗</a>
     <form method="post" action="/characters/{{$.ID}}/sheet/companions/{{.ID}}/delete" class="sheet-inline-form sheet-fetch-form"
           data-target="sheet-puppet-tab" data-also-refresh="sheet-companions" data-confirm="Delete {{.Name}}? This cannot be undone.">
       {{/* handleSheetCompanionDelete is shared by 3 different callers (this
@@ -1885,7 +1910,8 @@
 </div>
 {{end}}
 
-{{/* sheet_summon_tab: the Summons tab's own live-refreshed companion list.
+{{/* sheet_summon_tab: the Companions tab's own live-refreshed companion
+     list — every companion regardless of kind (see loadSummonsTabData).
      Deliberately minimal this iteration — no upgrade-style structured
      picks, no computed baseline stats (see the tab panel's own comment for
      why). Expects {ID, SummonsTab}. */}}
@@ -1895,6 +1921,22 @@
 <div class="companion-card" data-companion-id="{{.ID}}">
   <div class="companion-card-header">
     <input type="text" name="name" form="companion-form-{{.ID}}" value="{{.Name}}" required class="companion-field companion-name-field">
+    <span class="option-picker-epithet companion-kind-badge">{{companionKindLabel .Kind}}</span>
+    {{/* Open ↗ is omitted for kind="nin-dog" and kind="titan": each of
+         these cards already shows everything the standalone popup shows
+         (identical nindog_reference/titan_reference block, fed by the
+         identical loadNinDogReference/loadTitanReference call — see
+         companions.go's loadSummonsTabData/handleCompanionSheet), so a
+         second link to the same content is redundant. Every other kind
+         keeps the link — for kind="puppet" specifically, this thin
+         Companions-tab card is a materially incomplete summary of the
+         much richer Puppets-tab card (no structured attacks, no Seals, no
+         Puppet Upgrades section — see this project's own research notes on
+         why puppet is location-aware rather than kind-aware here). */}}
+    {{if and (ne .Kind "nin-dog") (ne .Kind "titan")}}
+    <a href="/characters/{{$.ID}}/companions/{{.ID}}" class="companion-open-btn" data-companion-popup
+       title="Open {{.Name}}'s sheet in its own window">Open ↗</a>
+    {{end}}
     <form method="post" action="/characters/{{$.ID}}/sheet/companions/{{.ID}}/delete" class="sheet-inline-form sheet-fetch-form"
           data-target="sheet-summon-tab" data-also-refresh="sheet-companions" data-confirm="Delete {{.Name}}? This cannot be undone.">
       {{/* See sheet_puppet_tab's own identical delete-form comment — same
@@ -1903,12 +1945,28 @@
       <button type="submit" class="sheet-delete-btn" aria-label="Delete {{.Name}}" title="Delete">&times;</button>
     </form>
   </div>
-  {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" $.ID "FormID" (printf "companion-form-%d" .ID) "SummonTribes" $.SummonsTab.Tribes "ExpectedAC" 0 "ExpectedMaxHP" 0)}}
-  {{template "summon_tribe_reference" .Reference}}
+  {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" $.ID "FormID" (printf "companion-form-%d" .ID) "SummonTribes" $.SummonsTab.Tribes
+              "NinDogReference" .NinDogReference "TitanReference" .TitanReference
+              "ShowStructuredAttacks" (companionSupportsStructuredAttacks .Kind) "AttacksTarget" "sheet-summon-tab" "Attacks" .Attacks
+              "ExpectedAC" (ninDogReferenceOrZero .NinDogReference).ExpectedAC
+              "ExpectedMaxHP" (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP)
+              "ExpectedSpeed" (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed)
+              "ExpectedSize" (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize)
+              "ExpectedStr" (add (ninDogReferenceOrZero .NinDogReference).ExpectedStr (titanReferenceOrZero .TitanReference).ExpectedStr)
+              "ExpectedDex" (add (ninDogReferenceOrZero .NinDogReference).ExpectedDex (titanReferenceOrZero .TitanReference).ExpectedDex)
+              "ExpectedCon" (add (ninDogReferenceOrZero .NinDogReference).ExpectedCon (titanReferenceOrZero .TitanReference).ExpectedCon)
+              "ExpectedInt" (add (ninDogReferenceOrZero .NinDogReference).ExpectedInt (titanReferenceOrZero .TitanReference).ExpectedInt)
+              "ExpectedWis" (add (ninDogReferenceOrZero .NinDogReference).ExpectedWis (titanReferenceOrZero .TitanReference).ExpectedWis)
+              "ExpectedCha" (add (ninDogReferenceOrZero .NinDogReference).ExpectedCha (titanReferenceOrZero .TitanReference).ExpectedCha)
+              "ExpectedJutsuSlotsMax" (ninDogReferenceOrZero .NinDogReference).JutsuSlotsMax
+              "ExpectedBarrierMax" (titanReferenceOrZero .TitanReference).ExpectedBarrierMax)}}
+  {{if eq .Kind "summon"}}{{template "summon_tribe_reference" .Reference}}{{end}}
+  {{if eq .Kind "nin-dog"}}{{template "nindog_reference" (dict "Ref" .NinDogReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
+  {{if eq .Kind "titan"}}{{template "titan_reference" (dict "Ref" .TitanReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
 </div>
 {{end}}
 {{if not .SummonsTab.Companions}}
-<p class="section-hint">No summons yet — add one from the Companions box on the Core tab.</p>
+<p class="section-hint">No companions yet — add one from the Companions box on the Core tab.</p>
 {{end}}
 </div>
 {{end}}
@@ -3860,12 +3918,133 @@
      BlendEnhancementCap > 0. The class's own spendable pools (Shinobi
      Snacks, Wandering Aroma, War and Food, the subclass bonus Auras, and
      the rest) are separate tiles in the Special Resources row
-     (customResourceGrants), not here. Expects {ID, CookingNin}. */}}
+     (customResourceGrants), not here. CookingToolInfusion (base class,
+     1st level) is 5 independent select-plus-Set picks — implement, damage
+     type, and one weapon property each at 1st/6th/11th level — same shape
+     as Food For the Soul/Fast and Furious right below it, just more of them
+     and, unlike those two, each locked once chosen (see the doc comment
+     above cooking_nin.go's own cookingToolChoiceImplement const block):
+     the select is disabled and the Set button simply omitted once its own
+     view field is non-empty — no explanatory hint text, the same way a
+     disabled control with nothing to submit reads as final on its own
+     elsewhere in this file. Picking an implement equips a real inventory
+     item (syncCookingToolInfusionInventory,
+     data-also-refresh keeps the Inventory boxes and Attacks table in sync
+     without a page reload), the rest are attributes buildAttacks reads back
+     (cookingToolInfusionAttackOverrides). The 6th/11th property rows only
+     render once PropertyL6Available/PropertyL11Available is true.
+     Expects {ID, CookingNin}. */}}
 {{define "sheet_cooking_nin"}}
 <div id="sheet-cooking-nin" data-fragment="sheet_cooking_nin">
   {{if .CookingNin.CookingDieSize}}
   <p class="section-hint">Cooking Dice: {{.CookingNin.CookingDieSize}} — your Cooking Tool's damage die, and the base die used by Shinobi Snacks, Auras, and other Cooking-Nin features.</p>
   {{end}}
+
+  {{if .CookingNin.CookingToolInfusion}}
+  <div class="sheet-subclass-detail">
+    <h3>Cooking Tool Infusion</h3>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-implement" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-inventory sheet-inventory-full sheet-weapon-attacks">
+      <label class="sheet-vitals-label">Cooking Tool
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.CookingToolInfusion.Implement}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.CookingToolInfusion.ImplementOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.CookingToolInfusion.Implement}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.Implement}}{{range .CookingNin.CookingToolInfusion.ImplementOptions}}{{if eq .Value $.CookingNin.CookingToolInfusion.Implement}}{{.Description}}{{end}}{{end}}{{else}}Choose an implement above — a frying pan, or any other item that fits your personal way of cooking.{{end}}</span>
+      </span>
+      {{if not .CookingNin.CookingToolInfusion.Implement}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-damage-type" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">Damage Type
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.CookingToolInfusion.DamageType}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.CookingToolInfusion.DamageTypeOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.CookingToolInfusion.DamageType}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.DamageType}}{{range .CookingNin.CookingToolInfusion.DamageTypeOptions}}{{if eq .Value $.CookingNin.CookingToolInfusion.DamageType}}{{.Description}}{{end}}{{end}}{{else}}Choose a damage type for your Cooking Tool.{{end}}</span>
+      </span>
+      {{if not .CookingNin.CookingToolInfusion.DamageType}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-property-l1" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">1st Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.CookingToolInfusion.PropertyL1}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.CookingToolInfusion.PropertyL1Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL1}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.PropertyL1}}{{range .CookingNin.CookingToolInfusion.PropertyL1Options}}{{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL1}}{{.Description}}{{end}}{{end}}{{else}}Choose your Cooking Tool's 1st-level weapon property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.CookingToolInfusion.PropertyL1}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    {{if .CookingNin.CookingToolInfusion.PropertyL6Available}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-property-l6" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">6th Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.CookingToolInfusion.PropertyL6}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.CookingToolInfusion.PropertyL6Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL6}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.PropertyL6}}{{range .CookingNin.CookingToolInfusion.PropertyL6Options}}{{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL6}}{{.Description}}{{end}}{{end}}{{else}}Choose your Cooking Tool's 6th-level weapon property. Returning requires the Thrown property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.CookingToolInfusion.PropertyL6}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    {{end}}
+
+    {{if .CookingNin.CookingToolInfusion.PropertyL11Available}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-property-l11" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">11th Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.CookingToolInfusion.PropertyL11}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.CookingToolInfusion.PropertyL11Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL11}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.PropertyL11}}{{range .CookingNin.CookingToolInfusion.PropertyL11Options}}{{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL11}}{{.Description}}{{end}}{{end}}{{else}}Choose your Cooking Tool's 11th-level weapon property. Critical 2 requires the Critical property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.CookingToolInfusion.PropertyL11}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
   {{if .CookingNin.FoodForTheSoul}}
   <form method="post" action="/characters/{{$.ID}}/sheet/food-for-the-soul" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
     <label class="sheet-vitals-label">Food For the Soul
@@ -5910,7 +6089,7 @@
     {{range .Jutsu}}
     <li>
       <a class="sheet-popup-trigger" href="/jutsu/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-      <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}{{if .SourceLabel}} · {{.SourceLabel}}{{end}}</span>
+      <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}
       {{if not .SourceLabel}}
       <form method="post" action="/characters/{{$.ID}}/sheet/jutsu/delete" class="sheet-inventory-form sheet-jutsu-fetch-form"
             data-target="sheet-jutsu-known" data-also-refresh="sheet-attack-jutsu-table" data-confirm="Forget {{.Name}}?">
@@ -5961,7 +6140,7 @@
     {{$rowID := printf "jutsu-opts-%s" (slugID .Slug)}}
     <tr>
       <th scope="row"><a class="sheet-popup-trigger" href="/jutsu/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-        <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}{{if not .Derived}} · adjusted{{end}}{{if .IsConcentration}} · Concentration{{end}}</span></th>
+        <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}{{if not .Derived}} · adjusted{{end}}{{if .IsConcentration}} · Concentration{{end}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}</th>
       <td>
         {{if .AttackKind}}
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
@@ -5998,13 +6177,29 @@
                 aria-label="Cast {{.Name}}, spending {{.CostChakra}} chakra"
                 title="Spend {{.CostChakra}} chakra">Cast {{.CostChakra}}⚡</button>
         {{end}}
+        {{if .FreeCast}}
+        <span class="sheet-jutsu-freecast-tag" title="{{.FreeCast.MirageName}}: cast {{.Name}}{{if .FreeCast.CastRank}} as if it were {{.FreeCast.CastRank}}-Rank{{end}} at this reduced cost instead of paying its printed cost, {{.FreeCast.Uses}}/{{.FreeCast.Max}} use{{if ne .FreeCast.Max 1}}s{{end}} left this rest">{{.FreeCast.MirageName}}</span>
+        {{if ge .FreeCast.Uses .FreeCast.UsesPerCast}}
+        <button type="button" class="sheet-attack-roll sheet-cast-btn"
+                data-endpoint="/characters/{{$.ID}}/sheet/jutsu/cast" data-field="delta"
+                data-slug="{{.Slug}}" data-rank="{{if .FreeCast.CastRank}}{{.FreeCast.CastRank}}{{else}}{{.Rank}}{{end}}"
+                data-resource-key="{{.FreeCast.ResourceKey}}" data-resource-uses="{{.FreeCast.UsesPerCast}}"
+                data-value="-{{.FreeCast.Cost}}" data-target="sheet-vitals" data-name="{{.Name}}"
+                aria-label="Cast {{.Name}} via {{.FreeCast.MirageName}}{{if .FreeCast.CastRank}} as if it were {{.FreeCast.CastRank}}-Rank{{end}}, spending {{.FreeCast.Cost}} chakra and {{.FreeCast.UsesPerCast}} {{.FreeCast.MirageName}} use{{if ne .FreeCast.UsesPerCast 1}}s{{end}}"
+                title="Spend {{.FreeCast.UsesPerCast}} {{.FreeCast.MirageName}} use{{if ne .FreeCast.UsesPerCast 1}}s{{end}} ({{.FreeCast.Uses}}/{{.FreeCast.Max}} left)">Cast via {{.FreeCast.MirageName}} ({{if .FreeCast.CastRank}}{{.FreeCast.CastRank}}-Rank, {{end}}{{.FreeCast.Cost}}⚡)</button>
+        {{else}}
+        <span class="option-picker-epithet">Not enough {{.FreeCast.MirageName}} uses left</span>
+        {{end}}
+        {{end}}
         <button type="button" class="sheet-attack-edit-btn" data-edit-target="{{$rowID}}"
                 aria-label="Adjust {{.Name}}'s attack and damage" title="Adjust {{.Name}}'s attack and damage" aria-expanded="false">✎</button>
+        {{if not .SourceLabel}}
         <form method="post" action="/characters/{{$.ID}}/sheet/jutsu/delete" class="sheet-inventory-form sheet-jutsu-fetch-form"
               data-target="sheet-jutsu-known" data-also-refresh="sheet-attack-jutsu-table" data-confirm="Forget {{.Name}}?">
           <input type="hidden" name="slug" value="{{.Slug}}">
           <button type="submit" class="sheet-delete-btn sheet-trash-btn" aria-label="Forget {{.Name}}" title="Forget {{.Name}}">🗑</button>
         </form>
+        {{end}}
       </td>
     </tr>
     <tr class="sheet-custom-attack-edit-row" id="{{$rowID}}" hidden>
@@ -6014,7 +6209,16 @@
           <input type="hidden" name="slug" value="{{.Slug}}">
           <p class="section-hint">{{.Name}}'s to-hit comes from its own description{{if .AttackKind}} ({{.AttackKind}}){{end}}, and the book
              prints its damage in prose rather than as dice. Pin what you actually roll; clearing everything back to
-             Ability&nbsp;auto / Full / 0 with no damage dice hands the row back to the rules.</p>
+             Ability&nbsp;auto / Full / 0 with no damage dice hands the row back to the rules. Chakra cost override is
+             for a fixed lower or higher cost from a feat, clan, or class feature — leave it blank to keep the printed
+             cost; it is separate from upcasting, which stays on the Cast button's own rank selector.</p>
+          <div class="sheet-custom-attack-damage">
+            <span class="sheet-vitals-label">Chakra cost override</span>
+            <input type="number" name="cost_chakra_override" min="0"
+                   placeholder="{{if .CostChakra}}{{.CostChakra}}{{else}}book cost{{end}}"
+                   aria-label="Override {{.Name}}'s Chakra cost" title="Leave blank to use the printed cost"
+                   value="{{if .CostOverride}}{{.CostOverride}}{{end}}">
+          </div>
           <div class="sheet-custom-attack-damage">
             <span class="sheet-vitals-label">Damage dice</span>
             <input type="number" name="damage_count" min="0" placeholder="2" aria-label="Number of damage dice"

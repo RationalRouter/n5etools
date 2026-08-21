@@ -15,6 +15,14 @@
 -- one summoning contract), so this is a rows table keyed by its own id, the
 -- same shape as character_custom_features, not a single-row-per-character
 -- table like character_concentration.
+--
+-- kind's CHECK constraint was widened by migration 0064 to add 'nin-dog'
+-- and 'titan' alongside the original three below — see that migration for
+-- the current full list; a companion of either new kind renders on the
+-- main sheet's Companions tab (formerly "Summons", broadened by the same
+-- migration's Go/template counterpart changes to show every kind, not just
+-- 'summon') and gets the same generic, kind-branching detail popup 'custom'
+-- already used, with no dedicated reference panel of its own yet.
 CREATE TABLE character_companions (
     id                INTEGER PRIMARY KEY,
     character_id      INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,

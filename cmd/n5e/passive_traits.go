@@ -268,6 +268,14 @@ var senseGrants = map[string][]senseGrant{
 	"feat/kuru/adept-kurugan": {
 		{Sense: "Blindsight", Feet: 30},
 	},
+	// Synthetic key genjutsuMirageDemonSightPassiveRow (genjutsu.go) emits
+	// for a picked Demon Sight Malleable Mirage — that Mirage's own real
+	// class_options slug never reaches loadMergedGrantedFeatures' output at
+	// all, the same reason genjutsuMirageRestLimitedSlugs' entries need
+	// their own synthetic injection into computeCustomResources' input.
+	"genjutsu-mirage/demon-sight": {
+		{Sense: "Darkvision", Feet: 120},
+	},
 }
 
 // PassiveTraitEntry is one resolved resistance/immunity/vulnerability, with

@@ -25,14 +25,27 @@
 
   <div class="companion-header">
     <input type="text" name="name" form="companion-form" value="{{.Companion.Name}}" required class="companion-field companion-name-field" placeholder="Companion name">
-    <span class="option-picker-epithet companion-kind-badge">{{.Companion.Kind}}</span>
+    <span class="option-picker-epithet companion-kind-badge">{{companionKindLabel .Companion.Kind}}</span>
   </div>
 
   {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" .CharacterID "FormID" "companion-form"
               "SummonTribes" .SummonTribes "ArmorChassisOptions" .ArmorChassisOptions "BaseTraits" .BaseTraits
               "ReadOnlyAttacks" .ReadOnlyAttacks "Attacks" .Attacks "AttacksTarget" ""
               "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
-              "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName)}}
+              "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName
+              "NinDogReference" .NinDogReference "TitanReference" .TitanReference
+              "ExpectedAC" (ninDogReferenceOrZero .NinDogReference).ExpectedAC
+              "ExpectedMaxHP" (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP)
+              "ExpectedSpeed" (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed)
+              "ExpectedSize" (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize)
+              "ExpectedStr" (add (ninDogReferenceOrZero .NinDogReference).ExpectedStr (titanReferenceOrZero .TitanReference).ExpectedStr)
+              "ExpectedDex" (add (ninDogReferenceOrZero .NinDogReference).ExpectedDex (titanReferenceOrZero .TitanReference).ExpectedDex)
+              "ExpectedCon" (add (ninDogReferenceOrZero .NinDogReference).ExpectedCon (titanReferenceOrZero .TitanReference).ExpectedCon)
+              "ExpectedInt" (add (ninDogReferenceOrZero .NinDogReference).ExpectedInt (titanReferenceOrZero .TitanReference).ExpectedInt)
+              "ExpectedWis" (add (ninDogReferenceOrZero .NinDogReference).ExpectedWis (titanReferenceOrZero .TitanReference).ExpectedWis)
+              "ExpectedCha" (add (ninDogReferenceOrZero .NinDogReference).ExpectedCha (titanReferenceOrZero .TitanReference).ExpectedCha)
+              "ExpectedJutsuSlotsMax" (ninDogReferenceOrZero .NinDogReference).JutsuSlotsMax
+              "ExpectedBarrierMax" (titanReferenceOrZero .TitanReference).ExpectedBarrierMax)}}
 
   {{/* A puppet's own combat quick-reference: the resolved Puppet Skills
        list, rollable, same as the Puppets tab. The subclass's own
@@ -43,6 +56,8 @@
        reference rather than duplicating the full sheet. */}}
   {{if eq .Companion.Kind "puppet"}}{{template "puppet_skills_box" .PuppetSkills}}{{end}}
   {{if eq .Companion.Kind "summon"}}{{template "summon_tribe_reference" .SummonReference}}{{end}}
+  {{if eq .Companion.Kind "nin-dog"}}{{template "nindog_reference" (dict "Ref" .NinDogReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
+  {{if eq .Companion.Kind "titan"}}{{template "titan_reference" (dict "Ref" .TitanReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
 
   <form method="post" action="/characters/{{.CharacterID}}/sheet/companions/{{.Companion.ID}}/delete"
         data-confirm="Delete {{.Companion.Name}}? This cannot be undone.">

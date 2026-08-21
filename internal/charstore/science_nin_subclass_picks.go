@@ -73,6 +73,44 @@ const (
 	// cmd/n5e/science_nin_subclasses.go's
 	// scienceNinElementalInnovationistData.DesignatedWoW.
 	ScienceNinPickAscendedWoW ScienceNinSubclassPickCategory = "ascended_wow"
+
+	// The three Mech Crafter (Titan) categories below — added by
+	// 0067_titan_subclass_picks.sql. Unlike every category above, all
+	// three are character-scoped rather than tied to a specific companion
+	// row: Ordnance Training's own text ("You can only have 1 Titan
+	// created at a time") means a character never has more than one Titan
+	// to distinguish between, so no companion_id column exists on this
+	// table for these categories either. See cmd/n5e/titan.go.
+	//
+	// ScienceNinPickTitanUpgrade is Ordnance Training's own Titan Slots
+	// (cap = Proficiency Bonus) — a Mech- or Weapon-keyword Titan Upgrade
+	// installed on a long rest. option_slug is the picked Titan Upgrades
+	// class_option_entries.slug (or the Mastercraft tier's own
+	// class_options slug for Bijuu Slayer, which has no entries row, never
+	// split since it's a single named item bundled straight into its own
+	// tier). Spends from the SAME Creation Points budget as the base
+	// Scientific Ninja Tools catalog — see titanEffectiveUpgradeCost.
+	ScienceNinPickTitanUpgrade ScienceNinSubclassPickCategory = "titan_upgrade"
+
+	// ScienceNinPickTitanExosuitUpgrade is Endless Work's (6th level) own
+	// separate 1 (2 at 14th level) Mech-keyword-only slot, restricted to
+	// upgrades of Cost 8 or lower ("Greater or lower") — see
+	// cmd/n5e/titan.go's own header doc on the Refined/Greater tier merge
+	// this restriction is read against. Tracked as its own category (not
+	// ScienceNinPickTitanUpgrade above) so the same upgrade can occupy an
+	// ordinary Titan Slot and the Exo-Suit slot independently, without the
+	// two colliding over the same option_slug — same "separate category
+	// per independent slot pool" precedent
+	// ScienceNinPickPerfectedWeapon already sets against ScienceNinPickArsenalMod.
+	ScienceNinPickTitanExosuitUpgrade ScienceNinSubclassPickCategory = "titan_exosuit_upgrade"
+
+	// ScienceNinPickTitanSpecialistCraftingKeyword is Specialist Crafting's
+	// (14th level) own single-slot "Mech or Weapon" keyword designation —
+	// option_slug is the literal string "mech" or "weapon", cap 1, freely
+	// re-picked (the current pick is dropped, then the other is added), the
+	// same "trust the player" boundary ScienceNinPickMixedStudiesInquiry's
+	// own single-slot pick already draws.
+	ScienceNinPickTitanSpecialistCraftingKeyword ScienceNinSubclassPickCategory = "titan_specialist_crafting_keyword"
 )
 
 // ScienceNinSubclassPick is one stored pick, along with its own pool

@@ -207,8 +207,12 @@
   // A jutsu Cast button also carries data-slug/data-rank (see
   // character_sheet.html and sheet-jutsu-upcast.js) so the cast endpoint
   // knows which jutsu was cast, at what rank — needed to start concentration
-  // tracking when that jutsu requires it. Forwarded only when present, so
-  // this stays a no-op for any other .sheet-cast-btn that doesn't set them.
+  // tracking when that jutsu requires it. A "Cast via <Pool>" button
+  // (jutsuFreeCastGrant, characters.go) also carries data-resource-key and,
+  // for a grant that spends more than one pool use per cast (Wolves
+  // Legacy's Wolf Techniques), data-resource-uses. Forwarded only when
+  // present, so this stays a no-op for any other .sheet-cast-btn that
+  // doesn't set them.
   function wireCastButtons() {
     document.querySelectorAll(".sheet-cast-btn").forEach((btn) => {
       if (btn.dataset.wired) return;
@@ -218,6 +222,8 @@
         params.set(btn.dataset.field || "delta", btn.dataset.value);
         if (btn.dataset.slug) params.set("slug", btn.dataset.slug);
         if (btn.dataset.rank) params.set("rank", btn.dataset.rank);
+        if (btn.dataset.resourceKey) params.set("resource_key", btn.dataset.resourceKey);
+        if (btn.dataset.resourceUses) params.set("resource_uses", btn.dataset.resourceUses);
         postForm(btn.dataset.endpoint, params)
           .then((html) => swap(btn.dataset.target, html))
           .catch((err) => console.warn("cast failed:", err));

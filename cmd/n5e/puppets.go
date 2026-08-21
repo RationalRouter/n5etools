@@ -3442,8 +3442,12 @@ func formCompanionAttack(r *http.Request) charstore.CompanionAttack {
 	}
 }
 
-// handlePuppetAttackAdd records one structured attack for a puppet
-// companion.
+// handlePuppetAttackAdd records one structured attack for a companion whose
+// kind has reached the structured-attacks presentation (see
+// companionSupportsStructuredAttacks) — puppet originally, nin-dog as of
+// the "Attacks section should be rollable, not typed" fix, kept under its
+// original puppet-era name since the route itself
+// (/characters/{id}/companions/{cid}/attacks) was never puppet-specific.
 func (s *server) handlePuppetAttackAdd(w http.ResponseWriter, r *http.Request) {
 	id, cid, ok := parseCharacterAndCompanionID(w, r)
 	if !ok {
@@ -3459,8 +3463,8 @@ func (s *server) handlePuppetAttackAdd(w http.ResponseWriter, r *http.Request) {
 		log.Println("load companion for attack add:", err)
 		return
 	}
-	if companion.Kind != "puppet" {
-		http.Error(w, "not a puppet", http.StatusBadRequest)
+	if !companionSupportsStructuredAttacks(companion.Kind) {
+		http.Error(w, "this companion kind doesn't support structured attacks", http.StatusBadRequest)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -3477,10 +3481,15 @@ func (s *server) handlePuppetAttackAdd(w http.ResponseWriter, r *http.Request) {
 		log.Println("add companion attack:", err)
 		return
 	}
-	s.respondSheet(w, r, id, "sheet_puppet_tab")
+	s.respondSheet(w, r, id, companionAttacksFragment(companion.Kind))
 }
 
-// handlePuppetAttackDelete removes one structured attack.
+// handlePuppetAttackDelete removes one structured attack — see
+// handlePuppetAttackAdd's own doc for why this isn't puppet-exclusive
+// either. Loads the companion (unlike the puppet-only version this
+// replaced, which trusted the URL's own cid without checking kind at all)
+// both to reject a kind that never reached structured attacks and to know
+// which fragment actually contains the row that just changed.
 func (s *server) handlePuppetAttackDelete(w http.ResponseWriter, r *http.Request) {
 	id, cid, ok := parseCharacterAndCompanionID(w, r)
 	if !ok {
@@ -3491,12 +3500,26 @@ func (s *server) handlePuppetAttackDelete(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 		return
 	}
+	companion, err := charstore.GetCompanion(s.charDB, id, cid)
+	if err == sql.ErrNoRows {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load companion for attack delete:", err)
+		return
+	}
+	if !companionSupportsStructuredAttacks(companion.Kind) {
+		http.Error(w, "this companion kind doesn't support structured attacks", http.StatusBadRequest)
+		return
+	}
 	if err := charstore.DeleteCompanionAttack(s.charDB, id, cid, aid); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("delete companion attack:", err)
 		return
 	}
-	s.respondSheet(w, r, id, "sheet_puppet_tab")
+	s.respondSheet(w, r, id, companionAttacksFragment(companion.Kind))
 }
 
 // handlePuppetUpgradeAdd records one upgrade pick (form fields

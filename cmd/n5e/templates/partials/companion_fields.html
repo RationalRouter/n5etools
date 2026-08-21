@@ -64,6 +64,45 @@
   <label>Fly <input type="number" name="fly_speed" form="{{.FormID}}" value="{{if .Companion.FlySpeed.Valid}}{{.Companion.FlySpeed.Int64}}{{end}}" class="companion-field"></label>
   {{end}}
 
+  {{/* A Nin-Dog's own Jutsu Slots resource (Beast Master: "Your Nin-Dog
+       regains 1 Jutsu Slot on a Short Rest, and all of their spent Jutsu
+       Slots on a Long Rest") — same delta-editable +/-/blank shape AC and
+       Max HP already use, its own pair of fields rather than folded into
+       HP since it's a completely separate resource. Nin-Dog only: no other
+       companion kind has a jutsu-slot pool of its own. */}}
+  {{if eq .Companion.Kind "nin-dog"}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_current" class="companion-delta-form">
+    <label>Jutsu Slots <input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsCurrent.Valid}}{{.Companion.JutsuSlotsCurrent.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="jutsu_slots_current" placeholder="—"
+                      title="Type a number to set current Jutsu Slots, or +1 / -1 to adjust it"></label>
+  </form>
+  <span class="companion-stat-sep">/</span>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_max" class="companion-delta-form">
+    <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsMax.Valid}}{{.Companion.JutsuSlotsMax.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="jutsu_slots_max" placeholder="—" aria-label="Max Jutsu Slots"
+                      title="Type a number to set Max Jutsu Slots, or +1 / -1 to adjust it"></label>
+  </form>
+  {{end}}
+
+  {{/* Battery Powered Barrier (Titan base stat block): "it subtracts hit
+       points from its barrier first" — a separate HP pool layered on top
+       of the Titan's own HP, same delta-editable +/-/blank shape as every
+       other stat here. Titan only: no other companion kind has a barrier
+       pool. */}}
+  {{if eq .Companion.Kind "titan"}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_current" class="companion-delta-form">
+    <label>Barrier <input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierCurrent.Valid}}{{.Companion.BarrierCurrent.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="barrier_current" placeholder="—"
+                      title="Type a number to set current Barrier hit points, or +5 / -5 to adjust it"></label>
+  </form>
+  <span class="companion-stat-sep">/</span>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_max" class="companion-delta-form">
+    <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierMax.Valid}}{{.Companion.BarrierMax.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="barrier_max" placeholder="—" aria-label="Max Barrier"
+                      title="Type a number to set Max Barrier hit points, or +2 / -2 to adjust it"></label>
+  </form>
+  {{end}}
+
   {{/* Chakra Enhanced Retrofit (Class: Puppet Master/3rd Level) — "Your
        Puppet Tool gains a number of seal slots equal to 2 + your
        Proficiency Bonus. You can place both Armor and Weapon seals on your
@@ -127,7 +166,7 @@
      puppet_foundation.go) share this same block/button shape even when
      there are no puppetUpgradeBonusNote entries at all, since a fresh
      companion can have a Foundation pick and nothing else yet. */}}
-{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus .PuppetToolASIBonus}}
+{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus .PuppetToolASIBonus .ExpectedJutsuSlotsMax .ExpectedBarrierMax}}
 <div class="section-hint companion-enhanced-durability-hint">
   {{if .UpgradeBonuses}}
   <span>
@@ -164,6 +203,12 @@
   {{end}}
   {{if .ExpectedFlySpeed}}
   <button type="button" class="companion-sync-btn" data-field="fly_speed" data-value="{{.ExpectedFlySpeed}}">Sync Fly to {{.ExpectedFlySpeed}}</button>
+  {{end}}
+  {{if .ExpectedJutsuSlotsMax}}
+  <button type="button" class="companion-sync-btn" data-field="jutsu_slots_max" data-value="{{.ExpectedJutsuSlotsMax}}">Sync Jutsu Slots to {{.ExpectedJutsuSlotsMax}}</button>
+  {{end}}
+  {{if .ExpectedBarrierMax}}
+  <button type="button" class="companion-sync-btn" data-field="barrier_max" data-value="{{.ExpectedBarrierMax}}">Sync Barrier to {{.ExpectedBarrierMax}}</button>
   {{end}}
   {{if .ExpectedStr}}
   <button type="button" class="companion-sync-btn" data-field="str_score" data-value="{{.ExpectedStr}}">Sync STR to {{.ExpectedStr}}</button>
@@ -225,6 +270,136 @@
 
 {{if eq .Companion.Kind "puppet"}}
 <label class="companion-block-label">Size <input type="text" name="size" form="{{.FormID}}" value="{{.Companion.Size}}" class="companion-field" placeholder="Medium"></label>
+{{end}}
+
+{{/* Beast Master's own one-time breed pick ("Choose between one of the
+     following breeds. Your Nin-Dog gains the chosen breed as its Role") —
+     locked once made, same "permanent crafting-style choice" pattern
+     Armor Chassis uses below, for the same reason: the book's own text
+     never mentions re-selecting a breed later. Every option needs a
+     rollover tooltip per this project's own standing UI rule.
+     Armor Chassis's own data-detail-select/detail-body-store pattern
+     (sheet-puppet-detail.js) is NOT reused here — that mechanism only
+     writes into #puppet-detail-content, an element that only exists on
+     the main sheet's Puppets tab (gated on the character actually having
+     Puppet Master levels — see character_sheet.html's own
+     .PuppetsTab.PuppetMasterLevel guard), which is never present on this
+     companion's own popup page
+     (layout_bare.html doesn't load sheet-puppet-detail.js at all) and is
+     present on the Companions tab only for the rare character who ALSO
+     happens to have Puppet Master levels — i.e. effectively never for an
+     ordinary Nin-Dog. Uses sheet-option-tooltip.js's generic
+     data-tooltip-for updater instead (see that file's own doc), the same
+     always-available "hover the ⓘ, see the CURRENTLY SELECTED option's
+     full text" pattern the Companions box's own Kind picker and the
+     Puppets tab's Fighting Stance picker already use — a native <select>
+     has no cross-browser way to preview an option's tooltip without
+     selecting it first regardless of mechanism, so this isn't a lesser
+     preview than Armor Chassis's, just a working one.
+
+     Selecting an option only PREVIEWS it — sheet-option-tooltip.js updates
+     the tooltip above to the newly-highlighted option's own blurb+traits
+     text with no network call at all, the same purely-client-side preview
+     Titan Specialization's own picker already relies on. Committing is a
+     separate, explicit step via the "Set Breed" button below, which only
+     becomes clickable once a non-blank option is chosen — a generic
+     companion-commit-select/companion-commit-btn pairing in
+     companion-fields.js, reusable by any future locked-once-chosen picker.
+     This
+     select is deliberately NOT a plain .companion-field: that class drives
+     the generic whole-form autosave on blur (companion-fields.js), which
+     would commit a permanent, one-way-locked pick (see SetCompanionFields'
+     own CASE WHEN guard) the instant the player merely tabbed away or
+     clicked elsewhere on the page — confirmed live as the actual bug, not
+     just the more obvious "commits on click" path a dedicated change
+     listener used to take here. .companion-commit-select opts this field
+     out of that autosave and into the explicit-commit button below
+     instead. */}}
+{{if eq .Companion.Kind "nin-dog"}}
+{{$currentBreed := .Companion.NinDogBreed}}
+{{$breedTooltipID := printf "nin-dog-breed-tooltip-%d" .Companion.ID}}
+<label class="companion-block-label">Breed
+  <select name="nin_dog_breed" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$breedTooltipID}}"{{if $currentBreed}} disabled{{end}}>
+    <option value="">— choose a breed —</option>
+    {{range .NinDogReference.Breeds}}
+    <option value="{{.Slug}}" data-description="{{.Blurb}} {{range .Traits}}{{.}} {{end}}"{{if eq .Slug $currentBreed}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{$breedTooltipID}}">{{if .NinDogReference.Breed}}{{.NinDogReference.Breed.Blurb}} {{range .NinDogReference.Breed.Traits}}{{.}} {{end}}{{else}}Choose a breed to see what it grants.{{end}}</span>
+  </span>
+  {{if $currentBreed}}
+  <span class="section-hint companion-armor-chassis-locked">Chosen permanently — cannot be changed.</span>
+  {{else}}
+  <button type="button" class="companion-commit-btn" disabled>Set Breed</button>
+  {{end}}
+</label>
+{{/* Every breed's own trait list is short (5 bullets) — always shown in
+     full below the picker rather than behind a rollover, the same
+     "genuinely short enough not to become a wall of text" exception this
+     project's own tooltip rule carves out for e.g. Puppet Tactics' 5
+     Tactics. The <select> itself still gets the standard hover-preview
+     (data-detail-select above) for comparing the other two breeds before
+     the pick locks in. */}}
+{{if .NinDogReference.Breed}}
+<section class="companion-block-label companion-foundation-traits">
+  <span>{{.NinDogReference.Breed.Name}}: {{.NinDogReference.Breed.Blurb}}</span>
+  <ul class="sheet-feature-list">
+    {{range .NinDogReference.Breed.Traits}}<li>{{.}}</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
+
+{{/* Titan Specialization (Mech Crafter's own base Titan Specialization
+     trait): "When you craft your Titan, you choose a Titan Specialization
+     for it to following, picking between a Legion Titan, a Monarch Titan,
+     or a Ronin Titan" — the source text never mentions re-selecting one
+     later, so this is locked once made, the same one-way-locked-column
+     treatment (charstore.SetCompanionFields' own CASE WHEN guard) the
+     Nin-Dog breed picker above also relies on. Every option needs a
+     rollover tooltip per this project's own standing UI rule — same
+     sheet-option-tooltip.js data-tooltip-for mechanism as the breed
+     picker, for the same "no sheet-puppet-detail.js on this popup" reason.
+
+     Selecting an option only PREVIEWS it — sheet-option-tooltip.js's own
+     "change" listener updates the tooltip above with no network call at
+     all, the same purely-client-side preview the breed picker above uses.
+     Committing is a separate, explicit step via the "Set Specialization"
+     button below, reusing the same .companion-commit-select/
+     .companion-commit-btn pairing the breed picker introduced
+     (companion-fields.js/companion-sheet.js/sheet-puppets.js — all already
+     kind-agnostic, so no new JS was needed to wire this up). This select
+     used to be a plain .companion-field, which drove the generic whole-form
+     autosave on blur — meaning an ordinary field blur (clicking anywhere
+     else on the page, tabbing to the next field) silently committed
+     whatever option was merely highlighted, permanently, with no
+     confirmation and no visible feedback that the pick had already locked
+     server-side (the on-screen select stayed enabled and un-locked until
+     something else happened to re-render the card). .companion-commit-select
+     opts this field out of that autosave the same way the breed picker's
+     own fix did. */}}
+{{if eq .Companion.Kind "titan"}}
+{{$currentSpec := .Companion.TitanSpecialization}}
+{{$specTooltipID := printf "titan-spec-tooltip-%d" .Companion.ID}}
+<label class="companion-block-label">Titan Specialization
+  <select name="titan_specialization" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$specTooltipID}}"{{if $currentSpec}} disabled{{end}}>
+    <option value="">— choose a specialization —</option>
+    {{range .TitanReference.Specializations}}
+    <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $currentSpec}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{$specTooltipID}}">{{if .TitanReference.Specialization}}{{formatDescription .TitanReference.Specialization.Description}}{{else}}Choose a specialization to see what it grants.{{end}}</span>
+  </span>
+  {{if $currentSpec}}
+  <span class="section-hint companion-armor-chassis-locked">Chosen permanently — cannot be changed.</span>
+  {{else}}
+  <button type="button" class="companion-commit-btn" disabled>Set Specialization</button>
+  {{end}}
+</label>
 {{end}}
 
 {{if eq .Companion.Kind "summon"}}
@@ -594,6 +769,267 @@
       </tbody>
     </table>
   </div>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+
+{{/* nindog_reference: the Nin-Dog equivalent of summon_tribe_reference —
+     rank/size, the breed's own picked special-feature slots (with a live
+     picker for any open one), known Inuzuka Hijutsu, the Inuzuka Hijutsu
+     trait's own bonus D-Rank pick, and the Dog/Wolf tribe's own Jutsu
+     Specialty/Bite reference text. Expects a dict: Ref (*ninDogReference),
+     CharacterID, CompanionID. */}}
+{{define "nindog_reference"}}
+<section class="companion-reference">
+  <h2>Nin-Dog Reference</h2>
+  <dl class="sheet-passive-trait-list">
+    <dt>Rank</dt><dd>{{.Ref.Rank}}-Rank (Level {{.Ref.Level}})</dd>
+    <dt>Size</dt><dd>{{.Ref.Size}}</dd>
+    <dt>Saving Throws</dt><dd>Proficient in all</dd>
+    <dt>Jutsu Slots</dt><dd>{{.Ref.JutsuSlotsMax}} max; regains {{.Ref.JutsuSlotShortRegen}} on a Short Rest, all on a Long Rest</dd>
+    {{if .Ref.BiteDescription}}<dt>Bite</dt><dd>{{formatDescription .Ref.BiteDescription}}</dd>{{end}}
+    {{if .Ref.JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{formatDescription .Ref.JutsuSpecialtyText}}</dd>{{end}}
+  </dl>
+
+  {{if .Ref.KnownHijutsu}}
+  <h3>Known Inuzuka Hijutsu</h3>
+  <p class="section-hint">Every Inuzuka Clan Hijutsu the character themselves knows — Beast Master: "Cannot learn jutsu like a Dog/Wolf summon, instead knowing all Inuzuka Clan Hijutsu you know."</p>
+  <ul class="sheet-feature-list">
+    {{range .Ref.KnownHijutsu}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="section-hint">The character knows no Inuzuka Clan Hijutsu yet — none for the Nin-Dog to share.</p>
+  {{end}}
+
+  {{/* Inuzuka Hijutsu clan trait's own bonus D-Rank pick — "Your Nin-Dog
+       knows 1 Inuzuka Clan D-Rank Jutsu, that you do not need to add to
+       your known jutsu list." Independent of the character's own known
+       jutsu above, and independent of breed. */}}
+  <h3>Bonus Hijutsu (Inuzuka Hijutsu trait)</h3>
+  {{if .Ref.HijutsuTraitPick}}
+  <p>{{.Ref.HijutsuTraitPick}}</p>
+  {{else if .Ref.HijutsuTraitOptions}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.CompanionID}}/nin-dog-hijutsu-trait"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+    {{/* Without this, companionRespondFragment's own default
+         ("sheet_companions", for the Core tab's generic add/delete forms
+         that predate this field) renders the WRONG fragment body for a
+         form whose data-target is "sheet-summon-tab" — sheet-vitals.js's
+         swap() blindly overwrites the Companions tab's own container with
+         whatever HTML the server sent, no fragment-identity check, so a
+         mismatch replaces the whole per-companion card list with the Core
+         tab's plain add-companion box. Confirmed live: submitting this
+         form without this field blanked every companion card down to just
+         the Kind dropdown until the next full reload. */}}
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <select name="jutsu_name" required>
+      <option value="">— choose a D-Rank Hijutsu —</option>
+      {{range .Ref.HijutsuTraitOptions}}
+      <option value="{{.Name}}">{{.Name}}</option>
+      {{end}}
+    </select>
+    <button type="submit">+ Choose</button>
+  </form>
+  {{else}}
+  <p class="section-hint">No D-Rank Inuzuka Hijutsu found.</p>
+  {{end}}
+
+  {{if not .Ref.Breed}}
+  <p class="section-hint">Choose a breed above to unlock special-feature picks.</p>
+  {{else}}
+  <h3>Special Features</h3>
+  <p class="section-hint">One pick per open slot, from that slot's own rank pool. Not-yet-unlocked slots are dimmed.</p>
+  <ul class="sheet-feature-list">
+    {{range .Ref.Slots}}
+    <li{{if not .Unlocked}} class="companion-reference-locked"{{end}}>
+      <strong>{{.Label}}</strong>
+      {{if .Picked}}
+      <span class="option-picker-epithet">{{.Picked}}</span>
+      {{else if .Unlocked}}
+      <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.CompanionID}}/nin-dog-feature"
+            class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+        {{/* See the Bonus Hijutsu form's own identical comment just above
+             — same missing-respond_fragment bug, same fix. */}}
+        <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+        <input type="hidden" name="choice_index" value="{{.ChoiceIndex}}">
+        <select name="feature_name" required>
+          <option value="">— choose —</option>
+          {{range .Options}}
+          <option value="{{.Name}}">{{.Name}} ({{.Rank}}-Rank)</option>
+          {{end}}
+        </select>
+        <button type="submit">+ Choose</button>
+      </form>
+      {{else}}
+      <span class="option-picker-epithet">not yet unlocked</span>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{if .Ref.Features}}
+  <details class="sheet-custom-attack">
+    <summary>Full Special Feature catalog</summary>
+    <ul class="sheet-feature-list">
+      {{range .Ref.Features}}
+      <li{{if .Locked}} class="companion-reference-locked"{{end}}>
+        <strong>{{.Name}}</strong>
+        <span class="option-picker-epithet">{{.Rank}}-Rank{{if .Locked}} (locked){{end}}</span>
+        {{formatDescription .Description}}
+      </li>
+      {{end}}
+    </ul>
+  </details>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+
+{{/* titan_reference: the Titan equivalent of nindog_reference/
+     summon_tribe_reference — the base stat block (traits, Bash attack,
+     Steady Improvement ASI points, Passive Perception), the chosen Titan
+     Specialization's own full text, the Mech Crafter subclass feature
+     list (locked by level), and the two cap+catalog pickers Ordnance
+     Training/Endless Work grant: ordinary Titan Slots (cap = Proficiency
+     Bonus) and Endless Work's own separate Exo-Suit slot — both spending
+     from the SAME character-wide Creation Points budget the base
+     Scientific Ninja Tools catalog uses (see titan.go's own header doc).
+     Expects a dict: Ref (*titanReference), CharacterID, CompanionID. */}}
+{{define "titan_reference"}}
+<section class="companion-reference">
+  <h2>Titan Reference</h2>
+  {{if not .Ref}}
+  <p class="section-hint">This character has no Ordnance Training yet — the Titan reference panel unlocks at 3rd-level Mech Crafter.</p>
+  {{else}}
+  <dl class="sheet-passive-trait-list">
+    <dt>Size</dt><dd>{{.Ref.Size}}{{if eq .Ref.Size "Large"}} (Huge at 14th level){{end}}</dd>
+    <dt>Proficiency Bonus</dt><dd>+{{.Ref.ProficiencyBonus}} (shares yours)</dd>
+    <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}} (yours + this Titan's own Intelligence modifier)</dd>
+    <dt>Steady Improvement</dt><dd>{{.Ref.SteadyImprovementASIPoints}} bonus ASI points — distributed when crafted, redistributable on a long rest</dd>
+    <dt>Saving Throws</dt><dd>Makes Strength/Dexterity/Constitution saves in your place, using its own ability scores. Mental saves (Intelligence/Wisdom/Charisma) still use yours.</dd>
+  </dl>
+
+  <h3>Bash</h3>
+  {{formatDescription .Ref.BashAttackText}}
+
+  <h3>Base Traits</h3>
+  <ul class="sheet-feature-list">
+    {{range .Ref.BaseTraits}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+
+  {{if .Ref.Specialization}}
+  <h3>{{.Ref.Specialization.Name}}</h3>
+  <p>{{formatDescription .Ref.Specialization.Description}}</p>
+  {{else}}
+  <p class="section-hint">Choose a Titan Specialization above to see its full text here.</p>
+  {{end}}
+
+  <h3>Mech Crafter Features</h3>
+  <p class="section-hint">Locked ones are dimmed until the character's level catches up.</p>
+  <ul class="sheet-feature-list">
+    {{range .Ref.Features}}
+    <li{{if .Locked}} class="companion-reference-locked"{{end}}>
+      <strong>{{.Name}}</strong>
+      <span class="option-picker-epithet">Level {{.Level}}{{if .Locked}} (locked){{end}}</span>
+      {{formatDescription .Description}}
+    </li>
+    {{end}}
+  </ul>
+
+  {{/* Titan Slots: Ordnance Training's own "a number of Titan Slots equal
+       to your Proficiency Bonus, which can be filled during a long rest
+       with upgrades with the Mech or Weapon keywords" — a Creation-Points-
+       BUDGET-gated cap+catalog picker, same shape sheet_science_nin's own
+       Scientific Ninja Tools box uses, not a flat slot-count gate, since
+       both spend from the identical shared pool (header shows both the
+       Titan Slots count AND the shared Creation Points budget so a player
+       can see whichever one runs out first). */}}
+  <h3>Titan Slots <span class="option-picker-epithet">{{.Ref.TitanSlotsUsed}}/{{.Ref.TitanSlotsCap}} filled · {{.Ref.CreationPointsUsed}}/{{.Ref.CreationPointsCap}} Creation Points spent</span></h3>
+  <p class="section-hint">Mech- or Weapon-keyword upgrades only — installed or replaced during a long rest. Spends from the same Creation Points budget as the Scientific Ninja Tools box on the Core tab.</p>
+  {{range .Ref.KnownUpgrades}}
+  <div class="puppet-upgrade-pick">
+    <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+      <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+      <input type="hidden" name="option_slug" value="{{.Slug}}">
+      <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+    </form>
+    <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/titan-upgrades/{{.Slug}}">{{.Name}}</a>
+    <span class="option-picker-epithet">{{.Tier}} · {{upper .Keyword}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+  </div>
+  {{end}}
+  {{if and (lt .Ref.TitanSlotsUsed .Ref.TitanSlotsCap) (lt .Ref.CreationPointsUsed .Ref.CreationPointsCap)}}
+  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <ul class="puppet-upgrade-option-list">
+      {{range .Ref.AvailableUpgrades}}
+      <li>
+        <label class="puppet-upgrade-option tooltip">
+          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · {{upper .Keyword}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+          <span class="tooltip-content">{{formatDescription .Description}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">Install Upgrade</button>
+  </form>
+  {{end}}
+
+  {{/* Endless Work (6th level): a second, separate Mech-keyword-only slot
+       usable even outside the Titan, restricted to Cost 8 or lower ("a
+       Greater or lower Mech keyword upgrade" — see titan.go's own header
+       doc on the Refined/Greater tier merge this reads against). Still
+       spends from the same shared Creation Points budget shown above. */}}
+  {{if .Ref.ExoSuit}}
+  <h3>Exo-Suit <span class="option-picker-epithet">{{.Ref.ExoSuit.Used}}/{{.Ref.ExoSuit.Cap}} filled</span></h3>
+  <p class="section-hint">Mech-keyword upgrades of Cost 8 or lower, usable even while not inside the Titan. Installed during a long rest; a second slot opens at 14th level.</p>
+  {{range .Ref.ExoSuit.Known}}
+  <div class="puppet-upgrade-pick">
+    <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-exosuit-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+      <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+      <input type="hidden" name="option_slug" value="{{.Slug}}">
+      <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+    </form>
+    <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/titan-upgrades/{{.Slug}}">{{.Name}}</a>
+    <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+  </div>
+  {{end}}
+  {{if and (lt .Ref.ExoSuit.Used .Ref.ExoSuit.Cap) (lt .Ref.CreationPointsUsed .Ref.CreationPointsCap)}}
+  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-exosuit-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <ul class="puppet-upgrade-option-list">
+      {{range .Ref.ExoSuit.Available}}
+      <li>
+        <label class="puppet-upgrade-option tooltip">
+          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+          <span class="tooltip-content">{{formatDescription .Description}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">Install Exo-Suit Upgrade</button>
+  </form>
+  {{end}}
+  {{end}}
+
+  {{/* Specialist Crafting (14th level): a single-slot "Mech or Weapon"
+       designation, freely re-picked — every upgrade of that keyword costs
+       2 less Creation Points (min. 1) catalog-wide, already folded into
+       every Cost shown above rather than shown as a separate annotation. */}}
+  {{if .Ref.SpecialistCraftingAvailable}}
+  <h3>Specialist Crafting</h3>
+  <p class="section-hint">Upgrades of the designated keyword cost 2 less Creation Points (min. 1) — already reflected in the Cost badges above. Re-pick freely during a long rest.</p>
+  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-specialist-crafting-keyword" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <select name="keyword" required onchange="this.form.requestSubmit()">
+      <option value="">— choose —</option>
+      <option value="mech"{{if eq .Ref.SpecialistCraftingKeyword "mech"}} selected{{end}}>Mech</option>
+      <option value="weapon"{{if eq .Ref.SpecialistCraftingKeyword "weapon"}} selected{{end}}>Weapon</option>
+    </select>
+  </form>
   {{end}}
   {{end}}
 </section>

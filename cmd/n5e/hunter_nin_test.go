@@ -644,3 +644,152 @@ func TestBuildAttacksArsenalWeaponBonus(t *testing.T) {
 		t.Errorf("DamageCount/DamageSides = %d/%d, want 1/6", row.DamageCount, row.DamageSides)
 	}
 }
+
+// TestHunterNinArsenalItemGrantedJutsu covers Gap 1 from the cross-cutting
+// jutsu-badge audit: Arsenal Item used to learn its matching jutsu via a
+// direct charstore.AddJutsu call at pick time (handleHunterArsenalItemAdd) —
+// a real character_jutsu row indistinguishable from a self-learned jutsu (no
+// SourceLabel, live delete button, counted against JutsuKnownCap). The grant
+// is now resolved purely off the picks table, the same "compute, don't
+// store" pattern scoutNinMobileSavantGrantedJutsu/puppetUpgradeTableGrantedJutsu
+// already use — this test confirms both the label and that no
+// character_jutsu row is ever written for it.
+func TestHunterNinArsenalItemGrantedJutsu(t *testing.T) {
+	s := testServer(t)
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Arsenal Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+
+	if labels, err := s.hunterNinArsenalItemGrantedJutsu(characterID); err != nil {
+		t.Fatalf("hunterNinArsenalItemGrantedJutsu (no picks): %v", err)
+	} else if len(labels) != 0 {
+		t.Errorf("labels (no picks) = %v, want none", labels)
+	}
+
+	// A non-jutsu Arsenal item (Paper Bombs) contributes nothing.
+	if err := charstore.AddHunterNinPick(s.charDB, characterID, charstore.HunterPickArsenalItem, "paper-bombs"); err != nil {
+		t.Fatal(err)
+	}
+	// A real jutsu Arsenal item.
+	if err := charstore.AddHunterNinPick(s.charDB, characterID, charstore.HunterPickArsenalItem, "jutsu/manipulated-tools-blade-kick"); err != nil {
+		t.Fatal(err)
+	}
+
+	labels, err := s.hunterNinArsenalItemGrantedJutsu(characterID)
+	if err != nil {
+		t.Fatalf("hunterNinArsenalItemGrantedJutsu: %v", err)
+	}
+	want := map[string]string{"jutsu/manipulated-tools-blade-kick": "Arsenal Item"}
+	if len(labels) != len(want) {
+		t.Fatalf("labels = %v, want %v", labels, want)
+	}
+	for slug, label := range want {
+		if labels[slug] != label {
+			t.Errorf("labels[%q] = %q, want %q", slug, labels[slug], label)
+		}
+	}
+
+	var count int
+	if err := s.charDB.QueryRow(`SELECT COUNT(*) FROM character_jutsu WHERE character_id = ?`, characterID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("character_jutsu row count = %d, want 0 (grant must be compute-only, not stored)", count)
+	}
+}
+
+// TestHunterNinWolfTechniqueGrantedJutsu is TestHunterNinArsenalItemGrantedJutsu's
+// own sibling, covering Gap 2 (Wolf Technique) — see that test's doc comment
+// for the shared root cause and fix shape.
+func TestHunterNinWolfTechniqueGrantedJutsu(t *testing.T) {
+	s := testServer(t)
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Wolf Technique Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+
+	if err := charstore.AddHunterNinPick(s.charDB, characterID, charstore.HunterPickWolfTechnique, "jutsu/ichimonji"); err != nil {
+		t.Fatal(err)
+	}
+
+	labels, err := s.hunterNinWolfTechniqueGrantedJutsu(characterID)
+	if err != nil {
+		t.Fatalf("hunterNinWolfTechniqueGrantedJutsu: %v", err)
+	}
+	want := map[string]string{"jutsu/ichimonji": "Wolf Technique"}
+	if len(labels) != len(want) {
+		t.Fatalf("labels = %v, want %v", labels, want)
+	}
+	for slug, label := range want {
+		if labels[slug] != label {
+			t.Errorf("labels[%q] = %q, want %q", slug, labels[slug], label)
+		}
+	}
+
+	var count int
+	if err := s.charDB.QueryRow(`SELECT COUNT(*) FROM character_jutsu WHERE character_id = ?`, characterID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("character_jutsu row count = %d, want 0 (grant must be compute-only, not stored)", count)
+	}
+}
+
+// TestWolfTechniqueGrantedJutsuReachesSheet confirms
+// hunterNinWolfTechniqueGrantedJutsu actually reaches a live sheet render —
+// characters.go's loadCharacterJutsuSheet merge hook, and from there
+// SourceLabel on the rendered row and jutsuKnownCount's own cap exclusion —
+// not just the standalone resolver tested above.
+func TestWolfTechniqueGrantedJutsuReachesSheet(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.rulesDB.Exec(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/hunter-nin', 'Hunter-Nin', 8, 6)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/ichimonji', 'Ichimonji', 'Taijutsu', 'C', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 5 Chakra', 'Taijutsu', 'test jutsu')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Kiba', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/hunter-nin', 10, 0)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.AddHunterNinPick(s.charDB, characterID, charstore.HunterPickWolfTechnique, "jutsu/ichimonji"); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet := &charsheet.Sheet{Level: 10}
+	rows, err := s.loadCharacterJutsuSheet(characterID, sheet)
+	if err != nil {
+		t.Fatalf("loadCharacterJutsuSheet: %v", err)
+	}
+	var found *jutsuSheetRow
+	for i := range rows {
+		if rows[i].Slug == "jutsu/ichimonji" {
+			found = &rows[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("jutsu/ichimonji missing from sheet rows: %+v", rows)
+	}
+	if found.SourceLabel != "Wolf Technique" {
+		t.Errorf("SourceLabel = %q, want %q", found.SourceLabel, "Wolf Technique")
+	}
+	if got := jutsuKnownCount(rows); got != 0 {
+		t.Errorf("jutsuKnownCount = %d, want 0 (Wolf Technique jutsu must not count against the known cap)", got)
+	}
+}

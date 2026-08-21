@@ -457,3 +457,94 @@ func TestMirageExhibitionBonus(t *testing.T) {
 		}
 	}
 }
+
+// TestPledgeJutsuGrantsFreeCost covers Beguiler's Inspired Appearance and
+// Illusionist's Shaping Your World: both are always-on 2nd-level base
+// features (not a player pick) that grant a specific E-Rank Genjutsu at 0
+// Chakra unconditionally, with no rest-scoped qualifier — same
+// genjutsuGrantFreeUnlimited shape as Malleable Mirages' own Beast Speech/
+// Myriad Forms/Piece of Mind entries, just always-on rather than
+// pick-gated. Confirms the printed nonzero cost_chakra is overridden to 0
+// once the granting feature is reached, and stays at the printed cost
+// before then.
+func TestPledgeJutsuGrantsFreeCost(t *testing.T) {
+	s := testServer(t)
+
+	mustExecRules := func(query string, args ...any) {
+		t.Helper()
+		if _, err := s.rulesDB.Exec(query, args...); err != nil {
+			t.Fatalf("seed rules: %v (%s)", err, query)
+		}
+	}
+	mustExecRules(`INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/genjutsu-specialist', 'Genjutsu Specialist', 8, 8)`)
+	mustExecRules(`INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/genjutsu-specialist/group/genjutsu-pledges', 'class/genjutsu-specialist', 'Genjutsu Pledges')`)
+	mustExecRules(`INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/genjutsu-specialist/group/genjutsu-pledges/beguiler', 'class/genjutsu-specialist/group/genjutsu-pledges', 'Beguiler')`)
+	mustExecRules(`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		('class/genjutsu-specialist/group/genjutsu-pledges/beguiler/feature/inspired-appearance',
+		 'class/genjutsu-specialist/group/genjutsu-pledges/beguiler', 'Inspired Appearance', 2,
+		 'When you choose this path at 2nd level, you gain the E-Rank Genjutsu Transform. If you already know this Genjutsu, you gain another E-Rank Genjutsu you qualify for. You can cast Transform at 0 Cost, as a Bonus Action.', 1)`)
+	mustExecRules(`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, cost_chakra, keywords, description)
+		VALUES ('jutsu/transform', 'Transform', 'Genjutsu', 'E', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1 Chakra', 1, 'Genjutsu', 'test jutsu')`)
+
+	res, err := s.charDB.Exec(`INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Ino', 10, 10, 10, 10, 10, 16)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	characterID, _ := res.LastInsertId()
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/genjutsu-specialist', 1, 0)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/genjutsu-specialist/group/genjutsu-pledges/beguiler', 2)`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// Below level 2: Inspired Appearance not yet reached, Transform (not
+	// otherwise known) doesn't even appear on the sheet.
+	rows, err := s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 1})
+	if err != nil {
+		t.Fatalf("loadCharacterJutsuSheet at level 1: %v", err)
+	}
+	for _, j := range rows {
+		if j.Slug == "jutsu/transform" {
+			t.Errorf("Transform present at level 1, want absent (Inspired Appearance not yet reached)")
+		}
+	}
+
+	if _, err := s.charDB.Exec(
+		`UPDATE character_classes SET levels = 2 WHERE character_id = ? AND class_slug = 'class/genjutsu-specialist'`,
+		characterID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// At level 2: Transform lands on the sheet at 0 Chakra, not its printed
+	// cost of 1.
+	rows, err = s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 2})
+	if err != nil {
+		t.Fatalf("loadCharacterJutsuSheet at level 2: %v", err)
+	}
+	var transform *jutsuSheetRow
+	for i := range rows {
+		if rows[i].Slug == "jutsu/transform" {
+			transform = &rows[i]
+		}
+	}
+	if transform == nil {
+		t.Fatalf("Transform absent at level 2, want present (Inspired Appearance grants it)")
+	}
+	if transform.CostChakra == nil || *transform.CostChakra != 0 {
+		t.Errorf("Transform CostChakra at level 2 = %v, want *0 (Inspired Appearance's unconditional free-cast override)", transform.CostChakra)
+	}
+	if transform.SourceLabel != "Subclass Feature" {
+		t.Errorf("Transform SourceLabel = %q, want %q", transform.SourceLabel, "Subclass Feature")
+	}
+}

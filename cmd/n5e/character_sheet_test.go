@@ -905,6 +905,74 @@ func TestSheetWeaponAttackOptions(t *testing.T) {
 	}
 }
 
+// TestBuildAttacksIncludesExplosiveTagsAndBombs covers the equipment.kind
+// gate in buildAttacks: Paper Bombs, Flash Tags, and the rest of that family
+// are catalogued as kind='tool', not kind='weapon' (the book prints them as
+// a tool-slot item), but they carry a printed save_dc same as a real
+// explosive, so they belong in the Attacks & Jutsu table like any other
+// equipped rollable item. An ordinary tool (no save_dc — a lockpick set,
+// a kit) must stay excluded, same as before this fix.
+func TestBuildAttacksIncludesExplosiveTagsAndBombs(t *testing.T) {
+	s := testServer(t)
+	// tool/paper-bombs and tool/flash-tag already exist in the seeded rules
+	// schema (migration 0017) — testServer applies the real migrations, not
+	// a hand-rolled empty schema, so the real catalog rows are used as-is
+	// rather than re-declared here. Only the negative-case fixture (an
+	// ordinary tool with no save_dc) needs inserting.
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO equipment (slug, name, kind, damage_dice, damage_type, save_dc)
+		VALUES ('tool/lockpick-set', 'Lockpick Set', 'tool', NULL, NULL, NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Demolitionist', 10, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_inventory (character_id, item_slug, quantity, equipped) VALUES
+			(1, 'tool/paper-bombs', 1, 1),
+			(1, 'tool/flash-tag', 1, 1),
+			(1, 'tool/lockpick-set', 1, 1)`); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv, err := s.loadCharacterInventory(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attacks, err := s.buildAttacks(1, inv, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attacks) != 2 {
+		t.Fatalf("got %d attack rows, want 2 (Paper Bombs, Flash Tag) — lockpick set must stay excluded: %+v", len(attacks), attacks)
+	}
+	bySlug := map[string]attackRow{}
+	for _, a := range attacks {
+		bySlug[a.Slug] = a
+	}
+	bombs, ok := bySlug["tool/paper-bombs"]
+	if !ok {
+		t.Fatal("Paper Bombs missing from attack rows")
+	}
+	if bombs.DamageDice != "5d4" || bombs.DamageType != "Fire" || bombs.DamageCount != 5 || bombs.DamageSides != 4 {
+		t.Errorf("Paper Bombs damage = %q %q (%dd%d), want 5d4 Fire (5d4)",
+			bombs.DamageDice, bombs.DamageType, bombs.DamageCount, bombs.DamageSides)
+	}
+	flash, ok := bySlug["tool/flash-tag"]
+	if !ok {
+		t.Fatal("Flash Tag missing from attack rows")
+	}
+	if flash.DamageSides != 0 {
+		t.Errorf("Flash Tag DamageSides = %d, want 0 (no printed damage — its effect is a save, not a damage roll)", flash.DamageSides)
+	}
+}
+
 // The whole reason modifiers are stored as parts: raising an ability score has
 // to move every attack that uses it, with nothing re-entered by hand.
 func TestComposedAttackTracksAbilityScore(t *testing.T) {

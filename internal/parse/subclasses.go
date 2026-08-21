@@ -96,6 +96,28 @@ var knownExtractionSquishes = strings.NewReplacer(
 	"Natural Weapon of to summon you chose.", "Natural Weapon of the Sage Creature you chose to summon.", // Puppet Master's Green Technique Bestial Framework: garbled, ungrammatical printed sentence
 	"equal to your proficiency bonus plus your Intelligence.", "equal to your proficiency bonus plus your Intelligence modifier.", // Cooking-Nin's Shinobi Snacks: the word "modifier" is dropped after "Intelligence" — confirmed by this same feature's own War and Food (7th level), which spells out "equal to your intelligence modifier" for the identical recreate-Snacks effect
 	"IRON CLAD SHIELD Armor Name AC Bulk Properties Iron Clad Shield +1 1 Bulk Blocking, Light martial die", "martial die", // Taijutsu Specialist's Ironclad Technique (L20): the L3 Ironclad feature's own truncated "Iron Clad Shield" stat block table resurfaced glued mid-sentence into this unrelated feature's text
+
+	// Medical-Nin's Natural Medicine/Shaman/Transmuter subclasses each print
+	// a 4-row "5th/9th/13th/17th" jutsu chart at the end of their own
+	// 17th-level feature; the leading digit off each of the first three
+	// rows' ordinal is dropped, reading as a bare "th" (Natural Medicine
+	// loses its own "17th" row's digit too — its chart has no intact row to
+	// anchor a shorter, generalized pattern against, so all 4 of its rows
+	// are listed explicitly below rather than 3). Same lost-character-at-a-
+	// text-run-boundary shape as "1oth level" above; each pair confirmed
+	// against dist/rules.db, not guessed — see
+	// 0058_medical_nin_chart_fixes.sql for the matching one-time repair of
+	// an already-shipped install.
+	"Feature th Chakra Transfer", "Feature 5th Chakra Transfer", // Natural Medicine's Natures Avatar
+	"target gains. th Gift of the Apex", "target gains. 9th Gift of the Apex",
+	"first selection. th Bestial Art Predator", "first selection. 13th Bestial Art Predator",
+	"to yourself. th Supreme Water Lion", "to yourself. 17th Supreme Water Lion",
+	"Feature th Vampiric Touch", "Feature 5th Vampiric Touch", // Shaman's Master of Hexes
+	"of you. th Phantasmal killer", "of you. 9th Phantasmal killer",
+	"affected creature. th Aura of Power", "affected creature. 13th Aura of Power",
+	"Feature th Restorative", "Feature 5th Restorative", // Transmuter's Transmogrified Biology
+	"Class level. th Curse of Prey", "Class level. 9th Curse of Prey",
+	"Penalty to -6. th Reconstructive Hand", "Penalty to -6. 13th Reconstructive Hand",
 )
 
 func fixKnownExtractionSquish(s string) string {
@@ -207,6 +229,65 @@ func redistributeMistaggedTables(subclassName string, features []ClassFeature) {
 		}
 		to.Description = strings.TrimSpace(to.Description) + " " + table
 	}
+}
+
+// medicalNinChartMarker, medicalNinChartFromSubclass/Feature, and
+// medicalNinChartToSubclass/Feature describe the one cross-SUBCLASS instance
+// of the same table-misattribution bug mistaggedSubclassTables fixes within
+// a single subclass's own feature list: Medical-Nin's Combat Medic Chart
+// (the 4-row jutsu chart at the end of Combat Medic's own 17th-level
+// feature) is glued by the flat PDF text extractor onto the END of a
+// DIFFERENT subclass's 17th-level feature — Black Medicine's own Venomous
+// Sting — instead of Combat Medic's own Yin Seal: Release. Confirmed
+// against dist/rules.db: Venomous Sting's description runs straight from
+// Black Medicine's own Black Medicine Chart into "COMBAT MEDIC CHART Level
+// Jutsu Learned Jutsu Feature 5th Pressure Point Barrage ..." with no
+// separator, while Yin Seal: Release's own description holds only its own
+// feature text and no chart at all. redistributeMistaggedTables can't fix
+// this: it only ever moves text between two features of the SAME subclass's
+// own feature slice, passed in one subclass at a time as each is parsed —
+// this move needs both subclasses already built, so it runs as a separate
+// post-pass over the whole group instead (redistributeMedicalNinCharts).
+const (
+	medicalNinChartMarker       = "COMBAT MEDIC CHART"
+	medicalNinChartFromSubclass = "Black Medicine"
+	medicalNinChartFromFeature  = "Venomous Sting"
+	medicalNinChartToSubclass   = "Combat Medic"
+	medicalNinChartToFeature    = "Yin Seal: Release"
+)
+
+// redistributeMedicalNinCharts moves the Combat Medic Chart (see above)
+// after every subclass in g has been parsed. A no-op if either named
+// subclass/feature isn't found, or if the marker text isn't present (e.g.
+// re-running against an already-fixed source).
+func redistributeMedicalNinCharts(g *SubclassGroup) {
+	var from, to *ClassFeature
+	for i := range g.Subclasses {
+		switch g.Subclasses[i].Name {
+		case medicalNinChartFromSubclass:
+			for j := range g.Subclasses[i].Features {
+				if g.Subclasses[i].Features[j].Name == medicalNinChartFromFeature {
+					from = &g.Subclasses[i].Features[j]
+				}
+			}
+		case medicalNinChartToSubclass:
+			for j := range g.Subclasses[i].Features {
+				if g.Subclasses[i].Features[j].Name == medicalNinChartToFeature {
+					to = &g.Subclasses[i].Features[j]
+				}
+			}
+		}
+	}
+	if from == nil || to == nil {
+		return
+	}
+	idx := strings.Index(from.Description, medicalNinChartMarker)
+	if idx < 0 {
+		return
+	}
+	table := strings.TrimSpace(from.Description[idx:])
+	from.Description = strings.TrimSpace(from.Description[:idx])
+	to.Description = strings.TrimSpace(to.Description) + " " + table
 }
 
 // ordinalRe matches a bare ordinal ("2nd", "18th") — the group intros list
@@ -567,6 +648,9 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 					list.Options = append(list.Options, buildOptionOn(o))
 				}
 				c.OptionLists = append(c.OptionLists, list)
+			}
+			if c.Name == "Medical-Nin" {
+				redistributeMedicalNinCharts(g)
 			}
 			c.Group = g
 			continue

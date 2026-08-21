@@ -3144,6 +3144,22 @@ var customResourceGrants = map[string]customResourceGrant{
 		FullRegen:   regenFull,
 		Restriction: "Action: cast Bringer of Darkness or Geas at no cost, once",
 	},
+	// Previously missing from this table entirely despite carrying the same
+	// printed once-per-long-rest use-limit shape as its 31 siblings — found
+	// during the Malleable Mirage jutsu-grant audit (genjutsuMirageJutsuGrants,
+	// genjutsu.go), not reported directly.
+	"genjutsu-mirage/signature-work": {
+		Key:      "mirage_signature_work",
+		Name:     "Signature Work",
+		MinLevel: 9,
+		Max: func(cl map[string]int, con, intMod, cha, prof, wisMod int) int {
+			return 1
+		},
+		ShortRegen:  regenNone,
+		LongRegen:   regenFull,
+		FullRegen:   regenFull,
+		Restriction: "Cast Programmed Illusions at half cost, programming a known D-Rank-or-lower Genjutsu into the illusion",
+	},
 	"genjutsu-mirage/superior-thoughts": {
 		Key:      "mirage_superior_thoughts",
 		Name:     "Superior Thoughts",
@@ -5392,8 +5408,11 @@ type CustomResourceEntry struct {
 //
 // stored holds whatever's actually saved in character_custom_resources,
 // keyed by resource Key (charstore.GetCustomResources) — a resource with
-// no stored row yet starts at its own Max, the same implicit-seed
-// convention Sheet.MaxChakraAuto already establishes for current_chakra.
+// no stored row yet starts at its own Max. This is a read-time fallback,
+// unlike current_hp/current_chakra on the characters table, which are
+// seeded to Sheet.MaxHP/MaxChakra once, as a plain write, at the end of
+// character creation (handleCreateFinish) — there is no equivalent
+// ongoing "no row -> use max" read path for those two columns.
 //
 // When more than one grant shares a Key (White Chakra Surge stacking onto
 // the base Hatake grant), the higher computed Max wins, same "take the

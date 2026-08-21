@@ -2505,19 +2505,29 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 }
 .sheet-calc-display {
   display: block;
+  width: 100%;
   padding: 0.4rem 0.5rem;
   margin-bottom: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   color: var(--gold);
+  font-family: inherit;
   font-size: 1.1rem;
   font-weight: 700;
   text-align: right;
+  cursor: text;
   /* A long result must scroll inside the display rather than widening the
      whole calculator and pushing the column around. */
   overflow-x: auto;
   white-space: nowrap;
+}
+/* readonly (see sheet-calculator.js's header comment) still needs its own
+   focus treatment — clicking in and typing is the whole point of it being
+   a real <input>, so it must look focusable like one. */
+.sheet-calc-display:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .sheet-calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
 .sheet-calc-keys button {
@@ -3014,15 +3024,37 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    up for is the point. */
 .jutsu-choice-row input[type="checkbox"]:disabled { cursor: not-allowed; }
 .jutsu-choice-row:has(input[type="checkbox"]:disabled) .browse-row-name { opacity: 0.55; }
-/* Marks a row as coming from the character's clan list rather than the
-   class list. Blue is already this app's "this is specific to your
-   subclass/lineage" signal (see the classes page), so it carries over. */
+/* Marks a jutsu row as coming from a class, subclass, clan, or feat feature
+   rather than being freely picked by the player — both in the jutsu-browse
+   picker list (label "Clan", clan-origin only) and in the Known Jutsu /
+   Attacks & Jutsu lists (SourceLabel text set by loadGrantedJutsuLabels:
+   "Class Feature", "Subclass Feature", "Clan", "Feat", or a specific
+   feature name like "Wolf Technique"). Blue is already this app's "this is
+   specific to your subclass/lineage" signal (see the classes page), so it
+   carries over. */
 .jutsu-source-badge {
   margin-left: 0.5rem;
   padding: 0.05rem 0.35rem;
   border: 1px solid var(--blue);
   border-radius: 999px;
   color: var(--blue);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Marks a jutsu row a class feature (currently: Genjutsu Specialist's
+   Malleable Mirages) grants a free or reduced-cost cast of — orange rather
+   than the clan badge's blue, so a granted-jutsu row reads as distinct from
+   both a manually-picked jutsu and a clan-sourced one at a glance. Native
+   `title` tooltip rather than the app's .tooltip mechanism: the grant's own
+   option text already spells out the full effect, so a second custom
+   tooltip would just repeat it. */
+.sheet-jutsu-freecast-tag {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3800,6 +3832,18 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 .companion-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
 .companion-name-field {
   flex: 1 1 auto;
+  /* min-width:0 overrides the flex default of min-width:auto, which for a
+     text input is its min-content size (substantial — driven by the
+     browser's default "size" rendering, not this field's own content) and
+     acts as a hard floor flex-shrink can't go below. Without this, a
+     narrow companion-card-header (e.g. the Puppets tab's own two-column
+     layout, ~380px wide vs. the Companions tab's ~820px) can't shrink this
+     field enough to fit the row inside companion-card-header's own
+     padding-right, so it overflows that reserved zone and the "Open ↗"
+     link renders back on top of the absolutely-positioned delete button —
+     confirmed live via getBoundingClientRect on the Puppets tab specifically
+     (fine on the wider Companions tab, broken only here). */
+  min-width: 0;
   font-size: 1.3rem;
   font-weight: 600;
   font-family: inherit;
@@ -3809,7 +3853,13 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
   border-radius: 6px;
   padding: 0.4rem 0.6rem;
 }
-.companion-kind-badge { text-transform: capitalize; white-space: nowrap; }
+/* No text-transform here: companionKindLabel (cmd/n5e/companions.go) is
+   the single source of truth for a kind's display casing now — CSS
+   capitalize used to double as an accidental partial fix (it capitalized
+   the four single-word kinds but never applied at the one render site with
+   no companion-kind-badge class, and never fixed kind="custom" reading
+   "Custom" instead of the Add Companion dropdown's own "Other" label). */
+.companion-kind-badge { white-space: nowrap; }
 
 .companion-stat-row,
 .companion-ability-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; margin-bottom: 1rem; }
@@ -3866,6 +3916,15 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    gap here instead of adding to it, so it's overridden back to a plain 0
    for this one spot. */
 .companion-block-label .section-hint { margin-top: 0; }
+/* .companion-block-label's own column flexbox default-stretches its
+   children to the box's full width (align-items: stretch is the flex
+   default, and a <button> flex item has no intrinsic width to resist it)
+   — override back to content-sized, the same fix shape this file already
+   applies to every other button living inside a column flexbox
+   (.sheet-custom-attack-form, .companion-add-attack below). Without this,
+   the Nin-Dog Breed picker's "Set Breed" button stretched to the full
+   width of the companion card, confirmed live. */
+.companion-commit-btn { align-self: flex-start; }
 
 /* Same dt/dd grid shape as .sheet-passive-trait-list, scoped separately
    since this one sits inside a .companion-block-label flex column instead
@@ -3962,7 +4021,16 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    further up the tree happens to have position set, landing wherever
    that is instead of this card's own top-right corner (same bug shape as
    #sheet-puppet-tactics .puppet-upgrade-pick, see that rule's own doc). */
-.companion-card-header { position: relative; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+/* padding-right reserves room for .sheet-delete-btn, which is
+   position:absolute (right: 0.5rem, ~1rem wide) and so takes no space in
+   the flex flow itself — without this, .companion-name-field's flex:1 1
+   auto fills every bit of the row's own content width right up to that
+   same right edge, and any fixed-width sibling after it (the kind badge,
+   the "Open ↗" popup link) renders flush against — and behind — the
+   delete button instead of stopping short of it. Confirmed live via
+   getBoundingClientRect: without this, .companion-open-btn's rect
+   overlapped .sheet-delete-btn's by ~30px on every companion card. */
+.companion-card-header { position: relative; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; padding-right: 2.25rem; }
 .companion-card-header .companion-name-field { margin-right: 0.5rem; }
 /* A <summary> used as the card header (Puppets tab only — see above):
    same disclosure-triangle replacement as .sheet-feature-panel.sheet-box's

@@ -376,6 +376,54 @@ func (s *server) scienceNinClassLevel(characterID int64) (int, error) {
 	return level, err
 }
 
+// scienceNinAdaptiveMovementJutsuSlugs: the two named jutsu Mech Crafter's
+// Adaptive Movement (3rd level) both grants as known (jutsu_grants.go's
+// loadGrantedJutsuLabels) and lets its owner cast off CCD chakra instead of
+// the normal Chakra pool, at the jutsu's own full printed cost — "You can
+// cast these jutsu using chakra from your CCD." Confirmed against
+// dist/rules.db's v_jutsu: both resolve to real jutsu rows with a numeric
+// cost_chakra (3 each).
+var scienceNinAdaptiveMovementJutsuSlugs = map[string]bool{
+	"jutsu/body-flicker":   true,
+	"jutsu/chakra-leaping": true,
+}
+
+// scienceNinAdaptiveMovementResourceKey must match custom_resources.go's own
+// Key for the base "class/science-nin/feature/chakra-containment-device"
+// grant (Chakra Containment Device).
+const scienceNinAdaptiveMovementResourceKey = "ccd"
+
+// scienceNinAdaptiveMovementJutsuGrantsForCharacter is Adaptive Movement's
+// own version of genjutsuMirageJutsuGrantsForCharacter (genjutsu.go)/
+// hunterNinJutsuGrantsForCharacter (hunter_nin.go) — a jutsu whose cast can
+// be paid from a rest-scoped pool instead of Chakra. Unlike either of those,
+// the pool spent (CCD) is itself measured in Chakra and the feature's own
+// text pays the jutsu's FULL printed cost out of it rather than a fixed
+// per-cast use count or a half/free reduction, so this returns a plain set
+// of qualifying jutsu slugs rather than a struct carrying its own Cost/
+// UsesPerCast — loadCharacterJutsuSheet (characters.go) computes both
+// directly off each jutsu's own printed cost_chakra, already in scope there
+// for the identical reason Malleable Mirages' own half-cost mode is.
+//
+// Unconditional once granted (not a player pick), so this reads
+// loadGrantedFeatures directly rather than a stored pick — same "always-on
+// feature" shape genjutsuPledgeJutsuGrantsForCharacter (genjutsu.go) already
+// establishes.
+func (s *server) scienceNinAdaptiveMovementJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]bool, error) {
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	if err != nil {
+		return nil, err
+	}
+	if !hasFeature(granted, scienceNinAdaptiveMovementFeatureSlug) {
+		return nil, nil
+	}
+	out := make(map[string]bool, len(scienceNinAdaptiveMovementJutsuSlugs))
+	for slug := range scienceNinAdaptiveMovementJutsuSlugs {
+		out[slug] = true
+	}
+	return out, nil
+}
+
 // scienceNinToolStatLinePattern peels a Scientific Ninja Tools entry's own
 // leading "(Prerequisite: <name> )?Cost: <n> Creation Points?(Drain: <n>
 // CCD Chakra)?" stat line off the front of its class_option_entries

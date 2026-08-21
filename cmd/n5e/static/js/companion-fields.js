@@ -136,9 +136,32 @@
   document.addEventListener("submit", (e) => {
     const form = e.target;
     if (!(form instanceof HTMLFormElement)) return;
-    if (!/\/companions\/\d+(\/(ac|hp|hp_max))?$/.test(form.action)) return;
+    if (!/\/companions\/\d+(\/(ac|hp|hp_max|jutsu_slots_current|jutsu_slots_max|matryoshka_jutsu_slots|barrier_current|barrier_max))?$/.test(form.action)) return;
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+
+  // Explicit-commit selects (.companion-commit-select — Nin-Dog Breed today,
+  // any future locked-once-chosen picker later) are deliberately NOT a
+  // .companion-field: merely selecting (or, worse, just blurring) one of
+  // these must never itself commit the pick, since the value locks
+  // permanently server-side the instant it's saved non-empty (see
+  // charstore.SetCompanionFields' own CASE WHEN guard). Its own sibling
+  // .companion-commit-btn (inside the same .companion-block-label) is the
+  // only thing that actually saves it — this listener just keeps that
+  // button's disabled state in sync with whether a real option is
+  // currently highlighted, so "click Set" is only ever actionable once
+  // there is something to set. The commit itself (posting the form, then
+  // reloading the popup or refreshing the tab fragment) is wired per-view
+  // (companion-sheet.js, sheet-puppets.js) since those two need different
+  // post-commit refresh behavior — the same split the breed/tribe picker's
+  // own "change" listener already used before this fix.
+  document.addEventListener("change", (e) => {
+    const select = e.target;
+    if (!(select instanceof Element) || !select.classList.contains("companion-commit-select")) return;
+    const label = select.closest(".companion-block-label");
+    const btn = label && label.querySelector(".companion-commit-btn");
+    if (btn) btn.disabled = select.value === "";
   });
 
   // Picking a new Armor Chassis: save the pick itself (a <select> firing

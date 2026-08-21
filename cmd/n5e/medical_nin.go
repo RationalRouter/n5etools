@@ -33,17 +33,30 @@ import (
 // — see taijutsu.go's buildFightingStanceView/storeFightingStanceChoice,
 // generalized here as a second granting feature rather than duplicated.
 //
-// Everything else this pass deferred — the 6 subclasses' own
-// jutsu-plus-rider-effect charts (the same missing system Hunter-Nin's own
-// audit already flagged as a cross-class future build), Medical Doctrine's
-// remaining 2 triggered sub-effects (Long Life Short Death, a per-recipient
-// cap rather than a per-caster pool; Never on the Front Lines, no count at
-// all), Expert Combatant's own "gains the Medical Keyword" downstream
-// effect and its separate "attack twice instead of once" clause (no
-// attacks-per-action field exists anywhere in this app for any class), and
-// every other conditional/triggered payload needing a subsystem this app
-// has no shape for yet — is documented, not modeled; see CLASS_AUDIT.md's
-// Medical-Nin detail entry.
+// Each of the 6 Tenets of Medicine subclasses also prints its own
+// jutsu-learned-by-level chart (Adept Medic/Black Medicine/Combat Medic/
+// Natural Medicine/Shaman/Transmuter) — a fixed, non-optional jutsu grant at
+// 5th/9th/13th/17th level, never a player choice and never a Chakra-cost
+// override, so it needs none of Genjutsu Specialist's Malleable Mirages
+// machinery (genjutsu.go): see medicalNinJutsuChartGrants/
+// medicalNinJutsuChartGrantedJutsu below, the same flat slug->badge shape
+// puppetUpgradeTableGrantedJutsu/scoutNinMobileSavantGrantedJutsu already
+// use. Only the JUTSU half of each chart is modeled — each chart row's own
+// "additional feature pertaining to the jutsu learned" (Aid's scaling
+// temp-HP, Revival's 1d6 revive bonus, Healing Wave's 2x-proficiency-bonus
+// healing, etc.) is a bespoke triggered rider with no computed field
+// anywhere in this app to land in, same boundary Malleable Mirages' own
+// triggered effects already draw.
+//
+// Everything else this pass deferred — Medical Doctrine's remaining 2
+// triggered sub-effects (Long Life Short Death, a per-recipient cap rather
+// than a per-caster pool; Never on the Front Lines, no count at all),
+// Expert Combatant's own "gains the Medical Keyword" downstream effect and
+// its separate "attack twice instead of once" clause (no attacks-per-action
+// field exists anywhere in this app for any class), and every other
+// conditional/triggered payload needing a subsystem this app has no shape
+// for yet — is documented, not modeled; see CLASS_AUDIT.md's Medical-Nin
+// detail entry.
 const medicalNinSlug = "class/medical-nin"
 
 // combatMedicSubclassSlug identifies Combat Medic among Medical-Nin's 6
@@ -240,6 +253,110 @@ func (s *server) medicalNinSubclassSlug(characterID int64) (slug, name string, e
 		}
 	}
 	return "", "", nil
+}
+
+// medicalNinChartJutsuGrant names one jutsu a Tenets of Medicine subclass
+// learns automatically at a fixed level, per that subclass's own printed
+// chart. Level is the subclass's own class-level gate (5th/9th/13th/17th
+// for all 6 subclasses); JutsuName documents the match for readability only
+// (see genjutsuMirageJutsuGrant's identical unused-Name convention,
+// genjutsu.go) — the sheet always re-queries v_jutsu by JutsuSlug for the
+// actual display name/rank/cost.
+type medicalNinChartJutsuGrant struct {
+	Level     int
+	JutsuSlug string
+	JutsuName string
+}
+
+// medicalNinJutsuChartGrants maps each Tenets of Medicine subclass to its
+// own 4-entry chart, resolved by hand against dist/rules.db's jutsu table:
+// every chart prints a short name with its jutsu's own "Medical Release:"/
+// "Sealing Art:"/"Water Release:"/"Bestial Art:" discipline prefix dropped
+// (e.g. the Adept Medic Chart's "Aid" is jutsu/medical-release-aid, the
+// Transmuter Chart's "Curse of Prey" is jutsu/sealing-art-curse-of-the-prey)
+// — restored here, not guessed: every entry below was looked up by name
+// against the real jutsu table, not hand-transcribed from the chart's own
+// short form.
+//
+// Combat Medic's own 9th- and 17th-level entries are the two exceptions
+// that don't resolve to a verbatim name match and needed a judgment call:
+// the chart's "Strength of 100 Technique" has no "Technique"-suffixed jutsu
+// row (only "Medical Release: Strength of 100" exists) and "Creation
+// Rebirth: Strength of 1000" has no "Creation Rebirth"-named jutsu row at
+// all. Both are mapped to their closest same-family jutsu (Strength of 100
+// / Strength of 1000 respectively) rather than left unmapped; double-check
+// this pair against the sourcebook's own printed Combat Medic Chart before
+// relying on it.
+//
+// No entry here carries a Chakra-cost override or a rest-scoped use-limit
+// of its own — every chart's own text is "you learn the following jutsu...
+// Learned Jutsu do not count against your Jutsu known," known-list
+// membership only, so this needs none of genjutsuMirageJutsuGrant's Mode/
+// ResourceSuffix fields or a matching customResourceGrants pool.
+var medicalNinJutsuChartGrants = map[string][]medicalNinChartJutsuGrant{
+	"class/medical-nin/group/tenets-of-medicine/adept-medic": {
+		{Level: 5, JutsuSlug: "jutsu/medical-release-aid", JutsuName: "Medical Release: Aid"},
+		{Level: 9, JutsuSlug: "jutsu/medical-release-revival", JutsuName: "Medical Release: Revival"},
+		{Level: 13, JutsuSlug: "jutsu/medical-release-healing-wave", JutsuName: "Medical Release: Healing Wave"},
+		{Level: 17, JutsuSlug: "jutsu/medical-release-heal", JutsuName: "Medical Release: Heal"},
+	},
+	"class/medical-nin/group/tenets-of-medicine/black-medicine": {
+		{Level: 5, JutsuSlug: "jutsu/medical-release-spore-caller", JutsuName: "Medical Release: Spore Caller"},
+		{Level: 9, JutsuSlug: "jutsu/medical-release-spores-of-ruin", JutsuName: "Medical Release: Spores of Ruin"},
+		{Level: 13, JutsuSlug: "jutsu/medical-release-corrosive-plume", JutsuName: "Medical Release: Corrosive Plume"},
+		{Level: 17, JutsuSlug: "jutsu/medical-release-supreme-poison-deity", JutsuName: "Medical Release: Supreme Poison Deity"},
+	},
+	"class/medical-nin/group/tenets-of-medicine/combat-medic": {
+		{Level: 5, JutsuSlug: "jutsu/pressure-point-barrage", JutsuName: "Pressure Point Barrage"},
+		// Judgment call — see doc comment above.
+		{Level: 9, JutsuSlug: "jutsu/medical-release-strength-of-100", JutsuName: "Medical Release: Strength of 100"},
+		{Level: 13, JutsuSlug: "jutsu/true-rakshasas-palm", JutsuName: "True Rakshasa’s Palm"},
+		// Judgment call — see doc comment above.
+		{Level: 17, JutsuSlug: "jutsu/medical-release-strength-of-1000", JutsuName: "Medical Release: Strength of 1000"},
+	},
+	"class/medical-nin/group/tenets-of-medicine/natural-medicine": {
+		{Level: 5, JutsuSlug: "jutsu/medical-release-chakra-transfer", JutsuName: "Medical Release: Chakra Transfer"},
+		{Level: 9, JutsuSlug: "jutsu/sealing-art-gift-of-the-apex", JutsuName: "Sealing Art: Gift of the Apex"},
+		{Level: 13, JutsuSlug: "jutsu/bestial-art-predator", JutsuName: "Bestial Art: Predator"},
+		{Level: 17, JutsuSlug: "jutsu/water-release-supreme-water-lion", JutsuName: "Water Release: Supreme Water Lion"},
+	},
+	"class/medical-nin/group/tenets-of-medicine/shaman": {
+		{Level: 5, JutsuSlug: "jutsu/medical-release-vampiric-touch", JutsuName: "Medical Release: Vampiric Touch"},
+		{Level: 9, JutsuSlug: "jutsu/phantasmal-killer", JutsuName: "Phantasmal Killer"},
+		{Level: 13, JutsuSlug: "jutsu/medical-release-aura-of-power", JutsuName: "Medical Release: Aura of Power"},
+		{Level: 17, JutsuSlug: "jutsu/mental-prison", JutsuName: "Mental Prison"},
+	},
+	"class/medical-nin/group/tenets-of-medicine/transmuter": {
+		{Level: 5, JutsuSlug: "jutsu/medical-release-restorative", JutsuName: "Medical Release: Restorative"},
+		{Level: 9, JutsuSlug: "jutsu/sealing-art-curse-of-the-prey", JutsuName: "Sealing Art: Curse of the Prey"},
+		{Level: 13, JutsuSlug: "jutsu/medical-release-reconstructive-hand", JutsuName: "Medical Release: Reconstructive Hand"},
+		{Level: 17, JutsuSlug: "jutsu/medical-release-impending-end", JutsuName: "Medical Release: Impending End"},
+	},
+}
+
+// medicalNinJutsuChartGrantedJutsu resolves the character's own Tenets of
+// Medicine subclass and Medical-Nin class level against
+// medicalNinJutsuChartGrants, returning slug -> a short badge label — mirrors
+// puppetUpgradeTableGrantedJutsu (puppet_upgrade_jutsu_grants.go) and
+// scoutNinMobileSavantGrantedJutsu (scout_nin.go), both merged into
+// characters.go's loadCharacterJutsuSheet the same "flat map, first writer
+// wins" way this is meant to be merged too.
+func (s *server) medicalNinJutsuChartGrantedJutsu(characterID int64, classLevel int) (map[string]string, error) {
+	subclassSlug, _, err := s.medicalNinSubclassSlug(characterID)
+	if err != nil {
+		return nil, err
+	}
+	grants, ok := medicalNinJutsuChartGrants[subclassSlug]
+	if !ok {
+		return nil, nil
+	}
+	labels := map[string]string{}
+	for _, g := range grants {
+		if g.Level <= classLevel {
+			labels[g.JutsuSlug] = "Subclass Feature"
+		}
+	}
+	return labels, nil
 }
 
 // chakraScalpelDamageDie reads Chakra Scalpel's own live chart

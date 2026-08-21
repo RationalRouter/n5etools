@@ -1,0 +1,12 @@
+-- Lets a known jutsu's Chakra cost itself be overridden, alongside the
+-- attack/damage overrides 0010 already gives character_jutsu_options — some
+-- feats, clan traits, and class features cast a jutsu for a fixed lower (or
+-- occasionally higher) Chakra cost than its printed cost_chakra, independent
+-- of upcasting (jutsu_upcast_rules' own per-rank cost curve, untouched by
+-- this column).
+--
+-- Nullable, not defaulted to 0: unlike the damage columns, 0 is itself a
+-- meaningful cost (some class features grant a jutsu that can be cast for
+-- free), so NULL is the only value that can mean "no override, use the
+-- printed cost" without colliding with a real override value.
+ALTER TABLE character_jutsu_options ADD COLUMN cost_chakra_override INTEGER;

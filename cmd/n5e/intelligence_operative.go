@@ -23,7 +23,13 @@ import (
 // list_name "Operative Traps", cap 2->3@6th->4@9th; the SEPARATE
 // Proficiency-Bonus "traps set" spend pool lives in customResourceGrants,
 // same "pool here, known-list there" split Hunters Exploits/Hunters
-// Patterns already established).
+// Patterns already established). Also built: Interrogationist's Unerring
+// Eye and Perfect Mind, each of which lets its owner cast one specific
+// named jutsu by spending a Brave Order instead of chakra, "as if you know
+// it" — see intelligenceOperativeJutsuGrants below, the same
+// FreeCast-button pattern Genjutsu Specialist's Malleable Mirages
+// (genjutsu.go) and Hunter-Nin's Wolf Techniques (hunter_nin.go) already
+// establish.
 //
 // Plans' own 21-row catalog was mistagged to the Tactical Strategist
 // subclass in class_options — the same PDF-outline-bookmarking artifact
@@ -43,6 +49,101 @@ import (
 const intelligenceOperativeSlug = "class/intelligence-operative"
 
 const tacticalStrategistSubclassSlug = "class/intelligence-operative/group/master-strategies/tactical-strategist"
+
+// unerringEyeFeatureSlug/perfectMindFeatureSlug are Interrogationist's two
+// subclass features whose own text lets their owner cast a specific named
+// jutsu by spending a Brave Order instead of chakra — see
+// intelligenceOperativeJutsuGrants below.
+const (
+	unerringEyeFeatureSlug = "class/intelligence-operative/group/master-strategies/interrogationist/feature/unerring-eye"
+	perfectMindFeatureSlug = "class/intelligence-operative/group/master-strategies/interrogationist/feature/perfect-mind"
+)
+
+// intelligenceOperativeJutsuGrant names one jutsu an Intelligence Operative
+// subclass feature lets its owner cast by spending a Brave Order instead of
+// Chakra — Intelligence Operative's own version of genjutsuMirageJutsuGrant
+// (genjutsu.go)/hunterNinJutsuGrant (hunter_nin.go), keyed to an always-on
+// subclass feature rather than a player pick. ResourceKey points straight
+// at the class's own existing "brave_orders" customResourceGrants pool
+// (Master Planner, custom_resources.go) rather than a new dedicated pool —
+// neither feature below prints its own separate use-limit; both simply
+// spend from the character's shared Brave Order pool.
+type intelligenceOperativeJutsuGrant struct {
+	JutsuSlug   string
+	ResourceKey string
+	Cost        int
+	UsesPerCast int
+}
+
+// intelligenceOperativeJutsuGrants: Interrogationist's own two subclass
+// features that each let their owner cast a specific named jutsu by
+// spending a Brave Order.
+//
+// Unerring Eye (13th level): "...you can, as a Reaction, spend one Brave
+// Order to Cast Genjutsu Break at the highest rank you can cast based on
+// your class table, without expending chakra, as if you know it." Genjutsu
+// Break resolves to exactly one v_jutsu row (jutsu/genjutsu-break,
+// Genjutsu, C-Rank) — only the rank-agnostic "spend 1 Brave Order, no
+// chakra" grant is modeled; casting at "the highest rank you can cast" is
+// the jutsu's own printed rank here, the same simplification every other
+// FreeCast grant in this codebase already makes (no grant tracks a
+// player's own Highest Rank Known against the cast rank).
+//
+// Perfect Mind (17th level): "...you can, as a Reaction, spend one Brave
+// Order to cast Chakra Shatter and automatically mark the triggering
+// creature with your Exploit Weakness class feature." Less explicit than
+// Unerring Eye (no "without expending chakra"/"as if you know it" stated
+// outright), but modeled the same way — a Brave-Order-gated cast of a
+// jutsu the character need not already know — consistent with every other
+// "spend 1 Brave Order to activate X" feature elsewhere in this class,
+// none of which layer an additional chakra cost on top of the Brave Order
+// spend. Chakra Shatter resolves to exactly one v_jutsu row
+// (jutsu/chakra-shatter, Genjutsu, C-Rank, printed cost 9 chakra); Cost is
+// 0 here rather than that printed cost, matching that free-cast reading.
+// Only the use-count gate (spending a Brave Order) is tracked — marking
+// the triggering creature with Exploit Weakness stays manual/narrated,
+// same as every other triggered side-effect clause elsewhere in this
+// class's own features.
+var intelligenceOperativeJutsuGrants = map[string]intelligenceOperativeJutsuGrant{
+	unerringEyeFeatureSlug: {
+		JutsuSlug:   "jutsu/genjutsu-break",
+		ResourceKey: "brave_orders",
+		Cost:        0,
+		UsesPerCast: 1,
+	},
+	perfectMindFeatureSlug: {
+		JutsuSlug:   "jutsu/chakra-shatter",
+		ResourceKey: "brave_orders",
+		Cost:        0,
+		UsesPerCast: 1,
+	},
+}
+
+// intelligenceOperativeJutsuGrantsForCharacter resolves every
+// intelligenceOperativeJutsuGrants entry the character actually qualifies
+// for — i.e. currently holds the granting subclass feature at their
+// current Intelligence Operative level — keyed by the granted jutsu's own
+// slug, the same output shape genjutsuMirageJutsuGrantsForCharacter/
+// hunterNinJutsuGrantsForCharacter return, so it can feed the same
+// FreeCast-population spot in loadCharacterJutsuSheet (characters.go).
+// Reads loadGrantedFeatures directly rather than a stored pick — mirrors
+// genjutsuPledgeJutsuGrantsForCharacter's own "always-on feature, not a
+// player choice" shape (genjutsu.go); loadGrantedFeatures already gates a
+// subclass feature by its own subclass's class level, so no separate
+// Interrogationist/level check is needed here.
+func (s *server) intelligenceOperativeJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]intelligenceOperativeJutsuGrant, error) {
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]intelligenceOperativeJutsuGrant{}
+	for _, f := range granted {
+		if grant, ok := intelligenceOperativeJutsuGrants[f.Slug]; ok {
+			out[grant.JutsuSlug] = grant
+		}
+	}
+	return out, nil
+}
 
 // intelligenceOperativeClassLevel returns the character's own Intelligence
 // Operative class level, or 0 if they have none — mirrors
