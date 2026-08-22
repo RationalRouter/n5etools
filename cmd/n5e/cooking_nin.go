@@ -207,6 +207,53 @@ func gastrochemistEnhancementLabel(value string) string {
 	return value
 }
 
+// patissierChefByTheBookFeatureSlug is Patissier Chef's "Gotta Do the
+// Cooking By the Book" (5th level): "You can learn any Jutsu with the
+// Medical release that recovers Hit Points, or gives temp Hit Points, and
+// may use Charisma as your Jutsu Modifier for them. When you would heal a
+// creature using Jutsu you may, as a part of the same Action, feed them a
+// Snack" — the jutsu-access half is a curated eligibility grant
+// (patissierChefByTheBookHealingJutsuSlugs, wired into jutsuEligible) and
+// the Charisma half is a per-row AttackAbility/DamageAbility override
+// (loadCharacterJutsuSheet); the Snack-feeding clause stays narrated, same
+// as every other "as a part of the same Action" flavor clause in this
+// class (see this file's own package doc comment).
+const patissierChefByTheBookFeatureSlug = "class/cooking-nin/group/cooking-focus/patissier-chef/feature/gotta-do-the-cooking-by-the-book"
+
+// patissierChefByTheBookHealingJutsuSlugs curates which of the 91
+// "Medical Release: X" jutsu (jutsu/medical-release-*, dist/rules.db)
+// actually "recover Hit Points, or give temp Hit Points" per By the
+// Book's own text above. No column distinguishes this — the Medical
+// keyword covers both the release's supportive/healing half and its acid/
+// poison/necrotic offensive half equally — so this list was built by
+// hand-reading all 91 jutsu's full description text, not a live query.
+// Confirmed 2026-08-22: a crude "%Hit Point%" substring search over the
+// same 91 rows produces both false positives (Blood Rot Curse, Corrosive
+// Plume, Dead Heartbeat Technique, Grim Weapon, Impending End, and Plague
+// all mention "Hit Points" while being purely harmful, with no recovery
+// for the caster or an ally) and false negatives (Heal uses "restore"
+// rather than "regain"/"recover"), so it cannot be computed live.
+var patissierChefByTheBookHealingJutsuSlugs = map[string]bool{
+	"jutsu/medical-release-acid-armor":          true, // self Temporary Hit Points
+	"jutsu/medical-release-adept-healing":       true,
+	"jutsu/medical-release-aid":                 true,
+	"jutsu/medical-release-aura-of-life":        true,
+	"jutsu/medical-release-goodberry":           true,
+	"jutsu/medical-release-grim-siphon":         true, // an ally "regains Hit Points equal to the damage dealt"
+	"jutsu/medical-release-heal":                true,
+	"jutsu/medical-release-healing-elixir":      true,
+	"jutsu/medical-release-healing-wave":        true,
+	"jutsu/medical-release-medical-aura":        true,
+	"jutsu/medical-release-reconstructive-hand": true,
+	"jutsu/medical-release-regenerate":          true,
+	"jutsu/medical-release-revival":             true, // returns the target to 1 Hit Point
+	"jutsu/medical-release-strength-of-1000":    true, // "regenerate Hit Points ... at the start of each of your turns"
+	"jutsu/medical-release-transfer-of-life":    true,
+	"jutsu/medical-release-vampiric-touch":      true, // caster "regain Hit Points equal to half" the damage dealt
+	"jutsu/medical-release-virtue":              true,
+	"jutsu/medical-release-wither-and-bloom":    true,
+}
+
 // cookingToolInfusionFeatureSlug is the base class feature (1st level)
 // granting the Cooking Tool itself: an implement, a damage type, and a
 // weapon property at 1st level, one more property at 6th, and one more at
@@ -592,6 +639,87 @@ func (s *server) cookingToolInfusionAttackOverrides(characterID int64, sheet *ch
 	return implementSlug, dieSize, damageType, critRangeBonus, nil
 }
 
+// expertCombatantFeatureSlug is Battle Cook's 2nd-level feature — "choose
+// one martial or simple weapon, your Cooking Tools are considered to be
+// this weapon for the purpose of Bukijutsu, including fulfilling keyword
+// requirements." Confirmed against jutsu_eligibility.go: no mechanism
+// anywhere in this app gates Bukijutsu jutsu eligibility by a specific
+// equipped weapon GROUP (Polearm, Flail, etc. — the only gates
+// jutsuEligible applies are elemental affinity and the Medical rank cap),
+// even though several real jutsu name such a requirement in free text. So
+// this pick's own downstream effect (bypassing a weapon-group keyword
+// requirement) stays narrated, the same documented boundary this file's
+// own package doc comment already draws around Cooking Tool Infusion's
+// non-Blocking/Deadly/Critical properties — only WHICH weapon was chosen
+// is tracked and shown here.
+const expertCombatantFeatureSlug = "class/cooking-nin/group/cooking-focus/battle-cook/feature/expert-combatant"
+
+// loadExpertCombatantWeaponCatalog reads every simple and martial weapon
+// off the equipment table — "choose one martial or simple weapon" is a real
+// filter over real equipment rows, same "read the catalog, don't
+// hand-transcribe it" shape loadWardenWeaponCatalog (hunter_nin.go) and
+// loadCookingToolImplementCatalog above already establish. Exotic weapons
+// are excluded — the feature's own text names only martial and simple.
+func (s *server) loadExpertCombatantWeaponCatalog() ([]featureChoiceOption, error) {
+	rows, err := s.rulesDB.Query(`
+		SELECT slug, name, COALESCE(damage_dice, ''), COALESCE(damage_type, ''), COALESCE(properties, '')
+		FROM equipment
+		WHERE kind = 'weapon' AND weapon_category IN ('simple', 'martial')
+		ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []featureChoiceOption
+	for rows.Next() {
+		var o featureChoiceOption
+		var damageDice, damageType, properties string
+		if err := rows.Scan(&o.Value, &o.Label, &damageDice, &damageType, &properties); err != nil {
+			return nil, err
+		}
+		o.Description = strings.TrimSpace(damageDice + " " + damageType + ". " + properties)
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// expertCombatantView holds Battle Cook's own Expert Combatant weapon pick
+// — nil unless the character holds the feature. Locked once chosen, same
+// "silence on re-editability read as permanent" boundary Cooking Tool
+// Infusion's own 5 picks already draw (see the doc comment above
+// cookingToolChoiceImplement's own const block) — the feature's own text
+// describes a single choice made at 2nd level, with no mention of
+// re-selecting it later.
+type expertCombatantView struct {
+	Weapon        string // equipment slug, "" unpicked
+	WeaponName    string
+	WeaponOptions []featureChoiceOption
+}
+
+// loadExpertCombatantView loads the current pick plus the catalog the
+// sheet's picker form needs.
+func (s *server) loadExpertCombatantView(characterID int64) (*expertCombatantView, error) {
+	catalog, err := s.loadExpertCombatantWeaponCatalog()
+	if err != nil {
+		return nil, err
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	v := &expertCombatantView{
+		Weapon:        choices[features.ChoiceKey{FeatureSlug: expertCombatantFeatureSlug, ChoiceIndex: 0}],
+		WeaponOptions: catalog,
+	}
+	for _, o := range catalog {
+		if o.Value == v.Weapon {
+			v.WeaponName = o.Label
+			break
+		}
+	}
+	return v, nil
+}
+
 // knownBlendEnhancementPick is one entry on the Nature's Blend Enhancement
 // Known list — a known jutsu (see knownJutsuOption, ninjutsu_specialist.go)
 // paired with which of the 4 Enhancement types it was given.
@@ -744,6 +872,10 @@ type cookingNinTabData struct {
 	// feature's own 1st-level gate.
 	CookingToolInfusion *cookingToolInfusionView
 
+	// ExpertCombatant is Battle Cook's own 2nd-level weapon-classification
+	// pick — nil until the character holds the feature.
+	ExpertCombatant *expertCombatantView
+
 	// Gastrochemist's Nature's Blend Enhancement pick (2nd level, cap
 	// 1->6 across 2nd/3rd/5th/9th/13th/17th level) — only rendered when
 	// BlendEnhancementCap > 0, i.e. the character actually holds the
@@ -802,6 +934,13 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 		data.FoodForTheSoul = &foodForTheSoulView{
 			Current: choices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}],
 			Options: foodForTheSoulOptions,
+		}
+	}
+
+	if hasGrantedFeature(grantedFeatures, expertCombatantFeatureSlug) {
+		data.ExpertCombatant, err = s.loadExpertCombatantView(characterID)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -1332,6 +1471,81 @@ func (s *server) handleCookingToolPropertyL11(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set cooking tool property (11th):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleBattleCookExpertCombatantWeapon records Battle Cook's own Expert
+// Combatant weapon-type pick — distinct from Combat Medic's own unrelated
+// "Expert Combatant" feature (Medical-Nin, medical_nin.go's
+// handleExpertCombatantAdd/handleExpertCombatantDelete); the two classes'
+// features simply share a printed name, nothing else. Locked once chosen
+// (see the doc comment above expertCombatantFeatureSlug).
+func (s *server) handleBattleCookExpertCombatantWeapon(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for expert combatant weapon:", err)
+		return
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load granted features for expert combatant weapon:", err)
+		return
+	}
+	if !hasGrantedFeature(grantedFeatures, expertCombatantFeatureSlug) {
+		http.Error(w, "character does not have Expert Combatant", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for expert combatant weapon:", err)
+		return
+	}
+	if choices[features.ChoiceKey{FeatureSlug: expertCombatantFeatureSlug, ChoiceIndex: 0}] != "" {
+		http.Error(w, "Expert Combatant weapon is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		catalog, err := s.loadExpertCombatantWeaponCatalog()
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load expert combatant weapon catalog:", err)
+			return
+		}
+		valid := false
+		for _, o := range catalog {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid weapon", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set expert combatant weapon:", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")

@@ -254,6 +254,35 @@ func ninjutsuMasterCap(level int) int {
 	return 0
 }
 
+// awakenedScrollFeatureSlug identifies Scribe Master's own subclass feature
+// Awakened Scroll — gates the seal-storage picker below on the character
+// actually having reached this feature (subclass-gated, unlike Refined
+// Ninjutsu/Efficient Molding, which are base-class-wide), the same
+// hasGrantedFeature check refinedRefinementBonus uses below.
+const awakenedScrollFeatureSlug = "class/ninjutsu-specialist/group/ninjutsu-focus/scribe-master/feature/awakened-scroll"
+
+// awakenedScrollCap: "your scroll has two open jutsu seals... You learn to
+// create two additional jutsu seals at 6th and 10th levels." No
+// class_level_resources chart exists for this bracket — hand-curated the
+// same way ninjutsuMasterCap is: 2 at 2nd, 4 at 6th, 6 at 10th. Only the
+// "store a Ninjutsu you already know" half of this feature is modeled here;
+// storing a Jutsu "from another source, such as a ninjutsu scroll or a
+// willing creature" (up to 1 rank above the character's own highest known
+// rank) has no mechanism anywhere in this app for temporarily holding a
+// jutsu the character doesn't actually know, and stays manual.
+func awakenedScrollCap(level int) int {
+	switch {
+	case level >= 10:
+		return 6
+	case level >= 6:
+		return 4
+	case level >= 2:
+		return 2
+	default:
+		return 0
+	}
+}
+
 // refinedRefinementFeatSlug is feat/class/refined-refinement ("You can
 // Refine 1 additional Ninjutsu. You can Refine additional Ninjutsu at 12th
 // and 20th Ninjutsu Specialist levels."), prerequisite "At least 4+ levels
@@ -294,6 +323,11 @@ type ninjutsuSpecialistTabData struct {
 	MasterUsed      int
 	KnownMaster     []knownNinjutsuJutsuPick
 	AvailableMaster []knownJutsuOption
+
+	AwakenedScrollCap       int
+	AwakenedScrollUsed      int
+	KnownAwakenedScroll     []knownNinjutsuJutsuPick
+	AvailableAwakenedScroll []knownJutsuOption
 }
 
 // loadNinjutsuSpecialistTabData returns nil for a character with no
@@ -354,7 +388,11 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		return nil, err
 	}
 	data.RefinedCap += refinedRefinementBonus(grantedFeatures, level)
-	if data.RefinedCap > 0 || ninjutsuMasterCap(level) > 0 {
+	data.AwakenedScrollCap = 0
+	if hasGrantedFeature(grantedFeatures, awakenedScrollFeatureSlug) {
+		data.AwakenedScrollCap = awakenedScrollCap(level)
+	}
+	if data.RefinedCap > 0 || ninjutsuMasterCap(level) > 0 || data.AwakenedScrollCap > 0 {
 		known, err := s.loadKnownNinjutsu(characterID)
 		if err != nil {
 			return nil, err
@@ -401,6 +439,25 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 					data.KnownMaster = append(data.KnownMaster, knownNinjutsuJutsuPick{JutsuID: o.JutsuID, Name: o.Name, Rank: o.Rank})
 				} else {
 					data.AvailableMaster = append(data.AvailableMaster, o)
+				}
+			}
+		}
+
+		if data.AwakenedScrollCap > 0 {
+			picks, err := charstore.ListNinjutsuJutsuPicks(s.charDB, characterID, charstore.NinjutsuPickAwakenedScroll)
+			if err != nil {
+				return nil, err
+			}
+			pickedSet := make(map[int64]bool, len(picks))
+			for _, id := range picks {
+				pickedSet[id] = true
+			}
+			data.AwakenedScrollUsed = len(picks)
+			for _, o := range known {
+				if pickedSet[o.JutsuID] {
+					data.KnownAwakenedScroll = append(data.KnownAwakenedScroll, knownNinjutsuJutsuPick{JutsuID: o.JutsuID, Name: o.Name, Rank: o.Rank})
+				} else {
+					data.AvailableAwakenedScroll = append(data.AvailableAwakenedScroll, o)
 				}
 			}
 		}

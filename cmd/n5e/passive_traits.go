@@ -191,15 +191,21 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 		{Category: traitDamage, Target: "Falling", Level: levelImmunity},
 	},
 	// Full-Metal Shinobi lets the player choose Bludgeoning, Piercing, or
-	// Slashing at 6th level, another at 9th, and the last one at 14th —
-	// three player choices whose intermediate state (which one or two of
-	// the three are covered before 14th level) this table doesn't track.
-	// The end state at 14th level is unambiguous regardless of pick order,
-	// so only that is modeled here.
-	"class/science-nin/group/scientific-inquiry/shinobi-ware/feature/full-metal-shinobi": {
-		{Category: traitDamage, Target: "Bludgeoning", Level: levelResistance, MinLevel: 14},
-		{Category: traitDamage, Target: "Piercing", Level: levelResistance, MinLevel: 14},
-		{Category: traitDamage, Target: "Slashing", Level: levelResistance, MinLevel: 14},
+	// Slashing at 6th level, another at 9th, and the last one at 14th — a
+	// real, staged player choice tracked via full_metal_shinobi.go's own
+	// picks table rather than a flat always-on grant. fullMetalShinobiPassiveRows
+	// appends one synthetic grantedFeatureRow per damage type the character
+	// currently holds, each keyed by fullMetalShinobiPassiveTraitSlug below
+	// (never a real rules-database slug), so the real feature slug itself
+	// carries no entry here.
+	fullMetalShinobiPassiveTraitSlug("Bludgeoning"): {
+		{Category: traitDamage, Target: "Bludgeoning", Level: levelResistance},
+	},
+	fullMetalShinobiPassiveTraitSlug("Piercing"): {
+		{Category: traitDamage, Target: "Piercing", Level: levelResistance},
+	},
+	fullMetalShinobiPassiveTraitSlug("Slashing"): {
+		{Category: traitDamage, Target: "Slashing", Level: levelResistance},
 	},
 
 	// Hunters Patterns. These slugs are class_options catalog rows, not

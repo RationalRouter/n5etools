@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/puppetupgrades"
 )
@@ -323,6 +324,49 @@ func puppetFoundationAbilityAdjust(pick puppetFoundationPick) (sets, deltas map[
 	return sets, deltas
 }
 
+// puppetFoundationExpectedAbilityScores resolves every ability score a
+// companion's own Foundation pick(s) correct it to — class baseline as the
+// floor, a picked ability Set/Floor raising that floor, then every Delta
+// added on top — the same "floor, then delta" resolution loadPuppetsTabData
+// applies to build its ExpectedStr/Dex/Con/Int/Wis/Cha display hints.
+// Factored out so puppetFoundationWeaponAttack (the natural weapon's own
+// attack/damage modifier) can use the CORRECTED score directly rather than
+// whatever is currently stored on the companion — a Foundation pick's
+// ability bonus is real the moment it's picked, whether or not the player
+// has since clicked a Sync button to write it into the stored field. nil
+// baseline (shouldn't happen for a real puppet, but loadPuppetToolStatBlock
+// can return one) yields an empty map, same "nothing to correct" shape.
+func puppetFoundationExpectedAbilityScores(baseline *puppetToolStatBlock, foundationPicks []puppetFoundationPick) map[string]int {
+	if baseline == nil {
+		return nil
+	}
+	base := map[string]int{
+		"str": baseline.Str, "dex": baseline.Dex, "con": baseline.Con,
+		"int": baseline.Int, "wis": baseline.Wis, "cha": baseline.Cha,
+	}
+	sets := map[string]int{}
+	deltas := map[string]int{}
+	for _, fp := range foundationPicks {
+		s, d := puppetFoundationAbilityAdjust(fp)
+		for k, v := range s {
+			if cur, ok := sets[k]; !ok || v > cur {
+				sets[k] = v
+			}
+		}
+		for k, v := range d {
+			deltas[k] += v
+		}
+	}
+	out := make(map[string]int, len(base))
+	for k, v := range base {
+		if s, ok := sets[k]; ok && s > v {
+			v = s
+		}
+		out[k] = v + deltas[k]
+	}
+	return out
+}
+
 // puppetFoundationSize resolves one pick's own size, applying (in order) a
 // fixed Size, a player-chosen SizeChoices pick, and then the highest
 // SizeAtLevel escalation the character's own Puppet Master level qualifies
@@ -362,17 +406,27 @@ func puppetFoundationWeaponDamageType(pick puppetFoundationPick) string {
 // puppetFoundationWeaponAttack computes one Foundation pick's own fixed
 // natural weapon as a synthetic attack row — same "never stored, computed
 // fresh every render" treatment as puppetIntegratedWeaponAttack, but
-// reading the COMPANION's own (post-ASI) ability scores rather than the
-// character's Ninjutsu/Taijutsu modifier, per each entry's own "+ ability
-// Modifier [+ your Proficiency Bonus]" text. nil for a pick with no natural
-// weapon at all (Bestial/Matryoshka Framework, every Role, Sentinel).
-func puppetFoundationWeaponAttack(companion charstore.Companion, ownerProfBonus int, pick puppetFoundationPick) *companionAttackRow {
+// reading the CORRECTED ability score a Foundation pick sets (see
+// puppetFoundationExpectedAbilityScores) rather than the character's
+// Ninjutsu/Taijutsu modifier, per each entry's own "+ ability Modifier
+// [+ your Proficiency Bonus]" text. Deliberately not the companion's own
+// stored score: Puppeteer Chassis/Puppet Framework/Puppet Role/Puppet
+// Weapon Type ability bonuses apply the moment they're picked, whether or
+// not the player has since clicked Sync to write the corrected score into
+// the stored field — this is the same reason a raw companionAbilityModifier
+// read against the stored field used to under-report the modifier. nil for
+// a pick with no natural weapon at all (Bestial/Matryoshka Framework, every
+// Role, Sentinel).
+func puppetFoundationWeaponAttack(expectedScores map[string]int, ownerProfBonus int, pick puppetFoundationPick) *companionAttackRow {
 	nw := pick.Entry.NaturalWeapon
 	if nw == nil {
 		return nil
 	}
 	damageType := puppetFoundationWeaponDamageType(pick)
-	mod := companionAbilityModifier(companion, nw.DamageAbility)
+	mod := 0
+	if v, ok := expectedScores[nw.DamageAbility]; ok {
+		mod = charsheet.AbilityModifier(v)
+	}
 	bonus := mod
 	if nw.AddProficiency {
 		bonus += ownerProfBonus

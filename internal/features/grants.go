@@ -334,12 +334,22 @@ var speedGrants = []speedGrant{
 	// this entry's threshold coincidentally match the row's own
 	// (wrong) blanket-grant level instead of representing the real
 	// "+15 at 11th" tier. Now that the row is correctly tagged level=5, both
-	// tiers are modeled: +10 from 5th, +15 from 11th. Like every other
-	// Jack of All Generalization, this bonus applies once the class_features
-	// row itself is granted (blanket, not gated on the player having
-	// specifically picked Mobility over Combat/Control/Skill/Support in the
-	// cap+catalog pick — see cmd/n5e/scout_nin.go's own doc comment for why
-	// that boundary matches this codebase's existing precedent).
+	// tiers are modeled: +10 from 5th, +15 from 11th.
+	//
+	// Like Combat and Skill below (jutsuAttackBonusGrants/
+	// skillCheckBonusGrants) and the saving-throw half of this same
+	// Generalization (savingThrowBonusGrants), Mobility's Speed bonus must
+	// only apply once the player has actually picked it from the
+	// cap+catalog choice, not merely because its own class_features row is
+	// blanket-granted at 5th level for Features & Traits display —
+	// internal/charsheet/charsheet.go's own jackOfAllGate helper filters
+	// each Generalization's slug out of the granted-features list passed
+	// into the matching Resolve* call here unless
+	// charstore.ScoutNinPickJackOfAll confirms that specific pick, rather
+	// than gating anything in these tables themselves. Control and
+	// Support's own bonuses have no computed field anywhere in this app to
+	// gate at all (see scoutNinCombatFeatureSlug's doc comment), so they
+	// have no table here.
 	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 5, Amount: 10},
 	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 11, Amount: 15},
 
@@ -453,14 +463,18 @@ func ResolveSpeedBonus(granted []GrantedFeatureRow, characterLevel int, equipped
 	return total
 }
 
-// initiativeBonusGrant is one level threshold of a feature's flat Initiative
+// initiativeBonusGrant is one level threshold of a feature's Initiative
 // bonus, same "Amount is the running total for that tier, not a delta" shape
 // speedGrant uses — pick each feature's own highest-reached tier, then sum
-// across distinct features.
+// across distinct features. Ability (with Divisor applied, mirroring
+// flatACBonusGrant's shape) computes the bonus from an ability modifier
+// instead of a flat integer when set, leaving Amount unused for that entry.
 type initiativeBonusGrant struct {
 	FeatureSlug string
 	MinLevel    int
 	Amount      int
+	Ability     string // 3-letter code; "" means Amount applies instead
+	Divisor     int    // 1 for the full modifier; only meaningful with Ability set
 }
 
 // initiativeBonusGrants is intentionally a slice, not a map keyed by slug:
@@ -478,17 +492,172 @@ var initiativeBonusGrants = []initiativeBonusGrant{
 	// Elite Agility: "Increase your initiative by +5..." The Speed half of
 	// this same feat is modeled in speedGrants above.
 	{FeatureSlug: "feat/elite-agility", MinLevel: 1, Amount: 5},
+	// Twin Cast (Ninjutsu Specialist, The Professor, 6th level): "...you gain
+	// a bonus to your Initiative equal to your Intelligence Modifier." This
+	// same feature's separate dual-jutsu-cast use-pool is tracked in
+	// custom_resources.go's "twin_cast_uses" entry.
+	{FeatureSlug: "class/ninjutsu-specialist/group/ninjutsu-focus/the-professor/feature/twin-cast", MinLevel: 6, Ability: "int", Divisor: 1},
 }
 
-// ResolveInitiativeBonus sums every granted feature's flat Initiative bonus
-// at characterLevel, picking each feature's own highest-reached tier (not
+// ResolveInitiativeBonus sums every granted feature's Initiative bonus at
+// characterLevel, picking each feature's own highest-reached tier (not
 // summing tiers within one feature) but summing across different features —
 // same resolution shape as ResolveSpeedBonus, minus that function's
-// armor-category gate, which no Initiative grant here needs.
-func ResolveInitiativeBonus(granted []GrantedFeatureRow, characterLevel int) int {
+// armor-category gate, which no Initiative grant here needs. abilityMods
+// supplies the character's own already-computed ability MODIFIERS for any
+// Ability-keyed grant, same boundary ResolveFlatACBonus draws.
+func ResolveInitiativeBonus(granted []GrantedFeatureRow, characterLevel int, abilityMods map[string]int) int {
 	bestBySlug := map[string]int{}
 	for _, f := range granted {
 		for _, g := range initiativeBonusGrants {
+			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
+				continue
+			}
+			amount := g.Amount
+			if g.Ability != "" {
+				amount = floorDivRoundDown(abilityMods[g.Ability], g.Divisor)
+			}
+			if amount > bestBySlug[f.Slug] {
+				bestBySlug[f.Slug] = amount
+			}
+		}
+	}
+	total := 0
+	for _, amount := range bestBySlug {
+		total += amount
+	}
+	return total
+}
+
+// jutsuAttackBonusGrant is one level threshold of a flat to-hit bonus
+// applied to Ninjutsu/Genjutsu/Taijutsu/Bukijutsu jutsu-casting. Same
+// "Amount is the running total for that tier" shape as speedGrant/
+// initiativeBonusGrant.
+type jutsuAttackBonusGrant struct {
+	FeatureSlug string
+	MinLevel    int
+	Amount      int
+}
+
+// jutsuAttackBonusGrants is intentionally a slice, not a map keyed by slug:
+// Combat has two level tiers sharing one slug.
+var jutsuAttackBonusGrants = []jutsuAttackBonusGrant{
+	// Combat (Scout-Nin, Jack of All, Master of None, 5th level): "+1 bonus
+	// to attack & damage rolls made with Ninjutsu, Taijutsu, Genjutsu and
+	// Bukijutsu you cast... increases to +2 at 11th level." This resolves
+	// the to-hit half, applied to every JutsuAttacks entry (see
+	// internal/charsheet/charsheet.go's AttackKinds loop — all four kinds
+	// this feature names have an entry there). The identical damage half
+	// is applied separately in cmd/n5e's loadCharacterJutsuSheet via
+	// Sheet.JackOfAllCombatBonus, since jutsu damage rolls aren't computed
+	// in this package at all (see that field's own doc comment). This
+	// feature's own "Weapon Attack as a Bonus Action" clause is
+	// action-economy, not a number, and stays narrated — same boundary
+	// Support's own Help/Search-as-Bonus-Action text is left at.
+	{FeatureSlug: "class/scout-nin/feature/combat", MinLevel: 5, Amount: 1},
+	{FeatureSlug: "class/scout-nin/feature/combat", MinLevel: 11, Amount: 2},
+}
+
+// ResolveJutsuAttackBonus sums every granted feature's flat jutsu-casting
+// to-hit bonus at characterLevel, same highest-reached-tier-per-feature,
+// summed-across-features resolution ResolveInitiativeBonus already uses.
+func ResolveJutsuAttackBonus(granted []GrantedFeatureRow, characterLevel int) int {
+	bestBySlug := map[string]int{}
+	for _, f := range granted {
+		for _, g := range jutsuAttackBonusGrants {
+			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
+				continue
+			}
+			if g.Amount > bestBySlug[f.Slug] {
+				bestBySlug[f.Slug] = g.Amount
+			}
+		}
+	}
+	total := 0
+	for _, amount := range bestBySlug {
+		total += amount
+	}
+	return total
+}
+
+// skillCheckBonusGrant is one level threshold of a flat bonus applied to
+// every named skill check. Same running-total-per-tier shape as the grant
+// types above.
+type skillCheckBonusGrant struct {
+	FeatureSlug string
+	MinLevel    int
+	Amount      int
+}
+
+var skillCheckBonusGrants = []skillCheckBonusGrant{
+	// Skill (Scout-Nin, Jack of All, Master of None, 5th level): "+2 bonus
+	// to all ability and skill checks... increases to +3 at 11th level."
+	// Only the SKILL-check half is modeled here — this app has no
+	// standalone "ability check" field anywhere on the sheet (only named
+	// skills and each ability's own modifier are ever computed), so the
+	// "ability checks" half of this clause has nothing to attach to and
+	// stays narrated, the same boundary gaseousHazeFeatureSlug's Save-DC
+	// half is left at (internal/charsheet/charsheet.go). This feature's
+	// own "Skill actions as a Bonus Action" clause is action-economy, not
+	// a number, and stays narrated too.
+	{FeatureSlug: "class/scout-nin/feature/skill", MinLevel: 5, Amount: 2},
+	{FeatureSlug: "class/scout-nin/feature/skill", MinLevel: 11, Amount: 3},
+}
+
+// ResolveSkillCheckBonus sums every granted feature's flat skill-check bonus
+// at characterLevel, same resolution shape as ResolveJutsuAttackBonus.
+func ResolveSkillCheckBonus(granted []GrantedFeatureRow, characterLevel int) int {
+	bestBySlug := map[string]int{}
+	for _, f := range granted {
+		for _, g := range skillCheckBonusGrants {
+			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
+				continue
+			}
+			if g.Amount > bestBySlug[f.Slug] {
+				bestBySlug[f.Slug] = g.Amount
+			}
+		}
+	}
+	total := 0
+	for _, amount := range bestBySlug {
+		total += amount
+	}
+	return total
+}
+
+// savingThrowBonusGrant is one level threshold of a flat bonus applied to
+// every saving throw. Same running-total-per-tier shape as the grant types
+// above.
+type savingThrowBonusGrant struct {
+	FeatureSlug string
+	MinLevel    int
+	Amount      int
+}
+
+var savingThrowBonusGrants = []savingThrowBonusGrant{
+	// Mobility (Scout-Nin, Jack of All, Master of None, 5th level): "+1
+	// bonus to Saving throws made to resist hostile effects... increases
+	// to +2 at 11th level." This is a second, separate clause from this
+	// same Generalization's Speed bonus (speedGrants above) — the book
+	// gives Mobility both a movement bonus and a save bonus. "Hostile
+	// effects" covers the overwhelming majority of what this app's five
+	// ability saves are ever rolled against (poison, jutsu, environmental
+	// hazards), and none of Saves' five entries are split by save-type
+	// here, so the bonus is applied to all five uniformly rather than
+	// trying to model a "hostile vs. non-hostile" distinction nothing else
+	// in this app tracks. The feature's own "bonus 1d4 to end a hostile
+	// condition" clause is a triggered, rolled effect (not a flat
+	// modifier) and stays narrated.
+	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 5, Amount: 1},
+	{FeatureSlug: "class/scout-nin/feature/mobility", MinLevel: 11, Amount: 2},
+}
+
+// ResolveSavingThrowBonus sums every granted feature's flat saving-throw
+// bonus at characterLevel, same resolution shape as ResolveJutsuAttackBonus.
+func ResolveSavingThrowBonus(granted []GrantedFeatureRow, characterLevel int) int {
+	bestBySlug := map[string]int{}
+	for _, f := range granted {
+		for _, g := range savingThrowBonusGrants {
 			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
 				continue
 			}

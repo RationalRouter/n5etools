@@ -267,6 +267,73 @@ func TestParseClassBookKnownFeatureLevelOverride(t *testing.T) {
 	}
 }
 
+// Ability Score Improvement/Feat's own prose ("When you reach 4th and again
+// at 8th, 12th, 16th, and 19th, level, you can increase...") never puts an
+// ordinal immediately before the word "level" the way ordinalLevelRe
+// requires, so it parses as always-on (level NULL) without an override —
+// confirmed live for a Cooking-Nin character who reached level 5 with no
+// Pending Choices prompt. The bug and its text are identical across all 11
+// classes (asiFeatureSuffix in internal/features/asi.go), but the override
+// was originally added for Genjutsu Specialist alone; this checks every
+// class's own entry in knownClassFeatureLevelOverrides actually resolves
+// Level to 4 during real parsing, not just that the map has the right key.
+func TestParseClassBookASIFeatLevelAllClasses(t *testing.T) {
+	classes := []struct{ heading, name string }{
+		{"COOKING-NIN", "Cooking-Nin"},
+		{"GENJUTSU SPECIALIST", "Genjutsu Specialist"},
+		{"HUNTER-NIN", "Hunter-Nin"},
+		{"INTELLIGENCE OPERATIVE", "Intelligence Operative"},
+		{"MEDICAL-NIN", "Medical-Nin"},
+		{"NINJUTSU SPECIALIST", "Ninjutsu Specialist"},
+		{"PUPPET MASTER", "Puppet Master"},
+		{"SCIENCE-NIN", "Science-Nin"},
+		{"SCOUT-NIN", "Scout-Nin"},
+		{"TAIJUTSU SPECIALIST", "Taijutsu Specialist"},
+		{"WEAPON SPECIALIST", "Weapon Specialist"},
+	}
+	for _, tc := range classes {
+		t.Run(tc.name, func(t *testing.T) {
+			lines := mkLines(1,
+				tc.heading,
+				"CHARACTER INSPIRATIONS",
+				"Flavor text.",
+				"QUICK BUILD",
+				"Put your highest score first.",
+				"CLASS FEATURES",
+				"Intro sentence.",
+				"HIT POINTS",
+				"Hit Dice: 1d10 per "+tc.name+" level",
+				"CHAKRA POINTS",
+				"Chakra Dice: 1d8 per "+tc.name+" level",
+				"PROFICIENCIES",
+				"Armor: Light armor",
+				"EQUIPMENT",
+				"• 1 Simple weapon",
+				"JUTSU CASTING",
+				"NINJUTSU",
+				"Ninjutsu save DC = 8 + your Proficiency Bonus + your Wisdom Modifier",
+				"ABILITY SCORE IMPROVEMENT/FEAT",
+				"When you reach 4th and again at 8th, 12th, 16th, and 19th, level, you can increase one ability score by +1, gain 1 rank of Mastery in a skill you are proficient in, & a Feat of your choice.",
+			)
+			classes, _ := ParseClassBook(lines)
+			if len(classes) != 1 {
+				t.Fatalf("got %d classes, want 1", len(classes))
+			}
+			c := classes[0]
+			if c.Name != tc.name {
+				t.Fatalf("class name = %q, want %q", c.Name, tc.name)
+			}
+			if len(c.Features) != 1 {
+				t.Fatalf("got %d features, want 1: %+v", len(c.Features), c.Features)
+			}
+			f := c.Features[0]
+			if f.Name != "Ability Score Improvement/Feat" || f.Level == nil || *f.Level != 4 {
+				t.Errorf("Ability Score Improvement/Feat = %+v, want level 4", f)
+			}
+		})
+	}
+}
+
 // Scout-Nin's Deft Explorer glues its own sub-tier level straight into the
 // heading text ("CANNY (1 ST LEVEL)", with a stray space splitting the digit
 // from its ordinal suffix, and "TIRELESS (11 TH LEVEL)"), rather than

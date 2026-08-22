@@ -211,10 +211,14 @@ func scoutNinPhantasmicPowerDieSize(level int) string {
 // computation — same informational-readout-only boundary as Mobile above;
 // each Generalization's own current-level bonus is already legible in its
 // class_features description, shown via this picker's own tooltip. Mobility
-// is the one exception: a real speedGrants entry already existed
-// pre-dating this stage (internal/features/grants.go), gated the same
-// blanket way (not on this pick), and only needed its level tiers
-// corrected to 5/11 to match the class_features level-tagging fix.
+// is the one exception: a real speedGrants entry already existed pre-dating
+// this stage (internal/features/grants.go). Its level tiers were corrected
+// to 5/11 to match the class_features level-tagging fix here, but the bonus
+// itself stayed blanket-applied regardless of this picker's own pick until
+// a later fix (internal/charsheet/charsheet.go's own ResolveSpeedBonus call
+// site, gated on charstore.ScoutNinPickJackOfAll) — the blanket grant was
+// fine for the other 4 Generalizations precisely because none of them feed
+// a real computed field the way Mobility feeds Speed.
 //
 // Stage 6 closes 3 further gaps in the same "the pick/use-count is
 // trackable, the triggered effect stays manual" shape: Paragon's Presence

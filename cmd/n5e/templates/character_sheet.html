@@ -97,20 +97,18 @@
        .sheet-col, so this can never be buried, dragged off-screen, or
        resized away by a player rearranging their layout) — a Pending
        Choices banner needs to be unmissable at the top of the Core tab
-       regardless of anything else on the sheet. Real DOM removal via
-       {{if}} once every slot is resolved, same as the box this replaced;
-       see that box's own removed comment (git history) for the one
-       accepted limitation this inherits unchanged: since the element
-       doesn't exist in the DOM until the first slot unlocks, a Level/
-       subclass edit that newly unlocks one via data-also-refresh can't
-       reveal the banner the same way it refreshes sheet-skills/sheet-saves
-       — the player sees it on their next full page load. */}}
-  {{if or .PendingFeatureChoices .PendingASI .PendingFeatAbilityChoices .PendingFeatSkillOrToolChoices}}
-  <div class="pending-choices-banner">
-    <h2>⚠ Pending Choices</h2>
-    {{template "sheet_feature_choices" (dict "ID" .ID "PendingFeatureChoices" .PendingFeatureChoices "PendingASI" .PendingASI "PendingFeatAbilityChoices" .PendingFeatAbilityChoices "PendingFeatSkillOrToolChoices" .PendingFeatSkillOrToolChoices)}}
-  </div>
-  {{end}}
+       regardless of anything else on the sheet. The wrapper element (the
+       define's own #sheet-feature-choices root) is ALWAYS in the DOM, even
+       with nothing pending — n5eRefreshBlocks can only refresh an element
+       that exists, and a Level/subclass edit that newly unlocks the FIRST
+       pending choice has to be able to reveal the banner in place via
+       data-also-refresh, without waiting for the next full page load
+       (which is exactly how the ASI banner stayed invisible after an
+       in-place level-up to 4+ before this). The banner chrome itself, and
+       its removal once every slot is resolved, both live inside the
+       define now — an empty wrapper renders zero-height, so nothing shows
+       when nothing is pending. */}}
+  {{template "sheet_feature_choices" (dict "ID" .ID "PendingFeatureChoices" .PendingFeatureChoices "PendingASI" .PendingASI "PendingFeatAbilityChoices" .PendingFeatAbilityChoices "PendingFeatSkillOrToolChoices" .PendingFeatSkillOrToolChoices "PendingHunterPatternChoices" .PendingHunterPatternChoices)}}
 
   {{/* Sibling of the toolbar above, same role as Bio's <form> wrapper:
        sheet-layout.js resolves the actual grid root as ":scope > form" if
@@ -1736,6 +1734,9 @@
               "UpgradeBonuses" .UpgradeBonuses "ChassisProperties" .ChassisProperties
               "ExpectedAC" .ExpectedAC "ExpectedMaxHP" .ExpectedMaxHP
               "ExpectedSpeed" .ExpectedSpeed "ExpectedFlySpeed" .ExpectedFlySpeed
+              "ExpectedStr" .ExpectedStr "ExpectedDex" .ExpectedDex "ExpectedCon" .ExpectedCon
+              "ExpectedInt" .ExpectedInt "ExpectedWis" .ExpectedWis "ExpectedCha" .ExpectedCha
+              "ExpectedSize" .ExpectedSize
               "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
               "ShowMatryoshka" true "IsMatryoshkaFramework" .IsMatryoshkaFramework
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName)}}
@@ -2567,7 +2568,7 @@
     <h3>Hunters Patterns <span class="option-picker-epithet">{{.HunterTechniques.PatternsUsed}}/{{.HunterTechniques.PatternsCap}} chosen</span></h3>
     {{range .HunterTechniques.KnownPatterns}}
     <div class="puppet-upgrade-pick">
-      <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques" data-also-refresh="sheet-skills sheet-tools-skills sheet-feature-choices">
         <input type="hidden" name="option_slug" value="{{.Slug}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
       </form>
@@ -2575,7 +2576,7 @@
     </div>
     {{end}}
     {{if lt .HunterTechniques.PatternsUsed .HunterTechniques.PatternsCap}}
-    <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+    <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns" class="sheet-panel-form sheet-fetch-form" data-target="sheet-hunter-techniques" data-also-refresh="sheet-feature-choices">
       <ul class="puppet-upgrade-option-list">
         {{range .HunterTechniques.AvailablePatterns}}
         <li>
@@ -2589,6 +2590,28 @@
       <button type="submit">Learn Pattern</button>
     </form>
     {{end}}
+  </div>
+  {{end}}
+
+  {{if .HunterTechniques.PracticedCombatantStance}}
+  <div class="sheet-subclass-detail">
+    <h3>Practiced Combatant — Fighting Stance</h3>
+    <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns/practiced-combatant-stance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-hunter-techniques">
+      <label class="sheet-vitals-label">Stance
+        <select name="stance_slug" class="sheet-option-tooltip-select" required>
+          <option value="">— choose —</option>
+          {{range .HunterTechniques.PracticedCombatantStance.Options}}
+          <option value="{{.Slug}}" data-description="{{.Description}}" {{if eq .Slug $.HunterTechniques.PracticedCombatantStance.Current}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .HunterTechniques.PracticedCombatantStance.Current}}{{.HunterTechniques.PracticedCombatantStance.CurrentDescription}}{{else}}Choose a Taijutsu Stance or Weapon Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
   </div>
   {{end}}
 
@@ -3164,6 +3187,37 @@
     {{end}}
   </div>
   {{end}}
+
+  {{if gt .NinjutsuSpecialist.AwakenedScrollCap 0}}
+  <div class="sheet-subclass-detail">
+    <h3>Awakened Scroll <span class="option-picker-epithet">{{.NinjutsuSpecialist.AwakenedScrollUsed}}/{{.NinjutsuSpecialist.AwakenedScrollCap}} seals</span></h3>
+    <p class="section-hint">Jutsu sealed from another source (a scroll, a willing creature) instead of your own known jutsu isn't tracked here — apply that by hand.</p>
+    {{range .NinjutsuSpecialist.KnownAwakenedScroll}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.ID}}/sheet/awakened-scroll/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}} seal" title="Remove seal">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .NinjutsuSpecialist.AwakenedScrollUsed .NinjutsuSpecialist.AwakenedScrollCap}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/awakened-scroll" class="sheet-panel-form sheet-fetch-form" data-target="sheet-ninjutsu-specialist">
+      <ul class="puppet-upgrade-option-list">
+        {{range .NinjutsuSpecialist.AvailableAwakenedScroll}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Seal Jutsu</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
@@ -3625,6 +3679,32 @@
     </form>
     {{end}}
   </div>
+  {{if or $sw.FullMetalShinobiResistances $sw.FullMetalShinobiSlots}}
+  <div class="sheet-subclass-detail">
+    <h3>Full-Metal Shinobi</h3>
+    <p class="section-hint">Choose a damage resistance at 6th level, another at 9th — the last is automatic at 14th.</p>
+    {{if $sw.FullMetalShinobiResistances}}
+    <ul class="sheet-elemental-affinity-list">
+      {{range $sw.FullMetalShinobiResistances}}
+      <li>{{.}}</li>
+      {{end}}
+    </ul>
+    {{end}}
+    {{range $sw.FullMetalShinobiSlots}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/full-metal-shinobi-resistance" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin" data-also-refresh="sheet-passive-traits">
+      <input type="hidden" name="slot_key" value="{{.SlotKey}}">
+      <label class="sheet-elemental-affinity-slot">
+        {{.Label}}
+        <select name="damage_type" onchange="this.form.requestSubmit()">
+          <option value="">— choose —</option>
+          {{$currentSlot := .Current}}
+          {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
   {{if $sw.EvolvedCap}}
   <div class="sheet-subclass-detail">
     <h3>Glorious Evolution <span class="option-picker-epithet">{{$sw.EvolvedUsed}}/{{$sw.EvolvedCap}} evolved</span></h3>
@@ -3832,6 +3912,24 @@
       <button type="submit">Install Mechanization</button>
     </form>
     {{end}}
+    {{if $tb.SENTOptions}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/sent-pick" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">S.E.N.T
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— none worked yet —</option>
+          {{range $tb.SENTOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $tb.SENTCurrent}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if $tb.SENTCurrent}}{{range $tb.SENTOptions}}{{if eq .Value $tb.SENTCurrent}}{{.Description}}{{end}}{{end}}{{else}}During a Short Rest, work an Arrow/Bolt/Kunai/Shuriken/Senbon stack into your S.E.N.T — it deals 1d12 damage and uses Intelligence in place of Dexterity for attack and damage rolls. Freely re-workable at any later Short Rest.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    {{end}}
   </div>
   {{end}}
   {{if .ScienceNin.SNBSpecialist}}
@@ -3933,7 +4031,13 @@
      without a page reload), the rest are attributes buildAttacks reads back
      (cookingToolInfusionAttackOverrides). The 6th/11th property rows only
      render once PropertyL6Available/PropertyL11Available is true.
-     Expects {ID, CookingNin}. */}}
+     ExpertCombatant (Battle Cook, 2nd level) is a single select-plus-Set
+     pick, same locked-once-chosen shape as Cooking Tool Infusion's own 5
+     picks — only WHICH weapon type the Cooking Tool counts as is tracked;
+     no weapon-group jutsu-eligibility gate exists anywhere in this app to
+     hook the actual keyword-bypass effect into (see the doc comment above
+     cooking_nin.go's own expertCombatantFeatureSlug), so that stays
+     narrated. Expects {ID, CookingNin}. */}}
 {{define "sheet_cooking_nin"}}
 <div id="sheet-cooking-nin" data-fragment="sheet_cooking_nin">
   {{if .CookingNin.CookingDieSize}}
@@ -4043,6 +4147,27 @@
     </form>
     {{end}}
   </div>
+  {{end}}
+
+  {{if .CookingNin.ExpertCombatant}}
+  <form method="post" action="/characters/{{$.ID}}/sheet/expert-combatant-weapon" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+    <label class="sheet-vitals-label">Expert Combatant (Weapon)
+      <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.ExpertCombatant.Weapon}} disabled{{end}}>
+        <option value="">— none chosen —</option>
+        {{range .CookingNin.ExpertCombatant.WeaponOptions}}
+        <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.ExpertCombatant.Weapon}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{if .CookingNin.ExpertCombatant.Weapon}}{{range .CookingNin.ExpertCombatant.WeaponOptions}}{{if eq .Value $.CookingNin.ExpertCombatant.Weapon}}{{.Description}}{{end}}{{end}}{{else}}Choose one martial or simple weapon — your Cooking Tool is considered to be this weapon for the purpose of Bukijutsu, including fulfilling keyword requirements (narrate this at the table; no keyword-requirement check exists to automate).{{end}}</span>
+    </span>
+    {{if not .CookingNin.ExpertCombatant.Weapon}}
+    <button type="submit">Set</button>
+    {{end}}
+    <span class="sheet-save-toast" hidden>Saved.</span>
+  </form>
   {{end}}
 
   {{if .CookingNin.FoodForTheSoul}}
@@ -4946,7 +5071,7 @@
      — see internal/features' choiceSlotDefs/asi.go for the full list and
      why each one needs a player pick this app can't make on its own.
      Expects {ID, PendingFeatureChoices, PendingASI, PendingFeatAbilityChoices,
-     PendingFeatSkillOrToolChoices}.
+     PendingFeatSkillOrToolChoices, PendingHunterPatternChoices}.
      A skill/save row picks
      its value and auto-submits via fetch, same inline pattern as the
      class/subclass selects in sheet_level_row; an ASI row is a genuine
@@ -4968,6 +5093,16 @@
      agnostic breakpoint, not itself a granted feature. */}}
 {{define "sheet_feature_choices"}}
 <div id="sheet-feature-choices" data-fragment="sheet_feature_choices">
+  {{/* The banner chrome lives INSIDE the always-present wrapper (see the
+       call site's own comment near the top of the Core tab): the wrapper
+       must exist in the DOM even with nothing pending so data-also-refresh
+       can populate it in place the moment a level edit unlocks the first
+       choice — and refreshing after the LAST choice resolves removes the
+       banner chrome the same way, rather than leaving an empty "⚠ Pending
+       Choices" shell behind. */}}
+  {{if or .PendingFeatureChoices .PendingASI .PendingFeatAbilityChoices .PendingFeatSkillOrToolChoices .PendingHunterPatternChoices}}
+  <div class="pending-choices-banner">
+  <h2>⚠ Pending Choices</h2>
   {{if .PendingFeatureChoices}}
   <p class="section-hint">These features let you choose what they apply to — pick one for each to have it count toward your Skills, Saving Throws, or Ability Scores.</p>
   <ul class="sheet-feature-list">
@@ -5087,6 +5222,41 @@
     {{end}}
   </ul>
   {{end}}
+  {{if .PendingHunterPatternChoices}}
+  {{/* Kleptomaniac (one field) and Habitual Researcher (two fields) both
+       land here — see pendingHunterPatternChoiceRow's own doc comment
+       (hunter_pattern_choices.go). A plain form + full reload, same
+       reasoning as the PendingFeatSkillOrToolChoices block above: the
+       resolved proficiency ripples into Skills (and, for Kleptomaniac's
+       tool option, Tool Proficiencies) same as a feat's own skill-or-tool
+       choice does. Rendered as an explicit "Confirm Pick" button rather
+       than auto-submit-on-change, unlike every single-field row elsewhere
+       in this banner: Habitual Researcher's second field would otherwise
+       auto-submit the moment the first one changes, before the player has
+       picked their second skill. */}}
+  <p class="section-hint">These Hunters Patterns let you choose their own proficiency grant — pick for each to have it take effect.</p>
+  <ul class="sheet-feature-list">
+    {{range .PendingHunterPatternChoices}}
+    <li>
+      <form method="post" action="/characters/{{$.ID}}/sheet/hunter-patterns/choice" class="sheet-inline-form">
+        <input type="hidden" name="pattern_slug" value="{{.PatternSlug}}">
+        <span class="puppet-upgrade-pick-name">{{.Label}}</span>
+        {{range .Fields}}
+        <select name="{{.Name}}" required class="sheet-option-tooltip-select">
+          <option value="">— choose —</option>
+          {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        {{end}}
+        <span class="tooltip sheet-info-tooltip" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content">Pick an option above to see what this does.</span>
+        </span>
+        <button type="submit">Confirm Pick</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
   {{if .PendingASI}}
   <p class="section-hint">Ability Score Improvement: raise two scores by +1 each, raise one score by +2, or take a Feat you qualify for instead.</p>
   <ul class="sheet-feature-list pending-asi-list">
@@ -5148,6 +5318,8 @@
     </li>
     {{end}}
   </ul>
+  {{end}}
+  </div>
   {{end}}
 </div>
 {{end}}
@@ -5373,7 +5545,15 @@
      change — same "one Go template reused for full page and fragment" rule
      item_detail_card/jutsu_detail_card already establish. Expects {ID, Sheet}. */}}
 {{define "sheet_vitals"}}
-<div class="sheet-vitals" id="sheet-vitals">
+{{/* data-fragment is what lets OTHER actions refresh this block via
+     data-also-refresh (sheet-refresh.js reads it to know which template to
+     re-fetch) — without it, n5eRefreshBlocks silently no-ops on
+     "sheet-vitals" and a level/subclass/ASI edit leaves Max HP, Max
+     Chakra, and every Special Resource pool (Shinobi Snacks etc.) frozen
+     at their pre-edit values until a full page reload. The rest/HP actions
+     never noticed because they target this block as their PRIMARY swap,
+     which doesn't read the attribute. */}}
+<div class="sheet-vitals" id="sheet-vitals" data-fragment="sheet_vitals">
   <div class="sheet-hp-box sheet-edit-box" data-endpoint="/characters/{{.ID}}/sheet/hp" data-field="delta" data-target="sheet-vitals">
     <span class="sheet-vitals-label">HP</span>
     <button type="button" class="sheet-vitals-display" data-role="display">{{.Sheet.CurrentHP}} / {{.Sheet.MaxHP}}</button>
@@ -6145,6 +6325,7 @@
         {{if .AttackKind}}
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
                 data-modifier="{{.AttackBonus}}" data-label="{{.Name}} ({{.AttackKind}} Attack)"
+                data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}"
                 title="Roll this jutsu's {{.AttackKind}} attack">{{signed .AttackBonus}}</button>
         {{else}}
         <span class="option-picker-epithet">—</span>

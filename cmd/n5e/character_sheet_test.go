@@ -1435,6 +1435,88 @@ func TestJutsuAttackKind(t *testing.T) {
 	}
 }
 
+func TestResolveJutsuAttackKind(t *testing.T) {
+	cases := []struct {
+		name           string
+		kind           string
+		classification string
+		want           string
+	}{
+		// The overwhelmingly common real case: a Bukijutsu-classified jutsu
+		// whose own text uses the book's shared "Taijutsu Attack" wording
+		// still needs to land in the Bukijutsu bucket, or Weapon Focus/
+		// Spirited Fighter/Lethal Precision's Bukijutsu-only mechanics never
+		// apply to any real jutsu.
+		{"bukijutsu jutsu, taijutsu wording", "Taijutsu", "Bukijutsu", "Bukijutsu"},
+		{"combo classification", "Taijutsu", "Hijutsu, Bukijutsu", "Bukijutsu"},
+		{"case-insensitive classification", "Taijutsu", "bukijutsu", "Bukijutsu"},
+		// A genuine Taijutsu-classified jutsu must not be rerouted.
+		{"real taijutsu jutsu", "Taijutsu", "Taijutsu", "Taijutsu"},
+		// Kinds other than Taijutsu are never rerouted, even alongside a
+		// Bukijutsu classification (shouldn't occur in real data, but the
+		// function must not misfire if it did).
+		{"non-taijutsu kind untouched", "Ninjutsu", "Bukijutsu", "Ninjutsu"},
+		{"no attack roll at all", "", "Bukijutsu", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := resolveJutsuAttackKind(c.kind, c.classification); got != c.want {
+				t.Errorf("resolveJutsuAttackKind(%q, %q) = %q, want %q", c.kind, c.classification, got, c.want)
+			}
+		})
+	}
+}
+
+// TestLoadCharacterJutsuSheetCriticalFocus reproduces the audit finding:
+// Critical Focus (Weapon Specialist, 7th level) widens the crit range on
+// weapon attacks (buildAttacks) but never reached the jutsu table at all, so
+// a Bukijutsu-classified jutsu's own attack-roll button always fell back to
+// a plain 20 regardless of level. It must reach Bukijutsu-classified jutsu
+// specifically, not every jutsu attack roll.
+func TestLoadCharacterJutsuSheetCriticalFocus(t *testing.T) {
+	s := testServer(t)
+	for _, stmt := range []string{
+		`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		 VALUES ('jutsu/crushing-blow', 'Crushing Blow', 'Bukijutsu', 'D', '1 Action', 'Melee', 'Instant', 'CM', 'Cost: 2', 'Bukijutsu',
+		         'Make a Melee Taijutsu Attack using your weapon.')`,
+		`INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		 VALUES ('jutsu/palm-strike', 'Palm Strike', 'Taijutsu', 'D', '1 Action', 'Melee', 'Instant', 'CM', 'Cost: 2', 'Taijutsu',
+		         'Make a Melee Taijutsu Attack.')`,
+	} {
+		if _, err := s.rulesDB.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if _, err := s.charDB.Exec(`INSERT INTO characters (name) VALUES ('Thor')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (1, 'class/weapon-specialist', 7, 0)`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_jutsu (character_id, jutsu_slug) VALUES (1, 'jutsu/crushing-blow'), (1, 'jutsu/palm-strike')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := s.loadCharacterJutsuSheet(1, &charsheet.Sheet{Level: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]jutsuSheetRow{}
+	for _, r := range rows {
+		byName[r.Slug] = r
+	}
+	if got := byName["jutsu/crushing-blow"].CritRangeThreshold; got != 19 {
+		t.Errorf("Crushing Blow (Bukijutsu-classified) CritRangeThreshold = %d, want 19 (rank 1 at level 7)", got)
+	}
+	if got := byName["jutsu/palm-strike"].CritRangeThreshold; got != 0 {
+		t.Errorf("Palm Strike (plain Taijutsu-classified) CritRangeThreshold = %d, want 0 — Critical Focus doesn't extend to it", got)
+	}
+}
+
 // TestBuildUpcastOptions pins the rank-walk cost math: every rank from a
 // jutsu's own base rank through S, cost scaling linearly by the parsed
 // per-rank delta, with NO cap at any particular rank (see buildUpcastOptions'
@@ -2552,6 +2634,86 @@ func TestSheetJutsuOptions(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("override rows left after forgetting the jutsu = %d, want 0", n)
+	}
+}
+
+// Combat, one of Jack of All, Master of None's 5 Generalizations, grants
+// "a +1 bonus to attack & damage rolls made with Ninjutsu, Taijutsu,
+// Genjutsu and Bukijutsu you cast" once picked. TestSheetJutsuOptions above
+// already covers customization without Combat in play; this guards that
+// once picked, the bonus reaches BOTH halves of a customized jutsu's row —
+// the override block in loadCharacterJutsuSheet recomputes AttackBonus from
+// scratch via ComposeModifier the moment any option row exists at all, so
+// Combat's to-hit half has to be re-added explicitly rather than assumed to
+// survive from JutsuAttacks' own Modifier.
+func TestSheetJutsuOptionsAppliesJackOfAllCombatBonus(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/scout-nin', 'Scout-Nin', 10, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO class_features (slug, class_slug, name, level, description) VALUES
+		('class/scout-nin/feature/combat', 'class/scout-nin', 'Combat', 5, 'attack and damage bonus')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/fireball', 'Fireball', 'Ninjutsu', 'D', '1 Action', '60 feet', 'Instant', 'HS', 'Cost: 2', 'Ninjutsu',
+		        'Make a Ranged Ninjutsu Attack against a creature within range.')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Caster', 10, 10, 10, 18, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (1, 'class/scout-nin', 5, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_jutsu (character_id, jutsu_slug) VALUES (1, 'jutsu/fireball')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.AddScoutNinPick(s.charDB, 1, charstore.ScoutNinPickJackOfAll, "class/scout-nin/feature/combat"); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/characters/1/sheet/jutsu/options", strings.NewReader(url.Values{
+		"slug": {"jutsu/fireball"}, "attack_ability": {"int"}, "attack_prof": {"full"},
+		"damage_count": {"3"}, "damage_sides": {"6"}, "damage_ability": {"int"}, "damage_type": {"Fire"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", "1")
+	w := httptest.NewRecorder()
+	s.handleSheetJutsuOptions(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("set jutsu options: status %d", w.Code)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sheet.JackOfAllCombatBonus != 1 {
+		t.Fatalf("JackOfAllCombatBonus = %d, want 1 (5th-level Scout-Nin with Combat picked)", sheet.JackOfAllCombatBonus)
+	}
+	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d jutsu rows, want 1", len(rows))
+	}
+	got := rows[0]
+	wantAttack := sheet.Abilities["int"].Modifier + sheet.ProficiencyBonus + 1
+	wantDamage := sheet.Abilities["int"].Modifier + 1
+	if got.AttackBonus != wantAttack {
+		t.Errorf("attack = %+d, want %+d (includes Combat's +1)", got.AttackBonus, wantAttack)
+	}
+	if got.DamageBonus != wantDamage {
+		t.Errorf("damage = %+d, want %+d (includes Combat's +1)", got.DamageBonus, wantDamage)
 	}
 }
 

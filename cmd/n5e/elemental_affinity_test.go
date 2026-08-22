@@ -74,7 +74,7 @@ func TestJutsuEligible(t *testing.T) {
 		{"combo clan jutsu blocks when neither half is held", "clan", "Earth Release, Lightning Release, Ninjutsu", false, false},
 	}
 	for _, c := range cases {
-		if got := jutsuEligible(c.origin, c.keywords, affinities, c.hasAny); got != c.want {
+		if got := jutsuEligible(c.origin, c.keywords, affinities, c.hasAny, "", "E", false); got != c.want {
 			t.Errorf("%s: jutsuEligible() = %v, want %v", c.name, got, c.want)
 		}
 	}
@@ -87,13 +87,13 @@ func TestJutsuEligible(t *testing.T) {
 // wrongly block them.
 func TestJutsuEligibleComboAffinityEitherHalf(t *testing.T) {
 	bakutonKeywords := "Earth Release, Lightning Release, Ninjutsu"
-	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Lightning": true}, false) {
+	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Lightning": true}, false, "", "E", false) {
 		t.Error("holding only the second-checked element (Lightning) should still pass")
 	}
-	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Earth": true}, false) {
+	if !jutsuEligible("clan", bakutonKeywords, map[string]bool{"Earth": true}, false, "", "E", false) {
 		t.Error("holding only the first-checked element (Earth) should pass")
 	}
-	if jutsuEligible("clan", bakutonKeywords, map[string]bool{"Fire": true}, false) {
+	if jutsuEligible("clan", bakutonKeywords, map[string]bool{"Fire": true}, false, "", "E", false) {
 		t.Error("holding neither half of the pair should block")
 	}
 }

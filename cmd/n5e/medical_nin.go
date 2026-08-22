@@ -364,8 +364,14 @@ func (s *server) medicalNinJutsuChartGrantedJutsu(characterID int64, classLevel 
 // than hand-transcribing it — same "read the chart, don't retype it"
 // precedent lethalAttackDice/cookingDieSize established. The pool of
 // activation charges this die rides on (3->9 by level) is a separate
-// customResourceGrants entry ("chakra_scalpel_charges").
-func (s *server) chakraScalpelDamageDie(level int) (string, error) {
+// customResourceGrants entry ("chakra_scalpel_charges"). Combat Medic's own
+// 2nd-level Competent Combatant ("your Chakra scalpel's damage die becomes
+// a d6") is a permanent upgrade to this same base progression, not a
+// separate chart — substituted onto the base d4 string at whatever step the
+// character's level lands on (1d4->1d6, 2d4->2d6, ...) rather than
+// hand-duplicating the base chart's own breakpoints (3rd/6th/10th/14th/18th)
+// a second time.
+func (s *server) chakraScalpelDamageDie(level int, subclassSlug string) (string, error) {
 	var value sql.NullString
 	err := s.rulesDB.QueryRow(`
 		SELECT value FROM v_class_level_resources
@@ -378,7 +384,11 @@ func (s *server) chakraScalpelDamageDie(level int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return value.String, nil
+	die := value.String
+	if subclassSlug == combatMedicSubclassSlug && level >= 2 && die != "" {
+		die = strings.Replace(die, "d4", "d6", 1)
+	}
+	return die, nil
 }
 
 // channeledHealingBonus reads Channeled Healing's own live chart
@@ -499,14 +509,22 @@ func (s *server) medicalDoctrinePickedRows(characterID int64) ([]grantedFeatureR
 	if err != nil {
 		return nil, err
 	}
-	names := map[string]string{
-		"class/medical-nin/feature/not-allowed-to-die":      "Not Allowed to Die",
-		"class/medical-nin/feature/until-their-heart-stops": "Until Their Heart Stops",
+	// Namespaced synthetic slugs, distinct from the real class_features
+	// slugs — the real slugs are already unconditionally present in
+	// loadGrantedFeatures' output for every Medical-Nin (see the comment
+	// above), so keying customResourceGrants off them directly, as this
+	// used to do, granted both pools to every Medical-Nin 3+ regardless of
+	// which doctrine (if any) was picked. Mirrors
+	// genjutsuActualizedAlterationPickedRows' "genjutsu-pick/..." shape
+	// (genjutsu.go).
+	names := map[string]struct{ slug, name string }{
+		"class/medical-nin/feature/not-allowed-to-die":      {"medical-doctrine-pick/not-allowed-to-die", "Not Allowed to Die"},
+		"class/medical-nin/feature/until-their-heart-stops": {"medical-doctrine-pick/until-their-heart-stops", "Until Their Heart Stops"},
 	}
 	var rows []grantedFeatureRow
 	for _, slug := range picks {
-		if name, ok := names[slug]; ok {
-			rows = append(rows, grantedFeatureRow{Slug: slug, Name: name, SourceLabel: "Medical Doctrine"})
+		if v, ok := names[slug]; ok {
+			rows = append(rows, grantedFeatureRow{Slug: v.slug, Name: v.name, SourceLabel: "Medical Doctrine"})
 		}
 	}
 	return rows, nil
@@ -661,7 +679,12 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 		return nil, nil
 	}
 
-	scalpelDie, err := s.chakraScalpelDamageDie(max(level, arch.chakraScalpelLevel()))
+	subclassSlug, _, err := s.medicalNinSubclassSlug(characterID)
+	if err != nil {
+		return nil, err
+	}
+
+	scalpelDie, err := s.chakraScalpelDamageDie(max(level, arch.chakraScalpelLevel()), subclassSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -694,10 +717,6 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 		data.KnownDoctrines, data.AvailableDoctrine = splitMedicalDoctrinePicks(catalog, pickedSet)
 	}
 
-	subclassSlug, _, err := s.medicalNinSubclassSlug(characterID)
-	if err != nil {
-		return nil, err
-	}
 	if subclassSlug == combatMedicSubclassSlug && level >= 2 {
 		choices, err := features.LoadFeatureChoices(s.charDB, characterID)
 		if err != nil {

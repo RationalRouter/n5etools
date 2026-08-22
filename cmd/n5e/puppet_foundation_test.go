@@ -119,6 +119,68 @@ func TestPuppetFoundationSubChoiceSpecSingleKind(t *testing.T) {
 	}
 }
 
+// TestPuppetFoundationExpectedAbilityScores reproduces the audit's live
+// scenario: Quadrupedal (Puppeteer Chassis) sets STR/CON to 16, floored
+// against the class baseline — an ability the pick doesn't touch (DEX) must
+// pass through the baseline untouched.
+func TestPuppetFoundationExpectedAbilityScores(t *testing.T) {
+	entry := puppetupgrades.FoundationEntries["class/puppet-master/option/puppeteer-chassis/quadrupedal"]
+	if entry.EntrySlug == "" {
+		t.Fatal("Quadrupedal entry not found in FoundationEntries")
+	}
+	baseline := &puppetToolStatBlock{Str: 8, Dex: 12, Con: 8, Int: 3, Wis: 8, Cha: 6}
+	picks := []puppetFoundationPick{{Entry: entry}}
+
+	got := puppetFoundationExpectedAbilityScores(baseline, picks)
+	if got["str"] != 16 {
+		t.Errorf("str = %d, want 16 (Quadrupedal's own Set, baseline 8 is lower)", got["str"])
+	}
+	if got["con"] != 16 {
+		t.Errorf("con = %d, want 16", got["con"])
+	}
+	if got["dex"] != 12 {
+		t.Errorf("dex = %d, want 12 (untouched, baseline passes through)", got["dex"])
+	}
+
+	if got := puppetFoundationExpectedAbilityScores(nil, picks); got != nil {
+		t.Errorf("nil baseline should yield a nil map, got %v", got)
+	}
+}
+
+// TestPuppetFoundationWeaponAttackUsesExpectedScore reproduces the audit's
+// core defect: the natural weapon's own attack/damage modifier must come
+// from the CORRECTED (Foundation-adjusted) ability score, not a stale value
+// — Quadrupedal's Bite (DamageAbility "str", AddProficiency true) at STR 16
+// (mod +3) with a level-20 Puppet Master's +9 proficiency bonus.
+func TestPuppetFoundationWeaponAttackUsesExpectedScore(t *testing.T) {
+	entry := puppetupgrades.FoundationEntries["class/puppet-master/option/puppeteer-chassis/quadrupedal"]
+	pick := puppetFoundationPick{Entry: entry}
+
+	// The stale/pre-sync scenario: STR 16 corrected, but nothing in the
+	// expectedScores map claims a LOWER stored score — this is exactly what
+	// the audit reproduced (companion.Str stuck at 15, mod +2, versus the
+	// corrected mod +3 the Foundation pick actually grants).
+	row := puppetFoundationWeaponAttack(map[string]int{"str": 16}, 9, pick)
+	if row == nil {
+		t.Fatal("Quadrupedal has a NaturalWeapon (Bite); got nil row")
+	}
+	if row.AttackTotal != 12 {
+		t.Errorf("AttackTotal = %d, want 12 (str mod +3 from the corrected score, + prof +9)", row.AttackTotal)
+	}
+	if row.DamageTotal != 12 {
+		t.Errorf("DamageTotal = %d, want 12 (str mod +3, + prof +9 since Quadrupedal's Bite has AddProficiency)", row.DamageTotal)
+	}
+
+	// An ability key absent from expectedScores (e.g. a nil map, same as a
+	// nil baseline upstream) must fall back to a flat 0 modifier, not a
+	// bogus AbilityModifier(0) == -5 from treating the zero value as a real
+	// score — the proficiency bonus alone should remain.
+	row = puppetFoundationWeaponAttack(nil, 9, pick)
+	if row.AttackTotal != 9 || row.DamageTotal != 9 {
+		t.Errorf("with no expected score at all, AttackTotal/DamageTotal = %d/%d, want 9/9 (no ability modifier, not -5)", row.AttackTotal, row.DamageTotal)
+	}
+}
+
 // TestPuppetFoundationSize covers the level-gated escalation (Ogre: Large
 // at 2nd, Huge at 14th) on top of a fixed base size.
 func TestPuppetFoundationSize(t *testing.T) {

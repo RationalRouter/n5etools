@@ -9,6 +9,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/features"
 )
 
 // Eight of Science-Nin's ten subclasses' own cap+catalog picks — Elemental
@@ -102,10 +103,10 @@ const (
 	// Angel's Thesis's own "expend 7+ Hacker's Kit charges" Program-cast
 	// cost already gets elsewhere in this class.
 	scienceNinFamiliarFacesFeatureSlug = "class/science-nin/group/scientific-inquiry/spyware/feature/familiar-faces"
-	scienceNinAirTrecksFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/air-trecks"
-	scienceNinKingsRoadFeatureSlug         = "class/science-nin/group/scientific-inquiry/storm-rider/feature/kings-road"
-	scienceNinBestLaidTrapFeatureSlug      = "class/science-nin/group/scientific-inquiry/technobi/feature/the-best-laid-trap"
-	scienceNinSNBUpgradesFeatureSlug       = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/s-n-b-upgrades"
+	scienceNinAirTrecksFeatureSlug     = "class/science-nin/group/scientific-inquiry/storm-rider/feature/air-trecks"
+	scienceNinKingsRoadFeatureSlug     = "class/science-nin/group/scientific-inquiry/storm-rider/feature/kings-road"
+	scienceNinBestLaidTrapFeatureSlug  = "class/science-nin/group/scientific-inquiry/technobi/feature/the-best-laid-trap"
+	scienceNinSNBUpgradesFeatureSlug   = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/s-n-b-upgrades"
 
 	// Five of the ten 20th-level "Future of Shinobi" subclass capstones —
 	// see each one's own gating block in loadScienceNinSubclassData below
@@ -530,6 +531,16 @@ type scienceNinShinobiWareData struct {
 	// manual/narrated.
 	ShinjutsuUpgrade          *knownScienceNinPick
 	AvailableShinjutsuUpgrade []scienceNinSubclassOption
+
+	// FullMetalShinobiResistances is every damage type the character
+	// currently holds via Full-Metal Shinobi's own staged progression (two
+	// player picks at 6th/9th level, the third automatic at 14th) — see
+	// fullMetalShinobiResistances' own doc (full_metal_shinobi.go).
+	FullMetalShinobiResistances []string
+	// FullMetalShinobiSlots is every currently-open pick the player can
+	// still make or change (6th/9th level), each excluding whatever's
+	// already been picked in the OTHER slot.
+	FullMetalShinobiSlots []fullMetalShinobiSlot
 }
 
 // scienceNinSpywareData backs Spyware Programs and the Netrunner Quick Hack
@@ -592,6 +603,13 @@ type scienceNinTechnobiData struct {
 	MechanizationUsed       int
 	KnownMechanizations     []knownScienceNinPick
 	AvailableMechanizations []scienceNinSubclassOption
+
+	// SENTOptions/SENTCurrent back S.E.N.Ts' own freely re-pickable "which
+	// ammo weapon is currently my S.E.N.T" choice — see sents.go. Nil
+	// SENTOptions means the character hasn't reached S.E.N.Ts yet (3rd
+	// level Technobi, same level as The Best Laid Trap).
+	SENTOptions []featureChoiceOption
+	SENTCurrent string
 }
 
 // scienceNinSNBSpecialistData backs S.N.B Upgrades — the only piece of
@@ -946,6 +964,15 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			sw.KnownEvolved, sw.AvailableEvolved = splitScienceNinPicks(eligible, pickedSet)
 		}
 
+		if has[scienceNinFullMetalShinobiFeatureSlug] {
+			resistancePicks, err := charstore.ListFullMetalShinobiResistances(s.charDB, characterID)
+			if err != nil {
+				return err
+			}
+			sw.FullMetalShinobiResistances = fullMetalShinobiResistances(level, resistancePicks)
+			sw.FullMetalShinobiSlots = fullMetalShinobiSlots(level, resistancePicks)
+		}
+
 		data.ShinobiWare = sw
 	}
 
@@ -1074,6 +1101,20 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 		tb.MechanizationUsed = len(picks)
 		tb.KnownMechanizations, tb.AvailableMechanizations = splitScienceNinPicks(catalog, pickedSet)
+
+		if has[scienceNinSENTsFeatureSlug] {
+			sentCatalog, err := s.loadSENTWeaponCatalog()
+			if err != nil {
+				return err
+			}
+			choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+			if err != nil {
+				return err
+			}
+			tb.SENTOptions = sentCatalog
+			tb.SENTCurrent = choices[sentChoiceKey]
+		}
+
 		data.Technobi = tb
 	}
 

@@ -2578,7 +2578,7 @@ func (s *server) loadGreenTechniqueJutsuOptions(characterID int64) ([]puppetJuts
 	}
 	var out []puppetJutsuChoiceOption
 	for _, c := range candidates {
-		if !ctx.eligible(c.slug, c.keywords) {
+		if !ctx.eligible(c.slug, c.keywords, c.rank.String) {
 			continue
 		}
 		out = append(out, puppetJutsuChoiceOption{Value: c.slug, Name: c.name, Rank: c.rank.String, Description: c.description})
@@ -2931,15 +2931,26 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		masterProfBonus = sheet.ProficiencyBonus
 	}
 
-	chassisOptions, err := s.loadPuppetArmorChassisOptions()
-	if err != nil {
-		return data, err
+	// Armor Chassis (the Juggernaut Armor transformation, and its own AC
+	// formula below) is Purple Technique Juggernaut's own 2nd-level
+	// subclass feature — every other subclass's Puppet Tool keeps using
+	// puppetToolDefaultAC instead. chassisByName stays empty for a non-
+	// Purple character, so the ExpectedAC lookup against it below falls
+	// through to that default formula even if a companion has a stale
+	// ArmorChassis value from before this gate existed (e.g. a subclass
+	// change after it was set).
+	var chassisOptions []puppetArmorChassis
+	chassisByName := map[string]puppetArmorChassis{}
+	if subclassColor == "Purple" {
+		chassisOptions, err = s.loadPuppetArmorChassisOptions()
+		if err != nil {
+			return data, err
+		}
+		for _, ch := range chassisOptions {
+			chassisByName[ch.Name] = ch
+		}
 	}
 	data.ArmorChassisOptions = chassisOptions
-	chassisByName := map[string]puppetArmorChassis{}
-	for _, ch := range chassisOptions {
-		chassisByName[ch.Name] = ch
-	}
 
 	// Several modeled upgrade bonuses read the character's WHOLE roster, not
 	// just the companion being computed (Red Technique's Enhanced Durability
@@ -3296,6 +3307,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		}
 
 		view := puppetCompanionView{Companion: c}
+		var expectedAbilityScores map[string]int
 		view.UpgradeBonuses = notes
 		view.FoundationCatalogLabel = catalogLabel
 		view.FoundationEntryName = entryName
@@ -3324,6 +3336,14 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 			view.ExpectedInt = expected("int", baseline.Int)
 			view.ExpectedWis = expected("wis", baseline.Wis)
 			view.ExpectedCha = expected("cha", baseline.Cha)
+			// Same values the Sync STR/DEX/.../CHA buttons above show — reused
+			// below so the natural weapon's own attack/damage modifier always
+			// matches what a fully-synced companion's stored score would give,
+			// whether or not the player has actually clicked Sync yet.
+			expectedAbilityScores = map[string]int{
+				"str": view.ExpectedStr, "dex": view.ExpectedDex, "con": view.ExpectedCon,
+				"int": view.ExpectedInt, "wis": view.ExpectedWis, "cha": view.ExpectedCha,
+			}
 		}
 		view.ExpectedSize = size
 		view.ExpectedFlySpeed = total.FlySpeed
@@ -3372,7 +3392,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 
 		view.Attacks = append(view.Attacks, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices)...)
 		for _, fp := range foundationPicks {
-			if row := puppetFoundationWeaponAttack(c, ownerProfBonus, fp); row != nil {
+			if row := puppetFoundationWeaponAttack(expectedAbilityScores, ownerProfBonus, fp); row != nil {
 				view.Attacks = append(view.Attacks, *row)
 			}
 		}

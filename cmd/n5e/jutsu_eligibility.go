@@ -2,21 +2,87 @@ package main
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
 )
 
-// jutsuEligible reports whether a jutsu whose origin/keywords are given can
-// be learned: it must come from the character's own class discipline or
+// jutsuIsMedical reports whether a jutsu's keywords column names the
+// Medical keyword — the same substring-match convention jutsuElements/
+// jutsuNeedsAnyAffinity already use for the element keywords.
+func jutsuIsMedical(keywords string) bool {
+	return strings.Contains(keywords, "Medical")
+}
+
+// characterMedicalRankCap resolves the highest-rank Medical-keyword jutsu a
+// character may learn or cast, or "" for no Medical access at all. Medical
+// jutsu are classified "Ninjutsu" like everything else Ninjutsu-casting
+// classes learn — class_casting alone (classJutsuPredicate) can't tell them
+// apart, so this is a second, independent gate jutsuEligible applies only
+// when a candidate's own keywords actually name Medical.
+//
+//   - class/medical-nin: unrestricted (the "S" ceiling never actually binds
+//     — every other class's own jutsu gets the same uncapped treatment at
+//     the sheet level, see loadJutsuOrigins' doc comment; a real rank
+//     ceiling below that only ever applies at creation, via the class's own
+//     highest_rank_known).
+//   - Science-Nin's Mad Scientist inquiry, Biotic Mastery (3rd level):
+//     "You can learn and cast any D-Rank Medical Ninjutsu. This increases
+//     to any C-Rank Medical Ninjutsu at Level 9 and B-Rank Medical Ninjutsu
+//     at Level 14" — a real, fixed textual ceiling (unlike the sheet's
+//     usual "no ceiling, just a badge" treatment), so it applies everywhere
+//     jutsuEligible is checked, not just at creation.
+//   - every other class/subclass: no access at all.
+func characterMedicalRankCap(classSlugs []string, grantedFeatureSlugs map[string]bool, level int) string {
+	for _, slug := range classSlugs {
+		if slug == medicalNinSlug {
+			return "S"
+		}
+	}
+	if !grantedFeatureSlugs[madScientistBioticMasteryFeatureSlug] {
+		return ""
+	}
+	switch {
+	case level >= 14:
+		return "B"
+	case level >= 9:
+		return "C"
+	default:
+		return "D"
+	}
+}
+
+// jutsuEligible reports whether a jutsu whose origin/keywords/rank are given
+// can be learned: it must come from the character's own class discipline or
 // clan (origin non-empty, see loadJutsuOrigins), AND if it names an
 // element, the character needs a matching affinity for it (or, for the rare
 // "Any Nature Release" keyword, just needs to have at least one affinity at
 // all — see jutsuNeedsAnyAffinity). A jutsu naming more than one element (a
 // combo-affinity clan's own jutsu) is eligible on a match against ANY one of
-// them, not all — see jutsuElements.
-func jutsuEligible(origin, keywords string, affinities map[string]bool, hasAnyAffinity bool) bool {
+// them, not all — see jutsuElements. Separately, a jutsu naming the Medical
+// keyword AND reachable only via the broad class-discipline union
+// (origin == "class") needs the character's own medicalRankCap
+// (characterMedicalRankCap) to be non-empty and at least the jutsu's own
+// rank — every Ninjutsu-casting class (all eleven) otherwise matches
+// Medical jutsu on discipline alone, which is not the book's rule for any
+// of them except Medical-Nin itself. A jutsu reachable via origin == "clan"
+// skips this gate: several real clans (Hanami, Hyuga, Shakuton, Uzumaki)
+// have their own Medical-tagged Hijutsu curated directly into clan_jutsu —
+// that curation IS the access grant, the same way a combo-affinity clan's
+// own jutsu doesn't need a second, independent qualification beyond having
+// the clan itself. byTheBookGrant (Patissier Chef's own curated healing/
+// temp-HP subset, patissierChefByTheBookHealingJutsuSlugs) is a second,
+// narrower bypass of that same Medical gate — true only when the candidate
+// slug is itself in that curated set AND the character actually has the
+// feature, resolved once by the caller rather than re-checked per jutsu.
+func jutsuEligible(origin, keywords string, affinities map[string]bool, hasAnyAffinity bool, medicalRankCap, rank string, byTheBookGrant bool) bool {
 	if origin == "" {
 		return false
+	}
+	if origin == "class" && jutsuIsMedical(keywords) && !byTheBookGrant {
+		if medicalRankCap == "" || jutsuRankOrder[rank] > jutsuRankOrder[medicalRankCap] {
+			return false
+		}
 	}
 	if jutsuNeedsAnyAffinity(keywords) {
 		return hasAnyAffinity
@@ -76,12 +142,15 @@ type jutsuEligibilityContext struct {
 	origins        map[string]string
 	affinities     map[string]bool
 	hasAnyAffinity bool
+	medicalRankCap string
+	hasByTheBook   bool
 }
 
-// eligible reports whether the jutsu named by slug/keywords is eligible for
-// the character this context was built for.
-func (c jutsuEligibilityContext) eligible(slug, keywords string) bool {
-	return jutsuEligible(c.origins[slug], keywords, c.affinities, c.hasAnyAffinity)
+// eligible reports whether the jutsu named by slug/keywords/rank is eligible
+// for the character this context was built for.
+func (c jutsuEligibilityContext) eligible(slug, keywords, rank string) bool {
+	byTheBookGrant := c.hasByTheBook && patissierChefByTheBookHealingJutsuSlugs[slug]
+	return jutsuEligible(c.origins[slug], keywords, c.affinities, c.hasAnyAffinity, c.medicalRankCap, rank, byTheBookGrant)
 }
 
 // loadJutsuEligibilityContext computes a character's own class/clan jutsu
@@ -132,6 +201,8 @@ func (s *server) loadJutsuEligibilityContext(characterID int64) (jutsuEligibilit
 	ctx.origins = origins
 	ctx.affinities = affinitySet
 	ctx.hasAnyAffinity = len(affinityList) > 0
+	ctx.medicalRankCap = characterMedicalRankCap(classSlugs, grantedSlugs, level)
+	ctx.hasByTheBook = grantedSlugs[patissierChefByTheBookFeatureSlug]
 	return ctx, nil
 }
 
@@ -142,8 +213,8 @@ func (s *server) loadJutsuEligibilityContext(characterID int64) (jutsuEligibilit
 // check (class/clan origin, elemental affinity) runs again here against
 // the database's own current state.
 func (s *server) jutsuEligibleForCharacter(characterID int64, slug string) (bool, error) {
-	var keywords string
-	err := s.rulesDB.QueryRow(`SELECT keywords FROM jutsu WHERE slug = ?`, slug).Scan(&keywords)
+	var keywords, rank string
+	err := s.rulesDB.QueryRow(`SELECT keywords, rank FROM v_jutsu WHERE slug = ?`, slug).Scan(&keywords, &rank)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -155,5 +226,5 @@ func (s *server) jutsuEligibleForCharacter(characterID int64, slug string) (bool
 	if err != nil {
 		return false, err
 	}
-	return ctx.eligible(slug, keywords), nil
+	return ctx.eligible(slug, keywords, rank), nil
 }

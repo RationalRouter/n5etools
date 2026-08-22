@@ -51,11 +51,13 @@ import (
 //     mechanically simulate weapon properties anywhere — they're reference
 //     text on the item card, not a field an engine reads — so granting one
 //     has nothing to change even once picked. Left as reference text.
-//   - Extra Attack/Superior Attack (attacks-per-turn) and Critical Focus
-//     (crit-range ranks) have no computed field anywhere in this app for
-//     ANY class, Weapon Specialist included — not a gap unique to this
-//     audit pass, the project-wide boundary already drawn for how many
-//     attacks a turn grants and where a crit range is tracked.
+//   - Extra Attack/Superior Attack (attacks-per-turn) has no computed field
+//     anywhere in this app for ANY class, Weapon Specialist included — not a
+//     gap unique to this audit pass, the project-wide boundary already
+//     drawn for how many attacks a turn grants. Critical Focus IS tracked
+//     (weaponSpecialistCritRangeThreshold, characters.go) and reaches both
+//     weapon attacks (attackRow.CritRangeThreshold) and Bukijutsu-classified
+//     jutsu casts (jutsuSheetRow.CritRangeThreshold).
 const weaponSpecialistSlug = "class/weapon-specialist"
 
 // weaponStanceFeatureSlug identifies Weapon Stance (class_features, 2nd
@@ -173,10 +175,42 @@ type weaponFocusOption struct {
 	DamageType string
 }
 
+// weaponFocusGripPairs maps the four Versatile weapons whose grips print as
+// two separate equipment rows (migration 0021: Quarterstaff, Spear, Taichi,
+// Tetsubo — e.g. "weapon/tetsubo" and "weapon/tetsubo-two-hands") between
+// each pair's two slugs, in both directions. A Weapon Focus pick names one
+// specific slug, but "chooses a weapon type (like katana)" (the feature's
+// own text) means a pick against either grip covers the same physical
+// weapon in the other. Built as an explicit lookup table rather than a bare
+// "-two-hands" suffix trim so an unrelated future weapon slug can never
+// accidentally match.
+var weaponFocusGripPairs = func() map[string]string {
+	pairs := map[string]string{
+		"weapon/quarterstaff": "weapon/quarterstaff-two-hands",
+		"weapon/spear":        "weapon/spear-two-hands",
+		"weapon/taichi":       "weapon/taichi-two-hands",
+		"weapon/tetsubo":      "weapon/tetsubo-two-hands",
+	}
+	out := make(map[string]string, len(pairs)*2)
+	for a, b := range pairs {
+		out[a] = b
+		out[b] = a
+	}
+	return out
+}()
+
 // loadWeaponFocusCatalog lists every weapon in the equipment catalog as a
 // candidate Weapon Focus type — the book lets a Weapon Specialist choose
 // any weapon type "like katana" they'll specialize into, not just ones
 // currently in their own inventory.
+//
+// This deliberately does NOT exclude the "(Two Hands)" grip-duplicate rows
+// loadWeaponOptions (characters.go) drops for the same reason — a character
+// who already has one of the four pairs' two-handed grip slug recorded as
+// their pick (from before this dedup existed, or from data entered before
+// this list existed at all) still needs that row present here to resolve
+// its name for display. loadWeaponFocusTabData is what keeps a NEW pick
+// from ever choosing a duplicate grip row; see its own Available filter.
 func (s *server) loadWeaponFocusCatalog() ([]weaponFocusOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(damage_dice, ''), COALESCE(damage_type, '')
@@ -309,9 +343,18 @@ func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Shee
 	for _, o := range catalog {
 		if pickedSet[o.Slug] {
 			known = append(known, o)
-		} else {
-			available = append(available, o)
+			continue
 		}
+		// A "(Two Hands)" row is never offered as a fresh pick — it is the
+		// same physical weapon as its one-handed sibling row (already in
+		// this same catalog), so offering both would read as two different
+		// weapons and would let a player burn a second slot on one they
+		// already have covered. weaponFocusGripPairs is what makes a pick
+		// against either grip's slug apply the shared bonus to both.
+		if strings.HasSuffix(o.Name, "(Two Hands)") {
+			continue
+		}
+		available = append(available, o)
 	}
 
 	data := &weaponFocusTabData{
@@ -363,9 +406,16 @@ func (s *server) weaponFocusBonusSet(characterID int64, sheet *charsheet.Sheet) 
 	if err != nil || len(picks) == 0 {
 		return nil, 0, err
 	}
-	set := make(map[string]bool, len(picks))
+	set := make(map[string]bool, len(picks)*2)
 	for _, slug := range picks {
 		set[slug] = true
+		// A pick recorded against either grip's slug (see
+		// weaponFocusGripPairs) covers the same physical weapon in the
+		// other, so buildAttacks' exact-slug match against the equipped
+		// item's own slug finds it regardless of which grip is equipped.
+		if sibling, ok := weaponFocusGripPairs[slug]; ok {
+			set[sibling] = true
+		}
 	}
 	totalSlots := charstore.WeaponFocusSlotCap(level) + bonusSlots
 	return set, weaponFocusTotalBonus(totalSlots), nil

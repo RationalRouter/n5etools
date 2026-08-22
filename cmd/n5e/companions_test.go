@@ -312,6 +312,15 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 	s := testServer(t)
 	seedPuppetMasterRules(t, s)
 	seedBearTribeRules(t, s)
+	// seedPuppetMasterRules only seeds Blue Technique Warmaster; Purple
+	// Technique Juggernaut needs its own row here since the character
+	// below picks it (armor_chassis save below is Purple-exclusive).
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+			('class/puppet-master/group/puppet-techniques/purple-technique-juggernaut',
+			 'class/puppet-master/group/puppet-techniques', 'Purple Technique ~ Juggernaut')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.charDB.Exec(`
 		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
 		VALUES ('Kankuro', 10, 10, 10, 10, 10, 10)`); err != nil {
@@ -322,9 +331,14 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 		VALUES (1, 'class/puppet-master', 14, 0)`); err != nil {
 		t.Fatal(err)
 	}
+	// Purple Technique Juggernaut, not an arbitrary subclass: this test
+	// exercises the whole-form save's armor_chassis field below, which is
+	// Purple's own exclusive Armor Chassis feature (see
+	// handleCompanionSave's gate) — any other subclass would have that
+	// field silently dropped.
 	if _, err := s.charDB.Exec(`
 		INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level)
-		VALUES (1, 'class/puppet-master/group/puppet-techniques/blue-technique-warmaster', 2)`); err != nil {
+		VALUES (1, 'class/puppet-master/group/puppet-techniques/purple-technique-juggernaut', 2)`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -464,6 +478,54 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 	}
 	if len(remaining) != 2 {
 		t.Errorf("after delete, ListCompanions = %d rows, want 2", len(remaining))
+	}
+}
+
+// TestHandleCompanionSaveDropsArmorChassisForNonPurple is the server-side
+// half of the Armor Chassis gate (see TestPuppetArmorChassisGatedToPurpleTechnique
+// for the AC-formula half): the popup's own picker only ever offers Armor
+// Chassis to a Purple Technique character, but that's UI convenience, not
+// enforcement — a raw POST to the same endpoint (exactly what the audit's
+// live reproduction did) must not be able to give a Blue Technique
+// character's Puppet Tool a stored armor_chassis value at all.
+func TestHandleCompanionSaveDropsArmorChassisForNonPurple(t *testing.T) {
+	s := testServer(t)
+	seedPuppetMasterRules(t, s)
+	if _, err := s.charDB.Exec(`INSERT INTO characters (name) VALUES ('Kankuro')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+		VALUES (1, 'class/puppet-master', 5, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level)
+		VALUES (1, 'class/puppet-master/group/puppet-techniques/blue-technique-warmaster', 2)`); err != nil {
+		t.Fatal(err)
+	}
+	companionID, err := charstore.AddCompanion(s.charDB, 1, "puppet", "Karasu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cid := strconv.FormatInt(companionID, 10)
+
+	req := httptest.NewRequest(http.MethodPost, "/characters/1/companions/"+cid,
+		strings.NewReader(url.Values{"name": {"Karasu"}, "armor_chassis": {"Steel Fortress"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", "1")
+	req.SetPathValue("cid", cid)
+	w := httptest.NewRecorder()
+	s.handleCompanionSave(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("save companion: status %d, body %s", w.Code, w.Body.String())
+	}
+	saved, err := charstore.GetCompanion(s.charDB, 1, companionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.ArmorChassis != "" {
+		t.Errorf("ArmorChassis = %q, want empty — a Blue Technique character has no Purple-exclusive Armor Chassis to set", saved.ArmorChassis)
 	}
 }
 

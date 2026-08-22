@@ -261,11 +261,12 @@ func stripLevelSuffix(name string) (clean string, level int, ok bool) {
 // any regex match for these five names.
 var knownClassFeatureLevelOverrides = map[string]map[string]int{
 	"Weapon Specialist": {
-		"Enhanced Deflection":     2,
-		"Chained Reaction [New]":  2,
-		"Chakra Strike":           2,
-		"Perceptive Augmentation": 2,
-		"Focused Efficiency":      2,
+		"Ability Score Improvement/Feat": 4,
+		"Enhanced Deflection":            2,
+		"Chained Reaction [New]":         2,
+		"Chakra Strike":                  2,
+		"Perceptive Augmentation":        2,
+		"Focused Efficiency":             2,
 	},
 	// Rejuvenating Rest's own text opens "Also, at Level 1 you use your
 	// medical skills to revitalize wounded allies during a short rest...
@@ -275,7 +276,8 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 	// the first one it found ("7th level") instead, same failure shape as
 	// Weapon Specialist's Chakra Strike above.
 	"Medical-Nin": {
-		"Rejuvenating Rest": 1,
+		"Ability Score Improvement/Feat": 4,
+		"Rejuvenating Rest":              1,
 	},
 	// Shinobi Adept (2nd level) presents its 7-option catalog as separate
 	// named class_features with no level text anywhere in their own printed
@@ -308,37 +310,33 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 	// own bookmark-matching use, not for stored feature names), so a
 	// straight-apostrophe key here would silently never match.
 	"Scout-Nin": {
-		"Shinobi’s Tactics":          2,
-		"Shinobi’s General Literacy": 2,
-		"Shinobi’s Tool Competency":  2,
-		"Shinobi’s Precision":        2,
-		"Shinobi’s Edge":             2,
-		"Shinobi’s Drive":            2,
-		"Shinobi’s Focus":            2,
-		"Hidden Technique":           10,
-		"Aggressive Technique":       10,
-		"Tactical Technique":         10,
-		"Signature Power":            7,
-		"Signature Ramping":          7,
-		"Signature Control":          7,
-		"Combat":                     5,
-		"Control":                    5,
-		"Mobility":                   5,
-		"Skill":                      5,
-		"Support":                    5,
+		"Ability Score Improvement/Feat": 4,
+		"Shinobi’s Tactics":              2,
+		"Shinobi’s General Literacy":     2,
+		"Shinobi’s Tool Competency":      2,
+		"Shinobi’s Precision":            2,
+		"Shinobi’s Edge":                 2,
+		"Shinobi’s Drive":                2,
+		"Shinobi’s Focus":                2,
+		"Hidden Technique":               10,
+		"Aggressive Technique":           10,
+		"Tactical Technique":             10,
+		"Signature Power":                7,
+		"Signature Ramping":              7,
+		"Signature Control":              7,
+		"Combat":                         5,
+		"Control":                        5,
+		"Mobility":                       5,
+		"Skill":                          5,
+		"Support":                        5,
 	},
-	// Ability Score Improvement/Feat states no level anywhere in its own
-	// text beyond "When you reach 4th and again at 8th..." -- the ordinal
-	// regex has no foothold on that phrasing, so the row parsed as always-on
-	// (level NULL) instead of 4th level, the same failure shape as the
-	// other entries in this map. Actualized Alteration/Duplicity/
-	// Perception/Perfection/Power are Real World Conversion's own 5-option
-	// catalog (class_features row "real-world-conversion" is correctly
-	// level=5, "Starting at 5th level... Select one Conversion of your
-	// choice") -- none of the 5 options states a level anywhere in its own
-	// prose, so each is tagged to the introducing feature's own 5th level,
-	// matching the Shinobi Adept/Signature Jutsu catalog-option precedent
-	// above.
+	// Actualized Alteration/Duplicity/Perception/Perfection/Power are Real
+	// World Conversion's own 5-option catalog (class_features row
+	// "real-world-conversion" is correctly level=5, "Starting at 5th
+	// level... Select one Conversion of your choice") -- none of the 5
+	// options states a level anywhere in its own prose, so each is tagged
+	// to the introducing feature's own 5th level, matching the Shinobi
+	// Adept/Signature Jutsu catalog-option precedent above.
 	"Genjutsu Specialist": {
 		"Ability Score Improvement/Feat": 4,
 		"Actualized Alteration":          5,
@@ -347,6 +345,26 @@ var knownClassFeatureLevelOverrides = map[string]map[string]int{
 		"Actualized Perfection":          5,
 		"Actualized Power":               5,
 	},
+	// Ability Score Improvement/Feat states no level anywhere in its own
+	// text beyond "When you reach 4th and again at 8th..." -- the ordinal
+	// regex has no foothold on that phrasing, so the row parsed as
+	// always-on (level NULL) instead of 4th level, the same failure shape
+	// as every other entry in this map. Its description is byte-identical
+	// across all 11 classes (asiFeatureSuffix in internal/features/asi.go
+	// documents this — same wording, same slug shape), so the bug and the
+	// fix both apply universally: only Genjutsu Specialist above happened
+	// to get this override when the pattern was first found, leaving the
+	// other 10 classes' own Ability Score Improvement/Feat silently
+	// ungranted at any level (confirmed live: Ryo, a Cooking-Nin, reached
+	// level 5 with no Pending Choices prompt). Migration
+	// 0061_asi_feat_level_all_classes.sql repairs the already-shipped rows.
+	"Cooking-Nin":            {"Ability Score Improvement/Feat": 4},
+	"Hunter-Nin":             {"Ability Score Improvement/Feat": 4},
+	"Intelligence Operative": {"Ability Score Improvement/Feat": 4},
+	"Ninjutsu Specialist":    {"Ability Score Improvement/Feat": 4},
+	"Puppet Master":          {"Ability Score Improvement/Feat": 4},
+	"Science-Nin":            {"Ability Score Improvement/Feat": 4},
+	"Taijutsu Specialist":    {"Ability Score Improvement/Feat": 4},
 }
 
 // quickBuildSquishes hand-confirms a PDF text-extraction artifact specific

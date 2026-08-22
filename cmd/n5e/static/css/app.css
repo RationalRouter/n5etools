@@ -3511,6 +3511,17 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   background: rgba(217, 130, 43, 0.24);
   border-color: var(--accent-hover);
 }
+/* The closed select's own background is intentionally translucent (it sits
+   over the sheet's dark page background), but browsers render the open
+   option list against their own opaque native backdrop rather than the
+   page — the same 14% orange composites to a near-white panel there, and
+   --text is nearly unreadable on it except wherever the browser's native
+   hover highlight forces its own contrast. Options need their own solid,
+   non-transparent color pair so every entry in the list stays legible. */
+.sheet-class-level-form .sheet-class-level-select option {
+  background: var(--panel);
+  color: var(--text);
+}
 .sheet-character-level { white-space: nowrap; }
 /* Sits at the end of the class/subclass line, not its own row — a rare
    action that doesn't need a whole line of visual weight to itself. */

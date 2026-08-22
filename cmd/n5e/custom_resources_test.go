@@ -542,31 +542,46 @@ func TestComputeCustomResourcesPreserveTakeLifeMendingPresenceStacks(t *testing.
 
 // TestComputeCustomResourcesMedicalDoctrinePicks verifies the two Medical
 // Doctrine pools' own Max/MinLevel, and — the actual bug this gating
-// guards against — that computeCustomResources only ever sees the doctrine
-// a character picked, never the other one, since medicalDoctrinePickedRows
-// (medical_nin.go) is what filters Medical Doctrine's 4 unconditionally-
-// returned NULL-level class_features rows down to just the picked subset
-// before this function ever runs.
+// guards against — that computeCustomResources only grants a pool from the
+// namespaced "medical-doctrine-pick/..." row medicalDoctrinePickedRows
+// (medical_nin.go) emits for an actually-picked doctrine, never from the
+// raw class_features slug that loadMergedGrantedFeatures returns
+// unconditionally for every Medical-Nin regardless of pick (Medical
+// Doctrine's 4 options are NULL-level rows). customResourceGrants used to
+// be keyed to that raw slug directly, which meant the unconditional row
+// alone — with no pick at all — satisfied the lookup and granted both
+// pools to every Medical-Nin 3+; this test reproduces exactly that
+// scenario and asserts the raw slug alone grants nothing.
 func TestComputeCustomResourcesMedicalDoctrinePicks(t *testing.T) {
-	notAllowedToDie := grantedFeatureRow{Slug: "class/medical-nin/feature/not-allowed-to-die", Name: "Not Allowed to Die"}
-	untilTheirHeartStops := grantedFeatureRow{Slug: "class/medical-nin/feature/until-their-heart-stops", Name: "Until Their Heart Stops"}
+	rawNotAllowedToDie := grantedFeatureRow{Slug: "class/medical-nin/feature/not-allowed-to-die", Name: "Not Allowed to Die"}
+	rawUntilTheirHeartStops := grantedFeatureRow{Slug: "class/medical-nin/feature/until-their-heart-stops", Name: "Until Their Heart Stops"}
+	pickedNotAllowedToDie := grantedFeatureRow{Slug: "medical-doctrine-pick/not-allowed-to-die", Name: "Not Allowed to Die"}
+	pickedUntilTheirHeartStops := grantedFeatureRow{Slug: "medical-doctrine-pick/until-their-heart-stops", Name: "Until Their Heart Stops"}
 	classLevels := map[string]int{"class/medical-nin": 3}
 
-	// Only the picked doctrine's row reaches computeCustomResources — a
-	// character who picked Not Allowed to Die never sees Until Their Heart
-	// Stops' pool, and vice versa.
-	entries := computeCustomResources([]grantedFeatureRow{notAllowedToDie}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
+	// The raw, unconditionally-present slugs alone (no doctrine picked)
+	// must grant nothing — this is the exact leak that shipped.
+	entries := computeCustomResources([]grantedFeatureRow{rawNotAllowedToDie, rawUntilTheirHeartStops}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
+	if len(entries) != 0 {
+		t.Fatalf("raw slugs alone (no doctrine picked): got %+v, want no pools granted", entries)
+	}
+
+	// Only the picked doctrine's namespaced row reaches computeCustomResources
+	// — a character who picked Not Allowed to Die never sees Until Their
+	// Heart Stops' pool, and vice versa, even with both raw slugs present
+	// alongside (as they always are, from loadMergedGrantedFeatures).
+	entries = computeCustomResources([]grantedFeatureRow{rawNotAllowedToDie, rawUntilTheirHeartStops, pickedNotAllowedToDie}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
 	if len(entries) != 1 || entries[0].Key != "not_allowed_to_die_uses" || entries[0].Max != 1 {
-		t.Fatalf("Not Allowed to Die alone: got %+v, want a single not_allowed_to_die_uses entry Max=1", entries)
+		t.Fatalf("Not Allowed to Die picked: got %+v, want a single not_allowed_to_die_uses entry Max=1", entries)
 	}
 
-	entries = computeCustomResources([]grantedFeatureRow{untilTheirHeartStops}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
+	entries = computeCustomResources([]grantedFeatureRow{rawNotAllowedToDie, rawUntilTheirHeartStops, pickedUntilTheirHeartStops}, classLevels, 0, 0, 0, 0, 0 /* wisMod */, 3, nil)
 	if len(entries) != 1 || entries[0].Key != "until_their_heart_stops_uses" || entries[0].Max != 2 {
-		t.Fatalf("Until Their Heart Stops alone: got %+v, want a single until_their_heart_stops_uses entry Max=2", entries)
+		t.Fatalf("Until Their Heart Stops picked: got %+v, want a single until_their_heart_stops_uses entry Max=2", entries)
 	}
 
-	// Below MinLevel 3: not granted at all.
-	entries = computeCustomResources([]grantedFeatureRow{notAllowedToDie, untilTheirHeartStops}, map[string]int{"class/medical-nin": 2}, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
+	// Below MinLevel 3: not granted at all, even when picked.
+	entries = computeCustomResources([]grantedFeatureRow{pickedNotAllowedToDie, pickedUntilTheirHeartStops}, map[string]int{"class/medical-nin": 2}, 0, 0, 0, 0, 0 /* wisMod */, 2, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %+v, want none below MinLevel 3", entries)
 	}

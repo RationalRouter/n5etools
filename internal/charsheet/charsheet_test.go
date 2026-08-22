@@ -6,6 +6,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
 	"github.com/sergio/n5e/internal/schema"
 )
@@ -379,6 +380,279 @@ func TestComputeAppliesGrantedFeatureSpeedBonus(t *testing.T) {
 	}
 	if sheet.Speed != 35 {
 		t.Errorf("Speed = %d, want 35 (clan base 30 + Supernatural Speed's +5)", sheet.Speed)
+	}
+}
+
+// TestComputeGatesMobilitySpeedBonusOnPick guards against the bug found
+// auditing Scout-Nin: Mobility's class_features row (one of Jack of All,
+// Master of None's 5 Generalizations) is blanket-granted to every
+// 5th-level Scout-Nin for Features & Traits display, the same as
+// Combat/Control/Skill/Support — but unlike those 4, Mobility feeds a real
+// computed field (Speed), so its bonus must only apply once the player has
+// actually picked Mobility via the Jack of All cap+catalog choice
+// (charstore.ScoutNinPickJackOfAll), not merely by reaching 5th level.
+func TestComputeGatesMobilitySpeedBonusOnPick(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/scout-nin', 'Scout-Nin', 10, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO class_features (slug, class_slug, name, level, description) VALUES
+		('class/scout-nin/feature/mobility', 'class/scout-nin', 'Mobility', 5, '+10 bonus to your speed'),
+		('class/scout-nin/feature/combat', 'class/scout-nin', 'Combat', 5, 'attack and damage bonus')`); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Mobility Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	if _, err := charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/scout-nin', 5, 0)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if sheet.Speed != 30 {
+		t.Errorf("Speed with no Jack of All pick made = %d, want 30 (book default, no Mobility bonus without the pick)", sheet.Speed)
+	}
+
+	if err := charstore.AddScoutNinPick(charDB, id, charstore.ScoutNinPickJackOfAll, "class/scout-nin/feature/combat"); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute after picking Combat instead: %v", err)
+	}
+	if sheet.Speed != 30 {
+		t.Errorf("Speed after picking Combat (not Mobility) = %d, want 30 (still no Mobility bonus)", sheet.Speed)
+	}
+
+	if err := charstore.AddScoutNinPick(charDB, id, charstore.ScoutNinPickJackOfAll, "class/scout-nin/feature/mobility"); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute after picking Mobility: %v", err)
+	}
+	if sheet.Speed != 40 {
+		t.Errorf("Speed after picking Mobility = %d, want 40 (book default 30 + Mobility's own +10 at 5th level)", sheet.Speed)
+	}
+}
+
+// jutsuAttackModifier finds one AttackKinds entry's Modifier by kind, for
+// tests that only care about a delta before/after a pick rather than the
+// full absolute number (which also depends on ability scores and
+// proficiency bonus).
+func jutsuAttackModifier(sheet *Sheet, kind string) int {
+	for _, a := range sheet.JutsuAttacks {
+		if a.Kind == kind {
+			return a.Modifier
+		}
+	}
+	return 0
+}
+
+func skillModifier(sheet *Sheet, name string) int {
+	for _, s := range sheet.Skills {
+		if s.Name == name {
+			return s.Modifier
+		}
+	}
+	return 0
+}
+
+func saveModifier(sheet *Sheet, ability string) int {
+	for _, s := range sheet.Saves {
+		if s.Ability == ability {
+			return s.Modifier
+		}
+	}
+	return 0
+}
+
+// TestComputeGatesCombatSkillMobilitySaveBonusesOnPick guards against the
+// same "blanket-granted for Features & Traits display, not gated on the
+// actual Jack of All pick" bug TestComputeGatesMobilitySpeedBonusOnPick
+// already guards for Mobility's Speed bonus, extended to Combat's jutsu
+// attack/damage bonus, Skill's skill-check bonus, and Mobility's OWN
+// saving-throw bonus (a second, separate clause from its Speed bonus).
+// Each must apply only once its own Generalization is picked, and each
+// must step from its 5th-level tier to its 11th-level tier as the
+// character's own level crosses that threshold.
+func TestComputeGatesCombatSkillMobilitySaveBonusesOnPick(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/scout-nin', 'Scout-Nin', 10, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO class_features (slug, class_slug, name, level, description) VALUES
+		('class/scout-nin/feature/combat', 'class/scout-nin', 'Combat', 5, 'attack and damage bonus'),
+		('class/scout-nin/feature/skill', 'class/scout-nin', 'Skill', 5, 'skill check bonus'),
+		('class/scout-nin/feature/mobility', 'class/scout-nin', 'Mobility', 5, 'speed and save bonus')`); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Jack of All Test', 10, 10, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	if _, err := charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/scout-nin', 5, 0)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute before any pick: %v", err)
+	}
+	if before.JackOfAllCombatBonus != 0 {
+		t.Errorf("JackOfAllCombatBonus before picking Combat = %d, want 0", before.JackOfAllCombatBonus)
+	}
+
+	for _, slug := range []string{"class/scout-nin/feature/combat", "class/scout-nin/feature/skill", "class/scout-nin/feature/mobility"} {
+		if err := charstore.AddScoutNinPick(charDB, id, charstore.ScoutNinPickJackOfAll, slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	at5, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute at 5th level after picking all three: %v", err)
+	}
+	if at5.JackOfAllCombatBonus != 1 {
+		t.Errorf("JackOfAllCombatBonus at 5th level = %d, want 1", at5.JackOfAllCombatBonus)
+	}
+	for _, kind := range []string{"Ninjutsu", "Genjutsu", "Taijutsu", "Bukijutsu"} {
+		want := jutsuAttackModifier(before, kind) + 1
+		if got := jutsuAttackModifier(at5, kind); got != want {
+			t.Errorf("%s attack modifier at 5th level = %d, want %d (+1 Combat bonus)", kind, got, want)
+		}
+	}
+	for name := range SkillAbility {
+		want := skillModifier(before, name) + 2
+		if got := skillModifier(at5, name); got != want {
+			t.Errorf("%s skill modifier at 5th level = %d, want %d (+2 Skill bonus)", name, got, want)
+			break
+		}
+	}
+	for _, ab := range Abilities {
+		want := saveModifier(before, ab) + 1
+		if got := saveModifier(at5, ab); got != want {
+			t.Errorf("%s save modifier at 5th level = %d, want %d (+1 Mobility save bonus)", ab, got, want)
+		}
+	}
+
+	if _, err := charDB.Exec(`UPDATE character_classes SET levels = 11 WHERE character_id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	// A fresh, same-level "no picks" baseline is needed here rather than
+	// reusing the 5th-level "before" sheet: ProficiencyBonus itself can
+	// change between 5th and 11th level, and SavingThrowModifier folds in
+	// HALF that bonus even for saves the character isn't proficient in —
+	// comparing across levels would conflate that unrelated shift with the
+	// tier-2 Jack of All bonus this assertion is actually testing for.
+	for _, slug := range []string{"class/scout-nin/feature/combat", "class/scout-nin/feature/skill", "class/scout-nin/feature/mobility"} {
+		if err := charstore.RemoveScoutNinPick(charDB, id, charstore.ScoutNinPickJackOfAll, slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before11, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute at 11th level, no picks: %v", err)
+	}
+	for _, slug := range []string{"class/scout-nin/feature/combat", "class/scout-nin/feature/skill", "class/scout-nin/feature/mobility"} {
+		if err := charstore.AddScoutNinPick(charDB, id, charstore.ScoutNinPickJackOfAll, slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at11, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute at 11th level, with picks: %v", err)
+	}
+	if at11.JackOfAllCombatBonus != 2 {
+		t.Errorf("JackOfAllCombatBonus at 11th level = %d, want 2", at11.JackOfAllCombatBonus)
+	}
+	for _, kind := range []string{"Ninjutsu", "Genjutsu", "Taijutsu", "Bukijutsu"} {
+		want := jutsuAttackModifier(before11, kind) + 2
+		if got := jutsuAttackModifier(at11, kind); got != want {
+			t.Errorf("%s attack modifier at 11th level = %d, want %d (+2 Combat bonus)", kind, got, want)
+		}
+	}
+	if got := skillModifier(at11, "Stealth") - skillModifier(before11, "Stealth"); got != 3 {
+		t.Errorf("Stealth skill bonus at 11th level = %d, want 3", got)
+	}
+	if got := saveModifier(at11, "dex") - saveModifier(before11, "dex"); got != 2 {
+		t.Errorf("dex save bonus at 11th level = %d, want 2", got)
+	}
+}
+
+// TestComputeMartialStudentUsesDexForNonLethalPrecisionJutsuType exercises
+// Martial Student (Hunters Pattern, class/hunter-nin/option/hunters-
+// patterns/martial-student): once Lethal Precision has picked Taijutsu,
+// Martial Student mirrors its own Dexterity override onto Bukijutsu (the
+// type Lethal Precision did NOT pick) — and does nothing to Taijutsu itself,
+// which already uses Dexterity via Lethal Precision alone.
+func TestComputeMartialStudentUsesDexForNonLethalPrecisionJutsuType(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/hunter-nin', 'Hunter-Nin', 8, 6)`); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Martial Student Test', 10, 18, 10, 10, 10, 10)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	if _, err := charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/hunter-nin', 1, 0)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute before any pick: %v", err)
+	}
+	if got, want := jutsuAttackModifier(before, "Bukijutsu"), before.Abilities["str"].Modifier+before.ProficiencyBonus; got != want {
+		t.Errorf("Bukijutsu attack modifier before any pick = %d, want %d (default Strength)", got, want)
+	}
+
+	if err := charstore.AddHunterNinPick(charDB, id, charstore.HunterPickLethalPrecision, "taijutsu"); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.AddHunterNinPick(charDB, id, charstore.HunterPickPattern, "class/hunter-nin/option/hunters-patterns/martial-student"); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute after picks: %v", err)
+	}
+	if got, want := jutsuAttackModifier(after, "Taijutsu"), after.Abilities["dex"].Modifier+after.ProficiencyBonus; got != want {
+		t.Errorf("Taijutsu attack modifier (Lethal Precision's own pick) = %d, want %d (Dexterity)", got, want)
+	}
+	if got, want := jutsuAttackModifier(after, "Bukijutsu"), after.Abilities["dex"].Modifier+after.ProficiencyBonus; got != want {
+		t.Errorf("Bukijutsu attack modifier (Martial Student's mirrored pick) = %d, want %d (Dexterity)", got, want)
 	}
 }
 

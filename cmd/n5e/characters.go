@@ -3831,6 +3831,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
+	sentWeaponSlug, err := s.sentAttackOverrides(characterID, sheet)
+	if err != nil {
+		return nil, err
+	}
 	var out []attackRow
 	for _, item := range inventory {
 		if !item.Equipped || item.Slug == "" {
@@ -3904,6 +3908,15 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			if cookingToolDamageType != "" {
 				damageType.String = cookingToolDamageType
 			}
+		}
+
+		// S.E.N.Ts' own text: "you can also use your Intelligence Modifier in
+		// place of Dexterity for all weapon attack and damage rolls using
+		// S.E.N. Ts" — same "always-on once equipped, still overridable
+		// below" treatment as Cooking Tool Infusion's identical clause.
+		isSENT := sentWeaponSlug != "" && item.Slug == sentWeaponSlug
+		if isSENT {
+			ability = "int"
 		}
 
 		// Apply the character's override for this weapon, if any. Each part
@@ -3995,6 +4008,15 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			}
 		}
 
+		// S.E.N.Ts' own text: "It immediately becomes a d10 stack and its
+		// damage die increases by a step" — replaces the catalog row's own
+		// damage dice outright with 1d12 (1d10, stepped once via
+		// stepWeaponDie), same "override replaces the inert catalog value"
+		// treatment Cooking Tool Infusion's own die-size chart gets above.
+		if isSENT {
+			effectiveDamageDice = stepWeaponDie("1d10")
+		}
+
 		row := attackRow{
 			Name:               item.Name,
 			Slug:               item.Slug,
@@ -4032,6 +4054,15 @@ type jutsuSheetRow struct {
 	AttackKind                 string // "Ninjutsu"/"Genjutsu"/"Taijutsu"/"Bukijutsu" when this jutsu makes an attack roll, "" otherwise
 	AttackBonus                int    // the to-hit modifier actually rolled, override included
 	IsConcentration            bool   // true when this jutsu's duration requires concentration (see isConcentrationDuration)
+
+	// CritRangeThreshold: Weapon Specialist's Critical Focus widens the crit
+	// range specifically for "Bukijutsu you cast" (class_features, 7th/11th/
+	// 17th level) — same field/meaning as attackRow's own CritRangeThreshold,
+	// but gated on this jutsu's own classification column being Bukijutsu
+	// rather than applied to every jutsu attack roll, since Critical Focus's
+	// text does not extend to Ninjutsu/Genjutsu/plain-Taijutsu jutsu. 0 means
+	// no widening (the client falls back to a plain 20).
+	CritRangeThreshold int
 
 	// UpcastOptions is every rank this jutsu can be cast at (base rank
 	// through S) with the chakra cost each one spends, from a parsed
@@ -4206,6 +4237,27 @@ func jutsuAttackKind(description string) string {
 		return ""
 	}
 	return strings.ToUpper(m[1][:1]) + strings.ToLower(m[1][1:])
+}
+
+// resolveJutsuAttackKind reroutes a Bukijutsu-classified jutsu whose
+// description uses the book's shared physical-attack wording ("Make a Melee
+// Taijutsu Attack") from the Taijutsu bucket to the Bukijutsu one.
+//
+// Every real Bukijutsu-classified jutsu describes its attack roll with that
+// same "Taijutsu Attack" phrasing rather than "Bukijutsu Attack" — the book
+// never actually prints the latter — so jutsuAttackKind's text-only reading
+// alone sends every one of them through the Taijutsu bucket. That silently
+// starves three mechanics that only apply to the Bukijutsu bucket
+// (charsheet.go's Weapon Focus attack bonus, Spirited Fighter's Bukijutsu
+// CHA override, and Lethal Precision's Bukijutsu DEX override) of any real
+// jutsu to ever apply to. classification (the jutsu table's own SCHOOL
+// column, unlike the free-text kind) is what actually says a jutsu is a
+// weapon jutsu, so it — not the shared wording — decides the bucket here.
+func resolveJutsuAttackKind(kind, classification string) string {
+	if kind == "Taijutsu" && strings.Contains(strings.ToLower(classification), "bukijutsu") {
+		return "Bukijutsu"
+	}
+	return kind
 }
 
 func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
@@ -4438,7 +4490,14 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load hunter-nin pattern rows:", err)
 		return
 	}
+	fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(id, sheet.Level, grantedFeatures)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load full-metal shinobi resistance rows:", err)
+		return
+	}
 	passiveTraitFeatures := append(grantedFeatures, patternRows...)
+	passiveTraitFeatures = append(passiveTraitFeatures, fullMetalShinobiRows...)
 	if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(id); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu mirage demon sight row:", err)
@@ -4656,9 +4715,12 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	for _, a := range elementalAffinities {
 		affinitySet[a.Element] = true
 	}
+	medicalRankCap := characterMedicalRankCap(classSlugs, grantedFeatureSlugs, sheet.Level)
+	hasByTheBook := grantedFeatureSlugs[patissierChefByTheBookFeatureSlug]
 	eligibleJutsu := map[string]bool{}
 	for _, j := range jutsuLibrary {
-		eligibleJutsu[j.Slug] = jutsuEligible(jutsuOrigins[j.Slug], j.Keywords, affinitySet, len(elementalAffinities) > 0)
+		byTheBookGrant := hasByTheBook && patissierChefByTheBookHealingJutsuSlugs[j.Slug]
+		eligibleJutsu[j.Slug] = jutsuEligible(jutsuOrigins[j.Slug], j.Keywords, affinitySet, len(elementalAffinities) > 0, medicalRankCap, j.Rank.String, byTheBookGrant)
 	}
 
 	// sheet-layout.js's grid ("grid:core"/"grid:bio") and sheet-subgrid.js's
@@ -4710,6 +4772,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("build pending hunter pattern choice rows:", err)
+		return
+	}
+
 	s.render(w, "character_sheet.html", map[string]any{
 		"Title": sheet.Name, "ID": id, "Sheet": sheet,
 		"AbilityOrder": charsheet.Abilities, // Sheet.Abilities is a map — fixed display order comes from here
@@ -4742,6 +4811,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"PendingASI":                    pendingASI,
 		"PendingFeatAbilityChoices":     pendingFeatAbilityChoices,
 		"PendingFeatSkillOrToolChoices": pendingFeatSkillOrToolChoices,
+		"PendingHunterPatternChoices":   pendingHunterPatternChoices,
 		"ChatLog":                       chatLog,
 		"ToolProficiencies":             toolRows, "Languages": languages, "CustomSkills": customSkillRows,
 		"AllTools": allTools, "AllLanguages": allLanguages,
@@ -4906,6 +4976,25 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	if err != nil {
 		return nil, err
 	}
+	// Critical Focus (Weapon Specialist, 7th/11th/17th level): widens the
+	// crit range on Bukijutsu-classified jutsu the same way it already does
+	// for weapon attacks (buildAttacks) — applied per-row below, gated on
+	// classification rather than unconditionally, since it only reaches
+	// Bukijutsu jutsu-casting.
+	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
+	if err != nil {
+		return nil, err
+	}
+	// Patissier Chef's Gotta Do the Cooking By the Book (5th level): "may
+	// use Charisma as your Jutsu Modifier for" the curated Medical-release
+	// healing/temp-HP subset (patissierChefByTheBookHealingJutsuSlugs) —
+	// applied per-row below, alongside the same feature's jutsu-access
+	// grant (jutsuEligible/jutsuEligibilityContext).
+	byTheBookFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
+	hasByTheBook := hasFeature(byTheBookFeatures, patissierChefByTheBookFeatureSlug)
 	options, err := charstore.ListJutsuOptions(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -5302,13 +5391,36 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 		}
 
 		// What the jutsu's own description implies, before any override.
-		kind := jutsuAttackKind(description)
+		// resolveJutsuAttackKind reroutes Bukijutsu-classified jutsu onto the
+		// Bukijutsu bucket even though their text uses the shared Taijutsu
+		// wording — see that function's own doc comment.
+		kind := resolveJutsuAttackKind(jutsuAttackKind(description), classification)
 		j.AttackKind = kind
 		j.AttackBonus = attackBonus[kind]
 		j.AttackAbility = attackAbility[kind]
 		j.AttackProf = charsheet.ProfFull
+		// By the Book's Charisma substitution (see hasByTheBook's own doc
+		// comment above). AttackAbility is set regardless of whether this
+		// jutsu's text calls for an attack roll (kind == "" for 17 of the
+		// 18 curated jutsu) because DamageAbility inherits it just below —
+		// the only place this app tracks a jutsu's own healing dice is the
+		// row's ✎ edit control, and its default ability should read
+		// Charisma too instead of silently falling back to Intelligence.
+		// AttackBonus is only recomputed when kind != "" (only Medical
+		// Release: Vampiric Touch today) since attackBonus[kind] — built
+		// off the class's baseline Ninjutsu ability — has nothing to
+		// override when there is no attack roll to begin with.
+		if hasByTheBook && patissierChefByTheBookHealingJutsuSlugs[slug] {
+			j.AttackAbility = "cha"
+			if kind != "" {
+				j.AttackBonus = sheet.Abilities["cha"].Modifier + sheet.ProficiencyBonus + sheet.JackOfAllCombatBonus
+			}
+		}
 		j.DamageAbility = j.AttackAbility
 		j.Derived = true
+		if strings.Contains(strings.ToLower(classification), "bukijutsu") {
+			j.CritRangeThreshold = critRangeThreshold
+		}
 
 		if opt, ok := options[slug]; ok {
 			j.Derived = false
@@ -5326,6 +5438,14 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			}
 			j.AttackFlat = opt.AttackBonus
 			if j.AttackKind != "" {
+				// This recompute discards attackBonus[kind] (and with it
+				// Weapon Focus's Bukijutsu bonus, folded into JutsuAttacks'
+				// own Modifier upstream) for ANY jutsu with an option row at
+				// all, not just one with a custom attack ability — a
+				// pre-existing gap this change doesn't widen. Combat's own
+				// bonus is re-added explicitly just below instead of being
+				// left to the same fate, since it's reachable here for
+				// every jutsu this loop's DamageBonus branch also reaches.
 				j.AttackBonus = charsheet.ComposeModifier(
 					sheet.Abilities[j.AttackAbility].Modifier, sheet.ProficiencyBonus,
 					j.AttackProf, opt.AttackBonus)
@@ -5339,6 +5459,22 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			if j.DamageCount > 0 && j.DamageSides > 0 {
 				j.DamageDice = strconv.Itoa(j.DamageCount) + "d" + strconv.Itoa(j.DamageSides)
 				j.DamageBonus = sheet.Abilities[j.DamageAbility].Modifier + opt.DamageBonus
+			}
+			// Combat's own "+1/+2 bonus to attack & damage rolls made with
+			// Ninjutsu, Taijutsu, Genjutsu and Bukijutsu you cast" — applied
+			// to both halves here since jutsu damage is otherwise never
+			// computed at all (see Sheet.JackOfAllCombatBonus's own doc
+			// comment), and this override block always recomputes
+			// AttackBonus from scratch above regardless of what
+			// attackBonus[kind] already carried.
+			switch kind {
+			case "Ninjutsu", "Genjutsu", "Taijutsu", "Bukijutsu":
+				if j.AttackKind != "" {
+					j.AttackBonus += sheet.JackOfAllCombatBonus
+				}
+				if j.DamageCount > 0 && j.DamageSides > 0 {
+					j.DamageBonus += sheet.JackOfAllCombatBonus
+				}
 			}
 		}
 		out = append(out, j)
@@ -6176,10 +6312,17 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("build pending feat skill-or-tool choice rows for fragment:", err)
 			return
 		}
+		pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("build pending hunter pattern choice rows for fragment:", err)
+			return
+		}
 		data["PendingFeatureChoices"] = pendingFeatureChoices
 		data["PendingASI"] = pendingASI
 		data["PendingFeatAbilityChoices"] = pendingFeatAbilityChoices
 		data["PendingFeatSkillOrToolChoices"] = pendingFeatSkillOrToolChoices
+		data["PendingHunterPatternChoices"] = pendingHunterPatternChoices
 	case "sheet_companions":
 		companions, err := charstore.ListCompanions(s.charDB, characterID)
 		if err != nil {
@@ -6217,7 +6360,14 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load hunter-nin pattern rows for passive traits fragment:", err)
 			return
 		}
+		fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(characterID, sheet.Level, grantedFeatures)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load full-metal shinobi resistance rows for passive traits fragment:", err)
+			return
+		}
 		passiveTraitFeatures := append(grantedFeatures, patternRows...)
+		passiveTraitFeatures = append(passiveTraitFeatures, fullMetalShinobiRows...)
 		if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(characterID); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load genjutsu mirage demon sight row for passive traits fragment:", err)
@@ -8011,6 +8161,7 @@ var sheetLiveFragments = map[string]bool{
 	"sheet_elemental_affinities":   true,
 	"sheet_mastery":                true,
 	"sheet_feature_choices":        true,
+	"sheet_other_rollables":        true,
 }
 
 // handleSheetFragment re-renders one live block of the sheet on request.

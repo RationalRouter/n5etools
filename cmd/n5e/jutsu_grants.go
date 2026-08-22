@@ -491,11 +491,15 @@ const heatMasterFireAccessSlug = "class/cooking-nin/group/cooking-focus/heat-mas
 // (Fire/Water/Earth/Wind/Lightning Release) any more — see
 // natureReleaseBonusJutsuSlots' own comment for why a discipline-based
 // check can't tell "already has access" for those apart from "just gained
-// it from this same feature." It stays correct for non-elemental keywords
-// like "Medical", which jutsuEligible (jutsu_eligibility.go) never gates
-// behind an affinity in the first place — any class whose discipline list
-// includes Medical jutsu can already learn them freely, so this broad
-// class/clan check is the right (and only) test for those.
+// it from this same feature." It is ALSO no longer used for "Medical" (see
+// natureReleaseBonusJutsuSlots' own loop, which now checks
+// characterMedicalRankCap and clanHasMedicalJutsuAccess instead) — the
+// class-discipline half of this check would say a plain Ninjutsu-casting
+// class (nearly every class in the book) already has Medical access it
+// does not actually have, since Medical jutsu are classified Ninjutsu like
+// everything else those classes cast. This function is left in place for
+// any future non-elemental keyword that genuinely IS discipline-gated with
+// nothing more specific — none exist today.
 func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bool, error) {
 	var n int
 	err := s.rulesDB.QueryRow(`
@@ -506,6 +510,26 @@ func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bo
 		) j
 		JOIN jutsu_keywords jk ON jk.jutsu_slug = j.slug
 		WHERE jk.keyword = ?`, classSlug, clanSlug, keyword,
+	).Scan(&n)
+	return n > 0, err
+}
+
+// clanHasMedicalJutsuAccess reports whether the character's own clan has a
+// Medical-tagged jutsu curated directly into its clan_jutsu list — several
+// real clans (Hanami, Hyuga, Shakuton, Uzumaki) have signature Medical
+// Hijutsu this way, which is a genuine, narrow grant unrelated to the
+// broad class-discipline reachability characterMedicalRankCap gates (see
+// jutsuEligible's own doc comment in jutsu_eligibility.go for the same
+// origin == "clan" vs origin == "class" distinction applied there).
+func (s *server) clanHasMedicalJutsuAccess(clanSlug string) (bool, error) {
+	if clanSlug == "" {
+		return false, nil
+	}
+	var n int
+	err := s.rulesDB.QueryRow(`
+		SELECT COUNT(*) FROM clan_jutsu cj
+		JOIN jutsu_keywords jk ON jk.jutsu_slug = cj.jutsu_slug
+		WHERE cj.clan_slug = ? AND jk.keyword = 'Medical'`, clanSlug,
 	).Scan(&n)
 	return n > 0, err
 }
@@ -537,10 +561,13 @@ func (s *server) hasNatureReleaseAccess(classSlug, clanSlug, keyword string) (bo
 // "gain the keyword fresh, no bonus" branch of both features unreachable
 // for any Ninjutsu-casting class — always paying out the bonus regardless
 // of whether the character actually had prior access, which is not what
-// either feature's text says. Non-elemental keywords ("Medical") have no
-// affinity-system equivalent to check, so those still go through the
-// broad class/clan check, which is accurate for them (see
-// hasNatureReleaseAccess's own comment).
+// either feature's text says. "Medical" has its own real, narrow gates now
+// too — characterMedicalRankCap (Medical-Nin, or Science-Nin's Mad
+// Scientist via Biotic Mastery) and clanHasMedicalJutsuAccess (Hanami,
+// Hyuga, Shakuton, Uzumaki's own curated Medical Hijutsu) — rather than
+// hasNatureReleaseAccess's broad discipline-only check, for the identical
+// reason: a plain Ninjutsu-casting Cooking-Nin is not supposed to already
+// have Medical access just because Cooking-Nin casts Ninjutsu.
 func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []grantedFeatureRow, classSlug, clanSlug, grantSlug string, keywords []string, bonusAmount int) (int, error) {
 	has := false
 	for _, f := range features {
@@ -581,6 +608,19 @@ func (s *server) natureReleaseBonusJutsuSlots(characterID int64, features []gran
 	for _, kw := range keywords {
 		if el := elementFromReleaseKeyword(kw); el != "" {
 			if affinitySet[el] {
+				return bonusAmount, nil
+			}
+			continue
+		}
+		if kw == "Medical" {
+			if characterMedicalRankCap([]string{classSlug}, grantedSlugs, s.characterLevel(characterID)) != "" {
+				return bonusAmount, nil
+			}
+			clanAccess, err := s.clanHasMedicalJutsuAccess(clanSlug)
+			if err != nil {
+				return 0, err
+			}
+			if clanAccess {
 				return bonusAmount, nil
 			}
 			continue

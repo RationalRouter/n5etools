@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/features"
 )
 
 // Hunter-Nin's own mechanics, closing the base-class-wide gaps
@@ -72,6 +74,18 @@ import (
 // to choose a Creed at all today — a structural gap in the subclass-picker
 // itself, not something this file can route around.
 const hunterNinSlug = "class/hunter-nin"
+
+// hunterNinPracticedCombatantOptionSlug identifies Practiced Combatant, one
+// of Hunter-Nin's Hunters Patterns (class_options, list_name "Hunters
+// Patterns" — a mid-tier optional pick catalog, not a class_features row):
+// "You gain one Taijutsu or Weapon stance from Chapter 13." Reuses
+// taijutsu.go's buildFightingStanceView/storeFightingStanceChoice/
+// loadStanceOptionsByType machinery exactly the way Scout-Nin's own base-
+// class Fighting Stance does (scoutNinFightingStanceFeatureSlug,
+// "between Taijutsu Stance and Weapon Stance") — the option slug itself
+// doubles as the ChoiceKey's FeatureSlug, since nothing else needs a
+// separate name for this pick.
+const hunterNinPracticedCombatantOptionSlug = "class/hunter-nin/option/hunters-patterns/practiced-combatant"
 
 // Hunter-Nin's four archetype-training feat slugs, referenced by both this
 // file (Exploit slot count, flat Lethal Attack dice) and
@@ -1094,6 +1108,10 @@ type hunterTechniquesTabData struct {
 	PatternsUsed      int
 	KnownPatterns     []knownHunterPick
 	AvailablePatterns []hunterPickOption
+	// PracticedCombatantStance: nil unless the Practiced Combatant Hunters
+	// Pattern (hunterNinPracticedCombatantOptionSlug) has been picked — see
+	// that const's own doc comment.
+	PracticedCombatantStance *fightingStanceView
 
 	ExploitsCap       int
 	ExploitsUsed      int
@@ -1242,6 +1260,18 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 		}
 		data.PatternsUsed = len(picks)
 		data.KnownPatterns, data.AvailablePatterns = splitHunterPicks(catalog, pickedSet)
+
+		if pickedSet[hunterNinPracticedCombatantOptionSlug] {
+			choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+			if err != nil {
+				return nil, err
+			}
+			stanceOptions, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+			if err != nil {
+				return nil, err
+			}
+			data.PracticedCombatantStance = buildFightingStanceView(choices, stanceOptions, hunterNinPracticedCombatantOptionSlug)
+		}
 	}
 
 	exploitingExploitsBonus := 0
@@ -1665,8 +1695,64 @@ func (s *server) handleHunterPickDelete(category charstore.HunterNinPickCategory
 			log.Println("remove hunter pick:", err)
 			return
 		}
+		if category == charstore.HunterPickPattern {
+			// A safe no-op for any Pattern that never had a proficiency
+			// choice to resolve (most of them) — only Kleptomaniac and
+			// Habitual Researcher (hunter_pattern_choices.go) ever write a
+			// row here, but unpicking either one must retract it, not leave
+			// it orphaned with no pick behind it.
+			if err := charstore.RemoveHunterPatternProficiencies(s.charDB, id, slug); err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("remove hunter pattern proficiencies:", err)
+				return
+			}
+		}
 		s.respondSheet(w, r, id, "sheet_hunter_techniques")
 	}
+}
+
+// handleHunterPracticedCombatantStance records Practiced Combatant's own
+// Taijutsu-or-Weapon Fighting Stance pick — generalizes taijutsu.go's
+// storeFightingStanceChoice the same way handleScoutNinFightingStance does
+// (scout_nin.go), gated on the Pattern being currently picked rather than a
+// class level.
+func (s *server) handleHunterPracticedCombatantStance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("stance_slug"))
+	picks, err := charstore.ListHunterNinPicks(s.charDB, id, charstore.HunterPickPattern)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load hunter patterns picks for practiced combatant stance:", err)
+		return
+	}
+	if !slices.Contains(picks, hunterNinPracticedCombatantOptionSlug) {
+		http.Error(w, "Practiced Combatant has not been picked", http.StatusBadRequest)
+		return
+	}
+	options, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load practiced combatant stance options:", err)
+		return
+	}
+	if err := s.storeFightingStanceChoice(id, hunterNinPracticedCombatantOptionSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			http.Error(w, "not a valid stance", http.StatusBadRequest)
+		} else {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("set practiced combatant stance:", err)
+		}
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_hunter_techniques")
 }
 
 // handleHunterPickDetail serves the click-to-open popup for a Known

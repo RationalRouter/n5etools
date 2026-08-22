@@ -35,6 +35,189 @@ func TestPuppetUpgradeAutoGrantedEntrySlugs(t *testing.T) {
 	}
 }
 
+// TestLoadPuppetsTabDataFoundationAbilityScores reproduces the audit's live
+// scenario end-to-end through loadPuppetsTabData: a companion with a
+// pre-existing, non-null (and now stale) str_score picks Quadrupedal
+// (Puppeteer Chassis), which sets STR/CON to 16. Both halves of the fix are
+// checked — the ExpectedStr hint that drives the Sync button now resolves
+// to a real, non-zero value (previously never forwarded into the template
+// at all, so the Sync button never rendered), and the auto-generated Bite
+// attack uses the CORRECTED score rather than the stale stored one.
+func TestLoadPuppetsTabDataFoundationAbilityScores(t *testing.T) {
+	s := testServer(t)
+	seedPuppetMasterRules(t, s)
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO puppet_tool_stat_block (class_slug, creature_type, proficiency_rule_text,
+			hp_base, hp_con_bonus_add, speed, str_score, dex_score, con_score, int_score, wis_score, cha_score,
+			passive_perception, traits_text)
+		VALUES ('class/puppet-master', 'Medium Construct', 'Puppet Master''s Proficiency',
+			4, 5, 30, 8, 12, 8, 3, 8, 6, 9, '')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Kankuro', 10, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+		VALUES (1, 'class/puppet-master', 20, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	companionID, err := charstore.AddCompanion(s.charDB, 1, "puppet", "Chibi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The pre-existing, already-non-null (and now stale) score the audit's
+	// live reproduction found: COALESCE-only backfill never touches this
+	// once it's set, so it stays 15 forever without the fix. str_score has
+	// no dedicated setter (companionIntFields only covers AC/HP/jutsu-slots/
+	// barrier), so this is set directly.
+	if _, err := s.charDB.Exec(`UPDATE character_companions SET str_score = 15 WHERE id = ?`, companionID); err != nil {
+		t.Fatal(err)
+	}
+	quadrupedalSlug := "class/puppet-master/option/puppeteer-chassis/quadrupedal"
+	if _, err := charstore.AddCompanionUpgrade(s.charDB, 1, companionID, quadrupedalSlug, quadrupedalSlug); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.loadPuppetsTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Companions) != 1 {
+		t.Fatalf("got %d companions, want 1", len(data.Companions))
+	}
+	view := data.Companions[0]
+
+	if view.ExpectedStr != 16 {
+		t.Errorf("ExpectedStr = %d, want 16 — without this, the dict-key fix, the Sync STR button never renders at all", view.ExpectedStr)
+	}
+	if view.ExpectedCon != 16 {
+		t.Errorf("ExpectedCon = %d, want 16", view.ExpectedCon)
+	}
+	if view.ExpectedSize != "Large" {
+		t.Errorf("ExpectedSize = %q, want Large", view.ExpectedSize)
+	}
+
+	var bite *companionAttackRow
+	for i := range view.Attacks {
+		if view.Attacks[i].Name == "Bite" {
+			bite = &view.Attacks[i]
+		}
+	}
+	if bite == nil {
+		t.Fatal("no auto-generated Bite attack from the Quadrupedal Foundation pick")
+	}
+	// Str 16 (mod +3) + level-20 Puppet Master's own +9 proficiency bonus —
+	// NOT the stale stored Str 15's mod +2 (which would give +11).
+	if bite.AttackTotal != 12 {
+		t.Errorf("Bite AttackTotal = %d, want 12 (corrected Str 16's mod +3, + prof +9) — a modifier of 11 means it's still reading the stale stored Str 15", bite.AttackTotal)
+	}
+}
+
+// TestPuppetArmorChassisGatedToPurpleTechnique reproduces the audit's live
+// finding: a Black Technique character's companion had armor_chassis =
+// 'Wooden Suit' set (bypassing the UI, which never should have offered it),
+// and loadPuppetsTabData's Sync-AC hint computed AC using Purple Technique
+// Juggernaut's own exclusive chassis formula instead of the ordinary
+// puppetToolDefaultAC every other subclass's Puppet Tool uses. Covers both
+// directions: a non-Purple subclass gets neither the chassis picker options
+// nor the chassis AC formula even with a stale armor_chassis value already
+// stored; a Purple Technique character gets both.
+func TestPuppetArmorChassisGatedToPurpleTechnique(t *testing.T) {
+	const purpleSlug = "class/puppet-master/group/puppet-techniques/purple-technique-juggernaut"
+
+	cases := []struct {
+		name          string
+		subclassSlug  string
+		wantOptions   bool
+		wantChassisAC bool
+	}{
+		{"Blue Technique gets no chassis options or formula", "class/puppet-master/group/puppet-techniques/blue-technique-warmaster", false, false},
+		{"Purple Technique gets both", purpleSlug, true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := testServer(t)
+			seedPuppetMasterRules(t, s)
+			if _, err := s.rulesDB.Exec(`
+				INSERT INTO subclasses (slug, group_slug, name) VALUES
+					(?, 'class/puppet-master/group/puppet-techniques', 'Purple Technique ~ Juggernaut')`,
+				purpleSlug); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.rulesDB.Exec(`
+				INSERT INTO puppet_tool_stat_block (class_slug, creature_type, proficiency_rule_text,
+					hp_base, hp_con_bonus_add, speed, str_score, dex_score, con_score, int_score, wis_score, cha_score,
+					passive_perception, traits_text)
+				VALUES ('class/puppet-master', 'Medium Construct', 'Puppet Master''s Proficiency',
+					4, 5, 30, 8, 12, 8, 3, 8, 6, 9, '')`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.charDB.Exec(`
+				INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+				VALUES ('Sasori', 10, 10, 10, 10, 10, 10)`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.charDB.Exec(`
+				INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+				VALUES (1, 'class/puppet-master', 20, 0)`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.charDB.Exec(`
+				INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level)
+				VALUES (1, ?, 2)`, c.subclassSlug); err != nil {
+				t.Fatal(err)
+			}
+			companionID, err := charstore.AddCompanion(s.charDB, 1, "puppet", "Hiruko")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Set directly rather than through handleCompanionSave — this
+			// models both a stale pre-fix value and a raw POST bypassing the
+			// popup's own gate, either of which the AC computation itself
+			// must still not trust for a non-Purple character.
+			if _, err := s.charDB.Exec(`UPDATE character_companions SET armor_chassis = 'Steel Fortress' WHERE id = ?`, companionID); err != nil {
+				t.Fatal(err)
+			}
+
+			sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := s.loadPuppetsTabData(1, sheet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if gotOptions := len(data.ArmorChassisOptions) > 0; gotOptions != c.wantOptions {
+				t.Errorf("ArmorChassisOptions non-empty = %v, want %v", gotOptions, c.wantOptions)
+			}
+			if len(data.Companions) != 1 {
+				t.Fatalf("got %d companions, want 1", len(data.Companions))
+			}
+			view := data.Companions[0]
+			// Steel Fortress: 10 + ac_bonus 8 + Dex mod ('none' mode, so +0) = 18.
+			// Default formula: ac_base 10 (no ac_base seeded, COALESCEd) + level
+			// 20's own +9 proficiency bonus = 19. The two formulas deliberately
+			// land on different numbers so a formula mix-up shows up as a wrong
+			// value, not a coincidentally-matching one.
+			wantAC := 19
+			if c.wantChassisAC {
+				wantAC = 18
+			}
+			if view.ExpectedAC != wantAC {
+				t.Errorf("ExpectedAC = %d, want %d (%s formula)", view.ExpectedAC, wantAC,
+					map[bool]string{true: "Steel Fortress chassis", false: "default puppetToolDefaultAC"}[c.wantChassisAC])
+			}
+		})
+	}
+}
+
 // TestPuppetToolDefaultAC locks in the book's own Puppet Tool card formula
 // ("Armor Class 13 + your Proficiency Bonus (Natural Armor)") — the
 // Puppet MASTER's own proficiency bonus, not the puppet's Dex modifier

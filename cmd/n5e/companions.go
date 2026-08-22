@@ -694,11 +694,24 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		// sheet-puppet-reference-panel). What the popup DOES show, read-
 		// only and rollable: the resolved Puppet Skills list and whatever
 		// Attacks are already on this puppet (from the tab or an upgrade).
-		chassisOptions, err := s.loadPuppetArmorChassisOptions()
+		// Armor Chassis (Juggernaut Armor) is Purple Technique Juggernaut's
+		// own 2nd-level subclass feature — every other subclass's popup
+		// gets no chassis options at all, matching loadPuppetsTabData's
+		// identical gate on the main sheet's Puppets tab.
+		subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load armor chassis options:", err)
+			log.Println("load puppet master subclass for popup:", err)
 			return
+		}
+		var chassisOptions []puppetArmorChassis
+		if puppetSubclassColorBySlug[subclassSlug] == "Purple" {
+			chassisOptions, err = s.loadPuppetArmorChassisOptions()
+			if err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("load armor chassis options:", err)
+				return
+			}
 		}
 		data["ArmorChassisOptions"] = chassisOptions
 
@@ -734,11 +747,12 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		view = append(view, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices)...)
 
 		foundationPicks := resolvePuppetFoundationPicks(upgradePicks, upgradeChoices)
+		expectedAbilityScores := puppetFoundationExpectedAbilityScores(baseTraits, foundationPicks)
 		attackRollBonus, critRangeThreshold := 0, 20
 		critDamageBonus := 0
 		var foundationTraits []string
 		for _, fp := range foundationPicks {
-			if row := puppetFoundationWeaponAttack(companion, sheet.ProficiencyBonus, fp); row != nil {
+			if row := puppetFoundationWeaponAttack(expectedAbilityScores, sheet.ProficiencyBonus, fp); row != nil {
 				view = append(view, *row)
 			}
 			attackRollBonus += fp.Entry.FlatAttackRollBonus
@@ -912,6 +926,34 @@ func (s *server) handleCompanionSave(w http.ResponseWriter, r *http.Request) {
 	}
 	summonTribeSlug := strings.TrimSpace(r.FormValue("summon_tribe_slug"))
 
+	// Armor Chassis is Purple Technique Juggernaut's own 2nd-level subclass
+	// feature — the popup's own picker already only offers it to a Purple
+	// character (see handleCompanionSheet's identical gate), but this is
+	// the real enforcement: a raw POST bypassing that UI must not be able
+	// to give a non-Purple Puppet Tool the Juggernaut Armor AC formula.
+	armorChassis := strings.TrimSpace(r.FormValue("armor_chassis"))
+	if armorChassis != "" {
+		companion, err := charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion for armor chassis gate:", err)
+			return
+		}
+		if companion.Kind != "puppet" {
+			armorChassis = ""
+		} else {
+			subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+			if err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("load puppet master subclass for armor chassis gate:", err)
+				return
+			}
+			if puppetSubclassColorBySlug[subclassSlug] != "Purple" {
+				armorChassis = ""
+			}
+		}
+	}
+
 	// hp_current/ac/hp_max are deliberately not read here — each has its own
 	// endpoint (handleCompanionHP/handleCompanionIntField) and its own
 	// <form> in the template. See charstore.SetCompanionFields' doc for why
@@ -934,7 +976,7 @@ func (s *server) handleCompanionSave(w http.ResponseWriter, r *http.Request) {
 	err := charstore.SetCompanionFields(s.charDB, id, cid, name, summonTribeSlug,
 		speed, flySpeed, str, dex, con, intScore, wis, cha,
 		r.FormValue("attacks"), r.FormValue("traits"), r.FormValue("notes"),
-		strings.TrimSpace(r.FormValue("armor_chassis")), r.FormValue("is_armor_form") == "1",
+		armorChassis, r.FormValue("is_armor_form") == "1",
 		strings.TrimSpace(r.FormValue("size")), strings.TrimSpace(r.FormValue("nin_dog_breed")),
 		strings.TrimSpace(r.FormValue("titan_specialization")),
 	)

@@ -434,7 +434,7 @@
      side regardless (charstore.SetCompanionFields' own CASE guard) — same
      "UI convenience, not the real enforcement" pattern as every other
      gate on this tab. */}}
-{{if eq .Companion.Kind "puppet"}}
+{{if and (eq .Companion.Kind "puppet") .ArmorChassisOptions}}
 {{$current := .Companion.ArmorChassis}}
 <label class="companion-block-label">Armor Chassis
   <select name="armor_chassis" form="{{.FormID}}" class="companion-field" data-detail-select{{if $current}} disabled{{end}}>

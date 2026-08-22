@@ -147,6 +147,13 @@ var knownFeatureLevelOverrides = map[string]map[string]int{
 	"Shinobi-Ware":  {"The Future of Shinobi: Shinobi-Ware": 20},
 	"Spyware":       {"The Future of Shinobi: Programs": 20},
 	"Technobi":      {"The Future of Shinobi: Scrolls": 20},
+	// Herbalist's own identity feature ("You may use Charisma in place of
+	// Wisdom for calculating your Genjutsu attack bonus and DC") never
+	// states a level in its text at all, unlike every other Cooking-Nin
+	// Focus's own sort_order-0 identity feature (Expert Combatant, Fast
+	// and Furious, Water and Oil Do Mix, ..., all explicitly 2nd level —
+	// confirmed against dist/rules.db, every sibling matches 2).
+	"Herbalist": {"Gaseous Haze": 2},
 }
 
 // mistaggedSubclassTable describes one Hunter-Nin subclass option table (a

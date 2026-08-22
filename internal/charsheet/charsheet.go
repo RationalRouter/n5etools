@@ -590,6 +590,52 @@ const mentalBoonsFeatSlug = "feat/yamanaka/mental-boons"
 // off JutsuAttacks either), so it stays undocumented rather than half-wired.
 const gaseousHazeFeatureSlug = "class/cooking-nin/group/cooking-focus/herbalist/feature/gaseous-haze"
 
+// scoutNinMobilityFeatureSlug identifies Mobility, one of Jack of All,
+// Master of None's 5 Generalizations (Combat/Control/Mobility/Skill/
+// Support) — its Speed bonus (speedGrants, internal/features/grants.go)
+// AND its saving-throw bonus (savingThrowBonusGrants) only apply once the
+// character has actually picked Mobility from the cap+catalog choice
+// (cmd/n5e's jackOfAllSlugs/charstore.ScoutNinPickJackOfAll), not merely
+// reached 5th level the way every Generalization's own class_features row
+// is blanket-granted for Features & Traits display. See jackOfAllGate
+// below, shared by Mobility, Combat, and Skill's own gating.
+const scoutNinMobilityFeatureSlug = "class/scout-nin/feature/mobility"
+
+// scoutNinCombatFeatureSlug identifies Combat, another of Jack of All's 5
+// Generalizations — its attack/damage bonus (jutsuAttackBonusGrants,
+// internal/features/grants.go) is gated the same way scoutNinMobilityFeatureSlug's
+// bonuses are. Its "Weapon Attack as a Bonus Action" clause is
+// action-economy, not a number, and stays narrated.
+const scoutNinCombatFeatureSlug = "class/scout-nin/feature/combat"
+
+// scoutNinSkillFeatureSlug identifies Skill, another of Jack of All's 5
+// Generalizations — its skill-check bonus (skillCheckBonusGrants,
+// internal/features/grants.go) is gated the same way as Combat/Mobility
+// above. Its "ability checks" half and its "Skill actions as a Bonus
+// Action" clause both have nothing to attach to in this app and stay
+// narrated — see skillCheckBonusGrants' own doc comment.
+//
+// Control, the remaining Generalization with a numeric clause, has no
+// matching const or grant table at all: its "+1/+2 to the Save DC of jutsu
+// that inflict a condition or penalty" has nothing to attach to either — no
+// jutsu-casting Save DC field exists anywhere in this app (Compute never
+// derives one, and no template or JS reads a DC off JutsuAttacks), the
+// same gap gaseousHazeFeatureSlug's own DC half is left at. Support has no
+// numeric clause at all (Help/Search as a Bonus Action, an expanded Help
+// range, and an opportunity-attack trigger — all action-economy or
+// combat-state tracking this app doesn't model).
+const scoutNinSkillFeatureSlug = "class/scout-nin/feature/skill"
+
+// hunterNinMartialStudentOptionSlug identifies Martial Student, one of
+// Hunter-Nin's Hunters Patterns (class_options, list_name "Hunters
+// Patterns" — a mid-tier optional pick catalog, not a class_features row,
+// so it never appears in grantedFeatures the way every other slug on this
+// page does): "Ninjutsu or Genjutsu could fail you, but your own limbs or
+// weapons could not. You can use Dexterity as the casting modifier the
+// jutsu type you did not pick with the Lethal Precision class feature."
+// See lethalPrecisionKind's own doc comment for how this composes with it.
+const hunterNinMartialStudentOptionSlug = "class/hunter-nin/option/hunters-patterns/martial-student"
+
 // spiritedFighterFeatureSlug identifies Battle Cook's 5th-level feature
 // "Beginning at 5th level, you can use Charisma as your Taijutsu modifier
 // when casting Bukijutsu" — drives the Bukijutsu JutsuAttacks entry's own
@@ -647,6 +693,15 @@ const fastAndFuriousFeatureSlug = "class/cooking-nin/group/cooking-focus/entreme
 // (passive_traits.go's traitCondition/Surprised grant), and the hover
 // clause has no computed field to land in.
 const trickPathsFeatureSlug = "class/science-nin/group/scientific-inquiry/storm-rider/feature/trick-paths"
+
+// strategicTimingFeatureSlug identifies Intelligence Operative's own 1st-
+// level base class feature Strategic Timing — "you may use your
+// Intelligence Modifier in place of your Dexterity Modifier to roll
+// Initiative" drives InitiativeAbility's own default the same way
+// quickWittedFeatSlug/alertFeatSlug/trickPathsFeatureSlug do above. This
+// feature's other clause (substituting Investigation for skill checks on
+// the Read the Enemy action) has no computed field to land in.
+const strategicTimingFeatureSlug = "class/intelligence-operative/feature/strategic-timing"
 
 // hasFeature reports whether granted contains a feature or feat with the
 // given slug.
@@ -902,17 +957,25 @@ type Sheet struct {
 	PendingASISlots []features.ASISlot
 	Saves           []SaveEntry   // in Abilities order
 	JutsuAttacks    []JutsuAttack // one per AttackKinds entry, in that order
-	ClashChecks     []ClashCheck  // see clashChecks; Ninjutsu/Genjutsu/Taijutsu/Bukijutsu, no Hijutsu entry
-	MaxHP           int
-	MaxChakra       int
-	MaxHPAuto       int  // the computed maximum before any manual pin, so the sheet can show what it would be
-	MaxChakraAuto   int  //   "
-	MaxHPPinned     bool // true when the player has pinned Max HP by hand and MaxHP is that number
-	MaxChakraPinned bool //   "
-	HitDie          int  // sides of the primary class's hit die (0 = no class chosen yet)
-	ChakraDie       int  // sides of the primary class's chakra die
-	AC              *int // nil when no equipped armor is found and no override is set
-	Speed           int  // feet; 30 default, overridden by the character's clan (v_clans.speed_feet) once one is chosen
+	// JackOfAllCombatBonus is Jack of All's Combat Generalization's flat
+	// "+1/+2 to attack & damage rolls" (already folded into JutsuAttacks'
+	// own Modifier above), exposed here so cmd/n5e's loadCharacterJutsuSheet
+	// can apply the identical damage half to jutsu with explicit damage
+	// dice configured, without re-deriving the pick+level gate a second
+	// time. See scoutNinCombatFeatureSlug's own doc comment. Zero when
+	// Combat wasn't picked (or the character isn't a Scout-Nin at all).
+	JackOfAllCombatBonus int
+	ClashChecks          []ClashCheck // see clashChecks; Ninjutsu/Genjutsu/Taijutsu/Bukijutsu, no Hijutsu entry
+	MaxHP                int
+	MaxChakra            int
+	MaxHPAuto            int  // the computed maximum before any manual pin, so the sheet can show what it would be
+	MaxChakraAuto        int  //   "
+	MaxHPPinned          bool // true when the player has pinned Max HP by hand and MaxHP is that number
+	MaxChakraPinned      bool //   "
+	HitDie               int  // sides of the primary class's hit die (0 = no class chosen yet)
+	ChakraDie            int  // sides of the primary class's chakra die
+	AC                   *int // nil when no equipped armor is found and no override is set
+	Speed                int  // feet; 30 default, overridden by the character's clan (v_clans.speed_feet) once one is chosen
 	// PuppetUpgradeSources names any Puppet Upgrade that raised this
 	// character's own Speed or Max HP (see internal/puppetupgrades), so a
 	// number that differs from the clan/class default can say why.
@@ -1211,6 +1274,35 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		masteryRanks[name] = EffectiveMasteryRank(rank, sheet.Level)
 	}
 	sheet.MasteryRanks = masteryRanks
+
+	// Jack of All, Master of None's 5 Generalizations (Combat/Control/
+	// Mobility/Skill/Support) are each blanket-included in grantedFeatures
+	// once 5th level is reached, purely so all 5 show up in Features &
+	// Traits — but Combat, Mobility, and Skill each also drive a real
+	// computed bonus (JutsuAttacks' to-hit modifier, Speed and saving
+	// throws, and skill-check modifiers, respectively) that must only
+	// apply to whichever Generalization(s) the player actually picked.
+	// jackOfAllPicks is loaded once here and jackOfAllGate reused by every
+	// consumer below instead of each re-querying/re-filtering separately.
+	// Control and Support have no entry to gate at all — see
+	// scoutNinSkillFeatureSlug's own doc comment for why.
+	jackOfAllPicks, err := charstore.ListScoutNinPicks(charDB, characterID, charstore.ScoutNinPickJackOfAll)
+	if err != nil {
+		return nil, fmt.Errorf("load jack of all picks: %w", err)
+	}
+	jackOfAllGate := func(slug string) []features.GrantedFeatureRow {
+		if slices.Contains(jackOfAllPicks, slug) {
+			return grantedFeatures
+		}
+		out := make([]features.GrantedFeatureRow, 0, len(grantedFeatures))
+		for _, f := range grantedFeatures {
+			if f.Slug != slug {
+				out = append(out, f)
+			}
+		}
+		return out
+	}
+
 	// Yhprum's Law (Science-Nin, 7th level): "You can add half your
 	// Proficiency bonus, rounded down, to any Skill check you make that
 	// doesn't already include it" — the same universal half-proficiency
@@ -1221,6 +1313,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// directly against classLevels rather than through a curated grant
 	// table shaped for something reusable across classes.
 	yhprumsLaw := classLevels[scienceNinClassSlug] >= 7
+	skillCheckBonus := features.ResolveSkillCheckBonus(jackOfAllGate(scoutNinSkillFeatureSlug), sheet.Level)
 	for name, ability := range SkillAbility {
 		proficient := profSkills[name]
 		rank := masteryRanks[name]
@@ -1228,6 +1321,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if yhprumsLaw && !proficient {
 			modifier += sheet.ProficiencyBonus / 2
 		}
+		modifier += skillCheckBonus
 		sheet.Skills = append(sheet.Skills, SkillEntry{
 			Name: name, Ability: ability, Proficient: proficient, MasteryRank: rank,
 			Modifier: modifier,
@@ -1261,6 +1355,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if hasFeature(grantedFeatures, trickPathsFeatureSlug) {
 		sheet.InitiativeAbility = "int"
 	}
+	if hasFeature(grantedFeatures, strategicTimingFeatureSlug) {
+		sheet.InitiativeAbility = "int"
+	}
 	// Fast and Furious (Entremetier Chef, 2nd level) offers a genuine choice
 	// between two abilities rather than one fixed swap, so its default reads
 	// the player's own recorded pick (cmd/n5e/cooking_nin.go's
@@ -1282,7 +1379,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if mode := strings.ToLower(strings.TrimSpace(overrides["initiative_prof"])); slices.Contains(ProfModes, mode) {
 		sheet.InitiativeProf = mode
 	}
-	sheet.InitiativeBonus = features.ResolveInitiativeBonus(grantedFeatures, sheet.Level)
+	sheet.InitiativeBonus = features.ResolveInitiativeBonus(grantedFeatures, sheet.Level, map[string]int{"int": sheet.Abilities["int"].Modifier})
 	if v := strings.TrimSpace(overrides["initiative_bonus"]); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			sheet.InitiativeBonus = n
@@ -1303,6 +1400,10 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// normal non-proficient roll, not a substitution, so it's folded into
 	// the modifier here rather than through SavingThrowModifier itself.
 	nonProficientSaveBonusAbility := features.ResolveNonProficientSaveBonusAbility(grantedFeatures)
+	// Mobility's "+1/+2 bonus to Saving throws made to resist hostile
+	// effects" — see scoutNinMobilityFeatureSlug's own doc comment for why
+	// this needs jackOfAllGate the same way its Speed bonus does.
+	mobilitySaveBonus := features.ResolveSavingThrowBonus(jackOfAllGate(scoutNinMobilityFeatureSlug), sheet.Level)
 	for _, ab := range Abilities {
 		proficient := profSaves[ab]
 		masteryRank := EffectiveMasteryRank(saveMasteryRanks[ab], sheet.Level)
@@ -1310,6 +1411,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if !proficient && nonProficientSaveBonusAbility != "" {
 			modifier += sheet.Abilities[nonProficientSaveBonusAbility].Modifier
 		}
+		modifier += mobilitySaveBonus
 		sheet.Saves = append(sheet.Saves, SaveEntry{
 			Ability: ab, Proficient: proficient, MasteryRank: masteryRank,
 			Modifier: modifier,
@@ -1351,6 +1453,28 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	} else if len(picks) > 0 {
 		lethalPrecisionKind = picks[0]
 	}
+	// Martial Student (Hunters Pattern, class_options, not a class_features
+	// row — see hunterNinMartialStudentOptionSlug's own doc comment): "You
+	// can use Dexterity as the casting modifier [for] the jutsu type you did
+	// not pick with the Lethal Precision class feature." Lethal Precision
+	// only ever offers Taijutsu or Bukijutsu, so this just mirrors its own
+	// Dexterity override onto whichever of those two Lethal Precision did
+	// NOT pick — no effect at all until Lethal Precision itself has been
+	// resolved.
+	martialStudentPicked := false
+	if picks, err := charstore.ListHunterNinPicks(charDB, characterID, charstore.HunterPickPattern); err != nil {
+		return nil, fmt.Errorf("load hunters patterns picks: %w", err)
+	} else {
+		martialStudentPicked = slices.Contains(picks, hunterNinMartialStudentOptionSlug)
+	}
+
+	// Combat's "+1/+2 bonus to attack & damage rolls" — the to-hit half,
+	// applied below to every kind this feature names (Ninjutsu/Genjutsu/
+	// Taijutsu/Bukijutsu, i.e. all of AttackKinds). Exposed on the sheet so
+	// cmd/n5e's loadCharacterJutsuSheet can apply the identical damage half
+	// without re-deriving this same pick+level gate a second time. See
+	// scoutNinCombatFeatureSlug's own doc comment.
+	sheet.JackOfAllCombatBonus = features.ResolveJutsuAttackBonus(jackOfAllGate(scoutNinCombatFeatureSlug), sheet.Level)
 
 	// Ninjutsu/Genjutsu/Taijutsu attack modifiers: the governing ability's
 	// modifier plus the FULL proficiency bonus, always — casting your own
@@ -1369,6 +1493,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if (k.Kind == "Taijutsu" || k.Kind == "Bukijutsu") && lethalPrecisionKind == strings.ToLower(k.Kind) {
 			ability = "dex"
 		}
+		if (k.Kind == "Taijutsu" || k.Kind == "Bukijutsu") && martialStudentPicked && lethalPrecisionKind != "" && lethalPrecisionKind != strings.ToLower(k.Kind) {
+			ability = "dex"
+		}
 		if picked := abilityAbbrev(overrides[AttackAbilityField(k.Kind)]); picked != "" && abilityIndex(picked) < len(Abilities) {
 			ability = picked
 		}
@@ -1376,6 +1503,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if k.Kind == "Bukijutsu" {
 			modifier += bukijutsuFocusBonus
 		}
+		modifier += sheet.JackOfAllCombatBonus
 		sheet.JutsuAttacks = append(sheet.JutsuAttacks, JutsuAttack{
 			Kind: k.Kind, Ability: ability,
 			Modifier: modifier,
@@ -1392,7 +1520,15 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			sheet.Speed = int(speed.Int64)
 		}
 	}
-	sheet.Speed += features.ResolveSpeedBonus(grantedFeatures, sheet.Level, armorCategory)
+	// Mobility's own Speed bonus must be gated on the player actually having
+	// picked it from Jack of All's 5 Generalizations — grantedFeatures
+	// blanket-includes every Generalization's class_features row once 5th
+	// level is reached (so all 5 show up in Features & Traits, matching
+	// Combat/Control/Skill/Support's own display-only treatment), but an
+	// ungated Speed bonus would give every 5th-level Scout-Nin +10/+15
+	// Speed no matter which Generalization(s) they actually chose. See
+	// scoutNinMobilityFeatureSlug's own doc comment and jackOfAllGate above.
+	sheet.Speed += features.ResolveSpeedBonus(jackOfAllGate(scoutNinMobilityFeatureSlug), sheet.Level, armorCategory)
 	// A handful of Puppet Upgrades modify the Puppet Master's OWN numbers
 	// rather than a companion's — Accelerated Movement's "increase all
 	// movement speeds you possess by +10 feet", and the White Technique

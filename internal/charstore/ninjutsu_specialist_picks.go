@@ -47,14 +47,15 @@ func ListNinjutsuMoldingPicks(charDB *sql.DB, characterID int64) ([]string, erro
 	return out, rows.Err()
 }
 
-// NinjutsuJutsuPickCategory is one of Ninjutsu Specialist's two picks
-// sourced from the character's own known jutsu (character_jutsu) rather
-// than a rules-database catalog — see cmd/n5e/ninjutsu_specialist.go.
+// NinjutsuJutsuPickCategory is one of Ninjutsu Specialist's picks sourced
+// from the character's own known jutsu (character_jutsu) rather than a
+// rules-database catalog — see cmd/n5e/ninjutsu_specialist.go.
 type NinjutsuJutsuPickCategory string
 
 const (
-	NinjutsuPickRefined NinjutsuJutsuPickCategory = "refined_ninjutsu"
-	NinjutsuPickMaster  NinjutsuJutsuPickCategory = "ninjutsu_master"
+	NinjutsuPickRefined        NinjutsuJutsuPickCategory = "refined_ninjutsu"
+	NinjutsuPickMaster         NinjutsuJutsuPickCategory = "ninjutsu_master"
+	NinjutsuPickAwakenedScroll NinjutsuJutsuPickCategory = "awakened_scroll"
 )
 
 // AddNinjutsuJutsuPick records one category's pick of a specific known-jutsu

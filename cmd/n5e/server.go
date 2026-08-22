@@ -254,6 +254,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/generalized-skill", s.handleGeneralizedSkillAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/generalized-skill/{skill}/delete", s.handleGeneralizedSkillDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/elemental-affinity", s.handleElementalAffinityAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/full-metal-shinobi-resistance", s.handleFullMetalShinobiResistanceAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/sent-pick", s.handleSENTPick)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-dice", s.handleSheetMartialDice)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-dice/new-turn", s.handleSheetMartialDiceNewTurn)
 	mux.HandleFunc("POST /characters/{id}/sheet/martial-techniques", s.handleMartialTechniqueAdd)
@@ -285,6 +287,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l1", s.handleCookingToolPropertyL1)
 	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l6", s.handleCookingToolPropertyL6)
 	mux.HandleFunc("POST /characters/{id}/sheet/cooking-tool-property-l11", s.handleCookingToolPropertyL11)
+	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant-weapon", s.handleBattleCookExpertCombatantWeapon)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement", s.handleCookingNinBlendEnhancementAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement/delete", s.handleCookingNinBlendEnhancementDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine", s.handleMedicalDoctrineAdd)
@@ -347,6 +350,8 @@ func (s *server) routes() http.Handler {
 		func(d *hunterTechniquesTabData) int { return d.PatternsCap },
 		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailablePatterns }))
 	mux.HandleFunc("POST /characters/{id}/sheet/hunter-patterns/delete", s.handleHunterPickDelete(charstore.HunterPickPattern))
+	mux.HandleFunc("POST /characters/{id}/sheet/hunter-patterns/choice", s.handleSheetHunterPatternChoice)
+	mux.HandleFunc("POST /characters/{id}/sheet/hunter-patterns/practiced-combatant-stance", s.handleHunterPracticedCombatantStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/hunter-exploits", s.handleHunterPickAdd(charstore.HunterPickExploit,
 		func(d *hunterTechniquesTabData) int { return d.ExploitsUsed },
 		func(d *hunterTechniquesTabData) int { return d.ExploitsCap },
@@ -473,6 +478,11 @@ func (s *server) routes() http.Handler {
 		func(d *ninjutsuSpecialistTabData) int { return d.MasterCap },
 		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableMaster }))
 	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-master/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickMaster))
+	mux.HandleFunc("POST /characters/{id}/sheet/awakened-scroll", s.handleNinjutsuJutsuPickAdd(charstore.NinjutsuPickAwakenedScroll,
+		func(d *ninjutsuSpecialistTabData) int { return d.AwakenedScrollUsed },
+		func(d *ninjutsuSpecialistTabData) int { return d.AwakenedScrollCap },
+		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableAwakenedScroll }))
+	mux.HandleFunc("POST /characters/{id}/sheet/awakened-scroll/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickAwakenedScroll))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools", s.handleScienceNinToolAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools/delete", s.handleScienceNinToolDelete)
 	mux.HandleFunc("GET /science-nin-tools/{slug...}", s.handleScienceNinToolDetail)

@@ -4179,6 +4179,24 @@ var customResourceGrants = map[string]customResourceGrant{
 		LongRegen:  regenFull,
 		FullRegen:  regenFull,
 	},
+	// Transmuter's Altered Strength: "...A creature other than you can gain
+	// the benefits of this feature twice per long rest." The base feature's
+	// four selectable benefits, the "two instances active at once" concurrent
+	// cap, and 5th level's enhanced-version Chakra-die spend all stay
+	// manual — only the twice-per-long-rest use-count against a non-self
+	// recipient is tracked.
+	"class/medical-nin/group/tenets-of-medicine/transmuter/feature/altered-strength": {
+		Key:      "altered_strength_uses",
+		Name:     "Altered Strength (Other Creature)",
+		MinLevel: 2,
+		Max: func(cl map[string]int, con, intMod, cha, prof, wisMod int) int {
+			return 2
+		},
+		ShortRegen:  regenNone,
+		LongRegen:   regenFull,
+		FullRegen:   regenFull,
+		Restriction: "Grant a benefit of Altered Strength to a creature other than yourself",
+	},
 	// Medical Doctrine's "Not Allowed to Die": "once per rest, you ignore
 	// effects of jutsu, features or traits from hostile creatures that would
 	// automatically kill you or reduce you to 0 hit points, instead being
@@ -4190,7 +4208,7 @@ var customResourceGrants = map[string]customResourceGrant{
 	// what keeps this pool from appearing for a character who picked a
 	// different doctrine (or none yet). Only the once-per-rest use-count is
 	// tracked; the death-prevention swap to 1 HP itself stays manual.
-	"class/medical-nin/feature/not-allowed-to-die": {
+	"medical-doctrine-pick/not-allowed-to-die": {
 		Key:      "not_allowed_to_die_uses",
 		Name:     "Not Allowed to Die",
 		MinLevel: 3,
@@ -4209,7 +4227,7 @@ var customResourceGrants = map[string]customResourceGrant{
 	// end said condition at advantage." Same synthetic-row gating as Not
 	// Allowed to Die above. Only the twice-per-rest use-count is tracked;
 	// the pending-advantage-on-next-save/check itself stays manual.
-	"class/medical-nin/feature/until-their-heart-stops": {
+	"medical-doctrine-pick/until-their-heart-stops": {
 		Key:      "until_their_heart_stops_uses",
 		Name:     "Until Their Heart Stops",
 		MinLevel: 3,
@@ -4310,6 +4328,32 @@ var customResourceGrants = map[string]customResourceGrant{
 	// Long regenFull unconditionally from 3rd level, the same minor RAW-
 	// generosity-below-the-stated-level Chakra Barrier's own unscoped-rest-
 	// tier phrasing already accepts.
+	// Azure Analyst's Azure Research: "...you can use this feature on the
+	// same hostile creature twice per long rest. Beginning at 13th level,
+	// you can use this feature on the same hostile creature twice per short
+	// rest. This increases to three times at 17th level." One printed
+	// feature row carries all three escalation steps (no separate 13th/17th
+	// class_features row to hang a second customResourceGrants entry off,
+	// the way Sensory Seals' own Situational Awareness escalation does two
+	// rows below) — ships ShortRegen full unconditionally from 3rd level,
+	// same minor RAW-generosity-below-the-stated-level precedent Sensory
+	// Seals/Chakra Barrier already accept, with Max stepping 2->3 at 17th
+	// read directly off the character's own class level.
+	"class/intelligence-operative/group/master-strategies/azure-analyst/feature/azure-research": {
+		Key:      "azure_research_uses",
+		Name:     "Azure Research",
+		MinLevel: 3,
+		Max: func(cl map[string]int, con, intMod, cha, prof, wisMod int) int {
+			if cl[intelligenceOperativeSlug] >= 17 {
+				return 3
+			}
+			return 2
+		},
+		ShortRegen:  regenFull,
+		LongRegen:   regenFull,
+		FullRegen:   regenFull,
+		Restriction: "Use Azure Research on the same hostile creature",
+	},
 	"class/intelligence-operative/group/master-strategies/sensory/feature/sensory-seals": {
 		Key:      "sensory_seals",
 		Name:     "Sensory Seals",
