@@ -38,7 +38,7 @@ already in the local database.
 | `internal/validate`  | Post-ingestion validation report ("these N things need your eyes").    |
 | `internal/rules`     | All derived-value math (modifiers, AC, max HP/chakra, save DCs).       |
 | `seed/`              | Hand-checked seed data (rule tables, reviewed OCR output).             |
-| `testdata/`          | Golden fixtures cut from real sourcebook pages.                        |
+| `testdata/`          | Golden fixtures cut from sourcebook pages.                             |
 
 ## The two databases
 
