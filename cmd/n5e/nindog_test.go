@@ -211,6 +211,39 @@ func TestNinDogFilterFeaturesByRank(t *testing.T) {
 	}
 }
 
+// TestSortFeaturesByRank pins the fix for Special Features rendering in
+// whatever order summon_tribe_features.sort_order (source-document parse
+// order) happened to leave them in, rather than actual rank order — with a
+// same-rank pair to confirm the sort is stable (ties keep their original
+// relative order rather than being reshuffled).
+func TestSortFeaturesByRank(t *testing.T) {
+	features := []companionFeatureRef{
+		{Name: "Pack Master", Rank: "S"},
+		{Name: "Inu Fangs", Rank: "C"},
+		{Name: "Inu Tactics", Rank: "C"},
+		{Name: "Inu Growl", Rank: "D"},
+		{Name: "Vanishing Fang", Rank: "B"},
+	}
+	sortFeaturesByRank(features)
+	want := []string{"Inu Growl", "Inu Fangs", "Inu Tactics", "Vanishing Fang", "Pack Master"}
+	if len(features) != len(want) {
+		t.Fatalf("sortFeaturesByRank returned %d features, want %d", len(features), len(want))
+	}
+	for i, f := range features {
+		if f.Name != want[i] {
+			t.Errorf("position %d = %q, want %q (full order: %v)", i, f.Name, want[i], companionFeatureNames(features))
+		}
+	}
+}
+
+func companionFeatureNames(features []companionFeatureRef) []string {
+	names := make([]string, len(features))
+	for i, f := range features {
+		names[i] = f.Name
+	}
+	return names
+}
+
 // TestPrefillNinDogStatDefaultsOnCreation covers the actual bug this fix
 // closes: a brand-new Nin-Dog must reach its first render already carrying
 // AC/HP/Speed/Jutsu-Slots-Max/ability scores computed from Beast Master's
@@ -307,5 +340,32 @@ func TestPrefillNinDogStatDefaultsOnCreation(t *testing.T) {
 	}
 	if !after.AC.Valid || after.AC.Int64 != 99 {
 		t.Errorf("re-running the prefill overwrote a manually-set AC: got %+v, want 99 preserved", after.AC)
+	}
+}
+
+// TestNinDogBiteAttack pins Beast Master's own explicit "Str + Prof to
+// hit, +Str Piercing Damage" line for the Bite attack. No base weapon die
+// is stated anywhere in rules.db (summon_tribe_attacks, summon_tribe_progression,
+// or the summon_tribes schema itself), so DamageDice() must stay empty
+// rather than inventing a size.
+func TestNinDogBiteAttack(t *testing.T) {
+	companion := charstore.Companion{
+		Str: sql.NullInt64{Int64: 15, Valid: true}, // +2
+	}
+	row := ninDogBiteAttack(companion, 4)
+	if row.Name != "Bite" {
+		t.Errorf("Name = %q, want Bite", row.Name)
+	}
+	if row.AttackTotal != 2+4 {
+		t.Errorf("AttackTotal = %d, want 6 (str+prof)", row.AttackTotal)
+	}
+	if row.DamageTotal != 2 {
+		t.Errorf("DamageTotal = %d, want 2 (str only)", row.DamageTotal)
+	}
+	if row.DamageDice() != "" {
+		t.Errorf("DamageDice() = %q, want empty (no base die stated in source)", row.DamageDice())
+	}
+	if row.DamageType != "piercing" {
+		t.Errorf("DamageType = %q, want piercing", row.DamageType)
 	}
 }

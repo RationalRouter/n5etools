@@ -639,6 +639,254 @@ func (s *server) cookingToolInfusionAttackOverrides(characterID int64, sheet *ch
 	return implementSlug, dieSize, damageType, critRangeBonus, nil
 }
 
+// bonusToolInfusionPipeFeatureSlug is Herbalist's own 3rd-level "Bonus Tool
+// Infusion: Pipe" feature — "you gain a second Cooking Tool Infusion
+// weapon, following the same structure as your original one, but with some
+// custom unique features... this Weapon is some kind of smoking
+// implement." Same 5-independent-picks shape as the base
+// cookingToolInfusionFeatureSlug above (implement, damage type, one
+// property each at 3rd/6th/11th level instead of 1st/6th/11th), a wholly
+// separate equipped weapon from the base Cooking Tool — a character can
+// hold both simultaneously, each with its own implement, damage type, and
+// property picks.
+const bonusToolInfusionPipeFeatureSlug = "class/cooking-nin/group/cooking-focus/herbalist/feature/bonus-tool-infusion-pipe"
+
+// The 5 independent picks Bonus Tool Infusion: Pipe offers are stored the
+// same way the base feature's own 5 picks are (see the doc comment above
+// cookingToolChoiceImplement's own const block) — separate ChoiceIndex
+// slots under bonusToolInfusionPipeFeatureSlug in character_feature_choices,
+// each locked once it holds a non-empty value, for the identical "the
+// feature's own text describes a one-time pick with no mention of
+// re-selecting" reasoning.
+const (
+	cookingToolPipeChoiceImplement = iota
+	cookingToolPipeChoiceDamageType
+	cookingToolPipeChoicePropertyL3
+	cookingToolPipeChoicePropertyL6
+	cookingToolPipeChoicePropertyL11
+)
+
+// cookingToolPipeChoiceKey builds the features.ChoiceKey for one of the 5
+// Pipe slots above — mirrors cookingToolChoiceKey.
+func cookingToolPipeChoiceKey(idx int) features.ChoiceKey {
+	return features.ChoiceKey{FeatureSlug: bonusToolInfusionPipeFeatureSlug, ChoiceIndex: idx}
+}
+
+// cookingToolPipePropertyL3Options: the Pipe's own 3rd-level property
+// table — "you can choose a damage type... and one following properties...
+// Deep Breath, Didn't Know You Was Chill Like That, Herb In the Pipe."
+// Transcribed verbatim from class_features.description. Every one of these
+// 8 named Pipe properties (this tier and the 2 below) stays narrated text
+// only — see this file's own package doc comment for the established
+// boundary this already draws around the base Cooking Tool Infusion's own
+// non-Blocking/Deadly/Critical properties; only WHICH property was picked
+// is tracked and shown, none of the range-change/poison-kit-charge/
+// jutsu-cost-halving effects described below are modeled as new resource
+// pools or jutsu-cost overrides.
+var cookingToolPipePropertyL3Options = []featureChoiceOption{
+	{Value: "deep-breath", Label: "Deep Breath", Description: "As a bonus action when you would cast a Genjutsu with the inhaled keyword and a range other than Self, you can take a deep breath from your tool before blowing it out around you, the Genjutsu's Range becomes a 15ft Radius Sphere centered on yourself."},
+	{Value: "didnt-know-you-was-chill-like-that", Label: "Didn't Know You Was Chill Like That", Description: "This tool counts as a Poison Kit, with 3 Charges, which it regains at the end of a Long Rest, for the purpose of casting Genjutsu with the inhale keyword."},
+	{Value: "herb-in-the-pipe", Label: "Herb In the Pipe", Description: "When you would take a Long or Short Rest, you may choose two Jutsu with the Inhaled Keyword of a rank that you can cast. While wielding this Weapon, you may cast those Jutsu, once each, reducing their Chakra Costs by half, unless they have Special Cost."},
+}
+
+// cookingToolPipePropertyL6Options: "Starting at 6th level, your Cooking
+// Tool gains an additional weapon property of your choice; Inhaled Herb,
+// Deeper Breath, Harsh Inhale." Transcribed verbatim.
+var cookingToolPipePropertyL6Options = []featureChoiceOption{
+	{Value: "inhaled-herb", Label: "Inhaled Herb", Description: "When a creature makes a saving throw against a Genjutsu you cast with the inhaled keyword, you may spend 1 charge from a poison kit, giving the creature disadvantage on the next attack, skill check, or saving throw, other than the one that triggered this effect, until the end of their next turn."},
+	{Value: "deeper-breath", Label: "Deeper Breath", Description: "Whenever you use your Deep Breath feature, increase the area of effect to 30ft, and you may change the saving throw to constitution."},
+	{Value: "harsh-inhale", Label: "Harsh Inhale", Description: "While wielding this Weapon, increase the damage you deal to creatures with Genjutsu, with the Inhaled Keyword, by 1 Cooking Dice."},
+}
+
+// cookingToolPipePropertyL11Options: "Beginning at 11th level, your
+// Cooking Tool gains one additional weapon property of your choice;
+// Constant Smoke, Quick Inhale." Transcribed verbatim.
+var cookingToolPipePropertyL11Options = []featureChoiceOption{
+	{Value: "constant-smoke", Label: "Constant Smoke", Description: "There is a constant smoke stream of smoke emanating from your pipe, if you stay in a room for longer than 5 Minutes while holding this Weapon the room becomes filled with smoke, the room is under the effects of \"Water release: Hidden Mist\" as if you had cast it."},
+	{Value: "quick-inhale", Label: "Quick Inhale", Description: "When you would cast an Inhaled Genjutsu as an Action, you can instead cast it as a Bonus Action, a number of times equal to half your charisma modifier per long rest."},
+}
+
+// loadCookingToolPipeImplementCatalog reads every Pipe implement off the
+// equipment table (slug prefix weapon/cooking-pipe-, added by
+// 0064_cooking_tool_infusion_pipe_implements.sql) — mirrors
+// loadCookingToolImplementCatalog exactly, filtered by the Pipe's own
+// disjoint slug prefix (see that migration's own doc comment for why the
+// two prefixes must never nest one inside the other: both
+// loadCookingToolImplementCatalog and syncCookingToolInfusionInventory
+// match by LIKE 'weapon/cooking-tool-%', which would wrongly catch a Pipe
+// slug nested under that same prefix).
+func (s *server) loadCookingToolPipeImplementCatalog() ([]featureChoiceOption, error) {
+	rows, err := s.rulesDB.Query(`
+		SELECT slug, name, COALESCE(description, '')
+		FROM equipment WHERE slug LIKE 'weapon/cooking-pipe-%' ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []featureChoiceOption
+	for rows.Next() {
+		var o featureChoiceOption
+		if err := rows.Scan(&o.Value, &o.Label, &o.Description); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// cookingToolInfusionPipeView is the Bonus Tool Infusion: Pipe box's own
+// sub-panel — same 5-independent-picks shape as cookingToolInfusionView
+// (implement, damage type, and one property each at 3rd/6th/11th level
+// instead of 1st/6th/11th), each locked once chosen. Nil unless the
+// character currently holds bonusToolInfusionPipeFeatureSlug.
+type cookingToolInfusionPipeView struct {
+	Implement        string // equipment slug, "" unpicked
+	ImplementName    string
+	ImplementOptions []featureChoiceOption
+
+	DamageType        string
+	DamageTypeOptions []featureChoiceOption
+
+	PropertyL3        string
+	PropertyL3Label   string
+	PropertyL3Options []featureChoiceOption
+
+	PropertyL6Available bool // true once the character's own Cooking-Nin class level >= 6
+	PropertyL6          string
+	PropertyL6Label     string
+	PropertyL6Options   []featureChoiceOption
+
+	PropertyL11Available bool // true once the character's own Cooking-Nin class level >= 11
+	PropertyL11          string
+	PropertyL11Label     string
+	PropertyL11Options   []featureChoiceOption
+}
+
+// loadCookingToolInfusionPipeView loads every current pick plus the option
+// lists the sheet's picker forms need — classLevel is the character's own
+// real Cooking-Nin class level, used only to gate the 6th/11th property
+// tiers (the caller already confirmed the feature itself is granted before
+// reaching here, via cookingToolInfusionPipeEffectiveLevel).
+func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel int) (*cookingToolInfusionPipeView, error) {
+	catalog, err := s.loadCookingToolPipeImplementCatalog()
+	if err != nil {
+		return nil, err
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return nil, err
+	}
+	get := func(idx int) string {
+		return choices[features.ChoiceKey{FeatureSlug: bonusToolInfusionPipeFeatureSlug, ChoiceIndex: idx}]
+	}
+
+	v := &cookingToolInfusionPipeView{
+		Implement:         get(cookingToolPipeChoiceImplement),
+		ImplementOptions:  catalog,
+		DamageType:        get(cookingToolPipeChoiceDamageType),
+		DamageTypeOptions: cookingToolDamageTypeOptions,
+		PropertyL3:        get(cookingToolPipeChoicePropertyL3),
+		PropertyL3Options: cookingToolPipePropertyL3Options,
+		PropertyL6:        get(cookingToolPipeChoicePropertyL6),
+		PropertyL11:       get(cookingToolPipeChoicePropertyL11),
+	}
+	v.PropertyL3Label = cookingToolOptionLabel(cookingToolPipePropertyL3Options, v.PropertyL3)
+	for _, o := range catalog {
+		if o.Value == v.Implement {
+			v.ImplementName = o.Label
+			break
+		}
+	}
+	if classLevel >= 6 {
+		v.PropertyL6Available = true
+		v.PropertyL6Options = cookingToolPipePropertyL6Options
+		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPipePropertyL6Options, v.PropertyL6)
+	}
+	if classLevel >= 11 {
+		v.PropertyL11Available = true
+		v.PropertyL11Options = cookingToolPipePropertyL11Options
+		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPipePropertyL11Options, v.PropertyL11)
+	}
+	return v, nil
+}
+
+// syncCookingToolInfusionPipeInventory mirrors
+// syncCookingToolInfusionInventory exactly, keyed off the Pipe's own
+// disjoint slug prefix (weapon/cooking-pipe-, not weapon/cooking-tool-) so
+// this feature's own inventory swap never touches — or is touched by — the
+// base Cooking Tool Infusion's own implement pick: the two are genuinely
+// two separate equipped weapons, per the feature's own "a second Cooking
+// Tool Infusion weapon" text.
+func (s *server) syncCookingToolInfusionPipeInventory(characterID int64, newSlug string) error {
+	rows, err := s.charDB.Query(
+		`SELECT id FROM character_inventory WHERE character_id = ? AND item_slug LIKE 'weapon/cooking-pipe-%'`,
+		characterID)
+	if err != nil {
+		return err
+	}
+	var staleIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		staleIDs = append(staleIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range staleIDs {
+		if err := charstore.DeleteInventoryItem(s.charDB, characterID, id); err != nil {
+			return err
+		}
+	}
+	if newSlug == "" {
+		return nil
+	}
+	return charstore.AddInventoryItemWithEquipped(s.charDB, characterID, newSlug, 1, true)
+}
+
+// cookingToolInfusionPipeAttackOverrides resolves the flat, always-on
+// bonuses buildAttacks applies to whichever equipped item matches the
+// character's own picked Pipe implement — mirrors
+// cookingToolInfusionAttackOverrides (Intelligence in place of Strength,
+// the level-scaling Cooking Die as damage dice, the player's chosen damage
+// type), minus a crit-range-bonus return value: Pipe's own 3 property
+// tiers include nothing resembling Critical/Critical 2
+// (cookingToolPipePropertyL6Options/L11Options), so there is no numeric
+// crit-range effect to surface here. implementSlug == "" means "no pick
+// yet, or the character doesn't hold this feature at all" — buildAttacks
+// treats that as "never matches any equipped item", same "empty means
+// untouched" shape cookingToolInfusionAttackOverrides already uses.
+func (s *server) cookingToolInfusionPipeAttackOverrides(characterID int64, sheet *charsheet.Sheet) (implementSlug, dieSize, damageType string, err error) {
+	level, err := s.cookingToolInfusionPipeEffectiveLevel(characterID, sheet)
+	if err != nil {
+		return "", "", "", err
+	}
+	if level == 0 {
+		return "", "", "", nil
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, characterID)
+	if err != nil {
+		return "", "", "", err
+	}
+	get := func(idx int) string {
+		return choices[features.ChoiceKey{FeatureSlug: bonusToolInfusionPipeFeatureSlug, ChoiceIndex: idx}]
+	}
+	implementSlug = get(cookingToolPipeChoiceImplement)
+	if implementSlug == "" {
+		return "", "", "", nil
+	}
+	dieSize, err = s.cookingDieSize(level)
+	if err != nil {
+		return "", "", "", err
+	}
+	damageType = get(cookingToolPipeChoiceDamageType)
+	return implementSlug, dieSize, damageType, nil
+}
+
 // expertCombatantFeatureSlug is Battle Cook's 2nd-level feature — "choose
 // one martial or simple weapon, your Cooking Tools are considered to be
 // this weapon for the purpose of Bukijutsu, including fulfilling keyword
@@ -872,6 +1120,12 @@ type cookingNinTabData struct {
 	// feature's own 1st-level gate.
 	CookingToolInfusion *cookingToolInfusionView
 
+	// BonusToolInfusionPipe is Herbalist's own 3rd-level second weapon pick
+	// (implement, damage type, and 3 level-gated properties, same shape as
+	// CookingToolInfusion but its own wholly separate equipped item) — nil
+	// until the character holds bonusToolInfusionPipeFeatureSlug.
+	BonusToolInfusionPipe *cookingToolInfusionPipeView
+
 	// ExpertCombatant is Battle Cook's own 2nd-level weapon-classification
 	// pick — nil until the character holds the feature.
 	ExpertCombatant *expertCombatantView
@@ -921,6 +1175,13 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 
 	if toolLevel := cookingToolInfusionLevel(level, arch); toolLevel > 0 {
 		data.CookingToolInfusion, err = s.loadCookingToolInfusionView(characterID, toolLevel)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if hasGrantedFeature(grantedFeatures, bonusToolInfusionPipeFeatureSlug) {
+		data.BonusToolInfusionPipe, err = s.loadCookingToolInfusionPipeView(characterID, level)
 		if err != nil {
 			return nil, err
 		}
@@ -1110,6 +1371,35 @@ func (s *server) cookingToolInfusionEffectiveLevel(characterID int64, sheet *cha
 		return 0, err
 	}
 	return cookingToolInfusionLevel(level, loadCookingArchetypeFeats(grantedFeatures)), nil
+}
+
+// cookingToolInfusionPipeEffectiveLevel mirrors
+// cookingToolInfusionEffectiveLevel's own "resolve once, reuse in every
+// handler" shape, but for Bonus Tool Infusion: Pipe (Herbalist, 3rd level)
+// instead of the base class feature. Unlike the base feature, Pipe has no
+// archetype-feat "as though" fallback to thread through — Chef Trainee/
+// Chefs Expert/Chefs Specialist's own text only grants the BASE Cooking
+// Tool Infusion feature "as though" a given level, never this subclass
+// feature — so the gate here is simply "does the character currently hold
+// bonusToolInfusionPipeFeatureSlug" (hasGrantedFeature, itself already
+// gated by subclass_features' own level column and the character's own
+// Herbalist subclass pick via loadMergedGrantedFeatures). 0 means
+// ungranted; a non-zero return is the character's real Cooking-Nin class
+// level, used by callers to gate the 6th/11th property tiers the same way
+// the base feature's own toolLevel does.
+func (s *server) cookingToolInfusionPipeEffectiveLevel(characterID int64, sheet *charsheet.Sheet) (int, error) {
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return 0, err
+	}
+	if !hasGrantedFeature(grantedFeatures, bonusToolInfusionPipeFeatureSlug) {
+		return 0, nil
+	}
+	level, err := s.cookingNinClassLevel(characterID)
+	if err != nil {
+		return 0, err
+	}
+	return level, nil
 }
 
 // handleCookingToolImplement records which catalog implement is infused as
@@ -1471,6 +1761,352 @@ func (s *server) handleCookingToolPropertyL11(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set cooking tool property (11th):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPipeImplement records which catalog implement is
+// infused as the character's Pipe — mirrors handleCookingToolImplement
+// exactly, gated on cookingToolInfusionPipeEffectiveLevel instead of
+// cookingToolInfusionEffectiveLevel and syncing the Pipe's own disjoint
+// inventory slug prefix (syncCookingToolInfusionPipeInventory) instead of
+// the base tool's.
+func (s *server) handleCookingToolPipeImplement(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool pipe implement:", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion pipe level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool pipe implement:", err)
+		return
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceImplement)] != "" {
+		http.Error(w, "Pipe implement is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		catalog, err := s.loadCookingToolPipeImplementCatalog()
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load cooking tool pipe implement catalog:", err)
+			return
+		}
+		valid := false
+		for _, o := range catalog {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid Pipe implement", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		if err := charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement); err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("clear cooking tool pipe implement:", err)
+			return
+		}
+	} else if err := charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool pipe implement:", err)
+		return
+	}
+	if err := s.syncCookingToolInfusionPipeInventory(id, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("sync cooking tool infusion pipe inventory:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPipeDamageType records the 3rd-level Pipe damage-type
+// pick (Bludgeoning/Piercing/Slashing) — locked once chosen, no inventory
+// sync needed (the damage TYPE isn't a separate item, just an attribute
+// buildAttacks reads back via cookingToolInfusionPipeAttackOverrides).
+func (s *server) handleCookingToolPipeDamageType(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool pipe damage type:", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion pipe level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool pipe damage type:", err)
+		return
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceDamageType)] != "" {
+		http.Error(w, "Pipe damage type is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolDamageTypeOptions {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid damage type", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool pipe damage type:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPipePropertyL3 records the Pipe's own 3rd-level
+// weapon-property pick (Deep Breath/Didn't Know You Was Chill Like That/
+// Herb In the Pipe) — locked once chosen.
+func (s *server) handleCookingToolPipePropertyL3(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool pipe property (3rd):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion pipe level:", err)
+		return
+	}
+	if toolLevel == 0 {
+		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool pipe property (3rd):", err)
+		return
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL3)] != "" {
+		http.Error(w, "Pipe 3rd-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPipePropertyL3Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 3rd-level property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool pipe property (3rd):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPipePropertyL6 records the Pipe's own 6th-level
+// weapon-property pick (Inhaled Herb/Deeper Breath/Harsh Inhale) — gated on
+// the character having reached 6th level, and locked once chosen.
+func (s *server) handleCookingToolPipePropertyL6(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool pipe property (6th):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion pipe level:", err)
+		return
+	}
+	if toolLevel < 6 {
+		http.Error(w, "character has not reached 6th level in Bonus Tool Infusion: Pipe", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool pipe property (6th):", err)
+		return
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL6)] != "" {
+		http.Error(w, "Pipe 6th-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPipePropertyL6Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 6th-level property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool pipe property (6th):", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// handleCookingToolPipePropertyL11 records the Pipe's own 11th-level
+// weapon-property pick (Constant Smoke/Quick Inhale) — gated on the
+// character having reached 11th level, and locked once chosen.
+func (s *server) handleCookingToolPipePropertyL11(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("compute sheet for cooking tool pipe property (11th):", err)
+		return
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load cooking tool infusion pipe level:", err)
+		return
+	}
+	if toolLevel < 11 {
+		http.Error(w, "character has not reached 11th level in Bonus Tool Infusion: Pipe", http.StatusBadRequest)
+		return
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for cooking tool pipe property (11th):", err)
+		return
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL11)] != "" {
+		http.Error(w, "Pipe 11th-level property is already chosen and cannot be changed", http.StatusBadRequest)
+		return
+	}
+	if value != "" {
+		valid := false
+		for _, o := range cookingToolPipePropertyL11Options {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			http.Error(w, "not a valid 11th-level property", http.StatusBadRequest)
+			return
+		}
+	}
+	if value == "" {
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11, value)
+	}
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set cooking tool pipe property (11th):", err)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")

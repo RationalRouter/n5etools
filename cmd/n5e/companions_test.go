@@ -8,13 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 )
 
 // TestCompanionKindLabel covers the one shared kind-to-display-label
 // mapping every companion-kind badge render site (the Core tab's
 // Companions box, the Companions tab's per-companion card header, the
-// standalone companion popup) now goes through, for all five kinds this
+// standalone companion popup) now goes through, for all six kinds this
 // app creates plus a defensive fallback for anything not in the table.
 // "custom" must map to "Other" specifically — matching the Add Companion
 // dropdown's own option text, not a generic Title Case of the raw value —
@@ -28,6 +29,7 @@ func TestCompanionKindLabel(t *testing.T) {
 		{"summon", "Summon"},
 		{"nin-dog", "Nin-Dog"},
 		{"titan", "Titan"},
+		{"snb", "S.N.B"},
 		{"custom", "Other"},
 		{"some-future-kind", "some-future-kind"}, // fallback: raw value, not blank
 	}
@@ -41,9 +43,12 @@ func TestCompanionKindLabel(t *testing.T) {
 // TestCompanionSupportsStructuredAttacks pins the whitelist gating the
 // structured/rollable Attacks presentation, both for the template data a
 // popup/tab card is given and for the attack add/delete handlers'
-// server-side guard. Titan had the identical free-text bug and fix shape
-// as Nin-Dog (see companionStructuredAttackKinds' own doc) and is now in
-// the whitelist too.
+// server-side guard. Titan, summon, custom, and snb each had (or, for snb,
+// would otherwise have) the identical free-text bug and fix shape as
+// Nin-Dog (see companionStructuredAttackKinds' own doc) and are now all in
+// the whitelist — every kind this app can actually create today — with a
+// defensive fallback still covering any future kind that hasn't been added
+// yet.
 func TestCompanionSupportsStructuredAttacks(t *testing.T) {
 	cases := []struct {
 		kind string
@@ -52,8 +57,10 @@ func TestCompanionSupportsStructuredAttacks(t *testing.T) {
 		{"puppet", true},
 		{"nin-dog", true},
 		{"titan", true},
-		{"summon", false},
-		{"custom", false},
+		{"summon", true},
+		{"custom", true},
+		{"snb", true},
+		{"some-future-kind", false},
 	}
 	for _, c := range cases {
 		if got := companionSupportsStructuredAttacks(c.kind); got != c.want {
@@ -75,6 +82,102 @@ func TestCompanionAttacksFragment(t *testing.T) {
 	}
 	if got := companionAttacksFragment("titan"); got != "sheet_summon_tab" {
 		t.Errorf("companionAttacksFragment(titan) = %q, want sheet_summon_tab", got)
+	}
+	if got := companionAttacksFragment("snb"); got != "sheet_summon_tab" {
+		t.Errorf("companionAttacksFragment(snb) = %q, want sheet_summon_tab", got)
+	}
+}
+
+// TestSummonCustomAttacksLoadStructured pins the actual data-loading behavior
+// companionStructuredAttackKinds' extension to summon/custom depends on —
+// TestCompanionSupportsStructuredAttacks above only covers the whitelist
+// lookup itself, not that loadSummonsTabData (Companions tab) and
+// handleCompanionSheet (standalone popup) actually populate structured
+// Attacks for these three kinds now, with no baseline attack appended (see
+// loadSummonsTabData's own doc — none of the three has a computed natural
+// weapon the way Nin-Dog Bite/Titan Bash do).
+func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Attacker', 10, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+
+	summonID, err := charstore.AddCompanion(s.charDB, 1, "summon", "Fluffy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	customID, err := charstore.AddCompanion(s.charDB, 1, "custom", "Sidekick")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snbID, err := charstore.AddCompanion(s.charDB, 1, "snb", "Unit 7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := charstore.AddCompanionAttack(s.charDB, 1, summonID, charstore.CompanionAttack{
+		Name: "Claw Swipe", AttackAbility: "str", DamageCount: 1, DamageSides: 6, DamageAbility: "str", DamageType: "slashing",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := charstore.AddCompanionAttack(s.charDB, 1, customID, charstore.CompanionAttack{
+		Name: "Improvised Bonk", AttackAbility: "str", DamageCount: 1, DamageSides: 4, DamageAbility: "str", DamageType: "bludgeoning",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := charstore.AddCompanionAttack(s.charDB, 1, snbID, charstore.CompanionAttack{
+		Name: "Bite", AttackAbility: "int", DamageCount: 1, DamageSides: 6, DamageAbility: "int", DamageType: "piercing",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab, err := s.loadSummonsTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[int64]summonCompanionView{}
+	for _, v := range tab.Companions {
+		byID[v.Companion.ID] = v
+	}
+	if got := byID[summonID].Attacks; len(got) != 1 || got[0].Name != "Claw Swipe" {
+		t.Errorf("summon Attacks = %+v, want exactly the one player-added row, nothing appended", got)
+	}
+	if got := byID[customID].Attacks; len(got) != 1 || got[0].Name != "Improvised Bonk" {
+		t.Errorf("custom Attacks = %+v, want exactly the one player-added row, nothing appended", got)
+	}
+	if got := byID[snbID].Attacks; len(got) != 1 || got[0].Name != "Bite" {
+		t.Errorf("snb Attacks = %+v, want exactly the one player-added row, nothing appended", got)
+	}
+
+	for _, tc := range []struct {
+		id         int64
+		attackName string
+	}{
+		{summonID, "Claw Swipe"},
+		{customID, "Improvised Bonk"},
+		{snbID, "Bite"},
+	} {
+		cid := strconv.FormatInt(tc.id, 10)
+		req := httptest.NewRequest(http.MethodGet, "/characters/1/companions/"+cid, nil)
+		req.SetPathValue("id", "1")
+		req.SetPathValue("cid", cid)
+		w := httptest.NewRecorder()
+		s.handleCompanionSheet(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("open companion %d popup: status %d, body %s", tc.id, w.Code, w.Body.String())
+		}
+		body := w.Body.String()
+		if !strings.Contains(body, "companion-attack-row") || !strings.Contains(body, tc.attackName) {
+			t.Errorf("companion %d popup: expected a structured companion-attack-row for %q, got %s", tc.id, tc.attackName, body)
+		}
+		if strings.Contains(body, `name="attacks"`) {
+			t.Errorf("companion %d popup: fell back to the freeform attacks textarea instead of structured Attacks", tc.id)
+		}
 	}
 }
 
@@ -342,7 +445,7 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, kind := range []string{"puppet", "summon", "custom"} {
+	for _, kind := range []string{"puppet", "summon", "custom", "snb"} {
 		req := httptest.NewRequest(http.MethodPost, "/characters/1/sheet/companions",
 			strings.NewReader(url.Values{"name": {"Test " + kind}, "kind": {kind}}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -362,8 +465,8 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(companions) != 3 {
-		t.Fatalf("ListCompanions = %d rows, want 3", len(companions))
+	if len(companions) != 4 {
+		t.Fatalf("ListCompanions = %d rows, want 4", len(companions))
 	}
 
 	for _, c := range companions {
@@ -476,8 +579,8 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(remaining) != 2 {
-		t.Errorf("after delete, ListCompanions = %d rows, want 2", len(remaining))
+	if len(remaining) != 3 {
+		t.Errorf("after delete, ListCompanions = %d rows, want 3", len(remaining))
 	}
 }
 

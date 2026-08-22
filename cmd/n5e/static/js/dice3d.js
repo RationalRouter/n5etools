@@ -101,6 +101,16 @@
   const SLEEP_ANGULAR = 1.6; // rad/s
   const SLEEP_STEPS = 8;
 
+  // A die balanced on an edge or corner is a genuine zero-net-impulse
+  // equilibrium in this simulation — nothing here models the table texture
+  // or air movement that always tips a real die the rest of the way — so
+  // velocity alone is not enough to call it stopped. SLEEP_FLAT_COS gates
+  // sleep on the up axis actually being close to vertical; short of that,
+  // EDGE_NUDGE gives it a small random kick instead of freezing tilted, so
+  // beginSettle is only ever left the fraction of a degree it expects.
+  const SLEEP_FLAT_COS = Math.cos(8 * Math.PI / 180);
+  const EDGE_NUDGE = 2.5; // rad/s, per axis
+
   const IMPACT_MIN_GAP_MS = 40;
   const IMPACT_MAX_PER_ROLL = 12;
   const IMPACT_REF = 400; // impulse that maps to full-volume clack
@@ -917,8 +927,19 @@
     // step, so nothing airborne can stay under these thresholds for ten
     // consecutive steps; something has to be holding it up.
     if (linear < SLEEP_LINEAR && angular < SLEEP_ANGULAR) {
-      die.sleepCount++;
-      if (die.sleepCount >= SLEEP_STEPS) die.asleep = true;
+      const upIdx = upAxisIndex(die);
+      const upZ = quatRotate(die.q, die.solid.restAxes[upIdx])[2];
+      if (upZ > SLEEP_FLAT_COS) {
+        die.sleepCount++;
+        if (die.sleepCount >= SLEEP_STEPS) die.asleep = true;
+      } else {
+        // Stopped, but balanced on an edge or corner rather than a face.
+        // Nudge it rather than letting it sleep tilted.
+        die.sleepCount = 0;
+        die.w[0] += rand(-EDGE_NUDGE, EDGE_NUDGE);
+        die.w[1] += rand(-EDGE_NUDGE, EDGE_NUDGE);
+        die.w[2] += rand(-EDGE_NUDGE, EDGE_NUDGE);
+      }
     } else {
       die.sleepCount = 0;
     }

@@ -18,13 +18,16 @@
      puppetCompanionView still carries ExpectedAC/ExpectedMaxHP for that
      write-time computation, this partial just doesn't read them.
 
-     ShowStructuredAttacks/AttacksTarget (only set by the Puppets tab):
-     structured, rollable Attacks needs sheet-vitals.js's fetch-form
-     wiring and character-sheet.js's .rollable click handler, neither of
-     which the companion popup's own layout_bare.html loads (deliberately
-     — see that file's own doc comment on staying genuinely small); the
-     popup keeps the plain freeform Attacks textarea every non-puppet
-     companion already uses instead of silently rendering dead controls.
+     ShowStructuredAttacks/AttacksTarget (set by the Companions and Puppets
+     tabs, for any kind companionSupportsStructuredAttacks reports true
+     for): structured, rollable Attacks needs sheet-vitals.js's fetch-form
+     wiring and character-sheet.js's .rollable click handler. The popup
+     instead sets ReadOnlyAttacks — same rollable rows, minus the add/
+     delete forms, since editing happens on the tab (see the popup's own
+     dice-roller/character-sheet.js loads, which is what makes the rows
+     rollable there too). A kind that hasn't reached structured attacks
+     yet falls back to the plain freeform Attacks textarea instead of
+     rendering either.
 
      Every field belongs to FormID via the HTML `form="..."` attribute
      rather than DOM nesting, because HP-current/AC/Max HP each live in
@@ -192,44 +195,64 @@
     Puppet Tool ASI: {{range $ab, $amt := .PuppetToolASIBonus}}{{upper $ab}} +{{$amt}} (max 20); {{end}}not reflected in the fields above.
   </span>
   {{end}}
-  {{if .ExpectedAC}}
-  <button type="button" class="companion-sync-btn" data-field="ac" data-value="{{.ExpectedAC}}">Sync AC to {{.ExpectedAC}}</button>
-  {{end}}
-  {{if .ExpectedMaxHP}}
-  <button type="button" class="companion-sync-btn" data-field="hp_max" data-value="{{.ExpectedMaxHP}}">Sync Max HP to {{.ExpectedMaxHP}}</button>
-  {{end}}
-  {{if .ExpectedSpeed}}
-  <button type="button" class="companion-sync-btn" data-field="speed" data-value="{{.ExpectedSpeed}}">Sync Speed to {{.ExpectedSpeed}}</button>
-  {{end}}
-  {{if .ExpectedFlySpeed}}
-  <button type="button" class="companion-sync-btn" data-field="fly_speed" data-value="{{.ExpectedFlySpeed}}">Sync Fly to {{.ExpectedFlySpeed}}</button>
-  {{end}}
-  {{if .ExpectedJutsuSlotsMax}}
-  <button type="button" class="companion-sync-btn" data-field="jutsu_slots_max" data-value="{{.ExpectedJutsuSlotsMax}}">Sync Jutsu Slots to {{.ExpectedJutsuSlotsMax}}</button>
-  {{end}}
-  {{if .ExpectedBarrierMax}}
-  <button type="button" class="companion-sync-btn" data-field="barrier_max" data-value="{{.ExpectedBarrierMax}}">Sync Barrier to {{.ExpectedBarrierMax}}</button>
-  {{end}}
-  {{if .ExpectedStr}}
-  <button type="button" class="companion-sync-btn" data-field="str_score" data-value="{{.ExpectedStr}}">Sync STR to {{.ExpectedStr}}</button>
-  {{end}}
-  {{if .ExpectedDex}}
-  <button type="button" class="companion-sync-btn" data-field="dex_score" data-value="{{.ExpectedDex}}">Sync DEX to {{.ExpectedDex}}</button>
-  {{end}}
-  {{if .ExpectedCon}}
-  <button type="button" class="companion-sync-btn" data-field="con_score" data-value="{{.ExpectedCon}}">Sync CON to {{.ExpectedCon}}</button>
-  {{end}}
-  {{if .ExpectedInt}}
-  <button type="button" class="companion-sync-btn" data-field="int_score" data-value="{{.ExpectedInt}}">Sync INT to {{.ExpectedInt}}</button>
-  {{end}}
-  {{if .ExpectedWis}}
-  <button type="button" class="companion-sync-btn" data-field="wis_score" data-value="{{.ExpectedWis}}">Sync WIS to {{.ExpectedWis}}</button>
-  {{end}}
-  {{if .ExpectedCha}}
-  <button type="button" class="companion-sync-btn" data-field="cha_score" data-value="{{.ExpectedCha}}">Sync CHA to {{.ExpectedCha}}</button>
-  {{end}}
-  {{if .ExpectedSize}}
-  <button type="button" class="companion-sync-btn" data-field="size" data-value="{{.ExpectedSize}}">Sync Size to {{.ExpectedSize}}</button>
+  {{/* All the individual Sync buttons collapse behind one toggle instead of
+       rendering inline — a Puppet with every Foundation pick made can have
+       up to 13 of these at once, which used to spill across several lines
+       of the card before a single field was ever edited. Same .dropdown-
+       filter/.dropdown-toggle/.dropdown-panel shape the Jutsu page's
+       Categories menu uses (app.css), but with its own small delegated
+       click handler in companion-fields.js — a companion card can be
+       replaced wholesale by a fragment swap at any time, so a directly-
+       bound listener (jutsu-filter.js's own toggle wiring) isn't safe to
+       reuse here. Each button keeps its existing .companion-sync-btn class
+       and data-field/data-value attributes untouched, so the click handler
+       that actually performs the sync is unaffected by where the button
+       lives in the DOM. */}}
+  {{if or .ExpectedAC .ExpectedMaxHP .ExpectedSpeed .ExpectedFlySpeed .ExpectedJutsuSlotsMax .ExpectedBarrierMax .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize}}
+  <div class="dropdown-filter companion-sync-menu">
+    <button type="button" class="dropdown-toggle companion-sync-toggle" aria-haspopup="true" aria-expanded="false">Sync &#9662;</button>
+    <div class="dropdown-panel companion-sync-panel" hidden>
+      {{if .ExpectedAC}}
+      <button type="button" class="companion-sync-btn" data-field="ac" data-value="{{.ExpectedAC}}">Sync AC to {{.ExpectedAC}}</button>
+      {{end}}
+      {{if .ExpectedMaxHP}}
+      <button type="button" class="companion-sync-btn" data-field="hp_max" data-value="{{.ExpectedMaxHP}}">Sync Max HP to {{.ExpectedMaxHP}}</button>
+      {{end}}
+      {{if .ExpectedSpeed}}
+      <button type="button" class="companion-sync-btn" data-field="speed" data-value="{{.ExpectedSpeed}}">Sync Speed to {{.ExpectedSpeed}}</button>
+      {{end}}
+      {{if .ExpectedFlySpeed}}
+      <button type="button" class="companion-sync-btn" data-field="fly_speed" data-value="{{.ExpectedFlySpeed}}">Sync Fly to {{.ExpectedFlySpeed}}</button>
+      {{end}}
+      {{if .ExpectedJutsuSlotsMax}}
+      <button type="button" class="companion-sync-btn" data-field="jutsu_slots_max" data-value="{{.ExpectedJutsuSlotsMax}}">Sync Jutsu Slots to {{.ExpectedJutsuSlotsMax}}</button>
+      {{end}}
+      {{if .ExpectedBarrierMax}}
+      <button type="button" class="companion-sync-btn" data-field="barrier_max" data-value="{{.ExpectedBarrierMax}}">Sync Barrier to {{.ExpectedBarrierMax}}</button>
+      {{end}}
+      {{if .ExpectedStr}}
+      <button type="button" class="companion-sync-btn" data-field="str_score" data-value="{{.ExpectedStr}}">Sync STR to {{.ExpectedStr}}</button>
+      {{end}}
+      {{if .ExpectedDex}}
+      <button type="button" class="companion-sync-btn" data-field="dex_score" data-value="{{.ExpectedDex}}">Sync DEX to {{.ExpectedDex}}</button>
+      {{end}}
+      {{if .ExpectedCon}}
+      <button type="button" class="companion-sync-btn" data-field="con_score" data-value="{{.ExpectedCon}}">Sync CON to {{.ExpectedCon}}</button>
+      {{end}}
+      {{if .ExpectedInt}}
+      <button type="button" class="companion-sync-btn" data-field="int_score" data-value="{{.ExpectedInt}}">Sync INT to {{.ExpectedInt}}</button>
+      {{end}}
+      {{if .ExpectedWis}}
+      <button type="button" class="companion-sync-btn" data-field="wis_score" data-value="{{.ExpectedWis}}">Sync WIS to {{.ExpectedWis}}</button>
+      {{end}}
+      {{if .ExpectedCha}}
+      <button type="button" class="companion-sync-btn" data-field="cha_score" data-value="{{.ExpectedCha}}">Sync CHA to {{.ExpectedCha}}</button>
+      {{end}}
+      {{if .ExpectedSize}}
+      <button type="button" class="companion-sync-btn" data-field="size" data-value="{{.ExpectedSize}}">Sync Size to {{.ExpectedSize}}</button>
+      {{end}}
+    </div>
+  </div>
   {{end}}
 </div>
 {{end}}
@@ -255,13 +278,24 @@
   {{if .SymphonyEnhancement.Ability}}
   <span>Ability bonus: {{abilityLabel .SymphonyEnhancement.Ability}} +2 — not reflected in the field above.</span>
   {{else}}
+  {{/* A permanent, one-way pick (this whole form disappears for good once
+       .SymphonyEnhancement.Ability is set — same "picking is itself the
+       point of no return" shape as Breed/Titan Specialization/Armor
+       Chassis above), so it needs the same .companion-commit-select/
+       .companion-commit-btn pairing those already use: a plain
+       .companion-field here would still silently lock in whatever ability
+       was merely highlighted the instant the player tabbed or clicked
+       away, via the generic whole-form autosave-on-blur this class opts
+       out of. No tooltip is needed — each option is just an ability name
+       with nothing further to reveal beyond "+2", already stated above. */}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/symphony-enhancement-ability"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
-    <label>Ability bonus (+2)
-      <select name="ability" required class="companion-field" onchange="this.form.requestSubmit()">
+    <label class="companion-block-label">Ability bonus (+2)
+      <select name="ability" required class="companion-commit-select">
         <option value="">— choose —</option>
         {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
       </select>
+      <button type="button" class="companion-commit-btn" disabled>Set Ability</button>
     </label>
   </form>
   {{end}}
@@ -380,7 +414,18 @@
      something else happened to re-render the card). .companion-commit-select
      opts this field out of that autosave the same way the breed picker's
      own fix did. */}}
-{{if eq .Companion.Kind "titan"}}
+{{/* .TitanReference is nil whenever loadTitanReference's own
+     loadTitanUpgradesData call finds the character doesn't have Science-Nin's
+     Mech Crafter subclass — the companion "kind" picker itself has no such
+     gate (any character can add a kind="titan" companion), so this branch is
+     reachable and must not field-access .TitanReference without checking it
+     first, or html/template panics mid-render and the response is cut off
+     before the page's own trailing <script> tags, leaving every button on
+     the page dead. */}}
+{{if and (eq .Companion.Kind "titan") (not .TitanReference)}}
+<p class="section-hint">Titan stats need Science-Nin's Mech Crafter subclass to compute — this character doesn't currently qualify.</p>
+{{end}}
+{{if and (eq .Companion.Kind "titan") .TitanReference}}
 {{$currentSpec := .Companion.TitanSpecialization}}
 {{$specTooltipID := printf "titan-spec-tooltip-%d" .Companion.ID}}
 <label class="companion-block-label">Titan Specialization
@@ -400,6 +445,55 @@
   <button type="button" class="companion-commit-btn" disabled>Set Specialization</button>
   {{end}}
 </label>
+{{end}}
+
+{{/* Legion Specialization's own "increases its two ability scores by +2"
+     — a free player pick naming no fixed pair, so it needs its own
+     two-slot picker, same .companion-commit-select/.companion-commit-btn
+     pairing (and the same reasoning for needing it at all) the Symphony of
+     Puppetry Enhancement ability picker above already uses — a plain
+     .companion-field here would silently lock in whatever was merely
+     highlighted on the next blur, with no confirmation. Each slot is its
+     own <form> POSTing independently (titan-legion-ability, slot 0/1)
+     rather than one shared form, since the two picks are otherwise
+     unrelated and either can be made before the other. Once a slot is set
+     it shows read-only — freely re-pickable is NOT offered here since
+     nothing in this app currently exposes a "change" control for it, the
+     same treatment Symphony Enhancement's own resolved pick gets. */}}
+{{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.IsLegionSpecialization}}
+<div class="section-hint companion-titan-legion-ability-bonus">
+  <span>Legion Specialization: two ability scores increase by +2 (and their maximums by +2) — not reflected in the fields above.</span>
+  {{if .TitanReference.LegionAbility1}}
+  <span>Ability bonus 1: {{abilityLabel .TitanReference.LegionAbility1}} +2</span>
+  {{else}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/titan-legion-ability"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+    <input type="hidden" name="slot" value="0">
+    <label class="companion-block-label">Ability bonus 1 (+2)
+      <select name="ability" required class="companion-commit-select">
+        <option value="">— choose —</option>
+        {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
+      </select>
+      <button type="button" class="companion-commit-btn" disabled>Set Ability 1</button>
+    </label>
+  </form>
+  {{end}}
+  {{if .TitanReference.LegionAbility2}}
+  <span>Ability bonus 2: {{abilityLabel .TitanReference.LegionAbility2}} +2</span>
+  {{else}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/titan-legion-ability"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+    <input type="hidden" name="slot" value="1">
+    <label class="companion-block-label">Ability bonus 2 (+2)
+      <select name="ability" required class="companion-commit-select">
+        <option value="">— choose —</option>
+        {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
+      </select>
+      <button type="button" class="companion-commit-btn" disabled>Set Ability 2</button>
+    </label>
+  </form>
+  {{end}}
+</div>
 {{end}}
 
 {{if eq .Companion.Kind "summon"}}
@@ -436,14 +530,23 @@
      gate on this tab. */}}
 {{if and (eq .Companion.Kind "puppet") .ArmorChassisOptions}}
 {{$current := .Companion.ArmorChassis}}
+{{$chassisTooltipID := printf "armor-chassis-tooltip-%d" .Companion.ID}}
 <label class="companion-block-label">Armor Chassis
-  <select name="armor_chassis" form="{{.FormID}}" class="companion-field" data-detail-select{{if $current}} disabled{{end}}>
+  <select name="armor_chassis" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$chassisTooltipID}}" data-detail-select{{if $current}} disabled{{end}}>
     <option value="">— none —</option>
     {{range .ArmorChassisOptions}}
-    <option value="{{.Name}}" data-ac-bonus="{{.ACBonus}}" data-dex-mode="{{.DexBonusMode}}"{{if eq .Name $current}} selected{{end}}>{{.Name}}</option>
+    <option value="{{.Name}}" data-ac-bonus="{{.ACBonus}}" data-dex-mode="{{.DexBonusMode}}" data-description="{{formatDescription .Description}}"{{if eq .Name $current}} selected{{end}}>{{.Name}}</option>
     {{end}}
   </select>
-  {{if $current}}<span class="section-hint companion-armor-chassis-locked">Chosen permanently at 2nd level — cannot be changed.</span>{{end}}
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{$chassisTooltipID}}">{{if $current}}{{range .ArmorChassisOptions}}{{if eq .Name $current}}{{formatDescription .Description}}{{end}}{{end}}{{else}}Choose a chassis to see what it grants.{{end}}</span>
+  </span>
+  {{if $current}}
+  <span class="section-hint companion-armor-chassis-locked">Chosen permanently at 2nd level — cannot be changed.</span>
+  {{else}}
+  <button type="button" class="companion-commit-btn" disabled>Set Armor Chassis</button>
+  {{end}}
   {{/* The chosen chassis's own armor properties, each with its rules text
        on hover. Reinforced's number is the damage reduction it grants and
        is shown ALREADY RAISED by Enhanced Durability where that applies
@@ -794,10 +897,13 @@
 
   {{if .Ref.KnownHijutsu}}
   <h3>Known Inuzuka Hijutsu</h3>
-  <p class="section-hint">Every Inuzuka Clan Hijutsu the character themselves knows — Beast Master: "Cannot learn jutsu like a Dog/Wolf summon, instead knowing all Inuzuka Clan Hijutsu you know."</p>
+  <p class="section-hint">Every Inuzuka Clan Hijutsu the character themselves knows — Beast Master: "Cannot learn jutsu like a Dog/Wolf summon, instead knowing all Inuzuka Clan Hijutsu you know." Auto-listed, not a pick — casting one spends 1 of the Nin-Dog's own Jutsu Slots, the same resource the Jutsu Slots field above tracks.</p>
   <ul class="sheet-feature-list">
     {{range .Ref.KnownHijutsu}}
-    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    <li>
+      <button type="button" class="companion-jutsu-cast-btn" title="Spend 1 Jutsu Slot to cast {{.Name}}">Cast</button>
+      <strong>{{.Name}}</strong> {{formatDescription .Description}}
+    </li>
     {{end}}
   </ul>
   {{else}}
@@ -906,6 +1012,7 @@
   <dl class="sheet-passive-trait-list">
     <dt>Size</dt><dd>{{.Ref.Size}}{{if eq .Ref.Size "Large"}} (Huge at 14th level){{end}}</dd>
     <dt>Proficiency Bonus</dt><dd>+{{.Ref.ProficiencyBonus}} (shares yours)</dd>
+    <dt>Senses</dt><dd>{{.Ref.Senses}}</dd>
     <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}} (yours + this Titan's own Intelligence modifier)</dd>
     <dt>Steady Improvement</dt><dd>{{.Ref.SteadyImprovementASIPoints}} bonus ASI points — distributed when crafted, redistributable on a long rest</dd>
     <dt>Saving Throws</dt><dd>Makes Strength/Dexterity/Constitution saves in your place, using its own ability scores. Mental saves (Intelligence/Wisdom/Charisma) still use yours.</dd>
@@ -1024,11 +1131,12 @@
   <p class="section-hint">Upgrades of the designated keyword cost 2 less Creation Points (min. 1) — already reflected in the Cost badges above. Re-pick freely during a long rest.</p>
   <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-specialist-crafting-keyword" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
-    <select name="keyword" required onchange="this.form.requestSubmit()">
+    <select name="keyword" required>
       <option value="">— choose —</option>
       <option value="mech"{{if eq .Ref.SpecialistCraftingKeyword "mech"}} selected{{end}}>Mech</option>
       <option value="weapon"{{if eq .Ref.SpecialistCraftingKeyword "weapon"}} selected{{end}}>Weapon</option>
     </select>
+    <button type="submit">Set Keyword</button>
   </form>
   {{end}}
   {{end}}

@@ -206,19 +206,26 @@ func scoutNinPhantasmicPowerDieSize(level int) string {
 // options' own text from Features & Traits, matching the precedent
 // medicalDoctrineSlugs/loadMedicalDoctrineCatalog already established
 // rather than inventing a new "hide the unpicked options" mechanism here.
-// Combat's attack/damage bonus, Control's save-DC bonus, and Skill's flat
-// check bonus are correspondingly NOT wired into the attack table/save-DC
-// computation — same informational-readout-only boundary as Mobile above;
-// each Generalization's own current-level bonus is already legible in its
-// class_features description, shown via this picker's own tooltip. Mobility
-// is the one exception: a real speedGrants entry already existed pre-dating
-// this stage (internal/features/grants.go). Its level tiers were corrected
+// Combat's attack/damage bonus, Control's save-DC bonus, Mobility's
+// speed/saving-throw bonus, and Skill's flat check bonus are all wired into
+// their own real computed field now (JutsuAttacks' Modifier/SaveDC, Speed,
+// saving throws, and skill checks, respectively), each gated on
+// charstore.ScoutNinPickJackOfAll via internal/charsheet/charsheet.go's own
+// jackOfAllGate helper so the bonus only applies once the player has
+// actually picked that Generalization, not merely reached 5th level — see
+// scoutNinCombatFeatureSlug/scoutNinControlFeatureSlug/
+// scoutNinMobilityFeatureSlug/scoutNinSkillFeatureSlug's own doc comments
+// (internal/charsheet/charsheet.go) for each one's resolution. Mobility was
+// the first of these wired, pre-dating this stage — its speedGrants entry
+// already existed (internal/features/grants.go) with level tiers corrected
 // to 5/11 to match the class_features level-tagging fix here, but the bonus
 // itself stayed blanket-applied regardless of this picker's own pick until
-// a later fix (internal/charsheet/charsheet.go's own ResolveSpeedBonus call
-// site, gated on charstore.ScoutNinPickJackOfAll) — the blanket grant was
-// fine for the other 4 Generalizations precisely because none of them feed
-// a real computed field the way Mobility feeds Speed.
+// a later fix gated it the same way the other three eventually followed.
+// Support alone has no numeric clause to wire at all (Help/Search as a
+// Bonus Action, an expanded Help range, and an opportunity-attack trigger —
+// all action-economy or combat-state tracking this app doesn't model), so
+// it stays an informational-readout-only entry the same way Mobile above
+// does.
 //
 // Stage 6 closes 3 further gaps in the same "the pick/use-count is
 // trackable, the triggered effect stays manual" shape: Paragon's Presence

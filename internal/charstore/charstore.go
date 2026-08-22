@@ -396,6 +396,40 @@ func SetEquipment(charDB *sql.DB, characterID int64, lines []EquipmentLine) erro
 			qty = 1
 		}
 		if l.Slug != "" {
+			// Two independent equipment sources (a class starting-equipment
+			// group's kit/toolkit choice and a background's own pack/flat
+			// equipment text, resolved separately by handleCreateEquipment
+			// before both land in this same lines slice) can name the same
+			// item — a player already granted an Armorsmith Kit by their
+			// subclass shouldn't also get a second, separate kit row from
+			// their Background. Merge into any existing row for this
+			// character_id/item_slug (same "bump the quantity, don't add a
+			// second row" rule AddInventoryItem already applies on the sheet
+			// itself) rather than blindly inserting — this also naturally
+			// merges two same-slug lines within this very call, since the
+			// first one's insert is already visible to the second's lookup
+			// inside this transaction.
+			//
+			// Scoped to notes = 'creation-equipment' (the same tag the
+			// DELETE above just cleared) so this can only ever merge into a
+			// row this same function created — never into a same-slug row
+			// added some other way (a manual sheet edit; the character
+			// sheet has no creation-status gate, so it's reachable before
+			// Finish). Without that scope, revisiting and resubmitting this
+			// step would keep bumping that unrelated row's quantity forever
+			// on every resubmission, since the leading DELETE only clears
+			// rows already tagged 'creation-equipment' and never touches it.
+			res, err := tx.Exec(
+				`UPDATE character_inventory SET quantity = quantity + ?
+				 WHERE character_id = ? AND item_slug = ? AND notes = 'creation-equipment'`,
+				qty, characterID, l.Slug,
+			)
+			if err != nil {
+				return fmt.Errorf("merge equipment item: %w", err)
+			}
+			if n, err := res.RowsAffected(); err == nil && n > 0 {
+				continue
+			}
 			if _, err := tx.Exec(
 				`INSERT INTO character_inventory (character_id, item_slug, quantity, notes)
 				 VALUES (?, ?, ?, 'creation-equipment')`,

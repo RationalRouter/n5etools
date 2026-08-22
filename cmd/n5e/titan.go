@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,15 +36,21 @@ import (
 // that blob rather than read live, the same "hand-curated, not live-
 // queried" treatment scienceNinRegaliaOptions (science_nin_subclasses.go)
 // and ninDogBreeds (nindog.go) already draw for source text that isn't
-// stored as individually addressable rows. Confirmed absent from rules.db
-// entirely (not merely unparsed): the Titan's own AC, Hit Dice, and any
+// stored as individually addressable rows.
+//
+// AC ("12 + Intelligence Modifier + half your Proficiency Bonus", Natural
+// Armor) and Hit Dice are genuinely MISSING from titan_unit_card.raw_text —
+// a real PDF-extraction gap between "unaligned" and "Hit Points" in the
+// blob, not a true absence from the rulebook. Verified directly against the
+// source PDF page image (Orochimaru's Observation Compendium,
+// titan_unit_card.source_page 236) rather than re-guessed from the broken
+// extraction — see titanAC. Hit Dice still has no computed field here (a
+// Titan's Hit Points already come from titanMaxHP's own flat formula, with
+// no separate Hit Dice roll anywhere else in this app's math), and the
 // saving-throw-proficiency bonus beyond "makes Strength, Dexterity, and
-// Constitution saving throws in your place, using its own statistics" (its
-// own raw ability modifiers, no stated proficiency add-on) — none of the
-// three appear anywhere in titan_unit_card's raw_text, so no AC/Hit Dice
-// field is computed here; AC stays a plain player-entered
-// charstore.Companion.AC value like every other companion kind's does by
-// default, with no "Sync AC" hint offered (ExpectedAC is simply never set).
+// Constitution saving throws in your place, using its own statistics"
+// remains unconfirmed (no stated proficiency add-on anywhere in the raw
+// text) — those two stay out of scope.
 //
 // Titan Upgrades (class_options list_name='Titan Upgrades', 5 tiers: Minor/
 // Refined/Superior/Supreme/Mastercraft) spend from the SAME Creation Points
@@ -105,6 +112,10 @@ var titanBaseAbilityScores = map[string]int{
 
 const titanBaseSpeed = 30 // ft. — titan_unit_card's own flat "Speed 30 ft.", before any Titan Specialization change
 
+// titanSenses: titan_unit_card's own "Senses Darkvision(30 feet), Passive Perception(...)" line —
+// only the Darkvision half, since Passive Perception is already its own computed titanReference field.
+const titanSenses = "Darkvision (30 ft.)"
+
 // titanBaseTraits: the base stat block's own named traits, hand-transcribed
 // verbatim from titan_unit_card.raw_text (see this file's header doc for
 // why this can't be read live). Always shown, ungated beyond the whole box
@@ -133,6 +144,16 @@ func titanMaxHP(scienceNinLevel, titanConMod int) int {
 		hp = 1
 	}
 	return hp
+}
+
+// titanAC: "12 + Intelligence Modifier + half your Proficiency Bonus"
+// (Natural Armor) — see this file's header doc for why this had to be
+// verified against the source PDF page image rather than read from
+// titan_unit_card.raw_text, which drops the line entirely. Half proficiency
+// is floored, the same convention internal/charsheet.ArmorClass's own
+// "PROF" armor-ability term already uses for a player character's armor.
+func titanAC(intMod, profBonus int) int {
+	return 12 + intMod + profBonus/2
 }
 
 // titanBarrierMax: Battery Powered Barrier's own "maximum number of hit
@@ -203,6 +224,84 @@ func titanEffectiveAbilityModifier(companion charstore.Companion, key string) in
 		return charsheet.AbilityModifier(int(score.Int64))
 	}
 	return charsheet.AbilityModifier(titanBaseAbilityScores[key])
+}
+
+// titanLegionAbilityBonusFeatureSlug is the synthetic (no class_features/
+// clan_features row backs it — feature_slug carries no FK constraint, the
+// same allowance 0033_feature_companion_choices.sql's own doc comment
+// documents) key Legion Specialization's own two-ability-score +2 choice is
+// stored under via character_feature_companion_choices, the direct
+// precedent Puppet Master's own Symphony of Puppetry Enhancement ability
+// pick already established (puppet_companion_bonuses.go) — just keyed off a
+// class_options pick (Titan Specialization) rather than a class feature.
+// choice_index 0 and 1 hold the two independently-chosen abilities — Legion
+// Specialization's own text ("increases its two ability scores by +2. The
+// maximums also increase by +2") names no fixed pair, so both are a free
+// player pick, same "computed hint, player chooses freely" boundary
+// Symphony of Puppetry Enhancement already draws for its own ability pick.
+const titanLegionAbilityBonusFeatureSlug = "companion/titan/legion-specialization-ability-bonus"
+
+// titanSpecializationAbilityBonuses resolves the ability-score bonus a
+// chosen Titan Specialization grants beyond the base stat block —
+// Monarch's flat +4 Constitution, Ronin's flat +4 Dexterity, or Legion's
+// own two player-chosen abilities (legionAbility1/2, "" until picked) at
+// +2 each. Additive per key rather than an overwrite, so picking the SAME
+// ability for both Legion slots correctly stacks to +4 instead of one
+// bonus silently replacing the other.
+func titanSpecializationAbilityBonuses(specializationSlug, legionAbility1, legionAbility2 string) map[string]int {
+	bonuses := map[string]int{}
+	switch {
+	case strings.Contains(specializationSlug, "monarch"):
+		bonuses["con"] += 4
+	case strings.Contains(specializationSlug, "ronin"):
+		bonuses["dex"] += 4
+	case strings.Contains(specializationSlug, "legion"):
+		if legionAbility1 != "" {
+			bonuses[legionAbility1] += 2
+		}
+		if legionAbility2 != "" {
+			bonuses[legionAbility2] += 2
+		}
+	}
+	return bonuses
+}
+
+// titanBashAttack computes Bash's own rollable attack row fresh on every
+// render — never stored as a charstore.CompanionAttack row, the same
+// "computed, not stored" treatment puppetIntegratedWeaponAttack
+// (puppets.go) already gives a granted (not player-added) attack. Both the
+// attack roll and the damage draw on the companion's OWN Strength and
+// Dexterity modifiers (never the owning character's) per titan_unit_card's
+// own "Hit: 1d6 + Str + Dex" text. No separate "+X to hit" formula is
+// stated anywhere in the source (confirmed directly against
+// titan_unit_card.raw_text) — the attack roll here sums the SAME two
+// ability modifiers the damage formula names, plus the owning character's
+// proficiency bonus, mirroring both Ninja Tool Integration's own "the
+// Titan's attacks are chakra enhanced" (treated as proficient) and Beast
+// Master's explicit "Str + Prof to hit" formula for a Nin-Dog's own Bite
+// (see ninDogBiteAttack, nindog.go) — the closest confirmed precedent for
+// how this app already resolves an unstated companion to-hit bonus. Ronin
+// Specialization's own "+1 critical threat range on melee weapon and
+// Taijutsu attacks" widens the crit range to 19 here, the same mechanism
+// Puppet Roles' Lurker Role Effect already uses (see
+// companionAttackRow.CritRangeThreshold's own doc, puppets.go).
+func titanBashAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+	strMod := titanEffectiveAbilityModifier(companion, "str")
+	dexMod := titanEffectiveAbilityModifier(companion, "dex")
+	critRange := 20
+	if strings.Contains(companion.TitanSpecialization, "ronin") {
+		critRange = 19
+	}
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name:        "Bash",
+			Description: "Melee Weapon Attack: reach 10 ft., one target. This weapon can be used for the unarmed damage of Taijutsu.",
+			DamageCount: 1, DamageSides: 6, DamageType: "bludgeoning",
+		},
+		AttackTotal:        strMod + dexMod + ownerProfBonus,
+		DamageTotal:        strMod + dexMod,
+		CritRangeThreshold: critRange,
+	}
 }
 
 // titanSpecializationOption is one of the 3 Titan Specializations
@@ -504,6 +603,7 @@ type titanReference struct {
 	Level                      int
 	Size                       string // Large/Huge/Gargantuan — Gradual Expansion + Bijuu Slayer
 	ProficiencyBonus           int
+	Senses                     string // titan_unit_card's own "Darkvision(30 feet)" — printed alongside Passive Perception in the same Senses line but previously dropped when that line was transcribed
 	PassivePerception          int // "Yours + Intelligence Modifer" — the caster's own Passive Perception plus the Titan's own Intelligence modifier
 	SteadyImprovementASIPoints int
 
@@ -512,6 +612,17 @@ type titanReference struct {
 
 	Specializations []titanSpecializationOption
 	Specialization  *titanSpecializationOption // nil until chosen (locked once set — see charstore.SetCompanionFields)
+	// IsLegionSpecialization: true once Legion Specialization is chosen —
+	// gates the LegionAbility1/2 picker below, since Legion is the only one
+	// of the three specializations with a free player ability-score choice
+	// rather than a fixed bonus (see titanSpecializationAbilityBonuses).
+	IsLegionSpecialization bool
+	// LegionAbility1/LegionAbility2: Legion Specialization's own two
+	// player-chosen abilities (+2 each), "" until picked — see
+	// titanLegionAbilityBonusFeatureSlug's own doc for how these are
+	// stored/resolved.
+	LegionAbility1 string
+	LegionAbility2 string
 
 	Features []companionFeatureRef // Adaptive Movement/Endless Work/Spatial Warping/Specialist Crafting/Titanic Arsenal/The Future of Shinobi: Mecha, Locked by level
 
@@ -519,8 +630,9 @@ type titanReference struct {
 	// button available" treatment ninDogReference's own Expected* fields
 	// already give a Nin-Dog — companion_stat_fields.html's Sync-button
 	// block reads these same field names generically regardless of
-	// companion kind. No ExpectedAC — see this file's header doc for why
-	// no AC formula exists anywhere in the source text.
+	// companion kind. ExpectedStr..ExpectedCha already include whichever
+	// Titan Specialization ability bonus applies (titanSpecializationAbilityBonuses).
+	ExpectedAC         int
 	ExpectedMaxHP      int
 	ExpectedSpeed      int
 	ExpectedSize       string
@@ -607,6 +719,16 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		features = append(features, companionFeatureRef{Name: fd.Name, Level: fd.Level, Description: desc, Locked: sheet.Level < fd.Level})
 	}
 
+	legionAbility1, err := charstore.GetFeatureCompanionChoice(s.charDB, characterID, titanLegionAbilityBonusFeatureSlug, companion.ID, 0)
+	if err != nil {
+		return nil, err
+	}
+	legionAbility2, err := charstore.GetFeatureCompanionChoice(s.charDB, characterID, titanLegionAbilityBonusFeatureSlug, companion.ID, 1)
+	if err != nil {
+		return nil, err
+	}
+	abilityBonuses := titanSpecializationAbilityBonuses(companion.TitanSpecialization, legionAbility1, legionAbility2)
+
 	conMod := titanEffectiveAbilityModifier(companion, "con")
 	intMod := titanEffectiveAbilityModifier(companion, "int")
 
@@ -623,48 +745,51 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		Level:                      sheet.Level,
 		Size:                       size,
 		ProficiencyBonus:           sheet.ProficiencyBonus,
+		Senses:                     titanSenses,
 		PassivePerception:          sheet.PassivePerception + intMod,
 		SteadyImprovementASIPoints: 1 + sheet.ProficiencyBonus,
 
 		BaseTraits:     titanBaseTraits,
 		BashAttackText: titanBashAttackText,
 
-		Specializations: specOptions,
-		Specialization:  chosenSpec,
+		Specializations:        specOptions,
+		Specialization:         chosenSpec,
+		IsLegionSpecialization: strings.Contains(companion.TitanSpecialization, "legion"),
+		LegionAbility1:         legionAbility1,
+		LegionAbility2:         legionAbility2,
 
 		Features: features,
 
+		ExpectedAC:         titanAC(intMod, sheet.ProficiencyBonus),
 		ExpectedMaxHP:      titanMaxHP(scienceNinLevel, conMod),
 		ExpectedSpeed:      titanSpeedForSpecialization(companion.TitanSpecialization),
 		ExpectedSize:       size,
 		ExpectedBarrierMax: titanBarrierMax(scienceNinLevel),
-		ExpectedStr:        titanBaseAbilityScores["str"],
-		ExpectedDex:        titanBaseAbilityScores["dex"],
-		ExpectedCon:        titanBaseAbilityScores["con"],
-		ExpectedInt:        titanBaseAbilityScores["int"],
-		ExpectedWis:        titanBaseAbilityScores["wis"],
-		ExpectedCha:        titanBaseAbilityScores["cha"],
+		ExpectedStr:        titanBaseAbilityScores["str"] + abilityBonuses["str"],
+		ExpectedDex:        titanBaseAbilityScores["dex"] + abilityBonuses["dex"],
+		ExpectedCon:        titanBaseAbilityScores["con"] + abilityBonuses["con"],
+		ExpectedInt:        titanBaseAbilityScores["int"] + abilityBonuses["int"],
+		ExpectedWis:        titanBaseAbilityScores["wis"] + abilityBonuses["wis"],
+		ExpectedCha:        titanBaseAbilityScores["cha"] + abilityBonuses["cha"],
 	}, nil
 }
 
-// prefillTitanStatDefaults populates a freshly-created Titan's HP-max/Speed/
-// Barrier-max/six ability scores from Ordnance Training's own computed
-// baseline — called exactly once, right after creation, mirroring
+// prefillTitanStatDefaults populates a freshly-created Titan's AC/HP-max/
+// Speed/Barrier-max/six ability scores from Ordnance Training's own
+// computed baseline — called exactly once, right after creation, mirroring
 // prefillNinDogStatDefaults (nindog.go) so a brand-new Titan reaches its
 // first render already showing correct starting numbers instead of a blank
 // card the player has to click every Sync button on just to see them.
-// Reuses loadTitanReference for the actual computation (titanMaxHP/
+// Reuses loadTitanReference for the actual computation (titanAC/titanMaxHP/
 // titanSpeedForSpecialization/titanBarrierMax/titanBaseAbilityScores,
 // transitively) — the exact same values the Sync buttons already offer, so
-// this can never drift from what a later manual Sync click would set. No AC
-// write: see titanReference's own ExpectedAC doc for why no Titan AC
-// formula exists to prefill from. If the character has no Ordnance Training
-// yet (loadTitanReference returns nil), this is a no-op — the companion
-// just starts blank like any other companion would, same as
-// prefillNinDogStatDefaults' own treatment of a load failure. Uses
-// charstore.SetTitanStatDefaults (COALESCE-based), never SetCompanionFields,
-// so it can't clobber a field the player somehow already touched between
-// creation and this call.
+// this can never drift from what a later manual Sync click would set. If
+// the character has no Ordnance Training yet (loadTitanReference returns
+// nil), this is a no-op — the companion just starts blank like any other
+// companion would, same as prefillNinDogStatDefaults' own treatment of a
+// load failure. Uses charstore.SetTitanStatDefaults (COALESCE-based), never
+// SetCompanionFields, so it can't clobber a field the player somehow
+// already touched between creation and this call.
 func (s *server) prefillTitanStatDefaults(characterID, companionID int64) error {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, characterID)
 	if err != nil {
@@ -679,11 +804,59 @@ func (s *server) prefillTitanStatDefaults(characterID, companionID int64) error 
 		return err
 	}
 	return charstore.SetTitanStatDefaults(s.charDB, characterID, companionID,
+		int64(ref.ExpectedAC),
 		int64(ref.ExpectedMaxHP), int64(ref.ExpectedMaxHP), int64(ref.ExpectedSpeed),
 		int64(ref.ExpectedBarrierMax), int64(ref.ExpectedBarrierMax),
 		int64(ref.ExpectedStr), int64(ref.ExpectedDex), int64(ref.ExpectedCon),
 		int64(ref.ExpectedInt), int64(ref.ExpectedWis), int64(ref.ExpectedCha),
 	)
+}
+
+// handleSheetTitanLegionAbilityBonus records (or changes) one of Legion
+// Specialization's own two ability-score +2 picks — slot "0" or "1"
+// (choice_index), freely re-pickable at any time since Legion's own text
+// states no restriction on the choice the way a class feature's permanent
+// pick would, the same "trust the player, no lock" boundary most companion
+// field edits already draw. Re-derives eligibility from the companion's own
+// stored TitanSpecialization rather than trusting the posted companion id
+// blindly, the same rule handleSheetPuppetSymphonyEnhancementAbility
+// (puppet_companion_bonuses.go) already follows for its own ability pick.
+func (s *server) handleSheetTitanLegionAbilityBonus(w http.ResponseWriter, r *http.Request) {
+	id, cid, ok := parseCharacterAndCompanionID(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slot := r.FormValue("slot")
+	if slot != "0" && slot != "1" {
+		http.Error(w, "slot must be 0 or 1", http.StatusBadRequest)
+		return
+	}
+	ability := strings.ToLower(strings.TrimSpace(r.FormValue("ability")))
+	if !slices.Contains(charsheet.Abilities, ability) {
+		http.Error(w, "not a valid ability pick", http.StatusBadRequest)
+		return
+	}
+	companion, err := charstore.GetCompanion(s.charDB, id, cid)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load companion for titan legion ability pick:", err)
+		return
+	}
+	if !strings.Contains(companion.TitanSpecialization, "legion") {
+		http.Error(w, "not a choice you currently qualify for", http.StatusBadRequest)
+		return
+	}
+	choiceIndex, _ := strconv.Atoi(slot)
+	if err := charstore.SetFeatureCompanionChoice(s.charDB, id, titanLegionAbilityBonusFeatureSlug, cid, choiceIndex, ability); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set titan legion ability pick:", err)
+		return
+	}
+	s.respondCompanionAction(w, r, id, cid)
 }
 
 // handleTitanUpgradeAdd installs one Titan Upgrade into an ordinary Titan

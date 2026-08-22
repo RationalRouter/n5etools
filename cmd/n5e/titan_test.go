@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 )
 
@@ -70,15 +71,17 @@ func seedTitanCharacter(t *testing.T, s *server, level int) {
 
 // TestPrefillTitanStatDefaultsOnCreation covers the fix that closed Titan's
 // version of the same auto-compute-at-creation gap Nin-Dog had: a brand-new
-// Titan must reach its first render already carrying HP/Speed/Barrier/
+// Titan must reach its first render already carrying AC/HP/Speed/Barrier/
 // ability scores computed from Ordnance Training's own baseline (mirroring
 // prefillPuppetStatDefaults for kind="puppet" and prefillNinDogStatDefaults
 // for kind="nin-dog"), not sitting blank until the player clicks every Sync
-// button by hand. No AC assertion: Titan has no AC formula anywhere in its
-// own source text (see titan.go's own header doc), so AC must stay unset.
-// Exercises the real HTTP handler (handleSheetCompanionAdd), not
-// prefillTitanStatDefaults directly, so this also pins that the creation
-// handler's own kind=="titan" branch actually calls it.
+// button by hand. AC uses titanAC's own "12 + Intelligence Modifier + half
+// Proficiency Bonus" formula — see titan.go's header doc for why this was
+// once believed absent from the source entirely (a PDF-extraction gap, not
+// a true absence). Exercises the real HTTP handler
+// (handleSheetCompanionAdd), not prefillTitanStatDefaults directly, so this
+// also pins that the creation handler's own kind=="titan" branch actually
+// calls it.
 func TestPrefillTitanStatDefaultsOnCreation(t *testing.T) {
 	s := testServer(t)
 	seedTitanRules(t, s)
@@ -116,8 +119,16 @@ func TestPrefillTitanStatDefaultsOnCreation(t *testing.T) {
 	wantBarrier := int64(titanBarrierMax(6))
 	wantSpeed := int64(titanSpeedForSpecialization(""))
 
-	if c.AC.Valid {
-		t.Errorf("AC = %+v, want still unset — no Titan AC formula exists to prefill from", c.AC)
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Base stat block's own -3 Intelligence modifier (5 baseline) — same
+	// "companion's own fields still blank, base stat block baseline used"
+	// reasoning as wantHP's own +1 CON modifier above.
+	wantAC := int64(titanAC(charsheet.AbilityModifier(titanBaseAbilityScores["int"]), sheet.ProficiencyBonus))
+	if !c.AC.Valid || c.AC.Int64 != wantAC {
+		t.Errorf("AC = %+v, want %d", c.AC, wantAC)
 	}
 	if !c.HPCurrent.Valid || c.HPCurrent.Int64 != wantHP {
 		t.Errorf("HPCurrent = %+v, want %d", c.HPCurrent, wantHP)
@@ -473,5 +484,92 @@ func TestParseTitanUpgradeStatLine(t *testing.T) {
 		"BIJUU SLAYER Cost: 32 Creation Points Keyword: Mech Drain: 30 CCD Chakra You fortify your Titan's framework.")
 	if cost != 32 || drain != 30 || keyword != "mech" || rest != "You fortify your Titan's framework." {
 		t.Errorf("Mastercraft-shaped line (name prefix before Cost:): got cost=%d drain=%d keyword=%q rest=%q", cost, drain, keyword, rest)
+	}
+}
+
+// TestTitanAC pins "12 + Intelligence Modifier + half your Proficiency
+// Bonus" — verified directly against the source PDF page image (see
+// titan.go's header doc), including the floored-half-proficiency
+// convention internal/charsheet.ArmorClass's own "PROF" armor-ability term
+// already uses.
+func TestTitanAC(t *testing.T) {
+	cases := []struct {
+		intMod, profBonus, want int
+	}{
+		{-3, 2, 10}, // base stat block's own -3 INT, PB 2 (floors to 1)
+		{0, 3, 13},  // odd proficiency bonus floors down
+		{5, 6, 20},
+	}
+	for _, c := range cases {
+		if got := titanAC(c.intMod, c.profBonus); got != c.want {
+			t.Errorf("titanAC(%d, %d) = %d, want %d", c.intMod, c.profBonus, got, c.want)
+		}
+	}
+}
+
+// TestTitanSpecializationAbilityBonuses pins Monarch's flat +4 Constitution,
+// Ronin's flat +4 Dexterity, and Legion's own two player-chosen abilities at
+// +2 each — including the same ability picked for both Legion slots
+// correctly stacking to +4 rather than one bonus overwriting the other.
+func TestTitanSpecializationAbilityBonuses(t *testing.T) {
+	if got := titanSpecializationAbilityBonuses("", "", ""); len(got) != 0 {
+		t.Errorf("no specialization: bonuses = %+v, want empty", got)
+	}
+	if got := titanSpecializationAbilityBonuses("option/titan/monarch-specialization", "", ""); got["con"] != 4 {
+		t.Errorf("monarch: bonuses = %+v, want con=4", got)
+	}
+	if got := titanSpecializationAbilityBonuses("option/titan/ronin-specialization", "", ""); got["dex"] != 4 {
+		t.Errorf("ronin: bonuses = %+v, want dex=4", got)
+	}
+
+	got := titanSpecializationAbilityBonuses("option/titan/legion-specialization", "str", "wis")
+	if got["str"] != 2 || got["wis"] != 2 {
+		t.Errorf("legion (distinct picks): bonuses = %+v, want str=2 wis=2", got)
+	}
+	got = titanSpecializationAbilityBonuses("option/titan/legion-specialization", "con", "con")
+	if got["con"] != 4 {
+		t.Errorf("legion (same ability picked twice): bonuses = %+v, want con=4 (stacked)", got)
+	}
+	got = titanSpecializationAbilityBonuses("option/titan/legion-specialization", "str", "")
+	if got["str"] != 2 || len(got) != 1 {
+		t.Errorf("legion (only slot 1 chosen): bonuses = %+v, want just str=2", got)
+	}
+}
+
+// TestTitanBashAttack pins Bash's own "1d6 + Str + Dex" formula (both the
+// companion's Strength AND Dexterity modifiers feeding both the attack roll
+// and the damage, plus the owning character's proficiency bonus on the
+// attack roll only — see titanBashAttack's own doc for why, since no
+// separate "+X to hit" is stated anywhere in the source), and Ronin
+// Specialization's own +1 critical threat range.
+func TestTitanBashAttack(t *testing.T) {
+	companion := charstore.Companion{
+		Str: sql.NullInt64{Int64: 17, Valid: true}, // +3
+		Dex: sql.NullInt64{Int64: 15, Valid: true}, // +2
+	}
+	row := titanBashAttack(companion, 4)
+	if row.Name != "Bash" {
+		t.Errorf("Name = %q, want Bash", row.Name)
+	}
+	if row.AttackTotal != 3+2+4 {
+		t.Errorf("AttackTotal = %d, want 9 (str+dex+prof)", row.AttackTotal)
+	}
+	if row.DamageTotal != 3+2 {
+		t.Errorf("DamageTotal = %d, want 5 (str+dex, no prof)", row.DamageTotal)
+	}
+	if row.DamageDice() != "1d6" {
+		t.Errorf("DamageDice() = %q, want 1d6", row.DamageDice())
+	}
+	if row.DamageType != "bludgeoning" {
+		t.Errorf("DamageType = %q, want bludgeoning", row.DamageType)
+	}
+	if row.CritRangeThreshold != 20 {
+		t.Errorf("CritRangeThreshold = %d, want 20 (no Ronin)", row.CritRangeThreshold)
+	}
+
+	companion.TitanSpecialization = "option/titan/ronin-specialization"
+	row = titanBashAttack(companion, 4)
+	if row.CritRangeThreshold != 19 {
+		t.Errorf("Ronin CritRangeThreshold = %d, want 19", row.CritRangeThreshold)
 	}
 }

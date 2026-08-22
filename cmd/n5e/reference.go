@@ -56,8 +56,17 @@ type subclassBaseOptions struct {
 // actually has right now.
 type characterReference struct {
 	CharacterName string
-	Features      []referenceFeatureEntry
-	BaseOptions   []subclassBaseOptions
+	// Casting is this character's own resolved Ninjutsu/Genjutsu/Taijutsu/
+	// Bukijutsu numbers (charsheet.JutsuAttack — Kind, Ability, Modifier,
+	// SaveDC), set directly from the Sheet handleCharacterReference already
+	// computes rather than re-derived here: loadCharacterReference has no
+	// Sheet of its own to work from, and there is exactly one set of
+	// casting numbers per character regardless of which class the
+	// multiclass picker is currently viewing, so it isn't filtered by
+	// onlyClassSlug the way Features/BaseOptions above are.
+	Casting     []charsheet.JutsuAttack
+	Features    []referenceFeatureEntry
+	BaseOptions []subclassBaseOptions
 }
 
 // loadCharacterReference builds the Class Reference popup's data. onlyClassSlug,
@@ -363,6 +372,7 @@ func (s *server) handleCharacterReference(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ref.CharacterName = sheet.Name
+	ref.Casting = sheet.JutsuAttacks
 
 	s.render(w, "character_reference.html", map[string]any{
 		"Title":         sheet.Name + " — Class Reference",

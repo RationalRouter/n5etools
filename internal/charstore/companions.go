@@ -10,7 +10,7 @@ import (
 // value rather than anything derived.
 type Companion struct {
 	ID              int64
-	Kind            string // "puppet", "summon", "custom", "nin-dog", "titan"
+	Kind            string // "puppet", "summon", "custom", "nin-dog", "titan", "snb"
 	Name            string
 	SummonTribeSlug string
 
@@ -296,9 +296,9 @@ func SetCompanionStatDefaults(charDB *sql.DB, characterID, companionID int64,
 	return err
 }
 
-// SetNinDogStatDefaults prefills AC/HP-current/HP-max/Speed/Jutsu-Slots-Max/
-// six ability scores on a freshly created nin-dog companion from Beast
-// Master's own computed baseline (see cmd/n5e/nindog.go's
+// SetNinDogStatDefaults prefills AC/HP-current/HP-max/Speed/Jutsu-Slots-
+// current+max/six ability scores on a freshly created nin-dog companion
+// from Beast Master's own computed baseline (see cmd/n5e/nindog.go's
 // prefillNinDogStatDefaults) — the Nin-Dog equivalent of
 // SetCompanionStatDefaults just above, kept as its own function rather than
 // folded into that one so puppet's flySpeed/size params (meaningless for a
@@ -311,20 +311,29 @@ func SetCompanionStatDefaults(charDB *sql.DB, characterID, companionID int64,
 // never touched, which is what makes this safe to call again later (e.g. a
 // future per-render backfill for older companions) without risk of
 // clobbering a manual edit.
+//
+// jutsuSlotsCurrent was missing entirely until this fix — the UPDATE wrote
+// jutsu_slots_max but never jutsu_slots_current, so a brand-new Nin-Dog got
+// its correct max (per ninDogJutsuSlotsMaxForRank) but a NULL/zero current
+// pool, the same "max right, current zero" shape the player-character
+// creation flow's own zero-vitals bug had (handleCreateFinish, fixed
+// separately). Mirrors the hpCurrent/hpMax pattern immediately above:
+// callers pass the same computed max for both params on creation.
 func SetNinDogStatDefaults(charDB *sql.DB, characterID, companionID int64,
-	ac, hpCurrent, hpMax, speed, jutsuSlotsMax int64,
+	ac, hpCurrent, hpMax, speed, jutsuSlotsCurrent, jutsuSlotsMax int64,
 	str, dex, con, intScore, wis, cha int64,
 ) error {
 	_, err := charDB.Exec(`
 		UPDATE character_companions SET
 			ac = COALESCE(ac, ?), hp_current = COALESCE(hp_current, ?), hp_max = COALESCE(hp_max, ?),
-			speed = COALESCE(speed, ?), jutsu_slots_max = COALESCE(jutsu_slots_max, ?),
+			speed = COALESCE(speed, ?),
+			jutsu_slots_current = COALESCE(jutsu_slots_current, ?), jutsu_slots_max = COALESCE(jutsu_slots_max, ?),
 			str_score = COALESCE(str_score, ?), dex_score = COALESCE(dex_score, ?),
 			con_score = COALESCE(con_score, ?), int_score = COALESCE(int_score, ?),
 			wis_score = COALESCE(wis_score, ?), cha_score = COALESCE(cha_score, ?),
 			updated_at = datetime('now')
 		WHERE id = ? AND character_id = ?`,
-		ac, hpCurrent, hpMax, speed, jutsuSlotsMax, str, dex, con, intScore, wis, cha,
+		ac, hpCurrent, hpMax, speed, jutsuSlotsCurrent, jutsuSlotsMax, str, dex, con, intScore, wis, cha,
 		companionID, characterID,
 	)
 	return err
@@ -346,11 +355,12 @@ func SetNinDogStatDefaults(charDB *sql.DB, characterID, companionID int64,
 // future per-render backfill for older companions) without risk of
 // clobbering a manual edit.
 func SetTitanStatDefaults(charDB *sql.DB, characterID, companionID int64,
-	hpCurrent, hpMax, speed, barrierCurrent, barrierMax int64,
+	ac, hpCurrent, hpMax, speed, barrierCurrent, barrierMax int64,
 	str, dex, con, intScore, wis, cha int64,
 ) error {
 	_, err := charDB.Exec(`
 		UPDATE character_companions SET
+			ac = COALESCE(ac, ?),
 			hp_current = COALESCE(hp_current, ?), hp_max = COALESCE(hp_max, ?),
 			speed = COALESCE(speed, ?),
 			barrier_current = COALESCE(barrier_current, ?), barrier_max = COALESCE(barrier_max, ?),
@@ -359,7 +369,7 @@ func SetTitanStatDefaults(charDB *sql.DB, characterID, companionID int64,
 			wis_score = COALESCE(wis_score, ?), cha_score = COALESCE(cha_score, ?),
 			updated_at = datetime('now')
 		WHERE id = ? AND character_id = ?`,
-		hpCurrent, hpMax, speed, barrierCurrent, barrierMax, str, dex, con, intScore, wis, cha,
+		ac, hpCurrent, hpMax, speed, barrierCurrent, barrierMax, str, dex, con, intScore, wis, cha,
 		companionID, characterID,
 	)
 	return err

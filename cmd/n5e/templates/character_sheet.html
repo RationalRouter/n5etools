@@ -1057,6 +1057,13 @@
      ability <select> below has no Set button — sheet-vitals.js submits its
      form on "change" (see that file's own doc comment), so picking a new
      ability saves and applies it immediately.
+     Each discipline also gets a small, non-rollable Save DC tile next to
+     its Attack tile (charsheet.JutsuAttack.SaveDC — 8 + proficiency bonus +
+     the same governing ability the Attack tile's own modifier already
+     uses, so the one ability <select> below drives both tiles at once). No
+     "rollable" class, data-sides, or role="button" on it: a save DC is a
+     static number the caster's TARGET rolls against, not something this
+     character ever rolls themselves.
      Also holds the Clash Checks row below the Attack tiles (see
      charsheet.ClashCheck's doc comment for the per-discipline default
      formula/confirmation status and its own, independent ability override)
@@ -1067,11 +1074,17 @@
 <div class="sheet-attack-mods" id="sheet-attack-mods" data-fragment="sheet_attack_mods">
   {{range .Sheet.JutsuAttacks}}
   <div class="sheet-attack-mod">
-    <div class="sheet-attack-mod-roll rollable" data-sides="20" data-count="1"
-         data-modifier="{{.Modifier}}" data-label="{{.Kind}} Attack" tabindex="0" role="button"
-         title="Roll a {{.Kind}} attack">
-      <span class="sheet-square-label">{{.Kind}}<br>Attack</span>
-      <span class="sheet-square-value">{{signed .Modifier}}</span>
+    <div class="sheet-attack-mod-tiles">
+      <div class="sheet-attack-mod-roll rollable" data-sides="20" data-count="1"
+           data-modifier="{{.Modifier}}" data-label="{{.Kind}} Attack" tabindex="0" role="button"
+           title="Roll a {{.Kind}} attack">
+        <span class="sheet-square-label">{{.Kind}}<br>Attack</span>
+        <span class="sheet-square-value">{{signed .Modifier}}</span>
+      </div>
+      <div class="sheet-attack-mod-dc" title="{{.Kind}} save DC">
+        <span class="sheet-square-label">{{.Kind}}<br>DC</span>
+        <span class="sheet-square-value">{{.SaveDC}}</span>
+      </div>
     </div>
     <form method="post" action="/characters/{{$.ID}}/sheet/attack-ability" class="sheet-inline-form sheet-attack-mod-form sheet-fetch-form"
           data-target="sheet-attack-mods" data-also-refresh="sheet-attack-jutsu-table">
@@ -1459,6 +1472,7 @@
     <option value="summon" data-description="A creature from a Summoning Contract. Pick its Summon Tribe on the Companions tab to pull in that tribe's rank-gated reference stats.">Summon</option>
     <option value="nin-dog" data-description="The Inuzuka clan's Beast Master companion. Pick its breed on the Companions tab to compute AC/HP/Speed baselines and unlock its rank-gated Special Feature picks.">Nin-Dog</option>
     <option value="titan" data-description="Science-Nin's Mech Crafter companion. Pick its Titan Specialization on the Companions tab to compute HP/Speed/ability-score baselines and unlock its Titan Upgrades cap+catalog picker.">Titan</option>
+    <option value="snb" data-description="Science-Nin's S.N.B Specialist companion, the Scientific Ninja Beast. A blank sheet with no class-specific reference panel — track its stat block and upgrades in Traits & Abilities/Notes.">S.N.B</option>
     <option value="custom" data-description="Any other companion or ally that doesn't fit the categories above. A blank sheet with no class-specific reference panel.">Other</option>
   </select>
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
@@ -1949,7 +1963,7 @@
   {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" $.ID "FormID" (printf "companion-form-%d" .ID) "SummonTribes" $.SummonsTab.Tribes
               "NinDogReference" .NinDogReference "TitanReference" .TitanReference
               "ShowStructuredAttacks" (companionSupportsStructuredAttacks .Kind) "AttacksTarget" "sheet-summon-tab" "Attacks" .Attacks
-              "ExpectedAC" (ninDogReferenceOrZero .NinDogReference).ExpectedAC
+              "ExpectedAC" (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC)
               "ExpectedMaxHP" (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP)
               "ExpectedSpeed" (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed)
               "ExpectedSize" (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize)
@@ -3695,11 +3709,12 @@
       <input type="hidden" name="slot_key" value="{{.SlotKey}}">
       <label class="sheet-elemental-affinity-slot">
         {{.Label}}
-        <select name="damage_type" onchange="this.form.requestSubmit()">
+        <select name="damage_type">
           <option value="">— choose —</option>
           {{$currentSlot := .Current}}
           {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
         </select>
+        <button type="submit">Set</button>
       </label>
     </form>
     {{end}}
@@ -4031,6 +4046,12 @@
      without a page reload), the rest are attributes buildAttacks reads back
      (cookingToolInfusionAttackOverrides). The 6th/11th property rows only
      render once PropertyL6Available/PropertyL11Available is true.
+     BonusToolInfusionPipe (Herbalist, 3rd level) is the identical 5-pick
+     shape as CookingToolInfusion — implement, damage type, and one
+     property each at 3rd/6th/11th level instead of 1st/6th/11th — for a
+     wholly separate second equipped weapon (cookingToolInfusionPipeAttackOverrides,
+     syncCookingToolInfusionPipeInventory); a character can hold both boxes
+     at once with two independently-picked weapons.
      ExpertCombatant (Battle Cook, 2nd level) is a single select-plus-Set
      pick, same locked-once-chosen shape as Cooking Tool Infusion's own 5
      picks — only WHICH weapon type the Cooking Tool counts as is tracked;
@@ -4141,6 +4162,111 @@
         <span class="tooltip-content">{{if .CookingNin.CookingToolInfusion.PropertyL11}}{{range .CookingNin.CookingToolInfusion.PropertyL11Options}}{{if eq .Value $.CookingNin.CookingToolInfusion.PropertyL11}}{{.Description}}{{end}}{{end}}{{else}}Choose your Cooking Tool's 11th-level weapon property. Critical 2 requires the Critical property.{{end}}</span>
       </span>
       {{if not .CookingNin.CookingToolInfusion.PropertyL11}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if .CookingNin.BonusToolInfusionPipe}}
+  <div class="sheet-subclass-detail">
+    <h3>Bonus Tool Infusion: Pipe</h3>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-pipe-implement" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-inventory sheet-inventory-full sheet-weapon-attacks">
+      <label class="sheet-vitals-label">Pipe
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.BonusToolInfusionPipe.Implement}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.BonusToolInfusionPipe.ImplementOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.BonusToolInfusionPipe.Implement}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.BonusToolInfusionPipe.Implement}}{{range .CookingNin.BonusToolInfusionPipe.ImplementOptions}}{{if eq .Value $.CookingNin.BonusToolInfusionPipe.Implement}}{{.Description}}{{end}}{{end}}{{else}}Choose an implement above — some kind of smoking implement that fits your personal way of cooking.{{end}}</span>
+      </span>
+      {{if not .CookingNin.BonusToolInfusionPipe.Implement}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-pipe-damage-type" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin" data-also-refresh="sheet-weapon-attacks">
+      <label class="sheet-vitals-label">Damage Type
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.BonusToolInfusionPipe.DamageType}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.BonusToolInfusionPipe.DamageTypeOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.BonusToolInfusionPipe.DamageType}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.BonusToolInfusionPipe.DamageType}}{{range .CookingNin.BonusToolInfusionPipe.DamageTypeOptions}}{{if eq .Value $.CookingNin.BonusToolInfusionPipe.DamageType}}{{.Description}}{{end}}{{end}}{{else}}Choose a damage type for your Pipe.{{end}}</span>
+      </span>
+      {{if not .CookingNin.BonusToolInfusionPipe.DamageType}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-pipe-property-l3" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+      <label class="sheet-vitals-label">3rd Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.BonusToolInfusionPipe.PropertyL3}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.BonusToolInfusionPipe.PropertyL3Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL3}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.BonusToolInfusionPipe.PropertyL3}}{{range .CookingNin.BonusToolInfusionPipe.PropertyL3Options}}{{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL3}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 3rd-level weapon property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.BonusToolInfusionPipe.PropertyL3}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+
+    {{if .CookingNin.BonusToolInfusionPipe.PropertyL6Available}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-pipe-property-l6" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+      <label class="sheet-vitals-label">6th Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.BonusToolInfusionPipe.PropertyL6}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.BonusToolInfusionPipe.PropertyL6Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL6}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.BonusToolInfusionPipe.PropertyL6}}{{range .CookingNin.BonusToolInfusionPipe.PropertyL6Options}}{{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL6}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 6th-level weapon property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.BonusToolInfusionPipe.PropertyL6}}
+      <button type="submit">Set</button>
+      {{end}}
+      <span class="sheet-save-toast" hidden>Saved.</span>
+    </form>
+    {{end}}
+
+    {{if .CookingNin.BonusToolInfusionPipe.PropertyL11Available}}
+    <form method="post" action="/characters/{{$.ID}}/sheet/cooking-tool-pipe-property-l11" class="sheet-inline-form sheet-fetch-form" data-target="sheet-cooking-nin">
+      <label class="sheet-vitals-label">11th Level Property
+        <select name="value" class="sheet-option-tooltip-select"{{if .CookingNin.BonusToolInfusionPipe.PropertyL11}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .CookingNin.BonusToolInfusionPipe.PropertyL11Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL11}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .CookingNin.BonusToolInfusionPipe.PropertyL11}}{{range .CookingNin.BonusToolInfusionPipe.PropertyL11Options}}{{if eq .Value $.CookingNin.BonusToolInfusionPipe.PropertyL11}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 11th-level weapon property.{{end}}</span>
+      </span>
+      {{if not .CookingNin.BonusToolInfusionPipe.PropertyL11}}
       <button type="submit">Set</button>
       {{end}}
       <span class="sheet-save-toast" hidden>Saved.</span>
@@ -5124,7 +5250,7 @@
         <input type="hidden" name="feature_slug" value="{{.FeatureSlug}}">
         <input type="hidden" name="choice_index" value="{{.ChoiceIndex}}">
         <span class="puppet-upgrade-pick-name">{{.Label}}</span>
-        <select name="value" required class="sheet-option-tooltip-select" onchange="this.form.requestSubmit()">
+        <select name="value" required class="sheet-option-tooltip-select">
           <option value="">— choose —</option>
           {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
         </select>
@@ -5132,6 +5258,7 @@
           <span class="tooltip-trigger">ⓘ</span>
           <span class="tooltip-content">Pick an ability above to see what this does.</span>
         </span>
+        <button type="submit">Set</button>
       </form>
       {{else}}
       {{/* data-description/.sheet-option-tooltip-select/.tooltip-content:
@@ -5146,7 +5273,7 @@
         <input type="hidden" name="feature_slug" value="{{.FeatureSlug}}">
         <input type="hidden" name="choice_index" value="{{.ChoiceIndex}}">
         <span class="puppet-upgrade-pick-name">{{.Label}}</span>
-        <select name="value" required class="sheet-option-tooltip-select" onchange="this.form.requestSubmit()">
+        <select name="value" required class="sheet-option-tooltip-select">
           <option value="">— choose —</option>
           {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
         </select>
@@ -5156,6 +5283,7 @@
           <span class="tooltip-content">Pick an option above to see what this does.</span>
         </span>
         {{end}}
+        <button type="submit">Set</button>
       </form>
       {{end}}
     </li>
@@ -5177,7 +5305,7 @@
             data-confirm="This pick is permanent and cannot be changed later. Confirm?">
         <input type="hidden" name="feat_slug" value="{{.FeatSlug}}">
         <span class="puppet-upgrade-pick-name">{{.Label}}</span>
-        <select name="ability" required class="sheet-option-tooltip-select" onchange="this.form.requestSubmit()">
+        <select name="ability" required class="sheet-option-tooltip-select">
           <option value="">— choose —</option>
           {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
         </select>
@@ -5185,6 +5313,7 @@
           <span class="tooltip-trigger">ⓘ</span>
           <span class="tooltip-content">Pick an ability above to see what this does.</span>
         </span>
+        <button type="submit">Set</button>
       </form>
     </li>
     {{end}}
@@ -5209,7 +5338,7 @@
             data-confirm="This pick is permanent and cannot be changed later. Confirm?">
         <input type="hidden" name="feat_slug" value="{{.FeatSlug}}">
         <span class="puppet-upgrade-pick-name">{{.Label}}</span>
-        <select name="choice" required class="sheet-option-tooltip-select" onchange="this.form.requestSubmit()">
+        <select name="choice" required class="sheet-option-tooltip-select">
           <option value="">— choose —</option>
           {{range .Options}}<option value="{{.Value}}"{{if .Description}} data-description="{{.Description}}"{{end}}>{{.Label}}</option>{{end}}
         </select>
@@ -5217,6 +5346,7 @@
           <span class="tooltip-trigger">ⓘ</span>
           <span class="tooltip-content">Pick an option above to see what this does.</span>
         </span>
+        <button type="submit">Set</button>
       </form>
     </li>
     {{end}}
@@ -6231,11 +6361,12 @@
     <input type="hidden" name="slot_key" value="{{.SlotKey}}">
     <label class="sheet-elemental-affinity-slot">
       {{.Label}}
-      <select name="element" onchange="this.form.requestSubmit()">
+      <select name="element">
         <option value="">— choose —</option>
         {{$currentSlot := .Current}}
         {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
       </select>
+      <button type="submit">Set</button>
     </label>
   </form>
   {{end}}

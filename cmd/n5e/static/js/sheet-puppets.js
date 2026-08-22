@@ -34,25 +34,33 @@
       .catch((err) => console.warn("summon tribe save failed:", err));
   });
 
-  // Nin-Dog Breed's explicit "Set Breed" commit button, this tab's own half
-  // of the same fix as companion-sheet.js's identical listener for the
-  // popup — see that file's own comment for why the commit is deferred to
-  // an explicit click rather than firing on "change"/blur. Delegated from
-  // document (not bound to any one button) so it keeps working after any
-  // fragment swap that replaces this tab's own markup — adding/deleting a
-  // companion, another card's own save — with no rewire pass needed.
+  // Every locked-once-chosen picker's explicit "Set ..." commit button
+  // (Nin-Dog Breed and Titan Specialization on the Summons tab, Armor
+  // Chassis on the Puppets tab), this tab's own half of the same fix as
+  // companion-sheet.js's identical listener for the popup — see that
+  // file's own comment for why the commit is deferred to an explicit click
+  // rather than firing on "change"/blur. Delegated from document (not
+  // bound to any one button) so it keeps working after any fragment swap
+  // that replaces either tab's own markup — adding/deleting a companion,
+  // another card's own save — with no rewire pass needed.
   document.addEventListener("click", (e) => {
     const btn = e.target.closest(".companion-commit-btn");
     if (!btn || btn.disabled) return;
-    if (!btn.closest("#sheet-summon-tab")) return; // only this tab's own picker, not the popup's
+    const tab = btn.closest("#sheet-summon-tab, #sheet-puppet-tab"); // only these tabs' own pickers, not the popup's
+    if (!tab) return;
     const label = btn.closest(".companion-block-label");
     const select = label && label.querySelector(".companion-commit-select");
     if (!select || !select.form || !window.n5eCompanionPostForm) return;
     window.n5eCompanionPostForm(select.form)
       .then((r) => {
         if (!r.ok) throw new Error("server rejected the request (" + r.status + ")");
-        if (window.n5eRefreshBlocks) window.n5eRefreshBlocks("sheet-summon-tab");
+        const acSaved = select.name === "armor_chassis" && window.n5eCommitArmorChassisAC
+          ? window.n5eCommitArmorChassisAC(select)
+          : Promise.resolve();
+        return acSaved.then(() => {
+          if (window.n5eRefreshBlocks) window.n5eRefreshBlocks(tab.id);
+        });
       })
-      .catch((err) => console.warn("breed commit failed:", err));
+      .catch((err) => console.warn("commit failed:", err));
   });
 })();

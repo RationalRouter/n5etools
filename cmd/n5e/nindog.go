@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -198,6 +199,36 @@ func ninDogAC(level, dexMod int) int {
 	return 12 + level/2 + dexMod
 }
 
+// ninDogBiteAttack computes Bite's own rollable attack row fresh on every
+// render — never stored as a charstore.CompanionAttack row, the same
+// "computed, not stored" treatment titanBashAttack (titan.go) gives Titan's
+// own built-in Bash attack, discovered to have the identical "flavor text
+// only, never auto-added as a rollable row" gap while fixing that one.
+// summon_tribe_attacks' own Bite description states the full formula for
+// the attack roll ("Str + Prof to hit") but names no base weapon die at
+// all for the damage — confirmed directly against the table, not merely
+// unparsed — so DamageCount/DamageSides are deliberately left at 0 here
+// rather than inventing a die size: the row still shows a flat Strength-
+// modifier damage bonus (matching "+Str Piercing Damage" verbatim), just
+// with no dice notation/roll button, since none is stated in the source.
+// Young Kugsha's own breed enhancement ("Multiattack: up to two Bite
+// attacks; adds Dexterity to damage once per turn") isn't modeled here —
+// out of scope for this fix, same as this file's header doc already flags
+// Nin-Dog's own per-rank ability-score-increase progression as a related,
+// not-yet-addressed gap.
+func ninDogBiteAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+	strMod := ninDogEffectiveAbilityModifier(companion, "str")
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name:        "Bite",
+			Description: "Melee Weapon Attack: 5 ft., one target. On a roll of 16 or higher, the target is knocked Prone or dragged 5 feet in any direction the summon wants. No base weapon die is stated in the source — this is a flat Strength-modifier damage bonus only.",
+			DamageType:  "piercing",
+		},
+		AttackTotal: strMod + ownerProfBonus,
+		DamageTotal: strMod,
+	}
+}
+
 // ninDogBaseSpeedForRank: summon_tribe_progression's own Speed column
 // (30/45/50/60/75ft at D/C/B/A/S) — nothing in Beast Master's own text
 // overrides this the way it overrides Toughness/size/AC, so the generic
@@ -298,6 +329,19 @@ type ninDogFeaturePickSlot struct {
 	// rather than in the template, since html/template has no built-in
 	// "is this rank in that slice" test.
 	Options []companionFeatureRef
+}
+
+// sortFeaturesByRank sorts features into rank order (E through S) in place.
+// summon_tribe_features.sort_order reflects source-document parse order,
+// not rank — it happens to coincide with rank for the one tribe currently
+// in the DB, but isn't guaranteed to, so loadNinDogReference re-sorts
+// explicitly here rather than trusting the query's own ORDER BY. Stable so
+// same-rank entries keep sort_order as their tiebreaker, mirroring
+// loadSummonTribeReference's own Progression sort (companions.go).
+func sortFeaturesByRank(features []companionFeatureRef) {
+	sort.SliceStable(features, func(i, k int) bool {
+		return summonRankOrder[features[i].Rank] < summonRankOrder[features[k].Rank]
+	})
 }
 
 // ninDogFilterFeaturesByRank returns the subset of features whose Rank is
@@ -532,6 +576,7 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 	if err != nil {
 		return nil, err
 	}
+	sortFeaturesByRank(features)
 	for i := range features {
 		features[i].Locked = summonRankOrder[features[i].Rank] > currentOrder
 	}
@@ -635,7 +680,7 @@ func (s *server) prefillNinDogStatDefaults(characterID, companionID int64) error
 	}
 	return charstore.SetNinDogStatDefaults(s.charDB, characterID, companionID,
 		int64(ref.ExpectedAC), int64(ref.ExpectedMaxHP), int64(ref.ExpectedMaxHP), int64(ref.ExpectedSpeed),
-		int64(ref.JutsuSlotsMax),
+		int64(ref.JutsuSlotsMax), int64(ref.JutsuSlotsMax),
 		int64(ref.ExpectedStr), int64(ref.ExpectedDex), int64(ref.ExpectedCon),
 		int64(ref.ExpectedInt), int64(ref.ExpectedWis), int64(ref.ExpectedCha),
 	)

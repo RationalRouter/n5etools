@@ -68,6 +68,7 @@ var companionKindLabels = []struct{ kind, label string }{
 	{"summon", "Summon"},
 	{"nin-dog", "Nin-Dog"},
 	{"titan", "Titan"},
+	{"snb", "S.N.B"},
 	{"custom", "Other"},
 }
 
@@ -91,15 +92,24 @@ func companionKindLabel(kind string) string {
 
 // companionStructuredAttackKinds whitelists which companion kinds have
 // reached the structured, rollable Attacks presentation (as opposed to the
-// plain freeform textarea every other kind still falls back to) — puppet
+// plain freeform textarea a not-yet-covered kind falls back to) — puppet
 // (the original), nin-dog, and titan (see the "Attacks section should be
 // rollable, not typed" fix, which had the identical free-text bug and fix
 // shape for both companion kinds — companion_fields.html's own doc on the
-// shared {{else}} textarea branch).
+// shared {{else}} textarea branch), plus summon, custom, and snb, extended
+// to cover every remaining companion kind so all of them can carry rollable
+// attacks — including a manually-added jutsu-shaped row, per 0020_companion_
+// attacks.sql's own doc on that being the intended path for a companion's
+// jutsu absent a real per-companion casting-economy system. Kept as a map
+// (rather than just checking kind != "" or similar) so a brand-new future
+// kind still starts on the textarea fallback until deliberately added here.
 var companionStructuredAttackKinds = map[string]bool{
 	"puppet":  true,
 	"nin-dog": true,
 	"titan":   true,
+	"summon":  true,
+	"custom":  true,
+	"snb":     true,
 }
 
 // companionSupportsStructuredAttacks reports whether kind has reached the
@@ -163,7 +173,7 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	kind := r.FormValue("kind")
-	if kind != "puppet" && kind != "summon" && kind != "custom" && kind != "nin-dog" && kind != "titan" {
+	if kind != "puppet" && kind != "summon" && kind != "custom" && kind != "nin-dog" && kind != "titan" && kind != "snb" {
 		http.Error(w, "bad kind", http.StatusBadRequest)
 		return
 	}
@@ -571,9 +581,10 @@ type summonCompanionView struct {
 	NinDogReference *ninDogReference
 	TitanReference  *titanReference
 	// Attacks: only populated for a kind companionSupportsStructuredAttacks
-	// reports true for (nin-dog, titan — puppet has its own richer card on
-	// the Puppets tab instead, see sheet_puppet_tab's own doc). nil for
-	// every other kind, which keeps rendering the plain freeform textarea.
+	// reports true for (nin-dog, titan, summon, custom — puppet has its own
+	// richer card on the Puppets tab instead, see sheet_puppet_tab's own
+	// doc). nil for any kind that hasn't reached structured attacks yet,
+	// which keeps rendering the plain freeform textarea.
 	Attacks []companionAttackRow
 }
 
@@ -626,7 +637,8 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			if err != nil {
 				return data, err
 			}
-			view.Attacks = composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus)
+			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+				ninDogBiteAttack(c, sheet.ProficiencyBonus))
 		}
 		if c.Kind == "titan" {
 			ref, err := s.loadTitanReference(characterID, sheet, c)
@@ -635,6 +647,19 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			view.TitanReference = ref
 
+			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+				titanBashAttack(c, sheet.ProficiencyBonus))
+		}
+		if c.Kind == "summon" || c.Kind == "custom" || c.Kind == "snb" {
+			// None of these three kinds has a computed baseline attack the
+			// way Bite/Bash do (no rules-defined natural weapon or stat
+			// block to derive one from — see companionStructuredAttackKinds'
+			// own doc), so this is just the player-added rows, with nothing
+			// appended.
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
 				return data, err
@@ -846,6 +871,47 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			}
 			data["SummonReference"] = ref
 		}
+
+		// Same "read-only quick reference, editing happens on the tab"
+		// treatment puppet/nin-dog/titan's own popup cases give structured
+		// Attacks — no computed baseline attack to append here (see
+		// loadSummonsTabData's identical summon/custom branch), just
+		// whatever the player has added.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for summon popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+	case "custom":
+		// "Custom" shows no rules-reference panel of any kind (see
+		// 0017_companions.sql's own doc) — structured Attacks is the only
+		// popup content this kind gets beyond the shared stat fields.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for custom popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+	case "snb":
+		// Same bare "no rules-reference panel" treatment as "custom" above
+		// — a Scientific Ninja Beast has real rules-defined stats (see
+		// scienceNinSNBSpecialistData), but this app doesn't model a second
+		// full stat block the way it does for Puppet/Nin-Dog/Titan; it gets
+		// the shared plain stat fields plus structured Attacks like any
+		// other bare companion kind.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for snb popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	case "nin-dog":
 		ref, err := s.loadNinDogReference(id, companion, sheet.Level)
 		if err != nil {
@@ -864,7 +930,8 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			log.Println("load companion attacks for nin-dog popup:", err)
 			return
 		}
-		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+			ninDogBiteAttack(companion, sheet.ProficiencyBonus))
 	case "titan":
 		ref, err := s.loadTitanReference(id, sheet, companion)
 		if err != nil {
@@ -883,7 +950,8 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			log.Println("load companion attacks for titan popup:", err)
 			return
 		}
-		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+			titanBashAttack(companion, sheet.ProficiencyBonus))
 	}
 
 	s.render(w, "companion_sheet.html", data)

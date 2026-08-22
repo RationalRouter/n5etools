@@ -34,7 +34,7 @@
               "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName
               "NinDogReference" .NinDogReference "TitanReference" .TitanReference
-              "ExpectedAC" (ninDogReferenceOrZero .NinDogReference).ExpectedAC
+              "ExpectedAC" (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC)
               "ExpectedMaxHP" (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP)
               "ExpectedSpeed" (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed)
               "ExpectedSize" (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize)

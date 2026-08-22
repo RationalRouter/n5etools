@@ -18,11 +18,32 @@
   {{if .QuickBuild.Valid}}<dt>Quick Build</dt><dd>{{.QuickBuild.String}}</dd>{{end}}
 </dl>
 
+{{/* Casting: the book's own per-class "Casting" stat block, straight from
+     class_casting (loadClassCasting, cmd/n5e/classes.go) — Ninjutsu,
+     Genjutsu, and Taijutsu only, deliberately no Bukijutsu row. class_casting
+     has zero Bukijutsu rows for any of the 11 classes (every class's own
+     Casting block in the book only ever prints these 3 disciplines), unlike
+     the character sheet's own Attack tiles, which do show a 4th, Bukijutsu
+     tile (internal/charsheet.AttackKinds/JutsuAttacks). That's not a data
+     gap to fill in here: AttackKinds' own doc comment is explicit that
+     Bukijutsu's default ability (Strength) is this app's OWN modeling
+     choice — "it started life as a copy of Taijutsu's modifier" — not a
+     book-stated per-class formula the way the other three are. Adding a
+     synthetic Bukijutsu row to this generic, book-sourced reference would
+     put a number here with no book citation behind it, the same trap
+     AttackKinds' own doc comment already warns against for Hijutsu
+     ("guessing one would put a wrong number on the sheet that looks
+     authoritative"). The character sheet's live Attacks & Jutsu box (and
+     the Class Reference popup's own Casting table, character_reference.html)
+     can still show Bukijutsu: those present a live CHARACTER's own resolved
+     numbers with an always-visible override control, not a claim about
+     what the book prints for a class in the abstract, so the same
+     "don't guess in a reference page" concern doesn't apply there. */}}
 {{if .Casting}}
 <h2>Casting</h2>
 <dl class="fact-list">
   {{range .Casting}}
-  <dt>{{.Discipline}}</dt><dd>{{.Ability}}</dd>
+  <dt>{{.Discipline}}</dt><dd>{{.Ability}} — Save DC = 8 + your proficiency bonus + your {{.Ability}} modifier; Attack modifier = your proficiency bonus + your {{.Ability}} modifier</dd>
   {{end}}
 </dl>
 {{end}}

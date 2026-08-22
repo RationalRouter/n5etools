@@ -343,3 +343,227 @@ func TestHandleCookingToolPicksLockOnceChosen(t *testing.T) {
 		})
 	}
 }
+
+// seedBonusToolInfusionPipeResources seeds the minimal rules content Bonus
+// Tool Infusion: Pipe's own gating needs on top of
+// seedCookingToolInfusionResources's own class/class_levels/Cooking Die
+// chart (both features read the same chart): the Cooking Focus subclass
+// group, the Herbalist subclass itself, and the Pipe feature's own
+// subclass_features row at 3rd level. weapon/cooking-pipe-* rows need no
+// seeding here — schema.Apply already ran
+// 0064_cooking_tool_infusion_pipe_implements.sql, so the real catalog rows
+// are already present on a fresh testServer().
+func seedBonusToolInfusionPipeResources(t *testing.T, s *server) {
+	t.Helper()
+	seedCookingToolInfusionResources(t, s)
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/cooking-nin/group/cooking-focus', 'class/cooking-nin', 'Cooking Focus')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/cooking-nin/group/cooking-focus/herbalist', 'class/cooking-nin/group/cooking-focus', 'Herbalist')`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		(?, 'class/cooking-nin/group/cooking-focus/herbalist', 'Bonus Tool Infusion: Pipe', 3, 'Bonus Tool Infusion: Pipe description')`,
+		bonusToolInfusionPipeFeatureSlug,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// makeHerbalistCharacter inserts a character with the given Cooking-Nin
+// level and, if withHerbalist, the Herbalist subclass pick at 3rd level —
+// mirrors makeTechnobiCharacter (sents_test.go).
+func makeHerbalistCharacter(t *testing.T, s *server, id int64, level int, withHerbalist bool) {
+	t.Helper()
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (id, name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES (?, 'Chouji', 10, 10, 14, 18, 10, 10)`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+		VALUES (?, 'class/cooking-nin', ?, 0)`, id, level); err != nil {
+		t.Fatal(err)
+	}
+	if withHerbalist {
+		if _, err := s.charDB.Exec(`
+			INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level)
+			VALUES (?, 'class/cooking-nin/group/cooking-focus/herbalist', 3)`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// TestCookingToolInfusionPipeGating confirms Bonus Tool Infusion: Pipe
+// stays ungranted below 3rd level as a Herbalist (whether from too low a
+// class level, or from Herbalist never having been picked at all) and
+// becomes visible once both conditions are met, and that its own 6th/11th
+// property tiers gate separately off the character's real Cooking-Nin
+// class level, mirroring TestLoadCookingToolInfusionView's own shape for
+// the base feature.
+func TestCookingToolInfusionPipeGating(t *testing.T) {
+	s := testServer(t)
+	seedBonusToolInfusionPipeResources(t, s)
+
+	// Level 2, Herbalist not even chosen yet: not granted.
+	makeHerbalistCharacter(t, s, 1, 2, false)
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if level, err := s.cookingToolInfusionPipeEffectiveLevel(1, sheet); err != nil {
+		t.Fatal(err)
+	} else if level != 0 {
+		t.Errorf("level 2, no Herbalist: effective level = %d, want 0 (ungranted)", level)
+	}
+
+	// Level 3, Herbalist chosen: granted, but neither 6th nor 11th tier
+	// available yet.
+	makeHerbalistCharacter(t, s, 2, 3, true)
+	sheet, err = charsheet.Compute(s.rulesDB, s.charDB, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	level, err := s.cookingToolInfusionPipeEffectiveLevel(2, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if level != 3 {
+		t.Fatalf("level 3 Herbalist: effective level = %d, want 3 (granted)", level)
+	}
+	view, err := s.loadCookingToolInfusionPipeView(2, level)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.PropertyL6Available || view.PropertyL11Available {
+		t.Errorf("at 3rd level neither the 6th nor 11th property row should be available: %+v", view)
+	}
+	if len(view.ImplementOptions) < 8 {
+		t.Errorf("ImplementOptions = %d entries, want at least 8 (the catalog 0064 seeds)", len(view.ImplementOptions))
+	}
+
+	// Level 6, Herbalist: 6th tier unlocks, 11th still doesn't.
+	makeHerbalistCharacter(t, s, 3, 6, true)
+	sheet, err = charsheet.Compute(s.rulesDB, s.charDB, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	level, err = s.cookingToolInfusionPipeEffectiveLevel(3, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.loadCookingToolInfusionPipeView(3, level)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !view.PropertyL6Available || view.PropertyL11Available {
+		t.Errorf("at 6th level only the 6th property row should be available: %+v", view)
+	}
+
+	// Level 11, Herbalist: both tiers unlock.
+	makeHerbalistCharacter(t, s, 4, 11, true)
+	sheet, err = charsheet.Compute(s.rulesDB, s.charDB, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	level, err = s.cookingToolInfusionPipeEffectiveLevel(4, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.loadCookingToolInfusionPipeView(4, level)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !view.PropertyL6Available || !view.PropertyL11Available {
+		t.Errorf("at 11th level both the 6th and 11th property rows should be available: %+v", view)
+	}
+}
+
+// TestBuildAttacksCookingToolInfusionPipeOverrides confirms buildAttacks
+// applies the Pipe's own always-on bonuses (Intelligence in place of
+// Strength, the level-scaling Cooking Die, the player's chosen damage
+// type) only to the equipped item matching the Pipe pick, and that a
+// character holding BOTH the base Cooking Tool Infusion weapon and the
+// Pipe simultaneously gets two independently-overridden attack rows with
+// no cross-contamination between the two isCookingTool/isCookingToolPipe
+// blocks — deliberately different damage types are picked for the two
+// weapons so any accidental sharing between them shows up as a wrong value
+// on one row or the other.
+func TestBuildAttacksCookingToolInfusionPipeOverrides(t *testing.T) {
+	s := testServer(t)
+	seedBonusToolInfusionPipeResources(t, s)
+	makeHerbalistCharacter(t, s, 1, 6, true)
+
+	if err := s.syncCookingToolInfusionInventory(1, "weapon/cooking-tool-frying-pan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, 1, cookingToolInfusionFeatureSlug, cookingToolChoiceImplement, "weapon/cooking-tool-frying-pan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, 1, cookingToolInfusionFeatureSlug, cookingToolChoiceDamageType, "Bludgeoning"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.syncCookingToolInfusionPipeInventory(1, "weapon/cooking-pipe-tobacco"); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, 1, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement, "weapon/cooking-pipe-tobacco"); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, 1, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType, "Piercing"); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv, err := s.loadCharacterInventory(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inv) != 2 {
+		t.Fatalf("inventory = %d items, want 2 (base Cooking Tool + Pipe both equipped)", len(inv))
+	}
+	attacks, err := s.buildAttacks(1, inv, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attacks) != 2 {
+		t.Fatalf("got %d attack rows, want 2", len(attacks))
+	}
+	var base, pipe *attackRow
+	for i := range attacks {
+		switch attacks[i].Slug {
+		case "weapon/cooking-tool-frying-pan":
+			base = &attacks[i]
+		case "weapon/cooking-pipe-tobacco":
+			pipe = &attacks[i]
+		}
+	}
+	if base == nil || pipe == nil {
+		t.Fatalf("expected both the base Cooking Tool and Pipe attack rows, got %+v", attacks)
+	}
+	if base.Ability != "INT" || pipe.Ability != "INT" {
+		t.Errorf("both rows should use INT: base = %q, pipe = %q", base.Ability, pipe.Ability)
+	}
+	if base.DamageDice != "1d6" {
+		t.Errorf("base DamageDice = %q, want 1d6 (the 6th-level Cooking Die)", base.DamageDice)
+	}
+	if pipe.DamageDice != "1d6" {
+		t.Errorf("pipe DamageDice = %q, want 1d6 (the 6th-level Cooking Die)", pipe.DamageDice)
+	}
+	if base.DamageType != "Bludgeoning" {
+		t.Errorf("base DamageType = %q, want Bludgeoning (must not pick up the Pipe's own Piercing pick)", base.DamageType)
+	}
+	if pipe.DamageType != "Piercing" {
+		t.Errorf("pipe DamageType = %q, want Piercing (must not pick up the base tool's own Bludgeoning pick)", pipe.DamageType)
+	}
+}

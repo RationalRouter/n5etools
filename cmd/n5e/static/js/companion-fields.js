@@ -164,40 +164,63 @@
     if (btn) btn.disabled = select.value === "";
   });
 
-  // Picking a new Armor Chassis: save the pick itself (a <select> firing
-  // "change" doesn't reliably also fire "focusout" the way clicking away
-  // from a text field does — a mouse-driven selection can leave the select
-  // focused with nothing else forcing a blur, so this can't just rely on
-  // the generic .companion-field focusout listener above ever running),
-  // and recompute AC's real stored value right away — the same "populate
-  // then edit" treatment #3/#4 gave AC/HP-max generally, since picking a
-  // chassis is itself a deliberate stat-defining action (like creating the
-  // puppet was), not a passive re-render. Reads the puppet's currently-
-  // DISPLAYED Dex score (not a fresh server round trip) so an unsaved Dex
-  // edit still factors in, computes 10 + chassis AC bonus + Dex modifier
-  // capped per the chassis's own dex_bonus_mode (mirrors
-  // puppetArmorChassisAC server-side exactly), writes it into the AC
-  // field, then fires the normal focusout autosave above — the player can
-  // still nudge the result afterward, same as any other edit.
-  document.addEventListener("change", (e) => {
-    const select = e.target;
-    if (!(select instanceof Element) || select.name !== "armor_chassis") return;
-    select.dispatchEvent(new Event("focusout", { bubbles: true }));
-
+  // Picking a new Armor Chassis only PREVIEWS its AC in the AC field, the
+  // same "highlighting an option must never itself commit anything" rule
+  // .companion-commit-select enforces for the select itself now (armor_chassis
+  // used to be a plain .companion-field, which — combined with this same
+  // listener unconditionally dispatching "focusout" on both the select AND
+  // the AC field — saved BOTH the chassis pick and its derived AC the
+  // instant an option was merely highlighted, with no confirmation; see
+  // companion_fields.html's own doc comment on this select). The actual
+  // save of both fields is deferred to the "Set Armor Chassis" button click
+  // (window.n5eCommitArmorChassisAC below, called from the per-view commit
+  // handlers in companion-sheet.js/sheet-puppets.js after the chassis pick
+  // itself lands), which reuses this same computation. Reads the puppet's
+  // currently-DISPLAYED Dex score (not a fresh server round trip) so an
+  // unsaved Dex edit still factors in, computing 10 + chassis AC bonus +
+  // Dex modifier capped per the chassis's own dex_bonus_mode (mirrors
+  // puppetArmorChassisAC server-side exactly).
+  function computeArmorChassisAC(select) {
     const opt = select.selectedOptions[0];
-    if (!opt || !opt.value || !opt.dataset.acBonus) return; // "— none —" has neither
+    if (!opt || !opt.value || !opt.dataset.acBonus) return null; // "— none —" has neither
     const container = select.closest(".companion-card, .companion-sheet");
-    if (!container) return;
-    const dexField = container.querySelector('[name="dex_score"]');
-    const acField = container.querySelector('.companion-delta-field[data-field="ac"]');
-    if (!dexField || !acField) return;
+    const dexField = container && container.querySelector('[name="dex_score"]');
+    const acField = container && container.querySelector('.companion-delta-field[data-field="ac"]');
+    if (!dexField || !acField) return null;
     const dexScore = parseInt(dexField.value, 10);
     let dexMod = Number.isFinite(dexScore) ? Math.floor((dexScore - 10) / 2) : 0;
     if (opt.dataset.dexMode === "max2" && dexMod > 2) dexMod = 2;
     else if (opt.dataset.dexMode === "none") dexMod = 0;
-    acField.value = String(10 + parseInt(opt.dataset.acBonus, 10) + dexMod);
-    acField.dispatchEvent(new Event("focusout", { bubbles: true }));
+    return { acField, value: String(10 + parseInt(opt.dataset.acBonus, 10) + dexMod) };
+  }
+
+  document.addEventListener("change", (e) => {
+    const select = e.target;
+    if (!(select instanceof Element) || select.name !== "armor_chassis") return;
+    const result = computeArmorChassisAC(select);
+    if (result) result.acField.value = result.value;
   });
+
+  // Called by the "Set Armor Chassis" commit-button handlers (companion-
+  // sheet.js, sheet-puppets.js) right after the chassis pick itself is
+  // successfully posted — recomputes and actually saves the derived AC,
+  // same formula as the live preview above, so AC and the newly-committed
+  // chassis land together instead of AC only updating on some later,
+  // unrelated edit. Returns a Promise (resolving even when there's nothing
+  // to save) so callers can refresh their own fragment only once this save
+  // has actually landed, rather than racing it.
+  window.n5eCommitArmorChassisAC = function (select) {
+    const result = computeArmorChassisAC(select);
+    if (!result || !result.acField.form) return Promise.resolve();
+    result.acField.value = result.value;
+    return postForm(result.acField.form)
+      .then((r) => {
+        if (!r.ok) throw new Error("server rejected the request (" + r.status + ")");
+        return r.text();
+      })
+      .then((text) => { result.acField.value = text; })
+      .catch((err) => console.warn("armor chassis AC save failed:", err));
+  };
 
   // The Puppet Upgrade "Sync AC to N"/"Sync Max HP to N"/"Sync Speed to
   // N"/"Sync Fly to N" buttons — a plain <button type="button">, not a
@@ -226,6 +249,55 @@
       container.querySelector('.companion-field[name="' + name + '"]');
     if (!field) return;
     field.value = btn.dataset.value;
+    field.dispatchEvent(new Event("focusout", { bubbles: true }));
+  });
+
+  // The Sync-buttons popout (.companion-sync-menu, companion_fields.html) —
+  // same .dropdown-filter/.dropdown-toggle/.dropdown-panel shape the Jutsu
+  // page's Categories menu uses (jutsu-filter.js), but delegated from
+  // document instead of bound directly to one toggle/panel pair: a
+  // companion card, and the popout inside it, can be replaced wholesale by
+  // a fragment swap at any time (see this file's own header comment), and
+  // unlike the Jutsu page there can be several of these panels open at once
+  // across different companion cards on the same Companions tab. Clicking a
+  // .companion-sync-btn inside an open panel does NOT close it — the panel
+  // stays open so several fields (e.g. every ability score after a level
+  // up) can be synced in one pass instead of reopening the menu each time.
+  function closeAllCompanionSyncPanels() {
+    document.querySelectorAll(".companion-sync-panel").forEach((panel) => {
+      panel.hidden = true;
+      const toggle = panel.parentElement && panel.parentElement.querySelector(".companion-sync-toggle");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+  }
+  document.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".companion-sync-toggle");
+    if (toggle) {
+      const panel = toggle.parentElement && toggle.parentElement.querySelector(".companion-sync-panel");
+      if (!panel) return;
+      const opening = panel.hidden;
+      closeAllCompanionSyncPanels();
+      panel.hidden = !opening;
+      toggle.setAttribute("aria-expanded", String(opening));
+      return;
+    }
+    if (!e.target.closest(".companion-sync-panel")) closeAllCompanionSyncPanels();
+  });
+
+  // The Nin-Dog "Cast" button next to each auto-known Inuzuka Hijutsu
+  // (nindog_reference's own Known Hijutsu list, companion_fields.html) —
+  // same "set the value, dispatch focusout" reuse of jutsu_slots_current's
+  // own already-working delta-field autosave as .companion-sync-btn just
+  // above, just spending a fixed -1 delta instead of syncing to a computed
+  // value. AddCompanionIntField floors at 0 server-side, so casting with no
+  // Jutsu Slots left is a harmless no-op rather than going negative.
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".companion-jutsu-cast-btn");
+    if (!btn) return;
+    const container = btn.closest(".companion-card, .companion-sheet");
+    const field = container && container.querySelector('.companion-delta-field[data-field="jutsu_slots_current"]');
+    if (!field) return;
+    field.value = "-1";
     field.dispatchEvent(new Event("focusout", { bubbles: true }));
   });
 })();

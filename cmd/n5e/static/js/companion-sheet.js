@@ -55,7 +55,10 @@
     window.n5eCompanionPostForm(select.form)
       .then((r) => {
         if (!r.ok) throw new Error("server rejected the request (" + r.status + ")");
-        window.location.reload();
+        const acSaved = select.name === "armor_chassis" && window.n5eCommitArmorChassisAC
+          ? window.n5eCommitArmorChassisAC(select)
+          : Promise.resolve();
+        return acSaved.then(() => window.location.reload());
       })
       .catch((err) => console.warn("companion commit failed:", err));
   });

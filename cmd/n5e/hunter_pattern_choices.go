@@ -17,8 +17,9 @@ import (
 // Sleight of Hand or Security Kits" (Kleptomaniac) and "Select two skills.
 // You gain proficiency in the given skills" (Habitual Researcher).
 // Kleptomaniac's own "mark a lock as your Primary Target" clause is
-// action-economy/DC text with no field to attach to and stays narrated, the
-// same boundary gaseousHazeFeatureSlug's own DC half draws (internal/
+// action-economy/DC text with no field to attach to and stays narrated —
+// this app has no lock-difficulty-DC field anywhere for it to land in, a
+// different gap from jutsu-casting Save DC (JutsuAttack.SaveDC, internal/
 // charsheet/charsheet.go). Habitual Researcher's "You can select this
 // Pattern multiple times, selecting different skills" repeat-pick clause
 // stays narrated too: character_hunter_nin_picks has a UNIQUE(character_id,

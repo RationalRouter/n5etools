@@ -154,11 +154,18 @@ func AttackAbilityField(kind string) string {
 	return strings.ToLower(kind) + "_ability"
 }
 
-// JutsuAttack is one attack kind's governing ability and to-hit modifier.
+// JutsuAttack is one attack kind's governing ability, to-hit modifier, and
+// save DC — the book states both off the same governing ability for each
+// discipline ("Ninjutsu attack modifier = your proficiency bonus + your
+// Intelligence modifier"; "Ninjutsu save DC = 8 + your proficiency bonus +
+// your Intelligence modifier", same shape for Genjutsu/Wisdom and
+// Taijutsu/Strength; Bukijutsu shares Taijutsu's shape off its own
+// governing-ability slot, see AttackKinds' own doc comment).
 type JutsuAttack struct {
 	Kind     string // "Ninjutsu", "Genjutsu", "Taijutsu", "Bukijutsu"
 	Ability  string // three-letter code actually used, override included
 	Modifier int    // ability modifier + full proficiency bonus
+	SaveDC   int    // 8 + ability modifier + full proficiency bonus (+ Control's own Save DC bonus, if picked — see scoutNinControlFeatureSlug)
 }
 
 // ClashCheck is one discipline's Clash resolution — a d20 check made only
@@ -583,11 +590,13 @@ const mentalBoonsFeatSlug = "feat/yamanaka/mental-boons"
 
 // gaseousHazeFeatureSlug identifies the Herbalist entry feature "You may use
 // Charisma in place of Wisdom for calculating your Genjutsu attack bonus and
-// DC" — the attack-bonus half drives the same JutsuAttacks Genjutsu ability
-// override as genjutsuExpertiseFeatSlug/mentalBoonsFeatSlug above. The DC
-// half has nothing to attach to: no Genjutsu save DC field exists anywhere
-// in this app (Compute never derives one, and no template or JS reads a DC
-// off JutsuAttacks either), so it stays undocumented rather than half-wired.
+// DC" — both halves drive the same JutsuAttacks Genjutsu ability override as
+// genjutsuExpertiseFeatSlug/mentalBoonsFeatSlug above. That single override
+// now covers both halves the book's own text names: JutsuAttack.SaveDC and
+// Modifier are derived from the exact same resolved `ability` variable in
+// the loop that builds JutsuAttacks (see JutsuAttack's own doc comment for
+// the SaveDC formula), so nothing DC-specific needs to branch off this slug
+// separately.
 const gaseousHazeFeatureSlug = "class/cooking-nin/group/cooking-focus/herbalist/feature/gaseous-haze"
 
 // scoutNinMobilityFeatureSlug identifies Mobility, one of Jack of All,
@@ -615,16 +624,29 @@ const scoutNinCombatFeatureSlug = "class/scout-nin/feature/combat"
 // Action" clause both have nothing to attach to in this app and stay
 // narrated — see skillCheckBonusGrants' own doc comment.
 //
-// Control, the remaining Generalization with a numeric clause, has no
-// matching const or grant table at all: its "+1/+2 to the Save DC of jutsu
-// that inflict a condition or penalty" has nothing to attach to either — no
-// jutsu-casting Save DC field exists anywhere in this app (Compute never
-// derives one, and no template or JS reads a DC off JutsuAttacks), the
-// same gap gaseousHazeFeatureSlug's own DC half is left at. Support has no
-// numeric clause at all (Help/Search as a Bonus Action, an expanded Help
-// range, and an opportunity-attack trigger — all action-economy or
-// combat-state tracking this app doesn't model).
+// Support, the remaining Generalization, has no numeric clause at all
+// (Help/Search as a Bonus Action, an expanded Help range, and an
+// opportunity-attack trigger — all action-economy or combat-state tracking
+// this app doesn't model), so it has no matching const or grant table
+// either. Control, the other remaining Generalization, does have a numeric
+// clause (a Save DC bonus) — see scoutNinControlFeatureSlug below for how
+// it's wired now that JutsuAttack has somewhere for a DC to attach to.
 const scoutNinSkillFeatureSlug = "class/scout-nin/feature/skill"
+
+// scoutNinControlFeatureSlug identifies Control, another of Jack of All's 5
+// Generalizations — its Save DC bonus (jutsuSaveDCBonusGrants, internal/
+// features/grants.go) is gated the same way Combat/Mobility/Skill above are,
+// via jackOfAllGate. Its own text: "Jutsu and Maneuvers you use that would
+// inflict a condition on a creature are even more difficult to resist.
+// Increase the Save DC of jutsu you cast and maneuver you use that inflict
+// a condition or inflicts a penalty by +1. This Save DC boost, increases to
+// +2 at 11th level." This was the one Jack of All Generalization with a
+// numeric clause that had nowhere at all to attach until JutsuAttack gained
+// a SaveDC field (see that struct's own doc comment for the formula) — see
+// jutsuSaveDCBonusGrants' own doc comment for what stays unmodeled (the
+// per-jutsu "inflicts a condition or penalty" qualifier, Maneuvers, and the
+// "+1d4 to clash checks" clause).
+const scoutNinControlFeatureSlug = "class/scout-nin/feature/control"
 
 // hunterNinMartialStudentOptionSlug identifies Martial Student, one of
 // Hunter-Nin's Hunters Patterns (class_options, list_name "Hunters
@@ -1278,14 +1300,14 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// Jack of All, Master of None's 5 Generalizations (Combat/Control/
 	// Mobility/Skill/Support) are each blanket-included in grantedFeatures
 	// once 5th level is reached, purely so all 5 show up in Features &
-	// Traits — but Combat, Mobility, and Skill each also drive a real
-	// computed bonus (JutsuAttacks' to-hit modifier, Speed and saving
-	// throws, and skill-check modifiers, respectively) that must only
-	// apply to whichever Generalization(s) the player actually picked.
-	// jackOfAllPicks is loaded once here and jackOfAllGate reused by every
-	// consumer below instead of each re-querying/re-filtering separately.
-	// Control and Support have no entry to gate at all — see
-	// scoutNinSkillFeatureSlug's own doc comment for why.
+	// Traits — but Combat, Control, Mobility, and Skill each also drive a
+	// real computed bonus (JutsuAttacks' to-hit modifier, JutsuAttacks'
+	// Save DC, Speed and saving throws, and skill-check modifiers,
+	// respectively) that must only apply to whichever Generalization(s)
+	// the player actually picked. jackOfAllPicks is loaded once here and
+	// jackOfAllGate reused by every consumer below instead of each
+	// re-querying/re-filtering separately. Support has no entry to gate at
+	// all — see scoutNinSkillFeatureSlug's own doc comment for why.
 	jackOfAllPicks, err := charstore.ListScoutNinPicks(charDB, characterID, charstore.ScoutNinPickJackOfAll)
 	if err != nil {
 		return nil, fmt.Errorf("load jack of all picks: %w", err)
@@ -1476,12 +1498,28 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// scoutNinCombatFeatureSlug's own doc comment.
 	sheet.JackOfAllCombatBonus = features.ResolveJutsuAttackBonus(jackOfAllGate(scoutNinCombatFeatureSlug), sheet.Level)
 
-	// Ninjutsu/Genjutsu/Taijutsu attack modifiers: the governing ability's
-	// modifier plus the FULL proficiency bonus, always — casting your own
-	// jutsu is never a non-proficient roll, so there is no half-proficiency
-	// branch here the way SavingThrowModifier has one. An override is only
-	// honoured if it names a real ability; a stale or hand-edited value
-	// falls back to the default rather than silently computing off score 0.
+	// Control's "+1/+2 to the Save DC of jutsu... that inflict a condition
+	// or inflicts a penalty" — applied below to every kind's SaveDC, same
+	// blanket-per-discipline simplification Combat's own bonus above makes.
+	// Not exposed on Sheet the way JackOfAllCombatBonus is: nothing outside
+	// this loop recomputes a jutsu's Save DC the way cmd/n5e's
+	// loadCharacterJutsuSheet independently recomputes attack/damage
+	// bonuses, so there is no second call site that would need it. See
+	// scoutNinControlFeatureSlug's own doc comment.
+	jackOfAllControlBonus := features.ResolveJutsuSaveDCBonus(jackOfAllGate(scoutNinControlFeatureSlug), sheet.Level)
+
+	// Ninjutsu/Genjutsu/Taijutsu attack modifiers and save DCs: the
+	// governing ability's modifier plus the FULL proficiency bonus, always —
+	// casting your own jutsu is never a non-proficient roll, so there is no
+	// half-proficiency branch here the way SavingThrowModifier has one. An
+	// override is only honoured if it names a real ability; a stale or
+	// hand-edited value falls back to the default rather than silently
+	// computing off score 0. SaveDC deliberately reads the same resolved
+	// `ability` every override above already produced for Modifier — the
+	// book computes both off one governing ability, so every override that
+	// changes one changes the other the same way, with no separate branch
+	// needed (see JutsuAttack's own doc comment for the formula, and
+	// gaseousHazeFeatureSlug's for a concrete worked example).
 	for _, k := range AttackKinds {
 		ability := k.Ability
 		if k.Kind == "Genjutsu" && (hasFeature(grantedFeatures, genjutsuExpertiseFeatSlug) || hasFeature(grantedFeatures, mentalBoonsFeatSlug) || hasFeature(grantedFeatures, gaseousHazeFeatureSlug)) {
@@ -1504,9 +1542,16 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			modifier += bukijutsuFocusBonus
 		}
 		modifier += sheet.JackOfAllCombatBonus
+		// bukijutsuFocusBonus and JackOfAllCombatBonus are both documented
+		// (their own doc comments above) as Attack & Damage bonuses only —
+		// Weapon Focus's own text never mentions Save DC, and Combat's own
+		// text says "attack & damage rolls," not DCs. Neither folds into
+		// SaveDC; jackOfAllControlBonus is the only bonus added below.
+		saveDC := 8 + sheet.Abilities[ability].Modifier + sheet.ProficiencyBonus + jackOfAllControlBonus
 		sheet.JutsuAttacks = append(sheet.JutsuAttacks, JutsuAttack{
 			Kind: k.Kind, Ability: ability,
 			Modifier: modifier,
+			SaveDC:   saveDC,
 		})
 	}
 

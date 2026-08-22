@@ -1,6 +1,7 @@
 {{define "content"}}
 <h1>Creating {{.Name}}</h1>
 <p class="page-subtitle">Steps can be done in any order, and revisited any time before or after finishing.</p>
+{{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
 <ul class="creation-checklist">
   {{range .Steps}}
   <li class="{{if .Done}}step-done{{end}}">

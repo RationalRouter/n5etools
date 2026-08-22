@@ -580,6 +580,66 @@ func ResolveJutsuAttackBonus(granted []GrantedFeatureRow, characterLevel int) in
 	return total
 }
 
+// jutsuSaveDCBonusGrant is one level threshold of a flat Save DC bonus
+// applied to jutsu cast with Ninjutsu/Genjutsu/Taijutsu/Bukijutsu. Same
+// "Amount is the running total for that tier" shape as jutsuAttackBonusGrant
+// above.
+type jutsuSaveDCBonusGrant struct {
+	FeatureSlug string
+	MinLevel    int
+	Amount      int
+}
+
+// jutsuSaveDCBonusGrants is intentionally a slice, not a map keyed by slug:
+// Control has two level tiers sharing one slug, the same shape Combat's own
+// jutsuAttackBonusGrants above uses.
+var jutsuSaveDCBonusGrants = []jutsuSaveDCBonusGrant{
+	// Control (Scout-Nin, Jack of All, Master of None, 5th level): "Jutsu
+	// and Maneuvers you use that would inflict a condition on a creature
+	// are even more difficult to resist. Increase the Save DC of jutsu you
+	// cast and maneuver you use that inflict a condition or inflicts a
+	// penalty by +1. This Save DC boost, increases to +2 at 11th level."
+	// Only the jutsu half is modeled, applied to every JutsuAttacks entry's
+	// SaveDC (see internal/charsheet/charsheet.go's AttackKinds loop) as a
+	// blanket per-discipline bonus rather than gated per-jutsu on whether
+	// that specific jutsu inflicts a condition or penalty — JutsuAttacks'
+	// SaveDC is already one blanket-per-discipline value with no per-jutsu
+	// distinction anywhere in this app (see JutsuAttack's own doc comment),
+	// the same simplification Combat's own attack/damage bonus above
+	// already makes for its "you cast" qualifier. The Maneuvers half has
+	// nowhere to attach: Weapon Specialist's Flurry Techniques (the
+	// "maneuver" this text means) have their Save DCs explicitly tied to
+	// "your Taijutsu Save DC" per that feature's own text rather than a
+	// separate field, and this app doesn't compute per-maneuver DCs at all.
+	// This feature's own "+1d4 to clash checks" clause is a bonus die, not
+	// a flat modifier — ClashCheck.Modifier has no slot for one, the same
+	// boundary Magnetic Pull's own Clash bonus die is left at (see
+	// internal/charsheet/charsheet.go's clashChecks doc comment).
+	{FeatureSlug: "class/scout-nin/feature/control", MinLevel: 5, Amount: 1},
+	{FeatureSlug: "class/scout-nin/feature/control", MinLevel: 11, Amount: 2},
+}
+
+// ResolveJutsuSaveDCBonus sums every granted feature's flat jutsu Save DC
+// bonus at characterLevel, same resolution shape as ResolveJutsuAttackBonus.
+func ResolveJutsuSaveDCBonus(granted []GrantedFeatureRow, characterLevel int) int {
+	bestBySlug := map[string]int{}
+	for _, f := range granted {
+		for _, g := range jutsuSaveDCBonusGrants {
+			if g.FeatureSlug != f.Slug || g.MinLevel > characterLevel {
+				continue
+			}
+			if g.Amount > bestBySlug[f.Slug] {
+				bestBySlug[f.Slug] = g.Amount
+			}
+		}
+	}
+	total := 0
+	for _, amount := range bestBySlug {
+		total += amount
+	}
+	return total
+}
+
 // skillCheckBonusGrant is one level threshold of a flat bonus applied to
 // every named skill check. Same running-total-per-tier shape as the grant
 // types above.
@@ -596,10 +656,8 @@ var skillCheckBonusGrants = []skillCheckBonusGrant{
 	// standalone "ability check" field anywhere on the sheet (only named
 	// skills and each ability's own modifier are ever computed), so the
 	// "ability checks" half of this clause has nothing to attach to and
-	// stays narrated, the same boundary gaseousHazeFeatureSlug's Save-DC
-	// half is left at (internal/charsheet/charsheet.go). This feature's
-	// own "Skill actions as a Bonus Action" clause is action-economy, not
-	// a number, and stays narrated too.
+	// stays narrated. This feature's own "Skill actions as a Bonus Action"
+	// clause is action-economy, not a number, and stays narrated too.
 	{FeatureSlug: "class/scout-nin/feature/skill", MinLevel: 5, Amount: 2},
 	{FeatureSlug: "class/scout-nin/feature/skill", MinLevel: 11, Amount: 3},
 }

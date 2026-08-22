@@ -208,23 +208,34 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
-	var name, creationStatus string
-	var str, dex, con, intel, wis, cha int
-	var clanSlug, backgroundSlug sql.NullString
-	err = s.charDB.QueryRow(`
-		SELECT name, creation_status, clan_slug, background_slug,
-		       base_str, base_dex, base_con, base_int, base_wis, base_cha
-		FROM characters WHERE id = ?`, id,
-	).Scan(&name, &creationStatus, &clanSlug, &backgroundSlug, &str, &dex, &con, &intel, &wis, &cha)
+	data, err := s.buildCreationHubData(id)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("query character for hub:", err)
+		log.Println("build creation hub data:", err)
 		return
+	}
+	s.render(w, "creation_hub.html", data)
+}
+
+// buildCreationHubData assembles the hub's template data — factored out of
+// handleCreationHub so handleCreateFinish's own subclass gate (below) can
+// re-render the same page with an added "Error" message instead of
+// duplicating the steps/summary-building logic.
+func (s *server) buildCreationHubData(id int64) (map[string]any, error) {
+	var name, creationStatus string
+	var str, dex, con, intel, wis, cha int
+	var clanSlug, backgroundSlug sql.NullString
+	err := s.charDB.QueryRow(`
+		SELECT name, creation_status, clan_slug, background_slug,
+		       base_str, base_dex, base_con, base_int, base_wis, base_cha
+		FROM characters WHERE id = ?`, id,
+	).Scan(&name, &creationStatus, &clanSlug, &backgroundSlug, &str, &dex, &con, &intel, &wis, &cha)
+	if err != nil {
+		return nil, err
 	}
 
 	base := strconv.FormatInt(id, 10)
@@ -243,10 +254,16 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 	// (the step stays freely revisitable either way), just imprecise.
 	abilitiesDone := str != 10 || dex != 10 || con != 10 || intel != 10 || wis != 10 || cha != 10
 
+	classSummary, err := s.loadClassSummary(id)
+	if err != nil {
+		return nil, err
+	}
+
 	steps := []creationStep{
 		{Label: "Clan", Href: "/characters/" + base + "/create/clan", Done: clanSlug.Valid},
 		{Label: "Class", Href: "/characters/" + base + "/create/class",
 			Done: exists(`SELECT COUNT(*) FROM character_classes WHERE character_id = ?`)},
+		{Label: "Subclass", Href: "/characters/" + base + "/create/class", Done: subclassGateSatisfied(classSummary)},
 		{Label: "Ability Scores", Href: "/characters/" + base + "/create/abilities", Done: abilitiesDone},
 		{Label: "Background", Href: "/characters/" + base + "/create/background", Done: backgroundSlug.Valid},
 		{Label: "Equipment", Href: "/characters/" + base + "/create/equipment",
@@ -257,10 +274,24 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 			Done: exists(`SELECT COUNT(*) FROM character_ambitions WHERE character_id = ?`)},
 	}
 
-	s.render(w, "creation_hub.html", map[string]any{
+	return map[string]any{
 		"Title": "Creating " + name, "ID": id, "Name": name,
 		"CreationStatus": creationStatus, "Steps": steps,
-	})
+	}, nil
+}
+
+// renderCreationHubError re-renders the creation hub with an inline error —
+// the subclass gate's own "can't finish yet" path, same "rebuild the page,
+// add Error" shape handleCreateClan already uses for its own step.
+func (s *server) renderCreationHubError(w http.ResponseWriter, id int64, message string) {
+	data, err := s.buildCreationHubData(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("build creation hub data for error:", err)
+		return
+	}
+	data["Error"] = message
+	s.render(w, "creation_hub.html", data)
 }
 
 // handleCreateFinish is also reachable from an already-complete character
@@ -284,6 +315,22 @@ func (s *server) handleCreateFinish(w http.ResponseWriter, r *http.Request) {
 	).Scan(&creationStatus); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("query creation status:", err)
+		return
+	}
+
+	classSummary, err := s.loadClassSummary(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load class summary for finish gate:", err)
+		return
+	}
+	if missing := subclassGateFailures(classSummary); len(missing) > 0 {
+		names := make([]string, len(missing))
+		for i, row := range missing {
+			names[i] = row.ClassName
+		}
+		s.renderCreationHubError(w, id,
+			"Choose a subclass before finishing — "+strings.Join(names, ", ")+" reached 3rd level without one.")
 		return
 	}
 
@@ -3831,6 +3878,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
+	cookingToolPipeSlug, cookingToolPipeDieSize, cookingToolPipeDamageType, err := s.cookingToolInfusionPipeAttackOverrides(characterID, sheet)
+	if err != nil {
+		return nil, err
+	}
 	sentWeaponSlug, err := s.sentAttackOverrides(characterID, sheet)
 	if err != nil {
 		return nil, err
@@ -3907,6 +3958,26 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			ability = "int"
 			if cookingToolDamageType != "" {
 				damageType.String = cookingToolDamageType
+			}
+		}
+
+		// Bonus Tool Infusion: Pipe's own text (Herbalist, 3rd level): "you
+		// can also use Intelligence in place of Strength when determining
+		// your attack and damage rolls" — the identical clause to the base
+		// Cooking Tool Infusion above, applied independently to whichever
+		// equipped item matches the character's own Pipe pick instead. The
+		// two implement catalogs live under disjoint slug prefixes
+		// (weapon/cooking-tool-% vs weapon/cooking-pipe-%, see
+		// 0064_cooking_tool_infusion_pipe_implements.sql), so isCookingTool
+		// and isCookingToolPipe can never both be true for the same item —
+		// a character holding both features simultaneously gets two
+		// independently-overridden equipped weapons, never one item with
+		// both bonuses stacked.
+		isCookingToolPipe := cookingToolPipeSlug != "" && item.Slug == cookingToolPipeSlug
+		if isCookingToolPipe {
+			ability = "int"
+			if cookingToolPipeDamageType != "" {
+				damageType.String = cookingToolPipeDamageType
 			}
 		}
 
@@ -4006,6 +4077,18 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 					rowCritRangeThreshold = ct
 				}
 			}
+		}
+
+		// Bonus Tool Infusion: Pipe's own text: "your cooking tool deals
+		// damage equal to your Cooking Dice" — the same live-scaling
+		// Cooking Die chart the base Cooking Tool Infusion weapon reads
+		// (cookingToolInfusionPipeAttackOverrides calls the same
+		// cookingDieSize helper), applied to the Pipe's own equipped item
+		// instead. Pipe's own property catalog has no Critical/Critical 2
+		// entry (see cookingToolPipePropertyL6Options/L11Options), so there
+		// is no crit-range-threshold bonus to fold in here.
+		if isCookingToolPipe && cookingToolPipeDieSize != "" {
+			effectiveDamageDice = cookingToolPipeDieSize
 		}
 
 		// S.E.N.Ts' own text: "It immediately becomes a d10 stack and its
@@ -5813,6 +5896,28 @@ func (s *server) loadClassSummary(characterID int64) ([]classSummaryRow, error) 
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+// subclassGateSatisfied reports whether every class a character holds at
+// 3rd level or higher, and that actually has a subclass group to pick from,
+// has had a subclass chosen — the gate handleCreateFinish enforces so a
+// character can't be locked in with an unresolved subclass pick. A class
+// below 3rd level, or one with no subclass group at all (SubclassOptions
+// empty), is never blocking.
+func subclassGateSatisfied(classSummary []classSummaryRow) bool {
+	return len(subclassGateFailures(classSummary)) == 0
+}
+
+// subclassGateFailures returns the classSummaryRow entries subclassGateSatisfied
+// would reject, so the caller can name them in an error message.
+func subclassGateFailures(classSummary []classSummaryRow) []classSummaryRow {
+	var out []classSummaryRow
+	for _, row := range classSummary {
+		if row.Levels >= 3 && len(row.SubclassOptions) > 0 && row.SubclassSlug == "" {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // loadSubclassOptions returns every subclass in classSlug's one subclass
