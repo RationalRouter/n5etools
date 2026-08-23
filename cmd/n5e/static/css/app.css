@@ -2303,9 +2303,17 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
    edges" symptom: the circle CSS was right the whole time, it was just
    being outvoted. Any future bullet-shaped control inside
    these forms needs the same exclusion, or a higher-specificity selector
-   of its own. */
-.sheet-inline-form button:not(.sheet-prof-bullet),
-.sheet-panel-form button:not(.sheet-prof-bullet) {
+   of its own. Same reasoning applies to :not(.sheet-delete-btn): without
+   it, every delete/× button inside these forms (.puppet-upgrade-pick rows,
+   companion cards, etc.) was picking up this rule's border/background/
+   padding, rendering as a bloated bordered pill (~2.1rem wide, ~28px tall)
+   instead of the plain small glyph .sheet-delete-btn's own rule defines —
+   confirmed live via getBoundingClientRect (9px wide once excluded, vs the
+   boxed appearance before). That bloat is also why the padding-right
+   reserved for it elsewhere (.puppet-upgrade-pick, .companion-card-header)
+   was originally sized much larger than the button actually needs. */
+.sheet-inline-form button:not(.sheet-prof-bullet):not(.sheet-delete-btn),
+.sheet-panel-form button:not(.sheet-prof-bullet):not(.sheet-delete-btn) {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   color: var(--text);
@@ -2315,8 +2323,8 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
   font-family: inherit;
   cursor: pointer;
 }
-.sheet-inline-form button:not(.sheet-prof-bullet):hover,
-.sheet-panel-form button:not(.sheet-prof-bullet):hover { border-color: var(--accent); color: var(--accent); }
+.sheet-inline-form button:not(.sheet-prof-bullet):not(.sheet-delete-btn):hover,
+.sheet-panel-form button:not(.sheet-prof-bullet):not(.sheet-delete-btn):hover { border-color: var(--accent); color: var(--accent); }
 
 /* Both of these are qualified with `.sheet-inline-form button` on purpose,
    and it is load-bearing for the same reason the :not(.sheet-prof-bullet)
@@ -2397,8 +2405,18 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
 /* 1.5rem, not the 0.6rem the Level form's own controls use: this is the gap
    between two DIFFERENT things (the Level control and the class/subclass
    line, part 10), not between a label and its own input, so it needs the
-   project's ~3mm-of-breathing-room minimum rather than a tight inline gap. */
-.sheet-level-row { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+   project's ~3mm-of-breathing-room minimum rather than a tight inline gap.
+   row-gap is split out separately from column-gap: a single `gap` shorthand
+   made both the same 1.5rem, but this row wraps onto THREE lines once a
+   Clan is set (Level+class summary / .sheet-clan-line, forced onto its own
+   line by flex-basis:100% / .sheet-add-class-link, pushed down because the
+   Clan line above it fills the row) — 1.5rem of vertical space between
+   wrapped lines of plain dim text reads as far too loose, disproportionate
+   to the same-line Level-to-class-summary gap the larger value is actually
+   tuned for. column-gap keeps the original 1.5rem for that same-line
+   relationship; row-gap gets its own, tighter value for the wrapped
+   lines. */
+.sheet-level-row { display: flex; align-items: center; row-gap: 0.4rem; column-gap: 1.5rem; flex-wrap: wrap; }
 
 .sheet-skill-line { display: flex; align-items: center; gap: 0.5rem; }
 .sheet-prof-toggle-form { margin: 0; }
@@ -2848,13 +2866,16 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .pending-asi-confirm { margin-left: auto; }
 .sheet-delete-btn {
   position: absolute;
-  top: 0.4rem;
+  top: 50%;
   right: 0.5rem;
+  transform: translateY(-50%);
   background: none;
   border: none;
+  padding: 0;
   color: var(--text-dim);
   cursor: pointer;
   font-size: 1rem;
+  font-family: inherit;
   line-height: 1;
 }
 .sheet-delete-btn:hover { color: var(--accent); }
@@ -3403,8 +3424,13 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 
    .sheet-delete-btn is absolutely positioned for the Features list it was
    written for; inside a table cell or a list row it has to sit in normal
-   flow instead, which is all this class changes. */
-.sheet-trash-btn { position: static; font-size: 0.9rem; opacity: 0.65; }
+   flow instead, which is all this class changes. transform: none undoes
+   .sheet-delete-btn's own translateY(-50%) (there to center it against
+   its base rule's top: 50%, which only makes sense for position:absolute)
+   — transform applies regardless of position, so without resetting it
+   here every "class=sheet-delete-btn sheet-trash-btn" button in normal
+   flow would render shifted upward by half its own height. */
+.sheet-trash-btn { position: static; transform: none; font-size: 0.9rem; opacity: 0.65; }
 .sheet-trash-btn:hover { opacity: 1; }
 
 .sheet-subheading { margin: 1.1rem 0 0.35rem; font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -3671,6 +3697,17 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    action that doesn't need a whole line of visual weight to itself. */
 .sheet-add-class-link { font-size: 0.85rem; color: var(--text-dim); text-decoration: underline; }
 .sheet-add-class-link:hover { color: var(--accent); }
+/* .page-subtitle's -0.5rem margin-top is tuned for sitting directly under
+   an <h1> (see that rule's own comment); here it instead sits right under
+   .sheet-level-row's own wrapped lines (the class summary, and once a Clan
+   is set, .sheet-clan-line/.sheet-add-class-link's own wrapped lines below
+   that), where the same negative margin collapses the gap after
+   "+Add a Class" to near zero/overlapping. Scoped to this header's own
+   DOM structure (character_sheet.html's .sheet-header-main > .page-subtitle)
+   rather than a change to the bare class, which is reused unscoped
+   sitewide (creation flow, subclass tracker popups, the home page's Patch
+   Notes subtitle, etc.) and must not be affected. */
+.sheet-header-main > .page-subtitle { margin-top: 0.5rem; }
 
 /* AC's own Adjust menu. The box needs a wrapper now that it carries a
    disclosure under it, the same reason Initiative's square got
@@ -4167,23 +4204,9 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    wondering why a feature they read about in the book isn't here yet —
    same reasoning the main sheet's own level-gated content follows. */
 .companion-reference-locked { opacity: 0.55; }
-/* Every subclass_tracker_section Known-pick row (subclass_tracker_popup.html)
-   is a bare <div class="puppet-upgrade-pick"> with no position of its own,
-   but its own .sheet-delete-btn is position:absolute (top/right against
-   whatever ancestor is actually positioned — same bug shape already fixed
-   once for #sheet-puppet-tactics .puppet-upgrade-pick on the Core sheet,
-   see that rule's own doc). Every subclass tracker popup lives on its own
-   bare layout_bare.html page with no .sheet-box (that class's own
-   position:relative is what accidentally anchors the Core sheet's OTHER
-   .puppet-upgrade-pick usages), so without this the delete button skips
-   past .companion-reference and .character-reference-page — neither of
-   which sets position either — all the way to the page's own initial
-   containing block: confirmed live via getBoundingClientRect, the button
-   rendered pinned to the popup window's top-right corner (screen
-   coordinates, not the row's), collapsing every Known pick's own delete
-   button into the same single unreachable spot instead of sitting next to
-   its own row. */
-.companion-reference .puppet-upgrade-pick { position: relative; }
+/* The delete-button anchoring fix formerly scoped here now lives on the
+   base .puppet-upgrade-pick rule itself (see its own doc comment) — this
+   box no longer needs its own copy. */
 
 /* character_reference.html's own subclass sections: the gold/blue split
    (see .subclass-scope's own doc up top) applied outside .class-detail —
@@ -4300,8 +4323,8 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 /* position:relative: its own .sheet-delete-btn is position:absolute and
    needs a LOCAL anchor — without one, it escapes to whatever ancestor
    further up the tree happens to have position set, landing wherever
-   that is instead of this card's own top-right corner (same bug shape as
-   #sheet-puppet-tactics .puppet-upgrade-pick, see that rule's own doc). */
+   that is instead of this card's own top-right corner (same bug shape
+   .puppet-upgrade-pick's own base rule documents and fixes unscoped). */
 /* padding-right reserves room for .sheet-delete-btn, which is
    position:absolute (right: 0.5rem, ~1rem wide) and so takes no space in
    the flex flow itself — without this, .companion-name-field's flex:1 1
@@ -4372,8 +4395,49 @@ summary.companion-card-header::before {
    description (that moved to the right-hand detail panel on click, see
    sheet-puppet-detail.js) — this is what actually declutters the
    wall-of-text look a fully-expanded pick used to have. Cursor/hover
-   signal the row itself is clickable for that detail preview. */
-.puppet-upgrade-pick { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+   signal the row itself is clickable for that detail preview.
+   position:relative: nearly every usage nests a position:absolute
+   .sheet-delete-btn inside this bare div, which otherwise skips this
+   unpositioned element entirely and anchors to whatever ancestor further
+   up the tree happens to have position set — a whole .sheet-box panel, a
+   popup page's initial containing block, whatever — landing pinned to
+   THAT ancestor's corner instead of sitting next to its own row (every
+   pick's delete button collapsing onto the same spot, easy to mistake for
+   a missing control rather than a misplaced one). This bit multiple
+   separate boxes before being made unscoped/unconditional here (Puppet
+   Master Tactics and the subclass-tracker-popup Known-pick lists both had
+   their own scoped one-off fix; Scientific Ninja Tools never got one and
+   shipped broken) because the fix kept being applied per-box instead of
+   to this shared class — see git history for the scoped
+   `#sheet-puppet-tactics .puppet-upgrade-pick` /
+   `.companion-reference .puppet-upgrade-pick` rules this rule replaces.
+   Safe unconditionally: the only other position:absolute descendant is
+   .tooltip-content, which already anchors to its own nearer .tooltip
+   span (that has its own position:relative), never to this row.
+   .sheet-delete-btn sits top: 50%; transform: translateY(-50%), so it's
+   always vertically centered against THIS row's own actual height,
+   whether that's a single line (~24px) or wrapped to two (~48px, see
+   padding-right below) — margin-bottom is just readability spacing
+   between consecutive picks (the project's own ~3mm breathing-room rule),
+   not overlap prevention; a fixed top offset would need a taller margin
+   to avoid the button overshooting into the next row, but a centered one
+   can't overshoot regardless of row height. padding-right: reserves room
+   for .sheet-delete-btn (right: 0.5rem, ~9px wide once its own rule wins
+   over the generic .sheet-inline-form/.sheet-panel-form button styling —
+   see that rule's own :not(.sheet-delete-btn) comment) so
+   .puppet-upgrade-pick-name's flex:1 1 auto — and any sibling like
+   .option-picker-epithet — doesn't run its own text underneath the
+   absolutely-positioned button, same pattern as .companion-card-header's
+   own padding-right just above. 1.5rem is the small button's actual
+   footprint plus a little clearance, not a guess: in a genuinely narrow
+   resized box (confirmed live at 241px, #sheet-science-nin's own default
+   width) a long name + epithet pair can already fill the row with zero
+   spare width before any padding-right is even applied, so any nonzero
+   reservation forces a wrap to two lines there — that's an unavoidable
+   consequence of the box being narrow, not a bug, and the button staying
+   centered means a wrapped two-line row still looks correct. */
+.puppet-upgrade-pick { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; position: relative; margin-bottom: 0.75rem; padding-right: 1.5rem; }
+.puppet-upgrade-pick:last-child { margin-bottom: 0; }
 .puppet-upgrade-pick:hover .puppet-upgrade-pick-name { color: var(--accent); }
 .puppet-upgrade-pick-name { flex: 1 1 auto; }
 
@@ -4453,9 +4517,14 @@ summary.companion-card-header::before {
    chip's own edges into whatever sits next to or below it"). Reverted to
    plain static/inline flow instead, same override shape
    .sheet-trash-btn already uses elsewhere for an inline (non-overlay)
-   delete control. */
+   delete control. transform: none is required alongside position:static —
+   the base rule's translateY(-50%) exists to center the button against
+   position:absolute's own top:50% and applies to any element regardless
+   of its position value, so without resetting it here this static/inline
+   button would still shift upward by half its own height. */
 .companion-seal-chip .sheet-delete-btn {
   position: static;
+  transform: none;
   font-size: 0.75rem;
   opacity: 0.65;
   padding: 0;
@@ -4624,15 +4693,9 @@ summary.companion-card-header::before {
    interaction it doesn't have" override as Puppet Tactics above. */
 .ninjutsu-jutsu-pick { cursor: default; }
 .ninjutsu-jutsu-pick:hover .puppet-upgrade-pick-name { color: inherit; }
-/* .sheet-delete-btn is position:absolute, meant to sit at its own row's
-   top-right corner — every other place that uses it wraps it in a
-   .sheet-feature-list li (position:relative there, see that rule). This is
-   the one spot that uses a bare div instead, so with no positioned
-   ancestor of its own, the button escaped all the way up to .sheet-box's
-   own position:relative and rendered pinned to the whole PANEL's top-right
-   corner — landing on top of the "Puppet Master Tactics" header itself
-   rather than next to the Tactic it actually deletes. */
-#sheet-puppet-tactics .puppet-upgrade-pick { position: relative; }
+/* The delete-button anchoring fix formerly scoped here now lives on the
+   base .puppet-upgrade-pick rule itself (see its own doc comment) — this
+   box no longer needs its own copy. */
 
 /* Structured, rollable puppet attacks — replaces the old freeform textarea
    (Puppets tab only, see companion_fields.html's ShowStructuredAttacks
