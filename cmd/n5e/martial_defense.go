@@ -80,17 +80,13 @@ type guardSealOption struct {
 	DetailHref                    string
 }
 
-// loadGuardSealCatalog lists every armor seal the character currently
-// qualifies for by tier, gated by guardSealTierCap — same
-// kind/seal_applies_to query battleReadyArmorSealOptions already runs, just
-// capped against this feature's own level schedule instead of the
-// universal core-book rank-by-character-level formula, since Martial
-// Defense's own text ties each tier to its own specific class level rather
-// than the standard D/C/B/A/S-by-character-level table.
-func (s *server) loadGuardSealCatalog(tierCap string) ([]guardSealOption, error) {
-	if tierCap == "" {
-		return nil, nil
-	}
+// loadArmorSealCatalog lists every Armor Seal in the equipment catalog
+// (kind='enhancement_seal', seal_applies_to='armor'), D through S, with no
+// tier filtering of its own — the shared base both Martial Defense's own
+// tier-capped guard slots (loadGuardSealCatalog) and Shinobi-Ware's Ever
+// Evolving (loadEverEvolvingSealCatalog, ever_evolving.go), whose own text
+// places no level-gated tier ceiling, build on.
+func (s *server) loadArmorSealCatalog() ([]guardSealOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(description, ''), seal_rank FROM equipment
 		WHERE kind = 'enhancement_seal' AND seal_applies_to = 'armor' ORDER BY name`)
@@ -98,7 +94,6 @@ func (s *server) loadGuardSealCatalog(tierCap string) ([]guardSealOption, error)
 		return nil, err
 	}
 	defer rows.Close()
-	tierCapOrder := jutsuRankOrder[tierCap]
 	var out []guardSealOption
 	for rows.Next() {
 		var o guardSealOption
@@ -106,13 +101,36 @@ func (s *server) loadGuardSealCatalog(tierCap string) ([]guardSealOption, error)
 		if err := rows.Scan(&o.Slug, &o.Name, &o.Description, &rank); err != nil {
 			return nil, err
 		}
-		if jutsuRankOrder[rank.String] <= tierCapOrder {
-			o.Rank = rank.String
-			o.DetailHref = "/seals/" + o.Slug
+		o.Rank = rank.String
+		o.DetailHref = "/seals/" + o.Slug
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// loadGuardSealCatalog lists every armor seal the character currently
+// qualifies for by tier, gated by guardSealTierCap — same underlying
+// catalog loadArmorSealCatalog reads, just capped against this feature's
+// own level schedule instead of the universal core-book rank-by-character-
+// level formula, since Martial Defense's own text ties each tier to its own
+// specific class level rather than the standard D/C/B/A/S-by-character-
+// level table.
+func (s *server) loadGuardSealCatalog(tierCap string) ([]guardSealOption, error) {
+	if tierCap == "" {
+		return nil, nil
+	}
+	all, err := s.loadArmorSealCatalog()
+	if err != nil {
+		return nil, err
+	}
+	tierCapOrder := jutsuRankOrder[tierCap]
+	var out []guardSealOption
+	for _, o := range all {
+		if jutsuRankOrder[o.Rank] <= tierCapOrder {
 			out = append(out, o)
 		}
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // martialDefenseTabData is the sheet_martial_defense box's full data.

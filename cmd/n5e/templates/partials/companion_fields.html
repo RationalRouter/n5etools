@@ -266,6 +266,60 @@
   <label>CHA <input type="number" name="cha_score" form="{{.FormID}}" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}" class="companion-field"></label>
 </div>
 
+{{/* Saving Throws: every kind except "puppet" — a Puppet Tool's own
+     Saving Throws are a fixed class-text readout (companion-base-traits
+     below, sourced from puppetToolStatBlock), not a per-companion pick, so
+     this box would just duplicate that text with nothing to toggle. Every
+     other kind computes real per-ability modifiers from the ability scores
+     above plus proficiency bonus if proficient (companionSaves), the same
+     reuse of .sheet-skill-line/.sheet-skill-row/.sheet-prof-bullet the
+     Core tab's own Skills box and puppet_skills_box above already use, so
+     all three stay visually identical by construction.
+
+     ShowSaveToggles (tab card only, never the read-only popup — see
+     handleCompanionSheet's own doc) swaps the read-only dot for a real
+     .sheet-toggle-form bullet, POSTing to .../saving-throw (form fields
+     "ability", "on") the same on/off shape sheet_skills' own proficiency
+     bullet already uses. S.N.B Specialist's own "Proficient in 2 of your
+     choice (3 at 14th level)" cap (.Saves.Cap, 0 for every kind with no
+     cap) disables any not-yet-proficient bullet once reached — a
+     convenience only, the real enforcement is server-side
+     (handleCompanionSavingThrowToggle). */}}
+{{if ne .Companion.Kind "puppet"}}
+{{$showToggles := .ShowSaveToggles}}
+{{$target := .SavesTarget}}
+{{$charID := .CharacterID}}
+{{$companionID := .Companion.ID}}
+{{$capReached := and .Saves.Cap (ge .Saves.Used .Saves.Cap)}}
+<section class="companion-skills companion-saves">
+  <h3>Saving Throws{{if .Saves.Cap}} <span class="option-picker-epithet">{{.Saves.Used}}/{{.Saves.Cap}} chosen</span>{{end}}</h3>
+  <div class="sheet-skill-groups companion-skill-groups companion-save-groups">
+    {{range .Saves.Rows}}
+    <div class="sheet-skill-line">
+      {{if $showToggles}}
+      <form method="post" action="/characters/{{$charID}}/companions/{{$companionID}}/saving-throw"
+            class="sheet-inline-form sheet-prof-toggle-form sheet-toggle-form" data-target="{{$target}}">
+        <input type="hidden" name="ability" value="{{.Ability}}">
+        <input type="hidden" name="on" value="{{if .Proficient}}0{{else}}1{{end}}">
+        <button type="submit" class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}}"
+                data-toggle-class="sheet-prof-bullet-on" aria-label="Toggle {{upper .Ability}} save proficiency"
+                title="{{if and $capReached (not .Proficient)}}Saving throw proficiency cap reached{{else}}Toggle proficiency{{end}}"
+                {{if and $capReached (not .Proficient)}}disabled{{end}}></button>
+      </form>
+      {{else}}
+      <span class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}} companion-skill-prof-dot" aria-hidden="true"></span>
+      {{end}}
+      <div class="sheet-skill-row rollable{{if .Proficient}} sheet-proficient{{end}}"
+           data-sides="20" data-modifier="{{.Modifier}}" data-label="{{upper .Ability}} Save" tabindex="0" role="button">
+        <span class="sheet-skill-name">{{upper .Ability}}</span>
+        <span class="sheet-skill-mod">{{signed .Modifier}}</span>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
 {{/* SymphonyEnhancement: Red Technique's Symphony of Puppetry, Enhancement
      branch — "double their maximum hit points, and increase one of their
      ability scores by +2, each." Both effects are annotation-only (see
@@ -496,6 +550,43 @@
 </div>
 {{end}}
 
+{{/* Known Titan Upgrades: every Titan Slot + Exo-Suit pick, shown right on
+     the companion sheet itself rather than only inside the separate Titan
+     Slots popup (subclass_tracker_popup.go) — a Weapon-keyword pick with a
+     standing attack profile ALSO gets its own rollable row further down
+     (titanKnownWeaponUpgradeAttacks/companions.go), but most Mech-keyword
+     picks (and the Weapon-keyword ones that are really a Drain-gated
+     action, not a standing weapon — Thermite Launcher, Xo-16 Gatling, etc.)
+     have no other place on the sheet a player can see what they actually
+     do. Titan Slots caps at Proficiency Bonus (max 6) plus a small Exo-Suit
+     allowance — short enough to show every entry's full text inline, the
+     same "always-visible-detail-block" treatment sheet_puppet_tactics'
+     own small Tactics list already uses, rather than a tooltip. */}}
+{{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.KnownUpgrades}}
+<div class="companion-titan-upgrades-known">
+  <h4>Known Titan Upgrades</h4>
+  {{range .TitanReference.KnownUpgrades}}
+  <div class="companion-titan-upgrade-entry">
+    <span class="companion-titan-upgrade-name">{{.Name}}</span>
+    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} CP{{if .Drain}} · {{.Drain}} CCD Chakra{{end}}</span>
+    <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.ExoSuit .TitanReference.ExoSuit.Known}}
+<div class="companion-titan-upgrades-known">
+  <h4>Known Exo-Suit Upgrades</h4>
+  {{range .TitanReference.ExoSuit.Known}}
+  <div class="companion-titan-upgrade-entry">
+    <span class="companion-titan-upgrade-name">{{.Name}}</span>
+    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} CP{{if .Drain}} · {{.Drain}} CCD Chakra{{end}}</span>
+    <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
 {{if eq .Companion.Kind "summon"}}
 <label class="companion-block-label">Summon Tribe
   <select name="summon_tribe_slug" form="{{.FormID}}" class="companion-field">
@@ -689,17 +780,22 @@
               data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
       {{end}}
       <template class="detail-body">{{if .Description}}<p>{{.Description}}</p>{{end}}</template>
-      {{/* .ID is 0 for an upgrade-granted attack (puppetUpgradeGrantedAttacks) —
-           it isn't a stored charstore.CompanionAttack row, so there's
-           nothing for a delete POST to target; remove the granting upgrade
-           itself instead, from the Puppet Upgrades list below. */}}
+      {{/* .ID is 0 for every computed row, not just an upgrade-granted one
+           (puppetUpgradeGrantedAttacks/titanKnownWeaponUpgradeAttacks) — a
+           companion's own innate baseline attack (Bash, Bite) is ALSO
+           computed fresh each render with .ID == 0, so branching on .ID
+           alone previously showed "Granted by a Puppet Upgrade" under a
+           Titan's own Bash attack too (confirmed live). .GrantedHint
+           distinguishes "genuinely came from a removable pick elsewhere on
+           the sheet" from "just an innate attack with nothing to remove" —
+           empty for the latter, so neither control shows at all. */}}
       {{if .ID}}
       <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/attacks/{{.ID}}/delete"
             class="sheet-inline-form sheet-fetch-form" data-target="{{$.AttacksTarget}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
       </form>
-      {{else}}
-      <span class="companion-attack-granted-hint" title="Granted by a Puppet Upgrade — remove the upgrade to remove this attack">from upgrade</span>
+      {{else if .GrantedHint}}
+      <span class="companion-attack-granted-hint" title="{{.GrantedHint}}">from upgrade</span>
       {{end}}
     </li>
     {{end}}
@@ -727,8 +823,9 @@
 {{/* Same rollable attack rows as the tab's own structured Attacks, minus
      the add/delete forms and detail-panel wiring (sheet-puppet-detail.js
      isn't loaded here) — the popup is a quick reference for combat, not
-     an editing surface; add/remove a puppet's attacks from the Puppets
-     tab on the main sheet instead. */}}
+     an editing surface; add/remove a companion's attacks from its own tab
+     on the main sheet instead (AttacksTabName — "Puppets" for kind="puppet",
+     "Companions" for every other kind, see companionAttacksTabLabel). */}}
 <section class="companion-block-label companion-attacks">
   <span>Attacks</span>
   {{if .Attacks}}
@@ -748,7 +845,7 @@
     {{end}}
   </ul>
   {{else}}
-  <p class="section-hint">No attacks yet — add one from the Puppets tab on the main sheet.</p>
+  <p class="section-hint">No attacks yet — add one from the {{.AttacksTabName}} tab on the main sheet.</p>
   {{end}}
 </section>
 {{else}}
@@ -1047,98 +1144,102 @@
     {{end}}
   </ul>
 
-  {{/* Titan Slots: Ordnance Training's own "a number of Titan Slots equal
-       to your Proficiency Bonus, which can be filled during a long rest
-       with upgrades with the Mech or Weapon keywords" — a Creation-Points-
-       BUDGET-gated cap+catalog picker, same shape sheet_science_nin's own
-       Scientific Ninja Tools box uses, not a flat slot-count gate, since
-       both spend from the identical shared pool (header shows both the
-       Titan Slots count AND the shared Creation Points budget so a player
-       can see whichever one runs out first). */}}
-  <h3>Titan Slots <span class="option-picker-epithet">{{.Ref.TitanSlotsUsed}}/{{.Ref.TitanSlotsCap}} filled · {{.Ref.CreationPointsUsed}}/{{.Ref.CreationPointsCap}} Creation Points spent</span></h3>
-  <p class="section-hint">Mech- or Weapon-keyword upgrades only — installed or replaced during a long rest. Spends from the same Creation Points budget as the Scientific Ninja Tools box on the Core tab.</p>
-  {{range .Ref.KnownUpgrades}}
-  <div class="puppet-upgrade-pick">
-    <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
-      <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
-      <input type="hidden" name="option_slug" value="{{.Slug}}">
-      <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
-    </form>
-    <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/titan-upgrades/{{.Slug}}">{{.Name}}</a>
-    <span class="option-picker-epithet">{{.Tier}} · {{upper .Keyword}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+  {{/* Titan Slots, Exo-Suit, and Specialist Crafting: pulled out of this
+       card into their own subclass tracker popup (subclass_tracker_popup.
+       go, character_titan_slots.html) — the sidebar's "Titan Slots" button
+       (gated on the same Ordnance Training grant the "not .Ref" guard just
+       above requires) is the only way to reach them now, so this card
+       only leaves a pointer rather than duplicating the three
+       Creation-Points-budget-spending pickers inline. */}}
+  <div class="sheet-subclass-detail subclass-scope">
+    <p class="section-hint">Titan Slots, Exo-Suit, and Specialist Crafting are tracked in the "Titan Slots" popup — see the sidebar.</p>
   </div>
   {{end}}
-  {{if and (lt .Ref.TitanSlotsUsed .Ref.TitanSlotsCap) (lt .Ref.CreationPointsUsed .Ref.CreationPointsCap)}}
-  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
+</section>
+{{end}}
+
+{{/* snb_reference: the S.N.B (Scientific Ninja Beast) equivalent of
+     nindog_reference/titan_reference — the base stat block (Immunities/
+     Resistances/Condition Immunities/Senses/Passive Perception/Bite), the
+     three always-on base traits, Combat Programming's own one-time
+     Striker/Caster/Defensive/Lurker pick, and the S.N.B Specialist subclass
+     feature list (locked by level). S.N.B Upgrades' own cap+catalog picker
+     and Secondary C.C.D's own resource pool live elsewhere (the Core tab's
+     Scientific Ninja Tools box / a customResourceGrants pool) — not
+     repeated here. Expects a dict: Ref (*snbReference), CharacterID,
+     CompanionID. Always non-nil (see loadSNBReference's own doc), unlike
+     .TitanReference — no top-level "not built yet" guard needed. */}}
+{{define "snb_reference"}}
+<section class="companion-reference">
+  <h2>S.N.B Reference</h2>
+  <dl class="sheet-passive-trait-list">
+    <dt>Size</dt><dd>{{.Ref.Size}}</dd>
+    <dt>Proficiency Bonus</dt><dd>+{{.Ref.ProficiencyBonus}} (shares yours)</dd>
+    <dt>Saving Throws</dt><dd>Proficient in 2 of your choice (3 at 14th level); negative modifiers are treated as +0</dd>
+    <dt>Senses</dt><dd>{{.Ref.Senses}}</dd>
+    <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}}</dd>
+    <dt>Damage Immunities</dt><dd>{{.Ref.Immunities}}</dd>
+    <dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}</dd>
+    <dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>
+    <dt>Hit Dice</dt><dd>{{.Ref.HitDiceMax}}d8 — spent via Regenerative Armor (17th level) to heal, not tracked as a separate pool here</dd>
+  </dl>
+
+  <h3>Bite</h3>
+  {{formatDescription .Ref.BiteDescription}}
+
+  <h3>Base Traits</h3>
+  <ul class="sheet-feature-list">
+    {{range .Ref.Traits}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+
+  {{/* Combat Programming (6th level): a permanent, one-time pick — once
+       made, the picker never re-appears, the same "locked once chosen"
+       shape the Bonus Hijutsu pick above gives a Nin-Dog. Radio buttons
+       with a per-option .tooltip (not a <select>): a 4-option list is
+       short enough to show every candidate's own name at a glance, the
+       same shape Titan Slots/Exo-Suit's own radio pickers already use
+       just above, and every option needs a rollover tooltip per this
+       project's own standing UI rule. */}}
+  <h3>Combat Programming</h3>
+  {{if .Ref.CombatProgrammingPick}}
+  {{range .Ref.CombatProgrammingOptions}}
+  {{if eq .Name $.Ref.CombatProgrammingPick}}
+  <p><strong>{{.Name}}</strong> {{formatDescription .Description}}</p>
+  {{end}}
+  {{end}}
+  {{else if .Ref.CombatProgrammingUnlocked}}
+  <p class="section-hint">Choose one — permanent once picked. Defensive's own AC bonus is already folded into the AC field above once chosen.</p>
+  <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.CompanionID}}/snb-combat-programming"
+        class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
     <ul class="puppet-upgrade-option-list">
-      {{range .Ref.AvailableUpgrades}}
+      {{range .Ref.CombatProgrammingOptions}}
       <li>
         <label class="puppet-upgrade-option tooltip">
-          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · {{upper .Keyword}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
+          <input type="radio" name="option_name" value="{{.Name}}" required> {{.Name}}
           <span class="tooltip-content">{{formatDescription .Description}}</span>
         </label>
       </li>
       {{end}}
     </ul>
-    <button type="submit">Install Upgrade</button>
+    <button type="submit">Choose</button>
   </form>
+  {{else}}
+  <p class="section-hint">Unlocks at 6th level.</p>
   {{end}}
 
-  {{/* Endless Work (6th level): a second, separate Mech-keyword-only slot
-       usable even outside the Titan, restricted to Cost 8 or lower ("a
-       Greater or lower Mech keyword upgrade" — see titan.go's own header
-       doc on the Refined/Greater tier merge this reads against). Still
-       spends from the same shared Creation Points budget shown above. */}}
-  {{if .Ref.ExoSuit}}
-  <h3>Exo-Suit <span class="option-picker-epithet">{{.Ref.ExoSuit.Used}}/{{.Ref.ExoSuit.Cap}} filled</span></h3>
-  <p class="section-hint">Mech-keyword upgrades of Cost 8 or lower, usable even while not inside the Titan. Installed during a long rest; a second slot opens at 14th level.</p>
-  {{range .Ref.ExoSuit.Known}}
-  <div class="puppet-upgrade-pick">
-    <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-exosuit-upgrade/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
-      <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
-      <input type="hidden" name="option_slug" value="{{.Slug}}">
-      <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
-    </form>
-    <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/titan-upgrades/{{.Slug}}">{{.Name}}</a>
-    <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
-  </div>
-  {{end}}
-  {{if and (lt .Ref.ExoSuit.Used .Ref.ExoSuit.Cap) (lt .Ref.CreationPointsUsed .Ref.CreationPointsCap)}}
-  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-exosuit-upgrade" class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
-    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
-    <ul class="puppet-upgrade-option-list">
-      {{range .Ref.ExoSuit.Available}}
-      <li>
-        <label class="puppet-upgrade-option tooltip">
-          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}{{if .Drain}} · Drain {{.Drain}}{{end}}</span>
-          <span class="tooltip-content">{{formatDescription .Description}}</span>
-        </label>
-      </li>
-      {{end}}
-    </ul>
-    <button type="submit">Install Exo-Suit Upgrade</button>
-  </form>
-  {{end}}
-  {{end}}
-
-  {{/* Specialist Crafting (14th level): a single-slot "Mech or Weapon"
-       designation, freely re-picked — every upgrade of that keyword costs
-       2 less Creation Points (min. 1) catalog-wide, already folded into
-       every Cost shown above rather than shown as a separate annotation. */}}
-  {{if .Ref.SpecialistCraftingAvailable}}
-  <h3>Specialist Crafting</h3>
-  <p class="section-hint">Upgrades of the designated keyword cost 2 less Creation Points (min. 1) — already reflected in the Cost badges above. Re-pick freely during a long rest.</p>
-  <form method="post" action="/characters/{{$.CharacterID}}/sheet/titan-specialist-crafting-keyword" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
-    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
-    <select name="keyword" required>
-      <option value="">— choose —</option>
-      <option value="mech"{{if eq .Ref.SpecialistCraftingKeyword "mech"}} selected{{end}}>Mech</option>
-      <option value="weapon"{{if eq .Ref.SpecialistCraftingKeyword "weapon"}} selected{{end}}>Weapon</option>
-    </select>
-    <button type="submit">Set Keyword</button>
-  </form>
-  {{end}}
-  {{end}}
+  <h3>S.N.B Specialist Features</h3>
+  <p class="section-hint">Locked ones are dimmed until the character's level catches up. S.N.B Upgrades and Secondary C.C.D are tracked elsewhere (the Scientific Ninja Tools box / the character's own resource pools) and aren't repeated here.</p>
+  <ul class="sheet-feature-list">
+    {{range .Ref.Features}}
+    <li{{if .Locked}} class="companion-reference-locked"{{end}}>
+      <strong>{{.Name}}</strong>
+      <span class="option-picker-epithet">Level {{.Level}}{{if .Locked}} (locked){{end}}</span>
+      {{formatDescription .Description}}
+    </li>
+    {{end}}
+  </ul>
 </section>
 {{end}}

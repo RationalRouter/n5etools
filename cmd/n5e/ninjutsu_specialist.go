@@ -616,6 +616,74 @@ func (s *server) handleNinjutsuJutsuPickAdd(
 	}
 }
 
+// addAwakenedScrollPick validates and stores one Awakened Scroll pick —
+// extracted from handleNinjutsuJutsuPickAdd's generic three-category factory
+// (above) so the Awakened Scroll popup's own route (ninjutsu_specialist_
+// awakened_scroll_popup.go) shares the identical validation path as the
+// Core-sheet's own AJAX route (handleAwakenedScrollAdd, just below) instead
+// of reimplementing it — same "extract, don't duplicate" shape
+// addSNBUpgradePick (science_nin_subclasses.go) establishes. Refined
+// Ninjutsu/Ninjutsu Master still go through the generic factory unchanged
+// — only Awakened Scroll (Scribe Master only) needed its own popup.
+func (s *server) addAwakenedScrollPick(id int64, jutsuID int64) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for awakened scroll add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	if err != nil {
+		log.Println("load ninjutsu specialist for awakened scroll add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.AwakenedScrollCap == 0 {
+		return http.StatusBadRequest, "character has no Awakened Scroll seals available"
+	}
+	if data.AwakenedScrollUsed >= data.AwakenedScrollCap {
+		return http.StatusBadRequest, "no seals remaining"
+	}
+	valid := false
+	for _, o := range data.AvailableAwakenedScroll {
+		if o.JutsuID == jutsuID {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddNinjutsuJutsuPick(s.charDB, id, charstore.NinjutsuPickAwakenedScroll, jutsuID); err != nil {
+		log.Println("add awakened scroll pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleAwakenedScrollAdd is addAwakenedScrollPick's own Core-sheet AJAX
+// wrapper, registered in place of the generic handleNinjutsuJutsuPickAdd
+// factory this route used before the Awakened Scroll popup existed.
+func (s *server) handleAwakenedScrollAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	jutsuID, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("jutsu_id")), 10, 64)
+	if err != nil {
+		http.Error(w, "missing pick", http.StatusBadRequest)
+		return
+	}
+	if status, msg := s.addAwakenedScrollPick(id, jutsuID); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_ninjutsu_specialist")
+}
+
 // handleNinjutsuJutsuPickDelete builds one category's "forget a pick"
 // route — freely, at any time.
 func (s *server) handleNinjutsuJutsuPickDelete(category charstore.NinjutsuJutsuPickCategory) http.HandlerFunc {

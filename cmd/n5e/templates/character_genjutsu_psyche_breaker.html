@@ -1,0 +1,46 @@
+{{/* character_genjutsu_psyche_breaker.html: the "Psyche Breaker" subclass
+     tracker popup — see cmd/n5e/subclass_tracker_popup.go for the shared
+     pattern. Sourced from the character's own known Genjutsu
+     (knownJutsuOption) rather than a rules-database catalog, so this is
+     hand-rolled with "jutsu_id" form fields rather than routed through the
+     shared subclass_tracker_section partial — same shape character_
+     genjutsu_twisted_casting.html's own hand-rolled section uses. Expects
+     {Title, Data (subclassTrackerPopupData), Genjutsu
+     (*genjutsuTabData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Psyche Breaker <span class="option-picker-epithet">{{.Genjutsu.PsycheBreakerUsed}}/{{.Genjutsu.PsycheBreakerCap}} chosen</span></h3>
+    <p class="section-hint">Genjutsu you know that deal damage (not enforced — pick freely). Casting one as a Bonus Action stacks a -1 AC penalty, up to 3 times, on affected creatures for 1 minute. Freely re-editable — this app doesn't enforce a re-pick timing.</p>
+    {{range .Genjutsu.KnownPsycheBreaker}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/psyche-breaker/delete" class="sheet-inline-form">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .Genjutsu.PsycheBreakerUsed .Genjutsu.PsycheBreakerCap}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/psyche-breaker/add" class="sheet-panel-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .Genjutsu.AvailablePsycheBreaker}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Psyche Breaker</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+</div>
+{{end}}

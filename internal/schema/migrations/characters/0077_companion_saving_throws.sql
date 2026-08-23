@@ -1,0 +1,22 @@
+-- A companion's own saving-throw proficiencies (Nin-Dog/Titan/S.N.B/Summon/
+-- Custom — Puppet Tools keep their fixed, class-text Saving Throws readout
+-- on the Puppets tab instead, see companion_fields.html's own
+-- companion-base-traits block, so this column is simply never read for
+-- kind='puppet'). Comma-separated ability codes among "str","dex","con",
+-- "int","wis","cha" (e.g. "str,dex,con") — free text rather than six
+-- separate boolean columns, matching how every other small "which of a
+-- fixed set applies" field in this table (armor_chassis, nin_dog_breed)
+-- already stores its answer as a plain string rather than a normalized
+-- side table.
+--
+-- Defaults to '' (no proficiencies) for both a brand-new companion and
+-- every pre-existing one — deliberately NOT backfilled with a per-kind
+-- default (a Nin-Dog's "Proficient in all", a Titan's fixed STR/DEX/CON)
+-- at migration time, since a once-only creation-time prefill (see
+-- cmd/n5e/companion_saves.go's own doc) is indistinguishable at the SQL
+-- level from a player who has since deliberately unchecked every box, and
+-- guessing wrong would silently reintroduce proficiencies a player chose to
+-- remove. The kind's own rules text stays visible above the toggles
+-- regardless, so nothing is hidden, just not auto-applied for a companion
+-- created before this column existed.
+ALTER TABLE character_companions ADD COLUMN save_proficiencies TEXT NOT NULL DEFAULT '';

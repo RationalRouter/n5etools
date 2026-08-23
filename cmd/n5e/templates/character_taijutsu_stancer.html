@@ -1,0 +1,57 @@
+{{/* character_taijutsu_stancer.html: the "Stancer" subclass tracker popup
+     — see cmd/n5e/subclass_tracker_popup.go for the shared pattern.
+     Mixed Martial Arts (3rd level) and Stance Blending (9th level) are
+     each a single freely re-editable Taijutsu Stance <select>, not catalog
+     pickers — neither is part of subclassTrackerSection, so both are
+     hand-rolled here rather than routed through the shared subclass_
+     tracker_section partial (same shape as character_science_nin_technobi.
+     html's own S.E.N.T <select>). Expects {Title, Data
+     (subclassTrackerPopupData), MixedMartialArts/StanceBlending
+     (*fightingStanceView, either may be nil independently — a 3rd-level
+     Stancer has the first but not the second)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if .MixedMartialArts}}
+  <section class="companion-reference">
+    <h3>Mixed Martial Arts</h3>
+    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding its benefit alongside your primary Stance at once (1 Martial Dice, for the next minute) is tracked on paper, not here.</p>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/stancer/mixed-martial-arts" class="sheet-inline-form">
+      <select name="stance_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .MixedMartialArts.Options}}
+        <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.MixedMartialArts.Current}} selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .MixedMartialArts.Current}}{{.MixedMartialArts.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+  {{if .StanceBlending}}
+  <section class="companion-reference">
+    <h3>Stance Blending</h3>
+    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding up to 3 stances' benefits simultaneously (1 Martial Dice per turn) is tracked on paper, not here.</p>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/stancer/stance-blending" class="sheet-inline-form">
+      <select name="stance_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .StanceBlending.Options}}
+        <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.StanceBlending.Current}} selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .StanceBlending.Current}}{{.StanceBlending.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,60 @@
+{{/* subclass_tracker_popup.html: shared rendering pieces for the
+     "subclass tracker popup" pattern — see cmd/n5e/subclass_tracker_
+     popup.go's own header doc for the full pattern (Go-side data shapes,
+     shared handlers, and the recipe for adding a third subclass's own
+     popup). First two users: character_snb_upgrades.html and
+     character_titan_slots.html. */}}
+
+{{/* subclass_tracker_popup_header: the back-link + <h1> + (optional)
+     shared Creation Points tile every subclass tracker popup opens with.
+     Dict-free — call with a subclassTrackerPopupData value directly
+     (CharacterID, CharacterName, Title, ShowCreationPoints,
+     CreationPointsUsed, CreationPointsCap). */}}
+{{define "subclass_tracker_popup_header"}}
+<p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+<h1>{{.Title}}</h1>
+{{if .ShowCreationPoints}}
+{{template "science_nin_creation_points_tile" (dict "Used" .CreationPointsUsed "Cap" .CreationPointsCap)}}
+{{end}}
+{{end}}
+
+{{/* subclass_tracker_section: one titled Known/Available cap+catalog
+     block — the exact puppet-upgrade-pick/puppet-upgrade-option-list
+     markup every inline Core-sheet picker (sheet_science_nin,
+     titan_reference, ...) already used, factored out here so a popup
+     built from this pattern never hand-copies it fresh. AddAction ""
+     (the section is full, or has nothing left to pick) hides the add-form
+     entirely, matching the "if lt Used Cap" gate every inline picker this
+     pattern replaces already applied. Call with one subclassTrackerSection
+     value directly (not a dict). */}}
+{{define "subclass_tracker_section"}}
+<section class="companion-reference">
+  <h3>{{.Title}}</h3>
+  {{if .Hint}}<p class="section-hint">{{.Hint}}</p>{{end}}
+  {{range .Known}}
+  <div class="puppet-upgrade-pick">
+    <form method="post" action="{{$.DeleteAction}}" class="sheet-inline-form">
+      <input type="hidden" name="option_slug" value="{{.Slug}}">
+      <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+    </form>
+    {{if .DetailHref}}<a class="puppet-upgrade-pick-name sheet-popup-trigger" href="{{.DetailHref}}">{{.Name}}</a>{{else}}<span class="puppet-upgrade-pick-name">{{.Name}}</span>{{end}}
+    <span class="option-picker-epithet">{{.Epithet}}</span>
+  </div>
+  {{end}}
+  {{if .AddAction}}
+  <form method="post" action="{{.AddAction}}" class="sheet-panel-form">
+    <ul class="puppet-upgrade-option-list">
+      {{range .Available}}
+      <li>
+        <label class="puppet-upgrade-option tooltip">
+          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Epithet}}</span>
+          <span class="tooltip-content">{{formatDescription .Description}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+    <button type="submit">{{.AddLabel}}</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

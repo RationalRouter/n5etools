@@ -59,6 +59,20 @@ import (
 // (Prerequisite is informational-only whenever it can't resolve to a real
 // sibling entry).
 //
+// S.N.B Upgrades (S.N.B Specialist) is the one exception to "informational
+// only" among this file's own catalogs: its own Cost IS deducted from
+// data.CreationPointsUsed (see that block in loadScienceNinSubclassData,
+// below), because S.N.B Upgrades shares the SAME single Creation Points
+// budget the base Scientific Ninja Tools catalog spends from, rather than a
+// second, separate per-installation budget — the identical shared-pool
+// treatment Titan Upgrades already gets for Mech Crafter
+// (titanUpgradesCreationPointsSpend, titan.go) and Ever Evolving Seal
+// already gets for Shinobi-Ware (this file, below). Every entry's own Cost
+// here is a flat single number (never a RANGE the way some of the other
+// catalogs' entries are), which is what makes tracking it exact rather than
+// another instance of the "no separate upgrade level concept" problem the
+// rest of this paragraph describes.
+//
 // Storage is internal/charstore/science_nin_subclass_picks.go's single
 // generic character_science_nin_subclass_picks table (migrations
 // 0044_science_nin_subclass_picks.sql,
@@ -142,7 +156,77 @@ const (
 	// "elemental_innovation_overcharge" key, keyed off this same const) and
 	// an Ascended W.o.W designation (DesignatedWoW below).
 	scienceNinElementalInnovationFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/elemental-innovation"
+
+	// scienceNinElementalInnovationistSubclassSlug identifies Elemental
+	// Innovationist itself, for scienceNinHasPermaPerk's own direct
+	// class/subclass-level gate check below.
+	scienceNinElementalInnovationistSubclassSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist"
+
+	// scienceNinPermaPerkGrantingLevel is Perma Perk's own granting level —
+	// confirmed against dist/rules.db's subclass_features row for
+	// scienceNinPermaPerkFeatureSlug.
+	scienceNinPermaPerkGrantingLevel = 14
+
+	// scienceNinRazorEIPSlug is Razor E.I.P's own class_option_entries slug
+	// (Greater tier): "Increase your critical threat range with your
+	// Unarmed Strike and Weapon Attacks by +1." Like the four Perma-Perk-
+	// eligible E.I.Ps applied in internal/charsheet/charsheet.go, this
+	// clause is only live once Razor is the character's designated Perma
+	// Perk (14th level: "gaining its benefits... without needing to spend
+	// CCD chakra to activate") — a merely-known Razor E.I.P grants nothing,
+	// same as every other E.I.P (see this file's own header doc). Applied
+	// in weaponSpecialistCritRangeThreshold (characters.go) since attack
+	// rows are built there rather than in internal/charsheet.
+	scienceNinRazorEIPSlug = "class/science-nin/option/e-i-ps/greater/entry/razor-e-i-p"
 )
+
+// scienceNinHasPermaPerk reports whether characterID currently has Perma
+// Perk active (14+ levels of Science-Nin with Elemental Innovationist
+// chosen) with wantSlug (a class_option_entries E.I.P slug) as their
+// designated Perma Perk. Checks the level/subclass gate directly against
+// character_classes/character_subclasses rather than trusting the stored
+// pick alone — mirrors exactly what features.LoadGrantedFeatures itself
+// checks for a subclass feature (class level >= feature level AND the
+// subclass slug present in character_subclasses), so a delevel below 14th
+// or a subclass swap away from Elemental Innovationist (charstore.SetLevel/
+// SetSubclass, both of which leave any existing pick row in place rather
+// than clearing it) correctly stops matching, the same "recheck the
+// granting condition at the consumption site" discipline
+// ninjaneer.go's recomputeNinjaneerWeaponOverrides already applies to its
+// own weapon designations.
+func (s *server) scienceNinHasPermaPerk(characterID int64, wantSlug string) (bool, error) {
+	var level int
+	err := s.charDB.QueryRow(
+		`SELECT levels FROM character_classes WHERE character_id = ? AND class_slug = ?`,
+		characterID, scienceNinSlug,
+	).Scan(&level)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if level < scienceNinPermaPerkGrantingLevel {
+		return false, nil
+	}
+	var hasSubclass bool
+	if err := s.charDB.QueryRow(
+		`SELECT EXISTS(SELECT 1 FROM character_subclasses WHERE character_id = ? AND subclass_slug = ?)`,
+		characterID, scienceNinElementalInnovationistSubclassSlug,
+	).Scan(&hasSubclass); err != nil {
+		return false, err
+	}
+	if !hasSubclass {
+		return false, nil
+	}
+	picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		return false, err
+	}
+	for _, p := range picks {
+		if p.OptionSlug == wantSlug {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // eipCap: Exoskeleton begins with 2 E.I.P slots, +1 at 6th, +1 at 9th.
 func eipCap(level int) int {
@@ -254,12 +338,23 @@ type scienceNinSubclassOption struct {
 }
 
 // knownScienceNinPick is one entry on a Known list for any of this file's
-// seven catalogs. Pool is Inversion Serums only.
+// seven catalogs. Pool is Inversion Serums only. Quantity is left at its
+// zero value everywhere except B.I.M (splitScienceNinPicks never sets it;
+// the template only reads it in the B.I.M section) — see
+// splitScienceNinBIMPicks for the one catalog where a single Known entry
+// can represent more than one held copy. Cost is S.N.B Upgrades only, set in
+// a separate pass after splitScienceNinPicks runs (that function has no
+// Cost concept — every other catalog's own Cost badge stays purely
+// informational, see this file's own header doc) since S.N.B Upgrades is
+// the one catalog here that actually spends from the shared Creation Points
+// budget (loadScienceNinSubclassData's own S.N.B Upgrades block).
 type knownScienceNinPick struct {
-	Slug string
-	Name string
-	Tier string
-	Pool string
+	Slug     string
+	Name     string
+	Tier     string
+	Pool     string
+	Quantity int
+	Cost     int
 }
 
 // scienceNinRegaliaOptions: King's Road's own 8 Regalia types, hand-
@@ -310,6 +405,21 @@ func inversionSerumFixedPool(description string) string {
 // internal/store/classoptionentries.go). serumPool controls whether
 // FixedPool is resolved (Inversion Serums only; every other catalog leaves
 // it "").
+//
+// The main query is an INNER JOIN against class_option_entries, so a tier
+// with ZERO split rows drops out of the result entirely rather than
+// appearing with an empty item list — internal/store/classoptionentries.go
+// only splits a tier's own description when it detects 2+ named
+// sub-entries (see textentries.FindEntries), so every catalog's own
+// Mastercraft tier (bundling exactly one named item: OVERCHARGE, STUN
+// B.I.M, Amplification Matrix, C-DRIVE, WONDER E.I.P, GIANT SIZE, STUNNING
+// BLAST — confirmed via sqlite3 against dist/rules.db) falls below that
+// threshold and silently vanishes from every affected catalog. Appending
+// loadScienceNinChildlessTierOptions' own synthesized rows repairs every
+// affected catalog through this one shared call site, the same "fix a
+// whole class of bug in one pass" shape loadTitanUpgradeCatalog (titan.go)
+// already applies to Titan Upgrades' own Mastercraft/Bijuu Slayer row —
+// this is the general form of that same special case.
 func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bool) ([]scienceNinSubclassOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT e.slug, e.name, e.description, o.name
@@ -336,7 +446,79 @@ func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bo
 		}
 		out = append(out, o)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	childless, err := s.loadScienceNinChildlessTierOptions(listName)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range childless {
+		if resolveSerumPool {
+			o.FixedPool = inversionSerumFixedPool(o.Description)
+		}
+		out = append(out, o)
+	}
+	return out, nil
+}
+
+// loadScienceNinChildlessTierOptions synthesizes one scienceNinSubclassOption
+// per class_options row under listName that has zero class_option_entries
+// children — see loadScienceNinEntryCatalog's own doc for why such a tier
+// exists and why it would otherwise vanish from the catalog entirely.
+// Slug is the class_options row's own slug (there is no
+// class_option_entries row to point at); Name/Description are split off
+// the tier's raw class_options.description via splitScienceNinSoloTierItem.
+func (s *server) loadScienceNinChildlessTierOptions(listName string) ([]scienceNinSubclassOption, error) {
+	rows, err := s.rulesDB.Query(`
+		SELECT o.slug, o.name, o.description
+		FROM class_options o
+		WHERE o.class_slug = ? AND o.list_name = ?
+		  AND NOT EXISTS (SELECT 1 FROM class_option_entries e WHERE e.class_option_slug = o.slug)
+		ORDER BY o.sort_order`, scienceNinSlug, listName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []scienceNinSubclassOption
+	for rows.Next() {
+		var slug, tier, description string
+		if err := rows.Scan(&slug, &tier, &description); err != nil {
+			return nil, err
+		}
+		name, body := splitScienceNinSoloTierItem(tier, description)
+		o := scienceNinSubclassOption{Slug: slug, Name: name, Tier: tier}
+		o.Epithet, _ = splitLeadingStatLine(body)
+		o.Description = body
+		out = append(out, o)
+	}
 	return out, rows.Err()
+}
+
+// splitScienceNinSoloTierItem peels a lone bundled item's own ALL-CAPS name
+// off the front of its tier's raw class_options.description — e.g.
+// Spyware Programs' own Mastercraft tier, "OVERCHARGE Cost: 32 Creation
+// Points Drain: 30 CCD Chakra ..." Reuses findEntries (format.go's own
+// wrapper around textentries.FindEntries, the SAME detection
+// internal/store/classoptionentries.go runs at ingest time to split a
+// MULTI-item tier), just without that caller's own 2-match threshold — one
+// match is exactly what a single bundled item produces. Falls back to the
+// tier's own name/description untouched (never observed live against
+// dist/rules.db, but keeps a future malformed row from silently rendering
+// with a garbage Name instead of failing visibly as "just the tier name").
+func splitScienceNinSoloTierItem(tierName, description string) (name, body string) {
+	entries := findEntries(description)
+	if len(entries) == 0 {
+		return tierName, description
+	}
+	e := entries[0]
+	name = description[e.NameStart:e.NameEnd]
+	if e.Kind == entryKindCaps {
+		name = titleCase(name)
+	}
+	return name, strings.TrimSpace(description[e.BodyStart:])
 }
 
 // loadScienceNinFlatCatalog reads a catalog that is already one row per
@@ -377,6 +559,48 @@ func splitScienceNinPicks(catalog []scienceNinSubclassOption, picked map[string]
 		}
 	}
 	return known, available
+}
+
+// splitScienceNinBIMPicks is splitScienceNinPicks' own B.I.M-specific
+// cousin: "you can pick any modification with 'B.I.M' in the name more
+// than once, other than the Barrier B.I.M." Known carries each held type's
+// own Quantity (the row's stored held count, always >= 1 for anything
+// present at all); unlike splitScienceNinPicks, Known and Available are NOT
+// mutually exclusive here — a known, non-Barrier type stays in Available so
+// it can be picked again, and only drops out once BIMCap is reached (the
+// generic Add handler's own used>=cap gate, not this split). Barrier B.I.M
+// is the one exception, matched by name the same way Perma Perk excludes
+// Wonder E.I.P above: once known, it drops out of Available for good, the
+// same "known picks leave Available" treatment every other category's
+// picks get unconditionally.
+func splitScienceNinBIMPicks(catalog []scienceNinSubclassOption, picks []charstore.ScienceNinSubclassPick) (known []knownScienceNinPick, available []scienceNinSubclassOption) {
+	qtyBySlug := make(map[string]int, len(picks))
+	for _, p := range picks {
+		qtyBySlug[p.OptionSlug] = p.Quantity
+	}
+	for _, o := range catalog {
+		qty, isKnown := qtyBySlug[o.Slug]
+		if isKnown {
+			known = append(known, knownScienceNinPick{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Quantity: qty})
+			if strings.EqualFold(o.Name, "Barrier B.I.M") {
+				continue // the one explicitly-named exception — no second Barrier B.I.M
+			}
+		}
+		available = append(available, o)
+	}
+	return known, available
+}
+
+// scienceNinDescBySlug indexes a catalog by slug so a Designated/Permanent
+// picker (built from an already-Known knownScienceNinPick list, which
+// carries no Description of its own) can look up the same catalog text its
+// sibling non-designated picker already renders as its tooltip.
+func scienceNinDescBySlug(catalog []scienceNinSubclassOption) map[string]string {
+	m := make(map[string]string, len(catalog))
+	for _, o := range catalog {
+		m[o.Slug] = o.Description
+	}
+	return m
 }
 
 // scienceNinElementalInnovationistData backs E.I.Ps, W.O.W, and Perma Perk
@@ -424,7 +648,12 @@ type scienceNinElementalInnovationistData struct {
 }
 
 // scienceNinGrenadierData backs B.I.M (Explosive Modifications) and the
-// B.I.M Specialist overlay.
+// B.I.M Specialist overlay. BIMUsed is the TOTAL held count (summed
+// Quantity across every KnownBIM entry, not len(KnownBIM)) — the book's own
+// "you can pick any modification with 'B.I.M' in the name more than once,
+// other than the Barrier B.I.M" means the bandolier's real capacity is
+// against total copies held, not distinct types known. See
+// splitScienceNinBIMPicks for how KnownBIM/AvailableBIM are built.
 type scienceNinGrenadierData struct {
 	BIMCap       int
 	BIMUsed      int
@@ -489,6 +718,44 @@ type scienceNinNinjaneerData struct {
 	PerfectedWeaponUsed       int
 	KnownPerfectedWeapons     []knownScienceNinPick
 	AvailablePerfectedWeapons []scienceNinSubclassOption
+
+	// EnhancedWeapon/AvailableEnhancedWeapons back Enhanced Arsenal's own
+	// single-slot "which owned weapon is my Enhanced Weapon" designation —
+	// see cmd/n5e/ninjaneer.go. Always populated once Enhanced Arsenal is
+	// granted (unlike ArsenalModCap above, this isn't itself capped by
+	// anything — designating IS the cap, one weapon at a time).
+	EnhancedWeapon           *ninjaneerWeaponOption
+	AvailableEnhancedWeapons []ninjaneerWeaponOption
+
+	// WarriorOfScience is non-nil only once the character has the 9th-level
+	// Warrior of Science feature — LegendaryWeapon/AvailableLegendaryWeapons
+	// back the same single-slot designation shape as EnhancedWeapon above,
+	// and LegendaryWeaponActive backs the feature's own CCD-funded
+	// activation toggle (character.ninjaneer_legendary_weapon_active,
+	// handleSheetNinjaneerLegendaryWeaponToggle) — the +2 attack roll/
+	// doubled property/THP bypass/force-conversion effects that toggle
+	// gates stay manual/narrated, only the spend-gate and rules text are
+	// surfaced.
+	WarriorOfScience *scienceNinWarriorOfScienceData
+
+	// PerfectedWeaponMark/AvailablePerfectedWeaponMarks back A Weapon to
+	// Surpass's own single-slot "which owned weapon is MY Perfected
+	// Weapon" designation, for The Future of Shinobi: Weapons' own flat
+	// +Intelligence-Modifier damage bonus — a different tracked quantity
+	// from PerfectedWeaponCap/KnownPerfectedWeapons above (the count of
+	// free Minor Arsenal Modifications the same feature also grants,
+	// capped at Intelligence Modifier since the book allows multiple
+	// Perfected Weapons at once). See cmd/n5e/ninjaneer.go.
+	PerfectedWeaponMark           *ninjaneerWeaponOption
+	AvailablePerfectedWeaponMarks []ninjaneerWeaponOption
+}
+
+// scienceNinWarriorOfScienceData backs Warrior of Science's own Legendary
+// Weapon designation and its activation toggle.
+type scienceNinWarriorOfScienceData struct {
+	LegendaryWeapon           *ninjaneerWeaponOption
+	AvailableLegendaryWeapons []ninjaneerWeaponOption
+	Active                    bool
 }
 
 // scienceNinShinobiWareData backs Shinobi-Ware Upgrades, the Glorious
@@ -541,6 +808,20 @@ type scienceNinShinobiWareData struct {
 	// still make or change (6th/9th level), each excluding whatever's
 	// already been picked in the OTHER slot.
 	FullMetalShinobiSlots []fullMetalShinobiSlot
+
+	// EverEvolvingSeal/AvailableEverEvolvingSeal back the 14th-level Ever
+	// Evolving feature (ever_evolving.go): a single Armor Seal (cap 1,
+	// "apply IT to your Full Metal Shinobi armor") instantly applied for a
+	// Creation Points cost equal to its own rank, spent from the SAME
+	// shared budget every other Science-Nin pick draws from — unlike every
+	// other field in this struct, gated by data.CreationPointsUsed/Cap
+	// rather than a flat slot count. Both non-nil/non-empty only once the
+	// character has the Ever Evolving feature; AvailableEverEvolvingSeal
+	// draws from the full D-through-S armor seal catalog with no tier cap
+	// (contrast guardSealTierCap, martial_defense.go — Ever Evolving's own
+	// text states no level-gated ceiling).
+	EverEvolvingSeal          *everEvolvingSealOption
+	AvailableEverEvolvingSeal []everEvolvingSealOption
 }
 
 // scienceNinSpywareData backs Spyware Programs and the Netrunner Quick Hack
@@ -621,6 +902,12 @@ type scienceNinTechnobiData struct {
 // models an actual companion to be "within 5 feet of") are deliberately
 // left unbuilt — see CLASS_AUDIT.md's Science-Nin detail entry.
 type scienceNinSNBSpecialistData struct {
+	// UpgradeCap/UpgradeUsed are the flat Upgrade Slot count (Proficiency
+	// Bonus). Each KnownUpgrades entry's own Cost also draws from the
+	// SEPARATE, shared Creation Points budget (scienceNinToolsTabData's own
+	// CreationPointsCap/Used) — a known upgrade can be blocked by either
+	// running out first, same as Titan Slots/Creation Points for Mech
+	// Crafter.
 	UpgradeCap        int
 	UpgradeUsed       int
 	KnownUpgrades     []knownScienceNinPick
@@ -702,13 +989,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				for _, p := range designatedPicks {
 					designatedSet[p.OptionSlug] = true
 				}
+				descBySlug := scienceNinDescBySlug(catalog)
 				for _, k := range ei.KnownWOW {
 					if designatedSet[k.Slug] {
 						pick := k
 						ei.DesignatedWoW = &pick
 						continue
 					}
-					ei.AvailableDesignatedWoW = append(ei.AvailableDesignatedWoW, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+					ei.AvailableDesignatedWoW = append(ei.AvailableDesignatedWoW, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 				}
 			}
 		}
@@ -722,6 +1010,11 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range permaPicks {
 				permaSet[p.OptionSlug] = true
 			}
+			eipCatalog, err := s.loadScienceNinEntryCatalog("E.I.Ps", false)
+			if err != nil {
+				return err
+			}
+			descBySlug := scienceNinDescBySlug(eipCatalog)
 			for _, k := range ei.KnownEIPs {
 				if permaSet[k.Slug] {
 					pick := k
@@ -731,7 +1024,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				if strings.EqualFold(k.Name, "Wonder E.I.P") {
 					continue // Perma Perk explicitly cannot be Wonder E.I.P
 				}
-				ei.AvailablePermaPerk = append(ei.AvailablePermaPerk, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				ei.AvailablePermaPerk = append(ei.AvailablePermaPerk, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
 		}
 
@@ -748,12 +1041,10 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		if err != nil {
 			return err
 		}
-		pickedSet := make(map[string]bool, len(picks))
 		for _, p := range picks {
-			pickedSet[p.OptionSlug] = true
+			gr.BIMUsed += p.Quantity
 		}
-		gr.BIMUsed = len(picks)
-		gr.KnownBIM, gr.AvailableBIM = splitScienceNinPicks(catalog, pickedSet)
+		gr.KnownBIM, gr.AvailableBIM = splitScienceNinBIMPicks(catalog, picks)
 
 		if has[scienceNinBIMSpecialistFeatureSlug] {
 			designatedPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickBIMSpecialist)
@@ -764,13 +1055,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range designatedPicks {
 				designatedSet[p.OptionSlug] = true
 			}
+			descBySlug := scienceNinDescBySlug(catalog)
 			for _, k := range gr.KnownBIM {
 				if designatedSet[k.Slug] {
 					pick := k
 					gr.DesignatedBIM = &pick
 					continue
 				}
-				gr.AvailableDesignatedBIM = append(gr.AvailableDesignatedBIM, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				gr.AvailableDesignatedBIM = append(gr.AvailableDesignatedBIM, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
 		}
 
@@ -811,6 +1103,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range designatedPicks {
 				designatedSet[p.OptionSlug] = true
 			}
+			descBySlug := scienceNinDescBySlug(catalog)
 			for _, k := range ms.KnownSerums {
 				if fixedPoolBySlug[k.Slug] != "" {
 					continue // The Sheep and the Shepherd requires a dual-effect Serum (FixedPool == "")
@@ -820,7 +1113,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 					ms.DesignatedSerum = &pick
 					continue
 				}
-				ms.AvailableDesignatedSerum = append(ms.AvailableDesignatedSerum, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				ms.AvailableDesignatedSerum = append(ms.AvailableDesignatedSerum, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
 		}
 
@@ -834,15 +1127,25 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			return err
 		}
 
+		// candidateWeapons feeds every one of this subclass's own weapon
+		// designations below (Enhanced/Legendary/Perfected) — loaded once
+		// per request rather than per tier, since all three draw from the
+		// same "character's own weapon-kind inventory rows" set.
+		candidateWeapons, err := s.loadNinjaneerCandidateWeapons(characterID)
+		if err != nil {
+			return err
+		}
+
 		if has[scienceNinArsenalFeatureSlug] {
 			nj.ArsenalModCap = arsenalModCap(proficiencyBonus)
 			if has[scienceNinFutureOfShinobiWeaponsFeatureSlug] {
 				// "You gain additional upgrade slots for your Enhanced
 				// Arsenal equal to your Intelligence modifier." The same
-				// capstone's flat proficiency-bonus/2x-proficiency/Int-mod
-				// damage-roll riders on Enhanced/Legendary/Perfected
-				// Weapons stay undocumented — no per-weapon damage-roll-
-				// modifier field exists anywhere in this app.
+				// capstone's own flat proficiency-bonus/2x-proficiency/
+				// Int-mod damage-roll riders on Enhanced/Legendary/
+				// Perfected Weapons are applied automatically via
+				// recomputeNinjaneerWeaponOverrides (ninjaneer.go), not
+				// here.
 				nj.ArsenalModCap += nonNegativeIntMod(intMod)
 			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickArsenalMod)
@@ -855,6 +1158,24 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			}
 			nj.ArsenalModUsed = len(picks)
 			nj.KnownArsenalMods, nj.AvailableArsenalMods = splitScienceNinPicks(catalog, pickedSet)
+
+			nj.EnhancedWeapon, nj.AvailableEnhancedWeapons, err = s.ninjaneerDesignatedWeapon(characterID, charstore.ScienceNinPickEnhancedWeapon, candidateWeapons)
+			if err != nil {
+				return err
+			}
+		}
+
+		if has[scienceNinWarriorOfScienceFeatureSlug] {
+			active, err := charstore.NinjaneerLegendaryWeaponActive(s.charDB, characterID)
+			if err != nil {
+				return err
+			}
+			ws := &scienceNinWarriorOfScienceData{Active: active}
+			ws.LegendaryWeapon, ws.AvailableLegendaryWeapons, err = s.ninjaneerDesignatedWeapon(characterID, charstore.ScienceNinPickLegendaryWeapon, candidateWeapons)
+			if err != nil {
+				return err
+			}
+			nj.WarriorOfScience = ws
 		}
 
 		if has[scienceNinPerfectedWeaponFeatureSlug] {
@@ -875,12 +1196,17 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			}
 			nj.PerfectedWeaponUsed = len(picks)
 			nj.KnownPerfectedWeapons, nj.AvailablePerfectedWeapons = splitScienceNinPicks(minorOnly, pickedSet)
+
+			nj.PerfectedWeaponMark, nj.AvailablePerfectedWeaponMarks, err = s.ninjaneerDesignatedWeapon(characterID, charstore.ScienceNinPickPerfectedWeaponMark, candidateWeapons)
+			if err != nil {
+				return err
+			}
 		}
 
 		data.Ninjaneer = nj
 	}
 
-	if has[scienceNinEdgeRunnerFeatureSlug] || has[scienceNinGloriousEvolutionFeatureSlug] {
+	if has[scienceNinEdgeRunnerFeatureSlug] || has[scienceNinGloriousEvolutionFeatureSlug] || has[scienceNinEverEvolvingFeatureSlug] {
 		sw := &scienceNinShinobiWareData{}
 		catalog, err := s.loadScienceNinEntryCatalog("Shinobi-Ware Upgrades", false)
 		if err != nil {
@@ -973,6 +1299,34 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			sw.FullMetalShinobiSlots = fullMetalShinobiSlots(level, resistancePicks)
 		}
 
+		if has[scienceNinEverEvolvingFeatureSlug] {
+			sealCatalog, err := s.loadEverEvolvingSealCatalog()
+			if err != nil {
+				return err
+			}
+			sealPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEverEvolvingSeal)
+			if err != nil {
+				return err
+			}
+			pickedSeal := make(map[string]bool, len(sealPicks))
+			for _, p := range sealPicks {
+				pickedSeal[p.OptionSlug] = true
+			}
+			for i, o := range sealCatalog {
+				if pickedSeal[o.Slug] {
+					sw.EverEvolvingSeal = &sealCatalog[i]
+					// Spent from the SAME shared Creation Points budget the
+					// base Scientific Ninja Tools loop (loadScienceNinTabData)
+					// adds its own picks' cost into — order between the two
+					// loops doesn't matter, since both write into the same
+					// running total.
+					data.CreationPointsUsed += o.Cost
+					continue
+				}
+				sw.AvailableEverEvolvingSeal = append(sw.AvailableEverEvolvingSeal, o)
+			}
+		}
+
 		data.ShinobiWare = sw
 	}
 
@@ -1006,13 +1360,18 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range quickHackPicks {
 				quickHackSet[p.OptionSlug] = true
 			}
+			programCatalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false)
+			if err != nil {
+				return err
+			}
+			descBySlug := scienceNinDescBySlug(programCatalog)
 			for _, k := range sp.KnownPrograms {
 				if quickHackSet[k.Slug] {
 					pick := k
 					sp.QuickHack = &pick
 					continue
 				}
-				sp.AvailableQuickHack = append(sp.AvailableQuickHack, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				sp.AvailableQuickHack = append(sp.AvailableQuickHack, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
 		}
 
@@ -1124,6 +1483,19 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		if err != nil {
 			return err
 		}
+		// Parsed with the identical stat-line pattern the base Scientific
+		// Ninja Tools catalog uses (parseScienceNinToolStatLine,
+		// science_nin.go) — both catalogs' own entries share the exact same
+		// "(Prerequisite: ...)? Cost: N Creation Points (Drain: N CCD
+		// Chakra)?" text shape, confirmed against every entry in this
+		// catalog. Built once here and reused below both for each Known
+		// pick's own display Cost and for the running Creation Points total.
+		costBySlug := make(map[string]int, len(catalog))
+		for _, o := range catalog {
+			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			costBySlug[o.Slug] = cost
+		}
+
 		picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSNBUpgrade)
 		if err != nil {
 			return err
@@ -1134,26 +1506,44 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 		snb.UpgradeUsed = len(picks)
 		snb.KnownUpgrades, snb.AvailableUpgrades = splitScienceNinPicks(catalog, pickedSet)
+		for i := range snb.KnownUpgrades {
+			snb.KnownUpgrades[i].Cost = costBySlug[snb.KnownUpgrades[i].Slug]
+		}
 
+		permanentSlugs := map[string]bool{}
 		if has[scienceNinFutureOfShinobiSNBFeatureSlug] {
 			snb.PermanentCap = 3
 			permPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSNBUpgradePermanent)
 			if err != nil {
 				return err
 			}
-			permSet := make(map[string]bool, len(permPicks))
 			for _, p := range permPicks {
-				permSet[p.OptionSlug] = true
+				permanentSlugs[p.OptionSlug] = true
 			}
+			descBySlug := scienceNinDescBySlug(catalog)
 			for _, k := range snb.KnownUpgrades {
-				if permSet[k.Slug] {
+				if permanentSlugs[k.Slug] {
 					pick := k
 					snb.KnownPermanent = append(snb.KnownPermanent, pick)
 					continue
 				}
-				snb.AvailablePermanent = append(snb.AvailablePermanent, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier})
+				snb.AvailablePermanent = append(snb.AvailablePermanent, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
 			snb.PermanentUsed = len(snb.KnownPermanent)
+		}
+
+		// S.N.B Upgrades draw from the SAME shared Creation Points budget
+		// the base Scientific Ninja Tools loop (loadScienceNinTabData) and,
+		// for Mech Crafter, Titan Upgrades both spend from — see this
+		// file's own header doc on why S.N.B Upgrades is the one exception
+		// among this file's catalogs to "Cost is informational only".
+		// Future of Shinobi: S.N.B's own permanent picks are excluded
+		// ("they no longer take an upgrade slot or cost creation points").
+		for _, k := range snb.KnownUpgrades {
+			if permanentSlugs[k.Slug] {
+				continue
+			}
+			data.CreationPointsUsed += k.Cost
 		}
 
 		data.SNBSpecialist = snb
@@ -1162,10 +1552,95 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 	return nil
 }
 
+// addSNBUpgradePick validates and installs one S.N.B Upgrade, gated by BOTH
+// the flat Upgrade Slot cap (UpgradeCap/Used) and the shared Creation Points
+// budget — unlike every other catalog in this file (see this file's own
+// header doc on why those stay slot-only), S.N.B Upgrades draw from the
+// SAME Creation Points pool the base Scientific Ninja Tools catalog and,
+// for Mech Crafter, Titan Upgrades both spend from, the same shape
+// handleTitanUpgradeAdd (titan.go) already established for its own sibling
+// pool. Returns (http.StatusOK, "") on success, or the status/message an
+// http.Error should report on failure. Shared by the Core-sheet's own AJAX
+// route (handleScienceNinSNBUpgradeAdd, just below) and the S.N.B Upgrades
+// popup's plain POST route (handleSNBUpgradesAdd, snb_upgrades_popup.go),
+// which differ only in how they turn this outcome into an HTTP response —
+// extracted so the two entry points can never drift apart on which
+// upgrades a budget/slot check actually allows.
+func (s *server) addSNBUpgradePick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing upgrade"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for snb upgrade add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadScienceNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load science-nin for snb upgrade add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.SNBSpecialist == nil {
+		return http.StatusBadRequest, "character has no S.N.B Upgrades yet"
+	}
+	snb := data.SNBSpecialist
+	if snb.UpgradeUsed >= snb.UpgradeCap {
+		return http.StatusBadRequest, "no S.N.B Upgrade slots remaining"
+	}
+	var picked *scienceNinSubclassOption
+	for i, o := range snb.AvailableUpgrades {
+		if o.Slug == slug {
+			picked = &snb.AvailableUpgrades[i]
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid upgrade"
+	}
+	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	if data.CreationPointsUsed+cost > data.CreationPointsCap {
+		return http.StatusBadRequest, "not enough Creation Points remaining"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickSNBUpgrade, slug, ""); err != nil {
+		log.Println("add snb upgrade:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleScienceNinSNBUpgradeAdd is the Core-sheet's own AJAX route for
+// addSNBUpgradePick (above) — not built on the generic
+// handleScienceNinSubclassPickAdd factory below, since that factory's
+// signature only ever checks a flat slot count, and threading a second,
+// catalog-specific Creation-Points check through it would complicate the
+// eighteen other call sites that must stay slot-only.
+// handleScienceNinSubclassPickDelete (below) is still used for S.N.B
+// Upgrade removal — freeing a slot never needs a budget check.
+func (s *server) handleScienceNinSNBUpgradeAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addSNBUpgradePick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
 // handleScienceNinSubclassPickAdd builds one category's "learn a pick"
-// route — shared by all nineteen of this file's catalogs, differing only in
-// which of scienceNinToolsTabData's own fields govern the cap/current-count
-// and currently-pickable list, same factory shape
+// route — shared by all eighteen of this file's remaining catalogs (S.N.B
+// Upgrades' own ADD route now uses the dedicated handleScienceNinSNBUpgradeAdd
+// above; its DELETE route still uses this file's own
+// handleScienceNinSubclassPickDelete below), differing only in which of
+// scienceNinToolsTabData's own fields govern the cap/current-count and
+// currently-pickable list, same factory shape
 // hunter_nin.go's handleHunterPickAdd already establishes. requiresPool is
 // Inversion Serums only: the submitted option_slug is expected in
 // "<slug>|<pool>" form (see sheet_science_nin's own Available Serums
@@ -1190,65 +1665,111 @@ func (s *server) handleScienceNinSubclassPickAdd(
 			return
 		}
 		slug := strings.TrimSpace(r.FormValue("option_slug"))
-		if slug == "" {
-			http.Error(w, "missing pick", http.StatusBadRequest)
-			return
-		}
-		pool := ""
-		if requiresPool {
-			parts := strings.SplitN(slug, "|", 2)
-			if len(parts) != 2 {
-				http.Error(w, "missing pool", http.StatusBadRequest)
-				return
-			}
-			slug, pool = parts[0], parts[1]
-			if pool != "mending" && pool != "maiming" {
-				http.Error(w, "invalid pool", http.StatusBadRequest)
-				return
-			}
-		}
-		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("compute sheet for science-nin subclass pick add:", err)
-			return
-		}
-		data, err := s.loadScienceNinTabData(id, sheet)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load science-nin for subclass pick add:", err)
-			return
-		}
-		if data == nil {
-			http.Error(w, "character has no levels in Science-Nin", http.StatusBadRequest)
-			return
-		}
-		if used(data) >= cap(data) {
-			http.Error(w, "no slots remaining", http.StatusBadRequest)
-			return
-		}
-		var picked *scienceNinSubclassOption
-		for _, o := range available(data) {
-			if o.Slug == slug {
-				picked = &o
-				break
-			}
-		}
-		if picked == nil {
-			http.Error(w, "not a valid pick", http.StatusBadRequest)
-			return
-		}
-		if requiresPool && picked.FixedPool != "" && picked.FixedPool != pool {
-			http.Error(w, "this serum can only be paid from its own CCD half", http.StatusBadRequest)
-			return
-		}
-		if err := charstore.AddScienceNinSubclassPick(s.charDB, id, category, slug, pool); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("add science-nin subclass pick:", err)
+		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
 			return
 		}
 		s.respondSheet(w, r, id, "sheet_science_nin")
 	}
+}
+
+// scienceNinTrackerPopupAdd is scienceNinSubclassPickAddCore's own
+// popup-flavored wrapper — same validation, redirecting back to a subclass
+// tracker popup's own URL instead of swapping the Core sheet's
+// sheet_science_nin fragment. Shared by every flat-slot-only Science-Nin
+// subclass tracker popup this pattern's other files build (see
+// subclass_tracker_popup.go's header doc for the pattern), the popup
+// equivalent of handleScienceNinSubclassPickAdd immediately above.
+func (s *server) scienceNinTrackerPopupAdd(
+	category charstore.ScienceNinSubclassPickCategory,
+	used func(*scienceNinToolsTabData) int,
+	cap func(*scienceNinToolsTabData) int,
+	available func(*scienceNinToolsTabData) []scienceNinSubclassOption,
+	requiresPool bool,
+	popupPath func(int64) string,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseCharacterID(r)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		slug := strings.TrimSpace(r.FormValue("option_slug"))
+		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
+			return
+		}
+		http.Redirect(w, r, popupPath(id), http.StatusSeeOther)
+	}
+}
+
+// scienceNinSubclassPickAddCore validates and stores one category's pick —
+// the shared validate+mutate path handleScienceNinSubclassPickAdd's
+// Core-sheet AJAX route and scienceNinTrackerPopupAdd's popup route both
+// call, so the two response shapes (fragment swap vs. redirect) can never
+// drift apart on what they actually validate.
+func (s *server) scienceNinSubclassPickAddCore(
+	id int64,
+	category charstore.ScienceNinSubclassPickCategory,
+	used func(*scienceNinToolsTabData) int,
+	cap func(*scienceNinToolsTabData) int,
+	available func(*scienceNinToolsTabData) []scienceNinSubclassOption,
+	requiresPool bool,
+	rawSlug string,
+) (int, string) {
+	slug := rawSlug
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
+	}
+	pool := ""
+	if requiresPool {
+		parts := strings.SplitN(slug, "|", 2)
+		if len(parts) != 2 {
+			return http.StatusBadRequest, "missing pool"
+		}
+		slug, pool = parts[0], parts[1]
+		if pool != "mending" && pool != "maiming" {
+			return http.StatusBadRequest, "invalid pool"
+		}
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for science-nin subclass pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadScienceNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load science-nin for subclass pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no levels in Science-Nin"
+	}
+	if used(data) >= cap(data) {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	var picked *scienceNinSubclassOption
+	for _, o := range available(data) {
+		if o.Slug == slug {
+			picked = &o
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if requiresPool && picked.FixedPool != "" && picked.FixedPool != pool {
+		return http.StatusBadRequest, "this serum can only be paid from its own CCD half"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, category, slug, pool); err != nil {
+		log.Println("add science-nin subclass pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
 }
 
 // handleScienceNinSubclassPickDelete builds one category's "forget a pick"
@@ -1364,6 +1885,25 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 			WHERE e.slug = ? AND o.class_slug = ? AND o.list_name = ?`,
 			slug, scienceNinSlug, listName,
 		).Scan(&name, &description)
+		if err == sql.ErrNoRows {
+			// slug may point at a childless tier's own class_options row
+			// (e.g. Mastercraft's single bundled item) rather than a
+			// class_option_entries row — see
+			// loadScienceNinChildlessTierOptions' own doc for why that
+			// shape exists and carries the class_options slug directly as
+			// Slug instead of a split entry's.
+			var tier string
+			tierErr := s.rulesDB.QueryRow(`
+				SELECT o.name, o.description FROM class_options o
+				WHERE o.slug = ? AND o.class_slug = ? AND o.list_name = ?
+				  AND NOT EXISTS (SELECT 1 FROM class_option_entries e WHERE e.class_option_slug = o.slug)`,
+				slug, scienceNinSlug, listName,
+			).Scan(&tier, &description)
+			if tierErr == nil {
+				name, description = splitScienceNinSoloTierItem(tier, description)
+				err = nil
+			}
+		}
 	}
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)

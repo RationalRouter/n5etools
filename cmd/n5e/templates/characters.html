@@ -9,7 +9,7 @@
       {{if eq .CreationStatus "draft"}}
         <span class="draft-tag">Resume Creation</span>
       {{else}}
-        {{.ClassSummary}}
+        {{.ClassSummary}}{{if .Clan}}, {{.Clan}} Clan{{end}}
       {{end}}
     </p>
     {{if .Sheet}}

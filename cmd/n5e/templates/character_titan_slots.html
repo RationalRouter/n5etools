@@ -1,0 +1,51 @@
+{{/* character_titan_slots.html: the "Titan Slots" subclass tracker popup —
+     Mech Crafter's own Titan Slots, Exo-Suit, and Specialist Crafting,
+     pulled out of titan_reference (partials/companion_fields.html) into
+     its own popup (see cmd/n5e/subclass_tracker_popup.go and partials/
+     subclass_tracker_popup.html for the shared pattern this is built from
+     — the first user is character_snb_upgrades.html). titan_reference
+     itself keeps the Titan's base stat block, Bash attack, Base Traits,
+     Specialization, and Mech Crafter Features inline on the Companions tab
+     — only the Creation-Points-budget-spending pickers moved here.
+     Opened via reference-popup.js like Class/Clan Reference and Custom
+     Features. Plain POST-and-redirect forms back to this same URL, same
+     convention character_snb_upgrades.html/character_custom_features.html
+     already use (see titan_slots_popup.go's handleTitanSlotsAdd/
+     handleTitanSlotsExoSuitAdd/handleTitanSlotsSpecialistCraftingSet and
+     subclassTrackerPopupDelete). Specialist Crafting is a single "Mech or
+     Weapon" <select>, not a catalog picker — it isn't part of
+     subclassTrackerSection, so it's hand-rolled here rather than routed
+     through the shared subclass_tracker_section partial. Expects {Title,
+     Data (subclassTrackerPopupData), SpecialistCraftingAvailable,
+     SpecialistCraftingKeyword}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+
+  {{/* Specialist Crafting (14th level): a single-slot "Mech or Weapon"
+       designation, freely re-picked — every upgrade of that keyword costs
+       2 less Creation Points (min. 1) catalog-wide, already folded into
+       every Cost badge shown above rather than shown as a separate
+       annotation. */}}
+  {{if .SpecialistCraftingAvailable}}
+  <section class="companion-reference">
+    <h3>Specialist Crafting</h3>
+    <p class="section-hint">Upgrades of the designated keyword cost 2 less Creation Points (min. 1) — already reflected in the Cost badges above. Re-pick freely during a long rest.</p>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/titan-slots/specialist-crafting" class="sheet-inline-form">
+      <select name="keyword" required>
+        <option value="">— choose —</option>
+        <option value="mech"{{if eq .SpecialistCraftingKeyword "mech"}} selected{{end}}>Mech</option>
+        <option value="weapon"{{if eq .SpecialistCraftingKeyword "weapon"}} selected{{end}}>Weapon</option>
+      </select>
+      <button type="submit">Set Keyword</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

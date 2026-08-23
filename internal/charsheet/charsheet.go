@@ -368,6 +368,53 @@ const shinobiWareFullMetalShinobiFeatureSlug = "class/science-nin/group/scientif
 // site in Compute below.
 const elementalInnovationistExoskeletonFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/exoskeleton"
 
+// elementalInnovationistPermaPerkFeatureSlug is Elemental Innovationist's
+// 14th-level Perma Perk: "you may choose 1 E.I.P you know... gaining its
+// benefits without Exoskeleton armor and without needing to spend CCD
+// chakra to activate." Every other known E.I.P stays narrative-only (it
+// takes an as-initiative chakra spend each encounter to do anything — see
+// cmd/n5e/science_nin_subclasses.go's own header doc), but a Perma Perk's
+// flat numeric clause is always on, so the four Perma-Perk-eligible E.I.Ps
+// with such a clause (Speed/Stamina/Juggernaut/Vulture below) are resolved
+// here. Razor E.I.P (the fifth) widens weapon crit range instead, applied
+// in cmd/n5e/characters.go's weaponSpecialistCritRangeThreshold since
+// attack rows are built there, not in this package.
+const elementalInnovationistPermaPerkFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/perma-perk"
+
+// elementalInnovationistSpeedEIPSlug/StaminaEIPSlug/JuggernautEIPSlug/
+// VultureEIPSlug are the four Perma-Perk-eligible E.I.Ps' own
+// class_option_entries slugs (confirmed against dist/rules.db), each
+// consulted only when it equals the character's own designated Perma Perk
+// pick — see resolveScienceNinPermaPerk below.
+const (
+	elementalInnovationistSpeedEIPSlug      = "class/science-nin/option/e-i-ps/minor/entry/speed-e-i-p"
+	elementalInnovationistStaminaEIPSlug    = "class/science-nin/option/e-i-ps/minor/entry/stamina-e-i-p"
+	elementalInnovationistJuggernautEIPSlug = "class/science-nin/option/e-i-ps/refined/entry/juggernaut-e-i-p"
+	elementalInnovationistVultureEIPSlug    = "class/science-nin/option/e-i-ps/greater/entry/vulture-e-i-p"
+)
+
+// resolveScienceNinPermaPerk returns the character's own designated Perma
+// Perk pick's class_option_entries slug, or "" if Perma Perk isn't
+// currently active. Gated on grantedFeatures rather than the stored pick's
+// mere existence, since charstore.SetLevel (or a subclass swap) can drop
+// the character below Perma Perk's own 14th-level gate after the pick was
+// made — the same "recheck the granting condition at the consumption site"
+// discipline cmd/n5e/ninjaneer.go's recomputeNinjaneerWeaponOverrides
+// already applies to its own weapon designations.
+func resolveScienceNinPermaPerk(charDB *sql.DB, characterID int64, grantedFeatures []features.GrantedFeatureRow) (string, error) {
+	if !hasFeature(grantedFeatures, elementalInnovationistPermaPerkFeatureSlug) {
+		return "", nil
+	}
+	picks, err := charstore.ListScienceNinSubclassPicks(charDB, characterID, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		return "", err
+	}
+	if len(picks) == 0 {
+		return "", nil
+	}
+	return picks[0].OptionSlug, nil
+}
+
 // scienceNinMixedStudiesFeatureSlug is Mixed Studies, an 18th-level BASE
 // Science-Nin class feature: "You gain the 3rd Level features of another
 // Scientific Inquiry. You cannot select the one you chose at 3rd Level."
@@ -598,6 +645,18 @@ const mentalBoonsFeatSlug = "feat/yamanaka/mental-boons"
 // the SaveDC formula), so nothing DC-specific needs to branch off this slug
 // separately.
 const gaseousHazeFeatureSlug = "class/cooking-nin/group/cooking-focus/herbalist/feature/gaseous-haze"
+
+// cruelAngelsThesisFeatureSlug is Spyware's 3rd-level Cruel Angel's Thesis:
+// "You can use your Intelligence Modifier as your Genjutsu ability
+// modifier." Unlike genjutsuExpertiseFeatSlug/mentalBoonsFeatSlug/
+// gaseousHazeFeatureSlug above, this swaps Genjutsu's default ability to
+// Intelligence, not Charisma, so it gets its own branch in the JutsuAttacks
+// loop rather than joining their cha-swapping OR-chain. Mirrors cmd/n5e's
+// own unexported scienceNinCruelAngelsThesisFeatureSlug — that package
+// can't be imported back into this one, the same cross-package duplication
+// shinobiWareFullMetalShinobiFeatureSlug/
+// elementalInnovationistExoskeletonFeatureSlug above already established.
+const cruelAngelsThesisFeatureSlug = "class/science-nin/group/scientific-inquiry/spyware/feature/cruel-angels-thesis"
 
 // scoutNinMobilityFeatureSlug identifies Mobility, one of Jack of All,
 // Master of None's 5 Generalizations (Combat/Control/Mobility/Skill/
@@ -1325,6 +1384,16 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		return out
 	}
 
+	// scienceNinPermaPerk is the character's own designated Perma Perk
+	// E.I.P slug (or "" if inactive) — resolved once here and consulted at
+	// each Perma-Perk-eligible E.I.P's own computation point below (Passive
+	// Perception, Initiative, Speed, Max HP). See
+	// resolveScienceNinPermaPerk's own doc comment.
+	scienceNinPermaPerk, err := resolveScienceNinPermaPerk(charDB, characterID, grantedFeatures)
+	if err != nil {
+		return nil, fmt.Errorf("load perma perk pick: %w", err)
+	}
+
 	// Yhprum's Law (Science-Nin, 7th level): "You can add half your
 	// Proficiency bonus, rounded down, to any Skill check you make that
 	// doesn't already include it" — the same universal half-proficiency
@@ -1362,6 +1431,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		}
 	}
 	sheet.PassivePerception += features.ResolvePassivePerceptionBonus(grantedFeatures)
+	// Vulture E.I.P (Elemental Innovationist Perma Perk): "Increase your
+	// Passive Perception by your Intelligence modifier."
+	if scienceNinPermaPerk == elementalInnovationistVultureEIPSlug {
+		sheet.PassivePerception += sheet.Abilities["int"].Modifier
+	}
 	sheet.ClashChecks = clashChecks(sheet, overrides)
 
 	// Initiative's three parts, each falling back to the N5E default when the
@@ -1378,6 +1452,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		sheet.InitiativeAbility = "int"
 	}
 	if hasFeature(grantedFeatures, strategicTimingFeatureSlug) {
+		sheet.InitiativeAbility = "int"
+	}
+	// Speed E.I.P (Elemental Innovationist Perma Perk): "use Intelligence
+	// in place of Dexterity to calculate your initiative checks."
+	if scienceNinPermaPerk == elementalInnovationistSpeedEIPSlug {
 		sheet.InitiativeAbility = "int"
 	}
 	// Fast and Furious (Entremetier Chef, 2nd level) offers a genuine choice
@@ -1525,6 +1604,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if k.Kind == "Genjutsu" && (hasFeature(grantedFeatures, genjutsuExpertiseFeatSlug) || hasFeature(grantedFeatures, mentalBoonsFeatSlug) || hasFeature(grantedFeatures, gaseousHazeFeatureSlug)) {
 			ability = "cha"
 		}
+		if k.Kind == "Genjutsu" && hasFeature(grantedFeatures, cruelAngelsThesisFeatureSlug) {
+			ability = "int"
+		}
 		if k.Kind == "Bukijutsu" && hasFeature(grantedFeatures, spiritedFighterFeatureSlug) {
 			ability = "cha"
 		}
@@ -1622,6 +1704,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if puppetupgrades.ChassisHasMobile(wornChassisSlug) {
 		sheet.Speed += puppetupgrades.MobileSpeedBonus
 	}
+	// Stamina E.I.P (Elemental Innovationist Perma Perk): "increase your
+	// movement speed by +5 feet."
+	if scienceNinPermaPerk == elementalInnovationistStaminaEIPSlug {
+		sheet.Speed += 5
+	}
 	// A player can pin their own Speed (part 10's "make Speed editable like
 	// Ryo" ask) the same way Max HP/Max Chakra can be pinned — an explicit
 	// override always wins over the clan default AND any feature bonus
@@ -1667,7 +1754,16 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		}
 	}
 	featHPBonus, featChakraBonus := featMaxPoolBonus(grantedFeatures, sheet.Level)
-	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels) + featHPBonus
+	// Juggernaut E.I.P (Elemental Innovationist Perma Perk): "Increase your
+	// maximum hit points by 10 + your Science-Nin level." The accompanying
+	// damage-resistance clause hits the same "no DR field exists anywhere on
+	// this sheet" gap scienceNinFutureOfShinobiAetherFeatureSlug's own doc
+	// comment already documents, so only the HP half is modeled.
+	juggernautEIPHPBonus := 0
+	if scienceNinPermaPerk == elementalInnovationistJuggernautEIPSlug {
+		juggernautEIPHPBonus = 10 + classLevels[scienceNinClassSlug]
+	}
+	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels) + featHPBonus + juggernautEIPHPBonus
 	sheet.MaxChakraAuto = chakraSum + sheet.Level*sheet.Abilities["con"].Modifier + featChakraBonus
 	sheet.MaxHP, sheet.MaxHPPinned = sheet.MaxHPAuto, false
 	sheet.MaxChakra, sheet.MaxChakraPinned = sheet.MaxChakraAuto, false

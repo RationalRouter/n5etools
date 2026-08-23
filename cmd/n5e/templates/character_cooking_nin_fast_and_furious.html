@@ -1,0 +1,35 @@
+{{/* character_cooking_nin_fast_and_furious.html: the "Fast and Furious"
+     subclass tracker popup — see cmd/n5e/subclass_tracker_popup.go for the
+     shared pattern. A single, freely re-editable Int-or-Cha-for-Initiative
+     <select>, not a catalog Known/Available list, hand-rolled rather than
+     routed through the shared subclass_tracker_section partial — same
+     shape Combat Medic's own Fighting Stance <select> uses
+     (character_medical_nin_combat_medic.html). Expects {Title, Data
+     (subclassTrackerPopupData), FastAndFurious (*fastAndFuriousView)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Fast and Furious</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/fast-and-furious/set" class="sheet-inline-form">
+      <label class="sheet-vitals-label">Initiative
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— Dexterity (default) —</option>
+          {{range .FastAndFurious.Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.FastAndFurious.Current}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .FastAndFurious.Current}}{{range .FastAndFurious.Options}}{{if eq .Value $.FastAndFurious.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose Intelligence or Charisma above to use it for Initiative instead of Dexterity — sets the sheet's own Initiative ability default, still overridable from the Adjust panel.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

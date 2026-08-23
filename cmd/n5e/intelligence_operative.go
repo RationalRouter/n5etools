@@ -439,6 +439,73 @@ func (s *server) handleIntelligenceOperativePickAdd(
 	}
 }
 
+// addOperativeTrapPick validates and stores one Operative Trap pick —
+// extracted from handleIntelligenceOperativePickAdd's generic two-category
+// factory (above) so the Operative Traps popup's own route
+// (intelligence_operative_operative_traps_popup.go) shares the identical
+// validation path as the Core-sheet's own AJAX route (handleOperativeTrapAdd,
+// just below) instead of reimplementing it — same "extract, don't duplicate"
+// shape addSNBUpgradePick (science_nin_subclasses.go) establishes. Plans
+// still goes through the generic factory unchanged; only Operative Traps
+// needed its own popup.
+func (s *server) addOperativeTrapPick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for operative trap add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadIntelligenceOperativeTabData(id, sheet)
+	if err != nil {
+		log.Println("load intelligence operative for operative trap add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.OperativeTrapsCap == 0 {
+		return http.StatusBadRequest, "character has no Operative Traps available"
+	}
+	if data.OperativeTrapsUsed >= data.OperativeTrapsCap {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	valid := false
+	for _, o := range data.AvailableOperativeTraps {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddIntelligenceOperativePick(s.charDB, id, charstore.IntelligenceOperativePickOperativeTrap, slug); err != nil {
+		log.Println("add operative trap pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleOperativeTrapAdd is addOperativeTrapPick's own Core-sheet AJAX
+// wrapper, registered in place of the generic handleIntelligenceOperativePickAdd
+// factory this route used before the Operative Traps popup existed.
+func (s *server) handleOperativeTrapAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addOperativeTrapPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_intelligence_operative")
+}
+
 // handleIntelligenceOperativePickDelete builds one category's "forget a
 // pick" route — freely, at any time, same "trust the player" boundary
 // every other pick removal in this app already draws.

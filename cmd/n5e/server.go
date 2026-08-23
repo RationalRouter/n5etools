@@ -149,6 +149,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/base-temp-hp", s.handleSheetBaseTempHP)
 	mux.HandleFunc("POST /characters/{id}/sheet/ryo", s.handleSheetRyo)
 	mux.HandleFunc("POST /characters/{id}/sheet/speed", s.handleSheetSpeed)
+	mux.HandleFunc("POST /characters/{id}/sheet/name", s.handleSheetName)
 	mux.HandleFunc("POST /characters/{id}/sheet/rest", s.handleSheetRest)
 	mux.HandleFunc("POST /characters/{id}/sheet/resource/{key}", s.handleSheetCustomResource)
 	mux.HandleFunc("POST /characters/{id}/sheet/ccd-mending-pct", s.handleSetCCDMendingPct)
@@ -158,6 +159,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/inventory/{rowID}/unpack", s.handleSheetInventoryUnpack)
 	mux.HandleFunc("POST /characters/{id}/sheet/inventory/{rowID}/delete", s.handleSheetInventoryDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/inventory/custom", s.handleSheetInventoryAddCustom)
+	mux.HandleFunc("POST /characters/{id}/sheet/inventory/pack-toolkit-choice", s.handleSheetPackToolkitChoice)
 	mux.HandleFunc("POST /characters/{id}/sheet/portrait", s.handleSheetPortrait)
 	mux.HandleFunc("POST /characters/{id}/sheet/portrait/delete", s.handleSheetPortraitDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/inspiration", s.handleSheetInspiration)
@@ -207,6 +209,80 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/companions/{cid}/delete", s.handleSheetCompanionDelete)
 	mux.HandleFunc("GET /characters/{id}/reference", s.handleCharacterReference)
 	mux.HandleFunc("GET /characters/{id}/clan-reference", s.handleCharacterClanReference)
+	// S.N.B Upgrades / Titan Slots: the first two "subclass tracker popup"
+	// pages (see subclass_tracker_popup.go's own header doc for the
+	// pattern) — same [data-reference-popup] mechanism as Class/Clan
+	// Reference/Custom Features above, each with its own add/delete
+	// routes grouped near this file's existing Science-Nin/Titan routes
+	// below rather than here, since they reuse those routes' own
+	// validation.
+	mux.HandleFunc("GET /characters/{id}/snb-upgrades", s.handleSNBUpgradesPopup)
+	mux.HandleFunc("GET /characters/{id}/titan-slots", s.handleTitanSlotsPopup)
+	// Elemental Innovationist / Grenadier / Mad Scientist / Ninjaneer /
+	// Shinobi-Ware: five more "subclass tracker popup" pages, same pattern
+	// as S.N.B Upgrades/Titan Slots above — POST add/delete routes grouped
+	// near this file's existing Science-Nin routes below, since they reuse
+	// those routes' own validation.
+	mux.HandleFunc("GET /characters/{id}/science-nin/elemental-innovationist", s.handleElementalInnovationistPopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/grenadier", s.handleGrenadierPopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/mad-scientist", s.handleMadScientistPopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/ninjaneer", s.handleNinjaneerPopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/shinobi-ware", s.handleShinobiWarePopup)
+	// Spyware / Storm Rider / Technobi: the last three "subclass tracker
+	// popup" pages, same pattern as the six above.
+	mux.HandleFunc("GET /characters/{id}/science-nin/spyware", s.handleSpywarePopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/storm-rider", s.handleStormRiderPopup)
+	mux.HandleFunc("GET /characters/{id}/science-nin/technobi", s.handleTechnobiPopup)
+	// Weapon Form / Stancer / Passionate Flame / Ruin: four more "subclass
+	// tracker popup" pages (weapon_form_popup.go, taijutsu_stancer_popup.go,
+	// taijutsu_passionate_flame_popup.go, taijutsu_ruin_popup.go), same
+	// pattern as the nine Science-Nin popups above — POST add/delete/set
+	// routes grouped near this file's existing Weapon Specialist/Taijutsu
+	// Specialist Core-sheet routes below, since they reuse those routes' own
+	// validation.
+	mux.HandleFunc("GET /characters/{id}/weapon-specialist/weapon-form", s.handleWeaponFormPopup)
+	mux.HandleFunc("GET /characters/{id}/taijutsu-specialist/stancer", s.handleStancerPopup)
+	mux.HandleFunc("GET /characters/{id}/taijutsu-specialist/passionate-flame", s.handlePassionateFlamePopup)
+	mux.HandleFunc("GET /characters/{id}/taijutsu-specialist/ruin", s.handleRuinPopup)
+	// Hunter's Creed: one more "subclass tracker popup" page (hunter_creed_
+	// popup.go), same "one popup, per-subclass gating inside" shape Weapon
+	// Form's own 8 Forms above already establish — POST add/delete routes
+	// grouped near this file's existing Hunter-Nin routes below, since they
+	// reuse those routes' own validation.
+	mux.HandleFunc("GET /characters/{id}/hunter-nin/creed", s.handleHunterCreedPopup)
+	// Operative Traps / Awakened Scroll / Combat Medic: three more "subclass
+	// tracker popup" pages — Intelligence Operative's Tactical Strategist,
+	// Ninjutsu Specialist's Scribe Master, and Medical-Nin's Combat Medic —
+	// POST add/delete/set routes grouped near this file's existing
+	// Intelligence Operative/Ninjutsu Specialist/Medical-Nin Core-sheet
+	// routes below, since they reuse those routes' own validation.
+	mux.HandleFunc("GET /characters/{id}/intelligence-operative/operative-traps", s.handleOperativeTrapsPopup)
+	mux.HandleFunc("GET /characters/{id}/ninjutsu-specialist/awakened-scroll", s.handleAwakenedScrollPopup)
+	mux.HandleFunc("GET /characters/{id}/medical-nin/combat-medic", s.handleCombatMedicPopup)
+	// Scouting Technique: one more "subclass tracker popup" page (scout_
+	// nin_scouting_technique_popup.go), same "one popup, per-subclass
+	// gating inside" shape Hunter's Creed above already establishes — POST
+	// add/delete/set routes grouped near this file's existing Scout-Nin
+	// routes below, since they reuse those routes' own validation.
+	mux.HandleFunc("GET /characters/{id}/scout-nin/scouting-technique", s.handleScoutingTechniquePopup)
+	// Twisted Casting / Psyche Breaker: two more "subclass tracker popup"
+	// pages (genjutsu_twisted_casting_popup.go, genjutsu_psyche_breaker_
+	// popup.go), one per Genjutsu Pledge — POST add/delete routes grouped
+	// near this file's existing Genjutsu Specialist routes below, since
+	// they reuse those routes' own validation.
+	mux.HandleFunc("GET /characters/{id}/genjutsu-specialist/twisted-casting", s.handleTwistedCastingPopup)
+	mux.HandleFunc("GET /characters/{id}/genjutsu-specialist/psyche-breaker", s.handlePsycheBreakerPopup)
+	// Pipe / Expert Combatant / Fast and Furious / Blend Enhancements: four
+	// more "subclass tracker popup" pages (cooking_nin_pipe_popup.go,
+	// cooking_nin_expert_combatant_popup.go, cooking_nin_fast_and_furious_
+	// popup.go, cooking_nin_blend_enhancements_popup.go), one per
+	// Cooking-Nin subclass — POST routes grouped near this file's existing
+	// Cooking-Nin routes below, since they reuse those routes' own
+	// validation.
+	mux.HandleFunc("GET /characters/{id}/cooking-nin/pipe", s.handlePipePopup)
+	mux.HandleFunc("GET /characters/{id}/cooking-nin/expert-combatant", s.handleBattleCookExpertCombatantPopup)
+	mux.HandleFunc("GET /characters/{id}/cooking-nin/fast-and-furious", s.handleFastAndFuriousPopup)
+	mux.HandleFunc("GET /characters/{id}/cooking-nin/blend-enhancements", s.handleBlendEnhancementsPopup)
 	mux.HandleFunc("GET /characters/{id}/companions/{cid}", s.handleCompanionSheet)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}", s.handleCompanionSave)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/hp", s.handleCompanionHP)
@@ -219,6 +295,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_max", s.handleCompanionIntField("barrier_max"))
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-feature", s.handleNinDogFeaturePick)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-hijutsu-trait", s.handleNinDogHijutsuTraitPick)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/snb-combat-programming", s.handleSNBCombatProgrammingPick)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/saving-throw", s.handleCompanionSavingThrowToggle)
 	// Titan (Science-Nin Mech Crafter's Ordnance Training) upgrade picks are
 	// character-scoped, not companion-scoped (see titan.go's own doc on why
 	// — "You can only have 1 Titan created at a time" means the Creation
@@ -232,6 +310,16 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/titan-exosuit-upgrade/delete", s.handleTitanPickDelete(charstore.ScienceNinPickTitanExosuitUpgrade))
 	mux.HandleFunc("POST /characters/{id}/sheet/titan-specialist-crafting-keyword", s.handleTitanSpecialistCraftingKeywordSet)
 	mux.HandleFunc("GET /titan-upgrades/{slug...}", s.handleTitanUpgradeDetail)
+	// Titan Slots popup (titan_slots_popup.go): plain POST-and-redirect
+	// routes reusing the sheet routes' own validation (addTitanSlotPick/
+	// addTitanExoSuitPick/setTitanSpecialistCraftingKeyword above), not the
+	// sheet routes themselves — see subclass_tracker_popup.go's header doc
+	// on why a popup needs its own routes rather than repointing these.
+	mux.HandleFunc("POST /characters/{id}/titan-slots/add", s.handleTitanSlotsAdd)
+	mux.HandleFunc("POST /characters/{id}/titan-slots/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickTitanUpgrade, titanSlotsPopupPath))
+	mux.HandleFunc("POST /characters/{id}/titan-slots/exosuit/add", s.handleTitanSlotsExoSuitAdd)
+	mux.HandleFunc("POST /characters/{id}/titan-slots/exosuit/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickTitanExosuitUpgrade, titanSlotsPopupPath))
+	mux.HandleFunc("POST /characters/{id}/titan-slots/specialist-crafting", s.handleTitanSlotsSpecialistCraftingSet)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka-split", s.handlePuppetMatryoshkaSplit)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka-merge", s.handlePuppetMatryoshkaMerge)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/upgrades", s.handlePuppetUpgradeAdd)
@@ -273,6 +361,25 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/fighting-stance", s.handleFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/stancer-mixed-martial-arts-stance", s.handleStancerMixedMartialArtsStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/stancer-stance-blending-stance", s.handleStancerStanceBlendingStance)
+	// Weapon Form popup (weapon_form_popup.go): plain POST-and-redirect
+	// routes reusing the sheet routes' own validation (addWeaponFormStyle/
+	// setStalkingPredator/addSuperiorWeaponFlurryBenefit above), not the
+	// sheet routes themselves — see subclass_tracker_popup.go's header doc
+	// on why a popup needs its own routes rather than repointing these.
+	mux.HandleFunc("POST /characters/{id}/weapon-specialist/weapon-form/style/add", s.handleWeaponFormStylePopupAdd)
+	mux.HandleFunc("POST /characters/{id}/weapon-specialist/weapon-form/style/delete", s.handleWeaponFormStylePopupDelete)
+	mux.HandleFunc("POST /characters/{id}/weapon-specialist/weapon-form/stalking-predator", s.handleStalkingPredatorPopup)
+	mux.HandleFunc("POST /characters/{id}/weapon-specialist/weapon-form/superior-weapon-flurry/add", s.handleSuperiorWeaponFlurryPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/weapon-specialist/weapon-form/superior-weapon-flurry/delete", s.handleSuperiorWeaponFlurryPopupDelete)
+	// Stancer / Passionate Flame / Ruin popups (taijutsu_stancer_popup.go,
+	// taijutsu_passionate_flame_popup.go, taijutsu_ruin_popup.go): same
+	// plain POST-and-redirect convention, reusing setStancerMixed
+	// MartialArtsStance/setStancerStanceBlendingStance/setHandWrapsOfPassion/
+	// setAntiChakraWavelength above.
+	mux.HandleFunc("POST /characters/{id}/taijutsu-specialist/stancer/mixed-martial-arts", s.handleStancerMixedMartialArtsPopup)
+	mux.HandleFunc("POST /characters/{id}/taijutsu-specialist/stancer/stance-blending", s.handleStancerStanceBlendingPopup)
+	mux.HandleFunc("POST /characters/{id}/taijutsu-specialist/passionate-flame/hand-wraps-of-passion", s.handleHandWrapsOfPassionPopup)
+	mux.HandleFunc("POST /characters/{id}/taijutsu-specialist/ruin/anti-chakra-wavelength", s.handleAntiChakraWavelengthPopup)
 	mux.HandleFunc("POST /characters/{id}/sheet/weapon-stance", s.handleWeaponStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/puppet-fighting-stance", s.handlePuppetFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/puppet-transformer-weapon-type", s.handlePuppetTransformerWeaponType)
@@ -296,11 +403,30 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant-weapon", s.handleBattleCookExpertCombatantWeapon)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement", s.handleCookingNinBlendEnhancementAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/blend-enhancement/delete", s.handleCookingNinBlendEnhancementDelete)
+	// Pipe / Expert Combatant / Fast and Furious / Blend Enhancements
+	// popups — same underlying set*/add* validation as the Core-sheet
+	// routes just above, called via redirect-based wrappers instead of the
+	// Core sheet's AJAX fragment response.
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/pipe/implement", s.pipePopupSetHandler(s.setCookingToolPipeImplement))
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/pipe/damage-type", s.pipePopupSetHandler(s.setCookingToolPipeDamageType))
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/pipe/property-l3", s.pipePopupSetHandler(s.setCookingToolPipePropertyL3))
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/pipe/property-l6", s.pipePopupSetHandler(s.setCookingToolPipePropertyL6))
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/pipe/property-l11", s.pipePopupSetHandler(s.setCookingToolPipePropertyL11))
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/expert-combatant/weapon", s.handleBattleCookExpertCombatantPopupSet)
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/fast-and-furious/set", s.handleFastAndFuriousPopupSet)
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/blend-enhancements/add", s.handleBlendEnhancementsPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/cooking-nin/blend-enhancements/delete", s.handleBlendEnhancementsPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine", s.handleMedicalDoctrineAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-doctrine/delete", s.handleMedicalDoctrineDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/medical-nin-fighting-stance", s.handleMedicalNinFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant", s.handleExpertCombatantAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/expert-combatant/delete", s.handleExpertCombatantDelete)
+	// Combat Medic popup (Combat Medic only) — same setMedicalNinFightingStance/
+	// addExpertCombatantPick used above, called via redirect-based wrappers
+	// instead of the Core sheet's AJAX fragment response.
+	mux.HandleFunc("POST /characters/{id}/medical-nin/combat-medic/fighting-stance", s.handleMedicalNinFightingStancePopup)
+	mux.HandleFunc("POST /characters/{id}/medical-nin/combat-medic/expert-combatant/add", s.handleExpertCombatantPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/medical-nin/combat-medic/expert-combatant/delete", s.handleExpertCombatantPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/scout-nin-fighting-stance", s.handleScoutNinFightingStance)
 	mux.HandleFunc("POST /characters/{id}/sheet/shinobi-adept", s.handleScoutNinPickAdd(charstore.ScoutNinPickShinobiAdept,
 		func(d *scoutNinTabData) int { return d.ShinobiAdeptUsed },
@@ -346,6 +472,37 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/paragons-presence", s.handleParagonsPresence)
 	mux.HandleFunc("POST /characters/{id}/sheet/signature-jutsu", s.handleSignatureJutsuJutsu)
 	mux.HandleFunc("POST /characters/{id}/sheet/signature-jutsu-effect", s.handleSignatureJutsuEffect)
+	// Scouting Technique popup (all 9 subclasses) — same
+	// setChangeOfHeart/setParagonsPresence/scoutNinPickAddCore used above,
+	// called via redirect-based wrappers instead of the Core sheet's AJAX
+	// fragment response.
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/maneuvers/add", s.scoutNinTrackerPopupAdd(charstore.ScoutNinPickManeuvers,
+		func(d *scoutNinTabData) int { return d.ManeuversUsed },
+		func(d *scoutNinTabData) int { return d.ManeuversCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableManeuvers }))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/maneuvers/delete", s.scoutNinTrackerPopupDelete(charstore.ScoutNinPickManeuvers))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/tactical-superiority/add", s.scoutNinTrackerPopupAdd(charstore.ScoutNinPickTacticalSuperiority,
+		func(d *scoutNinTabData) int { return d.TacticalSuperiorityUsed },
+		func(d *scoutNinTabData) int { return d.TacticalSuperiorityCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableTacticalSuperiority }))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/tactical-superiority/delete", s.scoutNinTrackerPopupDelete(charstore.ScoutNinPickTacticalSuperiority))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/signature-maneuver/add", s.scoutNinTrackerPopupAdd(charstore.ScoutNinPickSignatureManeuver,
+		func(d *scoutNinTabData) int { return d.SignatureManeuverUsed },
+		func(d *scoutNinTabData) int { return d.SignatureManeuverCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableSignatureManeuver }))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/signature-maneuver/delete", s.scoutNinTrackerPopupDelete(charstore.ScoutNinPickSignatureManeuver))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/supreme-clones/add", s.scoutNinTrackerPopupAdd(charstore.ScoutNinPickSupremeClones,
+		func(d *scoutNinTabData) int { return d.SupremeClonesUsed },
+		func(d *scoutNinTabData) int { return d.SupremeClonesCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableSupremeClones }))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/supreme-clones/delete", s.scoutNinTrackerPopupDelete(charstore.ScoutNinPickSupremeClones))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/mobile-savant/add", s.scoutNinTrackerPopupAdd(charstore.ScoutNinPickMobileSavant,
+		func(d *scoutNinTabData) int { return d.MobileSavantUsed },
+		func(d *scoutNinTabData) int { return d.MobileSavantCap },
+		func(d *scoutNinTabData) []scoutNinPickOption { return d.AvailableMobileSavant }))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/mobile-savant/delete", s.scoutNinTrackerPopupDelete(charstore.ScoutNinPickMobileSavant))
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/change-of-heart", s.handleChangeOfHeartPopup)
+	mux.HandleFunc("POST /characters/{id}/scout-nin/scouting-technique/paragons-presence", s.handleParagonsPresencePopup)
 	mux.HandleFunc("POST /characters/{id}/sheet/lethal-precision", s.handleHunterPickAdd(charstore.HunterPickLethalPrecision,
 		func(d *hunterTechniquesTabData) int { return d.LethalPrecisionUsed },
 		func(d *hunterTechniquesTabData) int { return d.LethalPrecisionCap },
@@ -427,6 +584,60 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique", s.handleHunterWolfTechniqueAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/wolf-technique/delete", s.handleHunterPickDelete(charstore.HunterPickWolfTechnique))
 	mux.HandleFunc("GET /hunter-techniques/{category}/{slug...}", s.handleHunterPickDetail)
+	// Hunter's Creed popup (hunter_creed_popup.go): plain POST-and-redirect
+	// routes reusing the Core-sheet routes' own validation (hunterPickAddCore/
+	// hunterArsenalItemAddCore/hunterWolfTechniqueAddCore above), not the
+	// sheet routes themselves — see subclass_tracker_popup.go's header doc
+	// on why a popup needs its own routes rather than repointing these.
+	// Delete is fully generic (hunterNinTrackerPopupDelete) for all 10
+	// sections, same as every other subclass tracker popup — just its own
+	// factory rather than subclassTrackerPopupDelete, since Hunter-Nin's
+	// picks table needs its own charstore types (see that factory's own doc
+	// comment, hunter_creed_popup.go).
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/warden-weapon/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickWardenWeapon,
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponUsed },
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableWardenWeapon }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/warden-weapon/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickWardenWeapon))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/warden-weapon-property/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickWardenWeaponProperty,
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponPropertyUsed },
+		func(d *hunterTechniquesTabData) int { return d.WardenWeaponPropertyCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableWardenWeaponProperty }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/warden-weapon-property/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickWardenWeaponProperty))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/medical-technique/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickMedicalTechnique,
+		func(d *hunterTechniquesTabData) int { return d.MedicalTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.MedicalTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableMedicalTechnique }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/medical-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickMedicalTechnique))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/shadow-technique/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickShadowTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ShadowTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ShadowTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableShadowTechnique }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/shadow-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickShadowTechnique))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/arsenal-item/add", s.handleHunterArsenalItemPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/arsenal-item/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickArsenalItem))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/toxic-technique/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickToxicTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ToxicTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ToxicTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableToxicTechnique }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/toxic-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickToxicTechnique))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/vice-technique/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickViceTechnique,
+		func(d *hunterTechniquesTabData) int { return d.ViceTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.ViceTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableViceTechnique }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/vice-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickViceTechnique))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/void-technique/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickVoidTechnique,
+		func(d *hunterTechniquesTabData) int { return d.VoidTechniqueUsed },
+		func(d *hunterTechniquesTabData) int { return d.VoidTechniqueCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableVoidTechnique }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/void-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickVoidTechnique))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/prosthetic-attachment/add", s.hunterNinTrackerPopupAdd(charstore.HunterPickProstheticAttachment,
+		func(d *hunterTechniquesTabData) int { return d.ProstheticAttachmentUsed },
+		func(d *hunterTechniquesTabData) int { return d.ProstheticAttachmentCap },
+		func(d *hunterTechniquesTabData) []hunterPickOption { return d.AvailableProstheticAttachment }))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/prosthetic-attachment/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickProstheticAttachment))
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/wolf-technique/add", s.handleHunterWolfTechniquePopupAdd)
+	mux.HandleFunc("POST /characters/{id}/hunter-nin/creed/wolf-technique/delete", s.hunterNinTrackerPopupDelete(charstore.HunterPickWolfTechnique))
 	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-mirages", s.handleGenjutsuPickAdd(charstore.GenjutsuPickMirage,
 		func(d *genjutsuTabData) int { return d.MiragesUsed },
 		func(d *genjutsuTabData) int { return d.MiragesCap },
@@ -458,19 +669,28 @@ func (s *server) routes() http.Handler {
 		func(d *genjutsuTabData) int { return d.PsycheBreakerCap },
 		func(d *genjutsuTabData) []knownJutsuOption { return d.AvailablePsycheBreaker }))
 	mux.HandleFunc("POST /characters/{id}/sheet/genjutsu-psyche-breaker/delete", s.handleGenjutsuJutsuPickDelete(charstore.GenjutsuPickPsycheBreaker))
+	// Twisted Casting / Psyche Breaker popups (genjutsu_twisted_casting_
+	// popup.go, genjutsu_psyche_breaker_popup.go) — same underlying
+	// addGenjutsuJutsuPick validation as the Core-sheet routes just above,
+	// called via redirect-based wrappers instead of the Core sheet's AJAX
+	// fragment response.
+	mux.HandleFunc("POST /characters/{id}/genjutsu-specialist/twisted-casting/add", s.handleTwistedCastingPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/genjutsu-specialist/twisted-casting/delete", s.handleTwistedCastingPopupDelete)
+	mux.HandleFunc("POST /characters/{id}/genjutsu-specialist/psyche-breaker/add", s.handlePsycheBreakerPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/genjutsu-specialist/psyche-breaker/delete", s.handlePsycheBreakerPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/intelligence-operative-plans", s.handleIntelligenceOperativePickAdd(charstore.IntelligenceOperativePickPlan,
 		func(d *intelligenceOperativeTabData) int { return d.PlansUsed },
 		func(d *intelligenceOperativeTabData) int { return d.PlansCap },
 		func(d *intelligenceOperativeTabData) []intelligenceOperativePickOption { return d.AvailablePlans }))
 	mux.HandleFunc("POST /characters/{id}/sheet/intelligence-operative-plans/delete", s.handleIntelligenceOperativePickDelete(charstore.IntelligenceOperativePickPlan))
-	mux.HandleFunc("POST /characters/{id}/sheet/operative-traps", s.handleIntelligenceOperativePickAdd(charstore.IntelligenceOperativePickOperativeTrap,
-		func(d *intelligenceOperativeTabData) int { return d.OperativeTrapsUsed },
-		func(d *intelligenceOperativeTabData) int { return d.OperativeTrapsCap },
-		func(d *intelligenceOperativeTabData) []intelligenceOperativePickOption {
-			return d.AvailableOperativeTraps
-		}))
+	mux.HandleFunc("POST /characters/{id}/sheet/operative-traps", s.handleOperativeTrapAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/operative-traps/delete", s.handleIntelligenceOperativePickDelete(charstore.IntelligenceOperativePickOperativeTrap))
 	mux.HandleFunc("GET /intelligence-operative-picks/{category}/{slug...}", s.handleIntelligenceOperativePickDetail)
+	// Operative Traps popup (Tactical Strategist only) — same
+	// addOperativeTrapPick used above, called via a redirect-based wrapper
+	// instead of the Core sheet's AJAX fragment response.
+	mux.HandleFunc("POST /characters/{id}/intelligence-operative/operative-traps/add", s.handleOperativeTrapPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/intelligence-operative/operative-traps/delete", s.handleOperativeTrapPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-molding", s.handleNinjutsuMoldingAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-molding/delete", s.handleNinjutsuMoldingDelete)
 	mux.HandleFunc("GET /ninjutsu-molding/{slug...}", s.handleNinjutsuMoldingDetail)
@@ -484,11 +704,13 @@ func (s *server) routes() http.Handler {
 		func(d *ninjutsuSpecialistTabData) int { return d.MasterCap },
 		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableMaster }))
 	mux.HandleFunc("POST /characters/{id}/sheet/ninjutsu-master/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickMaster))
-	mux.HandleFunc("POST /characters/{id}/sheet/awakened-scroll", s.handleNinjutsuJutsuPickAdd(charstore.NinjutsuPickAwakenedScroll,
-		func(d *ninjutsuSpecialistTabData) int { return d.AwakenedScrollUsed },
-		func(d *ninjutsuSpecialistTabData) int { return d.AwakenedScrollCap },
-		func(d *ninjutsuSpecialistTabData) []knownJutsuOption { return d.AvailableAwakenedScroll }))
+	mux.HandleFunc("POST /characters/{id}/sheet/awakened-scroll", s.handleAwakenedScrollAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/awakened-scroll/delete", s.handleNinjutsuJutsuPickDelete(charstore.NinjutsuPickAwakenedScroll))
+	// Awakened Scroll popup (Scribe Master only) — same addAwakenedScrollPick
+	// used above, called via a redirect-based wrapper instead of the Core
+	// sheet's AJAX fragment response.
+	mux.HandleFunc("POST /characters/{id}/ninjutsu-specialist/awakened-scroll/add", s.handleAwakenedScrollPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/ninjutsu-specialist/awakened-scroll/delete", s.handleAwakenedScrollPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools", s.handleScienceNinToolAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-tools/delete", s.handleScienceNinToolDelete)
 	mux.HandleFunc("GET /science-nin-tools/{slug...}", s.handleScienceNinToolDetail)
@@ -736,6 +958,18 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perfected-weapon/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickPerfectedWeapon))
+	// Ninjaneer's own weapon designations (which owned inventory row is the
+	// Enhanced/Legendary/Perfected Weapon) — see ninjaneer.go. Bespoke
+	// handlers rather than handleScienceNinSubclassPickAdd/Delete's shared
+	// factory, since candidates come from the character's own inventory,
+	// not a static class_options catalog.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-enhanced-weapon", s.handleNinjaneerWeaponDesignationAdd(ninjaneerEnhancedWeaponTier))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-enhanced-weapon/delete", s.handleNinjaneerWeaponDesignationDelete(ninjaneerEnhancedWeaponTier))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-legendary-weapon", s.handleNinjaneerWeaponDesignationAdd(ninjaneerLegendaryWeaponTier))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-legendary-weapon/delete", s.handleNinjaneerWeaponDesignationDelete(ninjaneerLegendaryWeaponTier))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-legendary-weapon-active", s.handleSheetNinjaneerLegendaryWeaponToggle)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perfected-weapon-mark", s.handleNinjaneerWeaponDesignationAdd(ninjaneerPerfectedWeaponMarkTier))
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-perfected-weapon-mark/delete", s.handleNinjaneerWeaponDesignationDelete(ninjaneerPerfectedWeaponMarkTier))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-shinobi-ware-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickShinobiWareUpgrade,
 		func(d *scienceNinToolsTabData) int {
 			if d.ShinobiWare == nil {
@@ -801,6 +1035,12 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-evolved-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickEvolvedUpgrade))
+	// Ever Evolving's own seal pick is a bespoke handler (ever_evolving.go),
+	// not handleScienceNinSubclassPickAdd's shared factory — it's gated by
+	// the shared Creation Points BUDGET, not a flat slot-count cap, the
+	// same reason Titan Upgrades' own routes below bypass that factory too.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ever-evolving-seal", s.handleEverEvolvingSealAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ever-evolving-seal/delete", s.handleEverEvolvingSealDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSpywareProgram,
 		func(d *scienceNinToolsTabData) int {
 			if d.Spyware == nil {
@@ -908,26 +1148,10 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-technobi-mechanization/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickTechnobiMechanization))
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSNBUpgrade,
-		func(d *scienceNinToolsTabData) int {
-			if d.SNBSpecialist == nil {
-				return 0
-			}
-			return d.SNBSpecialist.UpgradeUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.SNBSpecialist == nil {
-				return 0
-			}
-			return d.SNBSpecialist.UpgradeCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.SNBSpecialist == nil {
-				return nil
-			}
-			return d.SNBSpecialist.AvailableUpgrades
-		},
-		false))
+	// Dedicated handler, not the generic factory above — S.N.B Upgrades
+	// also needs a Creation-Points-budget check the factory's own signature
+	// has no room for. See handleScienceNinSNBUpgradeAdd's own doc.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade", s.handleScienceNinSNBUpgradeAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSNBUpgrade))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade-permanent", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSNBUpgradePermanent,
 		func(d *scienceNinToolsTabData) int {
@@ -950,6 +1174,421 @@ func (s *server) routes() http.Handler {
 		},
 		false))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-snb-upgrade-permanent/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSNBUpgradePermanent))
+	// S.N.B Upgrades popup (snb_upgrades_popup.go): plain POST-and-redirect
+	// routes reusing the sheet routes' own validation (addSNBUpgradePick
+	// above), not the sheet routes themselves — see subclass_tracker_
+	// popup.go's header doc on why a popup needs its own routes rather
+	// than repointing these.
+	mux.HandleFunc("POST /characters/{id}/snb-upgrades/add", s.handleSNBUpgradesAdd)
+	mux.HandleFunc("POST /characters/{id}/snb-upgrades/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickSNBUpgrade, snbUpgradesPopupPath))
+	mux.HandleFunc("POST /characters/{id}/snb-upgrades/permanent/add", s.handleSNBUpgradesPermanentAdd)
+	mux.HandleFunc("POST /characters/{id}/snb-upgrades/permanent/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickSNBUpgradePermanent, snbUpgradesPopupPath))
+	// Elemental Innovationist popup (science_nin_elemental_innovationist_
+	// popup.go): plain POST-and-redirect routes reusing
+	// handleScienceNinSubclassPickAdd's own core (scienceNinTrackerPopupAdd)
+	// via the same used/cap/available closures the Core-sheet routes above
+	// use, not those routes themselves — see subclass_tracker_popup.go's
+	// header doc on why a popup needs its own routes.
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickEIP,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.EIPUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.EIPCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableEIPs
+		},
+		false, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickEIP, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickWOW,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.WOWUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return d.ElementalInnovationist.WOWCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableWOW
+		},
+		false, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickWOW, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/ascended-wow/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickAscendedWoW,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil || d.ElementalInnovationist.DesignatedWoW == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailableDesignatedWoW
+		},
+		false, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/ascended-wow/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickAscendedWoW, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/perma-perk/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickPermaPerk,
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil || d.ElementalInnovationist.PermaPerk == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ElementalInnovationist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ElementalInnovationist == nil {
+				return nil
+			}
+			return d.ElementalInnovationist.AvailablePermaPerk
+		},
+		false, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/perma-perk/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickPermaPerk, elementalInnovationistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/exoskeleton", s.handleExoskeletonPopupToggle)
+	// Grenadier popup (science_nin_grenadier_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/grenadier/bim/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickBIM,
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return d.Grenadier.BIMUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return d.Grenadier.BIMCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Grenadier == nil {
+				return nil
+			}
+			return d.Grenadier.AvailableBIM
+		},
+		false, grenadierPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/grenadier/bim/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickBIM, grenadierPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/grenadier/bim-specialist/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickBIMSpecialist,
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil || d.Grenadier.DesignatedBIM == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Grenadier == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Grenadier == nil {
+				return nil
+			}
+			return d.Grenadier.AvailableDesignatedBIM
+		},
+		false, grenadierPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/grenadier/bim-specialist/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickBIMSpecialist, grenadierPopupPath))
+	// Mad Scientist popup (science_nin_mad_scientist_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/mad-scientist/inversion-serum/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickInversionSerum,
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return d.MadScientist.SerumUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return d.MadScientist.SerumCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.MadScientist == nil {
+				return nil
+			}
+			return d.MadScientist.AvailableSerums
+		},
+		true, madScientistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/mad-scientist/inversion-serum/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickInversionSerum, madScientistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/mad-scientist/sheep-and-shepherd/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickSheepAndShepherdSerum,
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil || d.MadScientist.DesignatedSerum == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.MadScientist == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.MadScientist == nil {
+				return nil
+			}
+			return d.MadScientist.AvailableDesignatedSerum
+		},
+		false, madScientistPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/mad-scientist/sheep-and-shepherd/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickSheepAndShepherdSerum, madScientistPopupPath))
+	// Ninjaneer popup (science_nin_ninjaneer_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/arsenal-mod/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickArsenalMod,
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.ArsenalModUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.ArsenalModCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Ninjaneer == nil {
+				return nil
+			}
+			return d.Ninjaneer.AvailableArsenalMods
+		},
+		false, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/arsenal-mod/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickArsenalMod, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/perfected-weapon/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickPerfectedWeapon,
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.PerfectedWeaponUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Ninjaneer == nil {
+				return 0
+			}
+			return d.Ninjaneer.PerfectedWeaponCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Ninjaneer == nil {
+				return nil
+			}
+			return d.Ninjaneer.AvailablePerfectedWeapons
+		},
+		false, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/perfected-weapon/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickPerfectedWeapon, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/enhanced-weapon/add", s.ninjaneerWeaponDesignationPopupAdd(ninjaneerEnhancedWeaponTier, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/enhanced-weapon/delete", s.ninjaneerWeaponDesignationPopupDelete(ninjaneerEnhancedWeaponTier, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/legendary-weapon/add", s.ninjaneerWeaponDesignationPopupAdd(ninjaneerLegendaryWeaponTier, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/legendary-weapon/delete", s.ninjaneerWeaponDesignationPopupDelete(ninjaneerLegendaryWeaponTier, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/legendary-weapon-active", s.handleSheetNinjaneerLegendaryWeaponPopupToggle)
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/perfected-weapon-mark/add", s.ninjaneerWeaponDesignationPopupAdd(ninjaneerPerfectedWeaponMarkTier, ninjaneerPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/ninjaneer/perfected-weapon-mark/delete", s.ninjaneerWeaponDesignationPopupDelete(ninjaneerPerfectedWeaponMarkTier, ninjaneerPopupPath))
+	// Shinobi-Ware popup (science_nin_shinobi_ware_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/upgrade/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickShinobiWareUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.UpgradeUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.UpgradeCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableUpgrades
+		},
+		false, shinobiWarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/upgrade/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickShinobiWareUpgrade, shinobiWarePopupPath))
+	// In His Image's Shinjutsu Upgrade pick is permanent — no delete route,
+	// matching the Core-sheet route's own identical omission above.
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/shinjutsu-upgrade/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickShinjutsuUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil || d.ShinobiWare.ShinjutsuUpgrade == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableShinjutsuUpgrade
+		},
+		false, shinobiWarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/evolved/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickEvolvedUpgrade,
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.EvolvedUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.ShinobiWare == nil {
+				return 0
+			}
+			return d.ShinobiWare.EvolvedCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.ShinobiWare == nil {
+				return nil
+			}
+			return d.ShinobiWare.AvailableEvolved
+		},
+		false, shinobiWarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/evolved/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickEvolvedUpgrade, shinobiWarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/ever-evolving-seal/add", s.handleEverEvolvingSealPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/ever-evolving-seal/delete", s.handleEverEvolvingSealPopupDelete)
+	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/fms-resistance/add", s.handleFullMetalShinobiResistancePopupAdd)
+	// Spyware popup (science_nin_spyware_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/program/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickSpywareProgram,
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return d.Spyware.ProgramUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return d.Spyware.ProgramCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Spyware == nil {
+				return nil
+			}
+			return d.Spyware.AvailablePrograms
+		},
+		false, spywarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/program/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickSpywareProgram, spywarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/quick-hack/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickQuickHack,
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil || d.Spyware.QuickHack == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Spyware == nil {
+				return 0
+			}
+			return 1
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Spyware == nil {
+				return nil
+			}
+			return d.Spyware.AvailableQuickHack
+		},
+		false, spywarePopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/quick-hack/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickQuickHack, spywarePopupPath))
+	// Storm Rider popup (science_nin_storm_rider_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/storm-rider/enhancement/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickAirTreckEnhancement,
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return d.StormRider.EnhancementUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return d.StormRider.EnhancementCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.StormRider == nil {
+				return nil
+			}
+			return d.StormRider.AvailableEnhancements
+		},
+		false, stormRiderPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/storm-rider/enhancement/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickAirTreckEnhancement, stormRiderPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/storm-rider/regalia/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickRegalia,
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			return d.StormRider.RegaliaUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.StormRider == nil {
+				return 0
+			}
+			// 1 normally, 2 once Sky Keeper (20th level) is also granted —
+			// see loadScienceNinSubclassData's own RegaliaCap computation.
+			return d.StormRider.RegaliaCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.StormRider == nil {
+				return nil
+			}
+			return d.StormRider.AvailableRegalia
+		},
+		false, stormRiderPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/storm-rider/regalia/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickRegalia, stormRiderPopupPath))
+	// Technobi popup (science_nin_technobi_popup.go).
+	mux.HandleFunc("POST /characters/{id}/science-nin/technobi/mechanization/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickTechnobiMechanization,
+		func(d *scienceNinToolsTabData) int {
+			if d.Technobi == nil {
+				return 0
+			}
+			return d.Technobi.MechanizationUsed
+		},
+		func(d *scienceNinToolsTabData) int {
+			if d.Technobi == nil {
+				return 0
+			}
+			return d.Technobi.MechanizationCap
+		},
+		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
+			if d.Technobi == nil {
+				return nil
+			}
+			return d.Technobi.AvailableMechanizations
+		},
+		false, technobiPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/technobi/mechanization/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickTechnobiMechanization, technobiPopupPath))
+	mux.HandleFunc("POST /characters/{id}/science-nin/technobi/sent", s.handleSENTPopupPick)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-mixed-studies", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickMixedStudiesInquiry,
 		func(d *scienceNinToolsTabData) int {
 			if d.MixedStudies == nil || d.MixedStudies.Picked == nil {

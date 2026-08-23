@@ -645,6 +645,8 @@ func TestSheetJavaScriptHooks(t *testing.T) {
 		"sheet-vitals.js edit role":      `data-role="display"`,
 		"sheet-ryo (fragment target)":    `id="sheet-ryo"`,
 		"sheet-ryo (absolute-set field)": `data-field="value"`,
+		"sheet name (fragment target)":   `id="sheet-header-name"`,
+		"sheet name (free-text box)":     `data-type="text"`,
 		"mon coin icon":                  `/static/img/mon-coin.svg`,
 		"sheet-portrait.js":              `class="sheet-portrait-form"`,
 		"sheet-portrait.js target":       `id="sheet-portrait"`,
@@ -719,6 +721,106 @@ func TestSheetJavaScriptHooks(t *testing.T) {
 	// isn't added there produces a 404 at runtime and nothing at build.
 	if _, err := staticFS.ReadFile("static/img/mon-coin.svg"); err != nil {
 		t.Errorf("mon-coin.svg is not embedded: %v", err)
+	}
+}
+
+// TestSheetVitalsSubgridMarkup pins the HP/Special Resources panel's own
+// drag-reorder wiring — the same sheet-subgrid.js mechanism Ability Scores/
+// Saving Throws/the squares row already use (see sheet-subgrid.js's own
+// header comment), applied to the sheet_vitals fragment. Renders sheet_vitals
+// directly with a hand-built dict rather than going through a full character
+// in the database: computeCustomResources/loadConcentrationView/
+// loadMartialDice each need substantial class/subclass/feature fixtures to
+// populate their tiles for real, none of which this test needs to exercise —
+// only the template markup those tiles' data feeds into is new here.
+func TestSheetVitalsSubgridMarkup(t *testing.T) {
+	tmpl, ok := pageTemplates["character_sheet.html"]
+	if !ok {
+		t.Fatal("character_sheet.html template not loaded")
+	}
+
+	sheet := &charsheet.Sheet{
+		CurrentHP: 12, MaxHP: 20, TempHP: 3, BaseTempHP: 5,
+		CurrentChakra: 8, MaxChakra: 15, CCDMendingPct: 60,
+		Level: 4, HitDie: 8, ChakraDie: 6,
+		Abilities: map[string]charsheet.AbilityScore{"con": {Score: 14, Modifier: 2}},
+	}
+	data := map[string]any{
+		"ID":            int64(7),
+		"Sheet":         sheet,
+		"Concentration": &concentrationView{JutsuName: "Shadow Clone Jutsu", Rank: "C", ChakraControlMod: 3},
+		"CustomResources": []CustomResourceEntry{
+			{Key: "shinobi_snacks", Name: "Shinobi Snacks", Current: 2, Max: 3},
+			// ccd_mending exercises the Biotic Mastery split's own extra
+			// subitem (the "Mending Split" box rendered alongside the
+			// resource tile itself — see the {{if eq .Key "ccd_mending"}}
+			// branch in sheet_vitals).
+			{Key: "ccd_mending", Name: "Mending CCD", Current: 5, Max: 10},
+		},
+		"MartialDice": &martialDiceView{Current: 1, Max: 2, DieSize: "d4"},
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "sheet_vitals", data); err != nil {
+		t.Fatal(err)
+	}
+	body := buf.String()
+
+	if !strings.Contains(body, `<div class="sheet-vitals-tiles sheet-subgrid" data-subgrid="vitals">`) {
+		t.Error("sheet_vitals is missing the reorderable tiles wrapper (data-subgrid=\"vitals\")")
+	}
+
+	wantSubitems := []string{
+		"hp", "thp", "basethp", "chakra",
+		"resource:shinobi_snacks", "resource:ccd_mending", "resource:ccd_mending:split",
+		"martialdice", "concentration",
+	}
+	for _, id := range wantSubitems {
+		if !strings.Contains(body, `data-subitem="`+id+`"`) {
+			t.Errorf("sheet_vitals is missing data-subitem=%q", id)
+		}
+	}
+	if n := strings.Count(body, "data-subitem="); n != len(wantSubitems) {
+		t.Errorf("found %d data-subitem attributes, want exactly %d (%v) — something outside the intended tile set picked one up",
+			n, len(wantSubitems), wantSubitems)
+	}
+	if n := strings.Count(body, `class="sheet-subitem-handle"`); n != len(wantSubitems) {
+		t.Errorf("found %d drag handles, want exactly %d (one per subitem)", n, len(wantSubitems))
+	}
+	if n := strings.Count(body, `class="sheet-subgrid-orient-toggle"`); n != 1 {
+		t.Errorf("found %d orientation toggles, want exactly 1", n)
+	}
+
+	// Manual/Rolled HP/Chakra and the rest buttons are deliberately NOT
+	// part of the reorder group (see sheet_vitals' own comment on why): a
+	// non-subitem sibling sitting between the tiles and the group's own
+	// trailing toggle would get dragged out of its fixed position the
+	// first time sheet-subgrid.js's applyState() re-inserts a saved
+	// subitem immediately before that toggle. Pinned here as a literal
+	// exact-tag match (both opening tags are otherwise untouched by this
+	// change) so a future edit that carelessly adds data-subitem to either
+	// one fails loudly instead of silently reintroducing that bug.
+	if !strings.Contains(body, `<details class="sheet-maxima" >`) {
+		t.Error(`sheet_vitals' Manual/Rolled HP/Chakra <details> picked up unexpected attributes (expected a bare class="sheet-maxima")`)
+	}
+	if !strings.Contains(body, `<div class="sheet-rest-buttons">`) {
+		t.Error(`sheet_vitals' rest buttons row picked up unexpected attributes (expected a bare class="sheet-rest-buttons")`)
+	}
+
+	// Structural order: the tiles wrapper (and everything reorderable
+	// inside it, ending with the toggle) must close before Manual/Rolled
+	// HP/Chakra opens, which must in turn come before the rest buttons —
+	// the fixed, non-reorderable tail of the panel.
+	tilesOpen := strings.Index(body, `data-subgrid="vitals"`)
+	toggleIdx := strings.Index(body, `class="sheet-subgrid-orient-toggle"`)
+	maximaIdx := strings.Index(body, `class="sheet-maxima"`)
+	restButtonsIdx := strings.Index(body, `class="sheet-rest-buttons"`)
+	if tilesOpen < 0 || toggleIdx < 0 || maximaIdx < 0 || restButtonsIdx < 0 {
+		t.Fatal("one of the expected sheet_vitals landmarks is missing entirely")
+	}
+	if !(tilesOpen < toggleIdx && toggleIdx < maximaIdx && maximaIdx < restButtonsIdx) {
+		t.Errorf("sheet_vitals landmarks out of order: tiles=%d toggle=%d maxima=%d restButtons=%d, want ascending",
+			tilesOpen, toggleIdx, maximaIdx, restButtonsIdx)
 	}
 }
 
@@ -1514,6 +1616,115 @@ func TestLoadCharacterJutsuSheetCriticalFocus(t *testing.T) {
 	}
 	if got := byName["jutsu/palm-strike"].CritRangeThreshold; got != 0 {
 		t.Errorf("Palm Strike (plain Taijutsu-classified) CritRangeThreshold = %d, want 0 — Critical Focus doesn't extend to it", got)
+	}
+}
+
+// TestWeaponAttackCritRangeThresholdRazorEIP covers Razor E.I.P (Elemental
+// Innovationist, Greater tier): "Increase your critical threat range with
+// your Unarmed Strike and Weapon Attacks by +1" — live only once Razor is
+// the character's designated Perma Perk (14th level), the same "merely
+// knowing an E.I.P grants nothing" gate every other E.I.P in this class
+// draws (science_nin_subclasses.go's own header doc). Also confirms it
+// stacks with Weapon Specialist's own Critical Focus rank rather than the
+// narrower-of-two-thresholds treatment cookingToolCritBonus gets
+// (weaponAttackCritRangeThreshold's own doc comment explains why: two
+// independent character-level bonuses, not the same weapon PROPERTY
+// appearing twice on one item); that it stops applying once the character
+// is under-leveled below Perma Perk's own gate even though the pick row
+// itself is still on record; and that it reaches ONLY
+// weaponAttackCritRangeThreshold (real weapon attack rows), never the plain
+// weaponSpecialistCritRangeThreshold loadCharacterJutsuSheet reads for
+// Bukijutsu-classified jutsu — Razor's own printed text names no
+// jutsu-casting clause the way Critical Focus's does.
+func TestWeaponAttackCritRangeThresholdRazorEIP(t *testing.T) {
+	s := testServer(t)
+
+	newElementalInnovationist := func(name string, scienceNinLevel int) int64 {
+		t.Helper()
+		res, err := s.charDB.Exec(`INSERT INTO characters (name) VALUES (?)`, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := s.charDB.Exec(
+			`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', ?, 0)`,
+			id, scienceNinLevel,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.charDB.Exec(
+			`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, ?, 3)`,
+			id, scienceNinElementalInnovationistSubclassSlug,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	// No Weapon Specialist, no Razor Perma Perk: untouched default.
+	plain := newElementalInnovationist("Plain", 14)
+	if got, err := s.weaponAttackCritRangeThreshold(plain); err != nil {
+		t.Fatal(err)
+	} else if got != 0 {
+		t.Errorf("no designation: threshold = %d, want 0", got)
+	}
+
+	// Razor designated at 14th level: rank 1 alone, threshold 19 on a real
+	// weapon attack row — but the plain, jutsu-facing function stays
+	// untouched at 0, since Razor's own text never mentions jutsu-casting.
+	razor := newElementalInnovationist("Razor", 14)
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, razor, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.weaponAttackCritRangeThreshold(razor); err != nil {
+		t.Fatal(err)
+	} else if got != 19 {
+		t.Errorf("Razor E.I.P alone: weaponAttackCritRangeThreshold = %d, want 19", got)
+	}
+	if got, err := s.weaponSpecialistCritRangeThreshold(razor); err != nil {
+		t.Fatal(err)
+	} else if got != 0 {
+		t.Errorf("Razor E.I.P alone: weaponSpecialistCritRangeThreshold (jutsu-facing) = %d, want 0 — Razor must not leak into Bukijutsu jutsu rows", got)
+	}
+
+	// Razor designated AND Weapon Specialist 7 (rank 1 Critical Focus):
+	// the two stack into rank 2 on the weapon-attack function (threshold
+	// 18) — not the min() of the two independently-computed thresholds a
+	// same-property stacking rule would give — while the jutsu-facing
+	// function reflects Critical Focus's own rank alone (threshold 19).
+	both := newElementalInnovationist("Both", 14)
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/weapon-specialist', 7, 1)`, both,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, both, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.weaponAttackCritRangeThreshold(both); err != nil {
+		t.Fatal(err)
+	} else if got != 18 {
+		t.Errorf("Razor E.I.P + Critical Focus rank 1: weaponAttackCritRangeThreshold = %d, want 18", got)
+	}
+	if got, err := s.weaponSpecialistCritRangeThreshold(both); err != nil {
+		t.Fatal(err)
+	} else if got != 19 {
+		t.Errorf("Razor E.I.P + Critical Focus rank 1: weaponSpecialistCritRangeThreshold (jutsu-facing) = %d, want 19 (Critical Focus rank alone)", got)
+	}
+
+	// Under-leveled: the same Razor pick on record, but only 13 levels of
+	// Science-Nin — Perma Perk's own 14th-level gate must be rechecked live
+	// rather than trusting the stored pick's mere existence (mirrors
+	// ninjaneer.go's recomputeNinjaneerWeaponOverrides re-checking its own
+	// designations' granting feature on every load).
+	underleveled := newElementalInnovationist("Underleveled", 13)
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, underleveled, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.weaponAttackCritRangeThreshold(underleveled); err != nil {
+		t.Fatal(err)
+	} else if got != 0 {
+		t.Errorf("13th-level Science-Nin with Razor E.I.P on record: threshold = %d, want 0 (Perma Perk not yet active)", got)
 	}
 }
 
@@ -2604,7 +2815,13 @@ func TestSheetJutsuOptions(t *testing.T) {
 	}
 	got := row()
 	wantAttack := sheet.Abilities["wis"].Modifier + sheet.ProficiencyBonus/2 + 1
-	wantDamage := sheet.Abilities["int"].Modifier + 2
+	// Ninjutsu/Genjutsu damage does NOT get the ability modifier added
+	// automatically — the book gates that behind the optional "Powerful
+	// Offense" jutsu-creation effect, which most catalog jutsu never take.
+	// Only opt.DamageBonus (the player's own flat entry) applies here; see
+	// TestSheetJutsuOptionsAppliesAbilityModForTaijutsuBukijutsu below for
+	// the two kinds that DO get it automatically.
+	wantDamage := 2
 	if got.AttackBonus != wantAttack {
 		t.Errorf("attack = %+d, want %+d", got.AttackBonus, wantAttack)
 	}
@@ -2708,12 +2925,66 @@ func TestSheetJutsuOptionsAppliesJackOfAllCombatBonus(t *testing.T) {
 	}
 	got := rows[0]
 	wantAttack := sheet.Abilities["int"].Modifier + sheet.ProficiencyBonus + 1
-	wantDamage := sheet.Abilities["int"].Modifier + 1
+	// jutsu/fireball is Ninjutsu, so its damage excludes the ability modifier
+	// (see TestSheetJutsuOptions) — only Combat's own +1 applies here.
+	wantDamage := 1
 	if got.AttackBonus != wantAttack {
 		t.Errorf("attack = %+d, want %+d (includes Combat's +1)", got.AttackBonus, wantAttack)
 	}
 	if got.DamageBonus != wantDamage {
 		t.Errorf("damage = %+d, want %+d (includes Combat's +1)", got.DamageBonus, wantDamage)
+	}
+}
+
+// Taijutsu/Bukijutsu jutsu are the two kinds that DO get the caster's
+// ability modifier added to damage automatically — ordinary weapon-attack
+// math, unlike Ninjutsu/Genjutsu's book-gated "Powerful Offense" (see
+// TestSheetJutsuOptions).
+func TestSheetJutsuOptionsAppliesAbilityModForTaijutsuBukijutsu(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.rulesDB.Exec(`
+		INSERT INTO jutsu (slug, name, classification, rank, casting_time, range, duration, components, cost_text, keywords, description)
+		VALUES ('jutsu/palm-strike', 'Palm Strike', 'Taijutsu', 'D', '1 Action', 'Self', 'Instant', 'HS', 'Cost: 1', 'Taijutsu',
+		        'Make a Melee Taijutsu Attack against a creature within range.')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Brawler', 16, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(
+		`INSERT INTO character_jutsu (character_id, jutsu_slug) VALUES (1, 'jutsu/palm-strike')`); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/characters/1/sheet/jutsu/options", strings.NewReader(url.Values{
+		"slug": {"jutsu/palm-strike"}, "damage_count": {"2"}, "damage_sides": {"6"},
+		"damage_ability": {"str"}, "damage_type": {"Bludgeoning"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", "1")
+	w := httptest.NewRecorder()
+	s.handleSheetJutsuOptions(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("set jutsu options: status %d", w.Code)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d jutsu rows, want 1", len(rows))
+	}
+	got := rows[0]
+	wantDamage := sheet.Abilities["str"].Modifier
+	if got.DamageBonus != wantDamage {
+		t.Errorf("damage = %+d, want %+d (Str modifier auto-applied for Taijutsu)", got.DamageBonus, wantDamage)
 	}
 }
 
@@ -3119,6 +3390,98 @@ func TestHandleSheetSpeed(t *testing.T) {
 	}
 	if code := post(url.Values{"value": {""}}); code != http.StatusBadRequest {
 		t.Errorf("blank value: status %d, want 400", code)
+	}
+}
+
+// TestHandleSheetName covers renaming a character from the sheet header's
+// click-to-edit box (data-type="text" on sheet-vitals.js's shared
+// wireEditBoxes, unlike every other box there — see handleSheetName).
+func TestHandleSheetName(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Old Name', 10, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+
+	post := func(value string, fetch bool) (int, string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/characters/1/sheet/name",
+			strings.NewReader(url.Values{"value": {value}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if fetch {
+			req.Header.Set("X-Requested-With", "fetch")
+		}
+		req.SetPathValue("id", "1")
+		w := httptest.NewRecorder()
+		s.handleSheetName(w, req)
+		return w.Code, w.Body.String()
+	}
+	read := func() string {
+		t.Helper()
+		var name string
+		if err := s.charDB.QueryRow(`SELECT name FROM characters WHERE id = 1`).Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		return name
+	}
+
+	// A fetch POST gets the sheet_header_name fragment back (200), carrying
+	// the new name, and the row is actually renamed — the same round trip
+	// the character list page's own plain `SELECT name` picks up on its
+	// next render.
+	code, body := post("New Name", true)
+	if code != http.StatusOK {
+		t.Fatalf("rename via fetch: status %d, body %s", code, body)
+	}
+	if got := read(); got != "New Name" {
+		t.Errorf("stored name = %q, want %q", got, "New Name")
+	}
+	if !strings.Contains(body, "New Name") {
+		t.Errorf("fragment should render the new name, got: %s", body)
+	}
+
+	// Leading/trailing whitespace is trimmed, same as character creation's
+	// own name field (handleCreateCharacter).
+	post("  Padded  ", true)
+	if got := read(); got != "Padded" {
+		t.Errorf("stored name = %q, want trimmed %q", got, "Padded")
+	}
+
+	// A plain (non-fetch) POST redirects back to the sheet rather than
+	// answering with a bare fragment — see respondSheet/wantsFragment.
+	if code, _ := post("Redirected", false); code != http.StatusSeeOther {
+		t.Errorf("plain POST: status %d, want 303", code)
+	}
+	if got := read(); got != "Redirected" {
+		t.Errorf("stored name = %q, want %q", got, "Redirected")
+	}
+
+	// Blank (or all-whitespace) names are rejected outright, matching
+	// creation's own validation, rather than leaving the character unnamed.
+	if code, _ := post("   ", true); code != http.StatusBadRequest {
+		t.Errorf("blank name: status %d, want 400", code)
+	}
+	if got := read(); got != "Redirected" {
+		t.Errorf("blank name should not have overwritten the stored name, got %q", got)
+	}
+
+	// A name past the length cap is rejected rather than silently truncated.
+	tooLong := strings.Repeat("x", maxCharacterNameLength+1)
+	if code, _ := post(tooLong, true); code != http.StatusBadRequest {
+		t.Errorf("over-length name: status %d, want 400", code)
+	}
+	if got := read(); got != "Redirected" {
+		t.Errorf("over-length name should not have overwritten the stored name, got %q", got)
+	}
+
+	// Exactly at the cap is still accepted.
+	atCap := strings.Repeat("y", maxCharacterNameLength)
+	if code, _ := post(atCap, true); code != http.StatusOK {
+		t.Errorf("name at the length cap: status %d, want 200", code)
+	}
+	if got := read(); got != atCap {
+		t.Errorf("stored name at the cap = %q (len %d), want the full %d-char string", got, len(got), maxCharacterNameLength)
 	}
 }
 

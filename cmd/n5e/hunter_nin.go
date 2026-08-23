@@ -1187,6 +1187,20 @@ type hunterTechniquesTabData struct {
 	WolfTechniqueUsed      int
 	KnownWolfTechnique     []knownHunterPick
 	AvailableWolfTechnique []hunterPickOption
+
+	// CreedName is the character's own chosen Hunter's Creed display name
+	// (hunterNinSubclassSlug's own name return), set whenever the character
+	// has picked ANY of the 8 Creeds — regardless of whether the picked
+	// Creed's own Cap fields above are already > 0 (a Creed is chosen at
+	// 3rd level, the same level its first cap-gated pick opens, so in
+	// practice the two are never actually out of sync, but CreedName is
+	// still the more direct "has this player committed to a Creed at all"
+	// signal). "" for a Hunter-Nin who hasn't chosen a Creed yet, or an
+	// archetype-feat-only character with no real subclass. Doubles as both
+	// the sidebar's "Hunter's Creed" button gate and that popup's own <h1>
+	// (hunter_creed_popup.go) — the same "FormName both gates and titles
+	// the popup" shape weaponFormTabData.FormName already uses.
+	CreedName string
 }
 
 // loadHunterTechniquesTabData returns nil for a character with no
@@ -1212,7 +1226,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 		return nil, nil
 	}
 
-	subclassSlug, _, err := s.hunterNinSubclassSlug(characterID)
+	subclassSlug, subclassName, err := s.hunterNinSubclassSlug(characterID)
 	if err != nil {
 		return nil, err
 	}
@@ -1228,7 +1242,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 		lethalDice = archetypeLethalDice
 	}
 
-	data := &hunterTechniquesTabData{LethalAttackDice: lethalDice}
+	data := &hunterTechniquesTabData{LethalAttackDice: lethalDice, CreedName: subclassName}
 
 	data.LethalPrecisionCap = lethalPrecisionCap(hunterLevel)
 	if data.LethalPrecisionCap > 0 {
@@ -1482,6 +1496,57 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 	return data, nil
 }
 
+// hunterPickAddCore validates and stores one category's pick — the shared
+// validate+mutate path handleHunterPickAdd's Core-sheet AJAX route and
+// hunterNinTrackerPopupAdd's Hunter's Creed popup route both call, so the
+// two response shapes (fragment swap vs. redirect) can never drift apart on
+// what they actually validate. Mirrors scienceNinSubclassPickAddCore's own
+// shape (science_nin_subclasses.go).
+func (s *server) hunterPickAddCore(
+	id int64,
+	category charstore.HunterNinPickCategory,
+	used func(*hunterTechniquesTabData) int,
+	cap func(*hunterTechniquesTabData) int,
+	available func(*hunterTechniquesTabData) []hunterPickOption,
+	rawSlug string,
+) (int, string) {
+	slug := rawSlug
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for hunter pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	if err != nil {
+		log.Println("load hunter techniques for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no levels in Hunter-Nin"
+	}
+	if used(data) >= cap(data) {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	valid := false
+	for _, o := range available(data) {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddHunterNinPick(s.charDB, id, category, slug); err != nil {
+		log.Println("add hunter pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
 // handleHunterPickAdd builds one category's "learn a pick" route — shared
 // since all three catalogs validate/store identically, differing only in
 // which of hunterTechniquesTabData's own fields govern the cap and the
@@ -1503,58 +1568,100 @@ func (s *server) handleHunterPickAdd(
 			return
 		}
 		slug := strings.TrimSpace(r.FormValue("option_slug"))
-		if slug == "" {
-			http.Error(w, "missing pick", http.StatusBadRequest)
-			return
-		}
-		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("compute sheet for hunter pick add:", err)
-			return
-		}
-		data, err := s.loadHunterTechniquesTabData(id, sheet)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load hunter techniques for add:", err)
-			return
-		}
-		if data == nil {
-			http.Error(w, "character has no levels in Hunter-Nin", http.StatusBadRequest)
-			return
-		}
-		if used(data) >= cap(data) {
-			http.Error(w, "no slots remaining", http.StatusBadRequest)
-			return
-		}
-		valid := false
-		for _, o := range available(data) {
-			if o.Slug == slug {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			http.Error(w, "not a valid pick", http.StatusBadRequest)
-			return
-		}
-		if err := charstore.AddHunterNinPick(s.charDB, id, category, slug); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("add hunter pick:", err)
+		if status, msg := s.hunterPickAddCore(id, category, used, cap, available, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
 			return
 		}
 		s.respondSheet(w, r, id, "sheet_hunter_techniques")
 	}
 }
 
-// handleHunterArsenalItemAdd is handleHunterPickAdd's own validation/cap
-// logic for Arsenal Items, kept as its own handler (rather than the shared
-// handleHunterPickAdd factory) since 3 of the 14 items are real jutsu (see
-// arsenalJutsuGrants) — "If you select a jutsu, you learn it" (Arsenal's
-// Proficiency's own text). The jutsu grant itself is resolved separately by
-// hunterNinArsenalItemGrantedJutsu off the pick this handler writes, not by
-// a direct charstore.AddJutsu call here — see that function's own doc
-// comment for why storing a real character_jutsu row was the wrong shape.
+// hunterNinTrackerPopupAdd is hunterPickAddCore's own popup-flavored
+// wrapper — same validation, redirecting back to the Hunter's Creed popup's
+// own URL instead of swapping the Core sheet's sheet_hunter_techniques
+// fragment. Mirrors scienceNinTrackerPopupAdd's own shape (science_nin_
+// subclasses.go). Shared by the 8 of the popup's 10 sections whose add
+// route needs nothing beyond this generic validation — Arsenal Item and
+// Wolf Technique keep their own bespoke popup wrappers instead (hunter_
+// creed_popup.go), since part of each pick's own effect (learning the
+// matching jutsu) is resolved elsewhere off the picks table, the same
+// reason their Core-sheet routes already use their own handlers rather
+// than this file's handleHunterPickAdd factory above.
+func (s *server) hunterNinTrackerPopupAdd(
+	category charstore.HunterNinPickCategory,
+	used func(*hunterTechniquesTabData) int,
+	cap func(*hunterTechniquesTabData) int,
+	available func(*hunterTechniquesTabData) []hunterPickOption,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseCharacterID(r)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		slug := strings.TrimSpace(r.FormValue("option_slug"))
+		if status, msg := s.hunterPickAddCore(id, category, used, cap, available, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
+			return
+		}
+		http.Redirect(w, r, hunterCreedPopupPath(id), http.StatusSeeOther)
+	}
+}
+
+// hunterArsenalItemAddCore is handleHunterPickAdd's own validation/cap logic
+// for Arsenal Items, kept as its own core (rather than reusing
+// hunterPickAddCore's generic shape) since 3 of the 14 items are real jutsu
+// (see arsenalJutsuGrants) — "If you select a jutsu, you learn it"
+// (Arsenal's Proficiency's own text). The jutsu grant itself is resolved
+// separately by hunterNinArsenalItemGrantedJutsu off the pick this handler
+// writes, not by a direct charstore.AddJutsu call here — see that
+// function's own doc comment for why storing a real character_jutsu row was
+// the wrong shape. Shared by handleHunterArsenalItemAdd (Core-sheet AJAX)
+// and handleHunterArsenalItemPopupAdd (Hunter's Creed popup, hunter_creed_
+// popup.go), the same "one core, two response shapes" split hunterPickAddCore
+// draws.
+func (s *server) hunterArsenalItemAddCore(id int64, rawSlug string) (int, string) {
+	slug := rawSlug
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for arsenal item add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	if err != nil {
+		log.Println("load hunter techniques for arsenal item add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no levels in Hunter-Nin"
+	}
+	if data.ArsenalItemUsed >= data.ArsenalItemCap {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	valid := false
+	for _, o := range data.AvailableArsenalItem {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddHunterNinPick(s.charDB, id, charstore.HunterPickArsenalItem, slug); err != nil {
+		log.Println("add arsenal item pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
 func (s *server) handleHunterArsenalItemAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1566,57 +1673,61 @@ func (s *server) handleHunterArsenalItemAdd(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing pick", http.StatusBadRequest)
+	if status, msg := s.hunterArsenalItemAddCore(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
+	}
+	s.respondSheet(w, r, id, "sheet_hunter_techniques")
+}
+
+// hunterWolfTechniqueAddCore mirrors hunterArsenalItemAddCore's own shape:
+// kept as its own core since every wolfTechniqueOptions entry is a real
+// jutsu (wolfTechniqueJutsuGrants) — "The jutsu selected are added to your
+// Jutsu known" (Wolf Techniques' own text). The jutsu grant itself is
+// resolved separately by hunterNinWolfTechniqueGrantedJutsu off the pick
+// this handler writes, not by a direct charstore.AddJutsu call here — see
+// that function's own doc comment for why storing a real character_jutsu
+// row was the wrong shape. Shared by handleHunterWolfTechniqueAdd
+// (Core-sheet AJAX) and handleHunterWolfTechniquePopupAdd (Hunter's Creed
+// popup, hunter_creed_popup.go).
+func (s *server) hunterWolfTechniqueAddCore(id int64, rawSlug string) (int, string) {
+	slug := rawSlug
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
 	}
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for arsenal item add:", err)
-		return
+		log.Println("compute sheet for wolf technique add:", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	data, err := s.loadHunterTechniquesTabData(id, sheet)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load hunter techniques for arsenal item add:", err)
-		return
+		log.Println("load hunter techniques for wolf technique add:", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	if data == nil {
-		http.Error(w, "character has no levels in Hunter-Nin", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "character has no levels in Hunter-Nin"
 	}
-	if data.ArsenalItemUsed >= data.ArsenalItemCap {
-		http.Error(w, "no slots remaining", http.StatusBadRequest)
-		return
+	if data.WolfTechniqueUsed >= data.WolfTechniqueCap {
+		return http.StatusBadRequest, "no slots remaining"
 	}
 	valid := false
-	for _, o := range data.AvailableArsenalItem {
+	for _, o := range data.AvailableWolfTechnique {
 		if o.Slug == slug {
 			valid = true
 			break
 		}
 	}
 	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "not a valid pick"
 	}
-	if err := charstore.AddHunterNinPick(s.charDB, id, charstore.HunterPickArsenalItem, slug); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add arsenal item pick:", err)
-		return
+	if err := charstore.AddHunterNinPick(s.charDB, id, charstore.HunterPickWolfTechnique, slug); err != nil {
+		log.Println("add wolf technique pick:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_hunter_techniques")
+	return http.StatusOK, ""
 }
 
-// handleHunterWolfTechniqueAdd mirrors handleHunterArsenalItemAdd's own
-// shape: kept as its own handler since every wolfTechniqueOptions entry is a
-// real jutsu (wolfTechniqueJutsuGrants) — "The jutsu selected are added to
-// your Jutsu known" (Wolf Techniques' own text). The jutsu grant itself is
-// resolved separately by hunterNinWolfTechniqueGrantedJutsu off the pick
-// this handler writes, not by a direct charstore.AddJutsu call here — see
-// that function's own doc comment for why storing a real character_jutsu
-// row was the wrong shape.
 func (s *server) handleHunterWolfTechniqueAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1628,44 +1739,8 @@ func (s *server) handleHunterWolfTechniqueAdd(w http.ResponseWriter, r *http.Req
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing pick", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for wolf technique add:", err)
-		return
-	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load hunter techniques for wolf technique add:", err)
-		return
-	}
-	if data == nil {
-		http.Error(w, "character has no levels in Hunter-Nin", http.StatusBadRequest)
-		return
-	}
-	if data.WolfTechniqueUsed >= data.WolfTechniqueCap {
-		http.Error(w, "no slots remaining", http.StatusBadRequest)
-		return
-	}
-	valid := false
-	for _, o := range data.AvailableWolfTechnique {
-		if o.Slug == slug {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddHunterNinPick(s.charDB, id, charstore.HunterPickWolfTechnique, slug); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add wolf technique pick:", err)
+	if status, msg := s.hunterWolfTechniqueAddCore(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_hunter_techniques")

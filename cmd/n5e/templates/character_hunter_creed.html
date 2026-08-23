@@ -1,0 +1,20 @@
+{{/* character_hunter_creed.html: the "Hunter's Creed" subclass tracker
+     popup — see cmd/n5e/subclass_tracker_popup.go for the shared pattern
+     and hunter_creed_popup.go's own header doc for why ONE popup covers
+     all 8 Hunter's Creeds. Every Known pick reuses the same /hunter-
+     techniques/{category}/{slug} detail routes (handleHunterPickDetail,
+     hunter_nin.go) the Core sheet's own Lethal Precision/Hunters Patterns/
+     Hunters Exploits/Defensive Tactics picks already link to, so a locked-
+     in pick's full text stays reachable the same way regardless of which
+     page shows it. Expects {Title, Data (subclassTrackerPopupData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

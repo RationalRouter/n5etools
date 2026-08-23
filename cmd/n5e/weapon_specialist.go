@@ -834,9 +834,50 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 	}, nil
 }
 
-// handleWeaponFormStyleAdd learns one Style, gated by the character's own
-// current cap — server-side, defense in depth regardless of what the UI
-// already disables.
+// addWeaponFormStyle validates and stores one Style pick, gated by the
+// character's own current cap — server-side, defense in depth regardless of
+// what the UI already disables. Shared by handleWeaponFormStyleAdd's own
+// Core-sheet AJAX route and the Weapon Form popup's own route
+// (weapon_form_popup.go), so both share one validation path.
+func (s *server) addWeaponFormStyle(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing style"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for weapon form style add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadWeaponFormTabData(id, sheet)
+	if err != nil {
+		log.Println("load weapon form styles for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no Weapon Form chosen"
+	}
+	if data.Used >= data.Cap {
+		return http.StatusBadRequest, "no style slots remaining"
+	}
+	valid := false
+	for _, o := range data.Available {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid style to learn"
+	}
+	if err := charstore.AddWeaponFormStyle(s.charDB, id, slug); err != nil {
+		log.Println("add weapon form style:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleWeaponFormStyleAdd is addWeaponFormStyle's own Core-sheet AJAX
+// wrapper.
 func (s *server) handleWeaponFormStyleAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -848,44 +889,8 @@ func (s *server) handleWeaponFormStyleAdd(w http.ResponseWriter, r *http.Request
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing style", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for weapon form style add:", err)
-		return
-	}
-	data, err := s.loadWeaponFormTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load weapon form styles for add:", err)
-		return
-	}
-	if data == nil {
-		http.Error(w, "character has no Weapon Form chosen", http.StatusBadRequest)
-		return
-	}
-	if data.Used >= data.Cap {
-		http.Error(w, "no style slots remaining", http.StatusBadRequest)
-		return
-	}
-	valid := false
-	for _, o := range data.Available {
-		if o.Slug == slug {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid style to learn", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddWeaponFormStyle(s.charDB, id, slug); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add weapon form style:", err)
+	if status, msg := s.addWeaponFormStyle(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_weapon_form")
@@ -918,10 +923,45 @@ func (s *server) handleWeaponFormStyleDelete(w http.ResponseWriter, r *http.Requ
 	s.respondSheet(w, r, id, "sheet_weapon_form")
 }
 
-// handleStalkingPredator records Slayer Form's own Stalking Predator pick
-// (form field "value", one of stalkingPredatorOptions) — reuses
+// setStalkingPredator validates and stores Slayer Form's own Stalking
+// Predator pick (one of stalkingPredatorOptions) — reuses
 // charstore.SetFeatureChoice exactly the way handleFoodForTheSoul does for
-// Cooking-Nin's own re-selectable pick.
+// Cooking-Nin's own re-selectable pick. Shared by handleStalkingPredator's
+// own Core-sheet AJAX route and the Weapon Form popup's own route
+// (weapon_form_popup.go).
+func (s *server) setStalkingPredator(id int64, value string) (int, string) {
+	valid := false
+	for _, o := range stalkingPredatorOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	level, err := s.weaponSpecialistClassLevel(id)
+	if err != nil {
+		log.Println("load weapon specialist level for stalking predator:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	subclassSlug, _, err := s.weaponSpecialistSubclassSlug(id)
+	if err != nil {
+		log.Println("load weapon specialist subclass for stalking predator:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if level < 6 || subclassSlug != slayerFormSubclassSlug {
+		return http.StatusBadRequest, "character has not reached Stalking Predator"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, stalkingPredatorFeatureSlug, 0, value); err != nil {
+		log.Println("set stalking predator:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleStalkingPredator is setStalkingPredator's own Core-sheet AJAX
+// wrapper.
 func (s *server) handleStalkingPredator(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -933,44 +973,57 @@ func (s *server) handleStalkingPredator(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	valid := false
-	for _, o := range stalkingPredatorOptions {
-		if o.Value == value {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	level, err := s.weaponSpecialistClassLevel(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load weapon specialist level for stalking predator:", err)
-		return
-	}
-	subclassSlug, _, err := s.weaponSpecialistSubclassSlug(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load weapon specialist subclass for stalking predator:", err)
-		return
-	}
-	if level < 6 || subclassSlug != slayerFormSubclassSlug {
-		http.Error(w, "character has not reached Stalking Predator", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, stalkingPredatorFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set stalking predator:", err)
+	if status, msg := s.setStalkingPredator(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_weapon_form")
 }
 
-// handleSuperiorWeaponFlurryAdd selects one Superior Weapon Flurry
-// benefit, gated by the character's own current cap — server-side, defense
-// in depth regardless of what the UI already disables.
+// addSuperiorWeaponFlurryBenefit validates and selects one Superior Weapon
+// Flurry benefit, gated by the character's own current cap — server-side,
+// defense in depth regardless of what the UI already disables. Shared by
+// handleSuperiorWeaponFlurryAdd's own Core-sheet AJAX route and the Weapon
+// Form popup's own route (weapon_form_popup.go).
+func (s *server) addSuperiorWeaponFlurryBenefit(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing benefit"
+	}
+	level, err := s.weaponSpecialistClassLevel(id)
+	if err != nil {
+		log.Println("load weapon specialist level for superior weapon flurry add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadSuperiorWeaponFlurryTabData(id, level)
+	if err != nil {
+		log.Println("load superior weapon flurry for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has not reached Superior Weapon Flurry"
+	}
+	if data.Used >= data.Cap {
+		return http.StatusBadRequest, "no superior weapon flurry slots remaining"
+	}
+	valid := false
+	for _, o := range data.Available {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid benefit to select"
+	}
+	if err := charstore.AddSuperiorWeaponFlurryBenefit(s.charDB, id, slug); err != nil {
+		log.Println("add superior weapon flurry benefit:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleSuperiorWeaponFlurryAdd is addSuperiorWeaponFlurryBenefit's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleSuperiorWeaponFlurryAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -982,44 +1035,8 @@ func (s *server) handleSuperiorWeaponFlurryAdd(w http.ResponseWriter, r *http.Re
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing benefit", http.StatusBadRequest)
-		return
-	}
-	level, err := s.weaponSpecialistClassLevel(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load weapon specialist level for superior weapon flurry add:", err)
-		return
-	}
-	data, err := s.loadSuperiorWeaponFlurryTabData(id, level)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load superior weapon flurry for add:", err)
-		return
-	}
-	if data == nil {
-		http.Error(w, "character has not reached Superior Weapon Flurry", http.StatusBadRequest)
-		return
-	}
-	if data.Used >= data.Cap {
-		http.Error(w, "no superior weapon flurry slots remaining", http.StatusBadRequest)
-		return
-	}
-	valid := false
-	for _, o := range data.Available {
-		if o.Slug == slug {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid benefit to select", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddSuperiorWeaponFlurryBenefit(s.charDB, id, slug); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add superior weapon flurry benefit:", err)
+	if status, msg := s.addSuperiorWeaponFlurryBenefit(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_weapon_form")

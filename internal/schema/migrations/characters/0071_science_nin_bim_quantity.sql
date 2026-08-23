@@ -1,0 +1,23 @@
+-- B.I.M ("you can pick any modification with 'B.I.M' in the name more than
+-- once, other than the Barrier B.I.M") is the one
+-- character_science_nin_subclass_picks category where a character can hold
+-- more than one copy of the same option_slug at once -- every other
+-- category (Inversion Serums, Arsenal Modifications, E.I.Ps, ...) still
+-- wants exactly one row per (character_id, category, option_slug), which
+-- this table's own UNIQUE constraint (0044) already enforces and continues
+-- to enforce unchanged.
+--
+-- quantity tracks how many copies of one B.I.M type a character currently
+-- holds. AddScienceNinSubclassPick (internal/charstore/
+-- science_nin_subclass_picks.go) increments it on a repeat 'bim' pick
+-- instead of no-opping the way every other category's repeat pick still
+-- does; RemoveScienceNinSubclassPick decrements-then-deletes-at-zero for
+-- 'bim' only. Barrier B.I.M itself is excluded from repeat picks at the
+-- application layer (AvailableBIM never re-offers an already-known Barrier
+-- B.I.M, see cmd/n5e/science_nin_subclasses.go), not by anything in this
+-- schema.
+--
+-- Defaults to 1 so every pre-existing row -- and every other category's own
+-- rows, which never touch this column -- reads as "one copy held" with no
+-- backfill needed.
+ALTER TABLE character_science_nin_subclass_picks ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;

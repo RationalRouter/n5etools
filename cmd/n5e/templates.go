@@ -225,19 +225,22 @@ var templateFuncs = template.FuncMap{
 	"masteryRankName": func(rank int) string {
 		return charsheet.MasteryRankLabel(rank, true)
 	},
-	"hasOptionDescription":  hasOptionDescription,
-	"ninDogReferenceOrZero": ninDogReferenceOrZero,
-	"titanReferenceOrZero":  titanReferenceOrZero,
-	"companionKindLabel":    companionKindLabel,
+	"hasOptionDescription":               hasOptionDescription,
+	"ninDogReferenceOrZero":              ninDogReferenceOrZero,
+	"titanReferenceOrZero":               titanReferenceOrZero,
+	"snbReferenceOrZero":                 snbReferenceOrZero,
+	"companionKindLabel":                 companionKindLabel,
 	"companionSupportsStructuredAttacks": companionSupportsStructuredAttacks,
 	// firstNonEmpty: picks whichever companion-kind reference's own
 	// Expected* string field is actually set — the Companions tab's
 	// sheet_summon_tab and the companion popup both build one shared
 	// Expected* dict (companion_stat_fields' own doc) from EVERY kind's
-	// reference at once (ninDogReferenceOrZero/titanReferenceOrZero), even
-	// though a single companion is only ever one kind — so exactly one of
-	// the two args is ever non-empty for a given companion, same reasoning
-	// "add" already relies on for the numeric Expected* fields.
+	// reference at once (ninDogReferenceOrZero/titanReferenceOrZero/
+	// snbReferenceOrZero), even though a single companion is only ever one
+	// kind — so exactly one of the two args passed to any single call is
+	// ever non-empty for a given companion (nested calls handle a third
+	// source), same reasoning "add" already relies on for the numeric
+	// Expected* fields.
 	"firstNonEmpty": func(a, b string) string {
 		if a != "" {
 			return a
@@ -312,4 +315,157 @@ func init() {
 		template.New("layout").
 			Funcs(templateFuncs).
 			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_custom_features.html", "templates/partials/*.html"))
+
+	// character_snb_upgrades.html / character_titan_slots.html: the first
+	// two "subclass tracker popup" pages (see cmd/n5e/subclass_tracker_
+	// popup.go's own header doc for the pattern) — same bare layout again,
+	// same partials glob so both pick up partials/subclass_tracker_
+	// popup.html's shared blocks alongside every other partial.
+	pageTemplates["character_snb_upgrades.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_snb_upgrades.html", "templates/partials/*.html"))
+	pageTemplates["character_titan_slots.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_titan_slots.html", "templates/partials/*.html"))
+
+	// Five more subclass tracker popups, same bare layout/partials glob:
+	// Elemental Innovationist, Grenadier, Mad Scientist, Ninjaneer,
+	// Shinobi-Ware.
+	pageTemplates["character_science_nin_elemental_innovationist.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_elemental_innovationist.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_grenadier.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_grenadier.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_mad_scientist.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_mad_scientist.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_ninjaneer.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_ninjaneer.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_shinobi_ware.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_shinobi_ware.html", "templates/partials/*.html"))
+
+	// Three more subclass tracker popups, same bare layout/partials glob:
+	// Spyware, Storm Rider, Technobi — the last of Science-Nin's nine
+	// subclasses to move off the Core sheet's own inline trackers.
+	pageTemplates["character_science_nin_spyware.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_spyware.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_storm_rider.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_storm_rider.html", "templates/partials/*.html"))
+	pageTemplates["character_science_nin_technobi.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_science_nin_technobi.html", "templates/partials/*.html"))
+
+	// character_weapon_form.html / character_taijutsu_stancer.html /
+	// character_taijutsu_passionate_flame.html / character_taijutsu_ruin.
+	// html: four more subclass tracker popups, same bare layout/partials
+	// glob — Weapon Specialist's Weapon Form (all 8 Forms share one popup,
+	// see weapon_form_popup.go) and Taijutsu Specialist's Stancer,
+	// Passionate Flame, and Ruin.
+	pageTemplates["character_weapon_form.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_weapon_form.html", "templates/partials/*.html"))
+	pageTemplates["character_taijutsu_stancer.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_taijutsu_stancer.html", "templates/partials/*.html"))
+	pageTemplates["character_taijutsu_passionate_flame.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_taijutsu_passionate_flame.html", "templates/partials/*.html"))
+	pageTemplates["character_taijutsu_ruin.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_taijutsu_ruin.html", "templates/partials/*.html"))
+
+	// character_hunter_creed.html: one more subclass tracker popup, same
+	// bare layout/partials glob — Hunter-Nin's 8 Hunter's Creeds, all
+	// sharing one popup the same way Weapon Form's 8 Forms already do (see
+	// hunter_creed_popup.go's own header doc).
+	pageTemplates["character_hunter_creed.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_hunter_creed.html", "templates/partials/*.html"))
+
+	// character_intelligence_operative_operative_traps.html /
+	// character_ninjutsu_specialist_awakened_scroll.html / character_
+	// medical_nin_combat_medic.html: three more subclass tracker popups,
+	// same bare layout/partials glob — Intelligence Operative's Tactical
+	// Strategist (Operative Traps), Ninjutsu Specialist's Scribe Master
+	// (Awakened Scroll), and Medical-Nin's Combat Medic (Fighting
+	// Stance + Expert Combatant).
+	pageTemplates["character_intelligence_operative_operative_traps.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_intelligence_operative_operative_traps.html", "templates/partials/*.html"))
+	pageTemplates["character_ninjutsu_specialist_awakened_scroll.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_ninjutsu_specialist_awakened_scroll.html", "templates/partials/*.html"))
+	pageTemplates["character_medical_nin_combat_medic.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_medical_nin_combat_medic.html", "templates/partials/*.html"))
+
+	// character_scout_nin_scouting_technique.html: one more subclass
+	// tracker popup, same bare layout/partials glob — Scout-Nin's 9
+	// Scouting Techniques, all sharing one popup the same way Hunter's
+	// Creed's 8 Creeds already do (see scout_nin_scouting_technique_
+	// popup.go's own header doc).
+	pageTemplates["character_scout_nin_scouting_technique.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_scout_nin_scouting_technique.html", "templates/partials/*.html"))
+
+	// character_genjutsu_twisted_casting.html / character_genjutsu_psyche_
+	// breaker.html: two more subclass tracker popups, same bare layout/
+	// partials glob — Genjutsu Specialist's Beguiler (Twisted Casting) and
+	// Corrupt Thoughts (Psyche Breaker).
+	pageTemplates["character_genjutsu_twisted_casting.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_genjutsu_twisted_casting.html", "templates/partials/*.html"))
+	pageTemplates["character_genjutsu_psyche_breaker.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_genjutsu_psyche_breaker.html", "templates/partials/*.html"))
+
+	// character_cooking_nin_pipe.html / character_cooking_nin_expert_
+	// combatant.html / character_cooking_nin_fast_and_furious.html /
+	// character_cooking_nin_blend_enhancements.html: four more subclass
+	// tracker popups, same bare layout/partials glob — Cooking-Nin's
+	// Herbalist (Bonus Tool Infusion: Pipe), Battle Cook (Expert Combatant),
+	// Entremetier Chef (Fast and Furious), and Gastrochemist (Nature's
+	// Blend Enhancements).
+	pageTemplates["character_cooking_nin_pipe.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_cooking_nin_pipe.html", "templates/partials/*.html"))
+	pageTemplates["character_cooking_nin_expert_combatant.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_cooking_nin_expert_combatant.html", "templates/partials/*.html"))
+	pageTemplates["character_cooking_nin_fast_and_furious.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_cooking_nin_fast_and_furious.html", "templates/partials/*.html"))
+	pageTemplates["character_cooking_nin_blend_enhancements.html"] = template.Must(
+		template.New("layout").
+			Funcs(templateFuncs).
+			ParseFS(templatesFS, "templates/layout_bare.html", "templates/character_cooking_nin_blend_enhancements.html", "templates/partials/*.html"))
 }

@@ -1072,6 +1072,32 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
 #back-to-top.back-to-top-visible { opacity: 1; visibility: visible; }
 #back-to-top:hover { background: var(--accent-hover); }
 
+/* #back-to-bottom: identical button, stacked directly above #back-to-top
+   (same left offset, raised by its own height + the "at least ~3mm of
+   breathing room" gap) rather than beside it, so the pair reads as one
+   scroll-navigation cluster instead of two unrelated fixed elements. */
+#back-to-bottom {
+  position: fixed;
+  left: 1.25rem;
+  bottom: calc(3rem + 44px + 0.75rem);
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s;
+}
+#back-to-bottom.back-to-bottom-visible { opacity: 1; visibility: visible; }
+#back-to-bottom:hover { background: var(--accent-hover); }
+
 .dice-fab,
 #dice-fab {
   width: 52px;
@@ -1552,6 +1578,36 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
 .sheet-header-main { min-width: 0; }
 .sheet-header-side { display: flex; align-items: flex-start; gap: 1.25rem; }
 .sheet-header-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; }
+
+/* Character name: click-to-edit like Speed/Ryo (sheet-vitals.js), but the
+   box IS the page's own <h1> instead of a separate widget beside it, so no
+   background/border of its own — just a pointer cursor over the whole
+   heading (matches Ryo's "click anywhere in the box" reasoning) and a
+   hover tint on the text itself to signal it's interactive. */
+.sheet-name-box { cursor: pointer; }
+.sheet-name-display {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.sheet-name-display:hover { color: var(--gold-hover); }
+/* Left-aligned and full width, unlike .sheet-vitals-edit-input's default
+   right-aligned numeric-box sizing — a name is read left to right, not a
+   figure whose caret belongs at the end. Compound selector (not a second
+   class on the input) so this reliably beats the bare rule regardless of
+   the two rules' order in the file, the same reasoning .sheet-ryo-box's
+   own width override already documents. */
+.sheet-name-box .sheet-vitals-edit-input {
+  width: 100%;
+  max-width: 24rem;
+  text-align: left;
+  font-size: 1.5rem;
+}
 
 .sheet-portrait { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 9rem; }
 .sheet-portrait-img,
@@ -2371,9 +2427,45 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
 }
 .sheet-prof-bullet:hover { border-color: var(--accent); }
 .sheet-prof-bullet.sheet-prof-bullet-on { background: var(--gold); border-color: var(--gold); }
+/* A companion Saving Throw bullet disables itself once S.N.B Specialist's
+   own "2 of your choice (3 at 14th level)" cap is reached and this
+   particular ability isn't already one of the chosen ones — a convenience
+   only, the real enforcement is server-side (see
+   handleCompanionSavingThrowToggle). Every other kind has no cap, so this
+   never applies there. */
+.sheet-prof-bullet:disabled { opacity: 0.4; cursor: not-allowed; }
+.sheet-prof-bullet:disabled:hover { border-color: var(--text-dim); }
 
 .sheet-vitals { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.75rem 0 1.25rem; }
-.sheet-vitals > div {
+/* .sheet-vitals-tiles is the reorderable subgrid (see character_sheet.html's
+   own comment on why it's a separate inner wrapper rather than data-subgrid
+   sitting directly on #sheet-vitals): a full-width row/child of
+   .sheet-vitals, flex-wrapping its own children exactly the way
+   .sheet-vitals used to wrap ALL of its children (including Manual/Rolled
+   HP/Chakra and the rest buttons) before this wrapper existed.
+   Selector is ".sheet-vitals > .sheet-vitals-tiles", not the bare class,
+   and every property .sheet-vitals > div below also sets is repeated here
+   even where the value looks like it should already be the initial/default
+   one (flex-direction, background, border, padding) — confirmed live:
+   .sheet-vitals-tiles is itself a <div> and a direct child of .sheet-vitals,
+   so it matches ".sheet-vitals > div" too, and that selector's extra type
+   component (0,1,1) outranks the bare class ".sheet-vitals-tiles" (0,1,0)
+   in specificity, silently winning every property the two share. Combining
+   both classes in one selector (0,2,0) is what actually outranks it. */
+.sheet-vitals > .sheet-vitals-tiles {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+.sheet-vitals > div,
+.sheet-vitals-tiles > div {
   flex: 1 1 130px;
   display: flex;
   flex-direction: column;
@@ -2856,11 +2948,17 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-chat-panel .sheet-inline-form { margin-top: 0; }
 .sheet-chat-panel input[type="text"] { flex: 1 1 auto; min-width: 0; }
 
-/* Class Reference / Clan Reference: plain link buttons stacked under Chat &
-   Dice Log in the persistent sidebar — each opens its own reference.go
-   handler's popup in a real, separate, movable browser window
-   (reference-popup.js) rather than expanding in-place, so they're styled
-   like buttons, not disclosure triangles. */
+/* Class Reference / Clan Reference / subclass tracker popups: plain link
+   buttons stacked under Chat & Dice Log in the persistent sidebar — each
+   opens its own reference.go/subclass_tracker_popup.go handler's popup in a
+   real, separate, movable browser window (reference-popup.js) rather than
+   expanding in-place, so they're styled like buttons, not disclosure
+   triangles. Blue by default — matching the .subclass-scope blue used
+   inside every subclass tracker popup itself — since most of these buttons
+   ARE a subclass's own tracker; .sheet-reference-btn-general opts the few
+   non-subclass-specific ones (Class Reference, Clan Reference, Custom
+   Features) back to gold, so a newly added subclass popup button is blue
+   automatically without needing its own class added by hand. */
 .sheet-reference-btn {
   display: block;
   text-align: center;
@@ -2868,10 +2966,12 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
-  color: var(--gold);
+  color: var(--blue);
   font-weight: 600;
 }
-.sheet-reference-btn:hover { color: var(--gold-hover); border-color: var(--gold); }
+.sheet-reference-btn:hover { color: var(--blue-hover); border-color: var(--blue); }
+.sheet-reference-btn-general { color: var(--gold); }
+.sheet-reference-btn-general:hover { color: var(--gold-hover); border-color: var(--gold); }
 
 .sheet-popup-dialog {
   max-width: min(700px, 90vw);
@@ -3503,6 +3603,11 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    center handles the vertical alignment instead. */
 .sheet-class-line { margin: 0; color: var(--text-dim); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .sheet-class-line .option-picker-epithet { margin-left: 0.3rem; }
+/* Clan, genuinely underneath the class/subclass line rather than beside it
+   like .sheet-class-line is — flex-basis:100% forces its own row inside
+   .sheet-level-row's flex-wrap regardless of how much horizontal space is
+   left over from the class entries and the Add a Class link. */
+.sheet-clan-line { flex-basis: 100%; margin: 0; color: var(--text-dim); font-size: 0.9rem; }
 .sheet-class-entry { display: inline-flex; align-items: center; gap: 0.4rem; }
 /* The subclass form is inline content sitting in the middle of a running
    line ("Puppet Master 2 [picker]"), not a block-level form like every
@@ -3744,6 +3849,14 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-square-stat,
 .sheet-ability-box,
 .sheet-save-box { position: relative; }
+/* Generic fallback for any subitem whose own class isn't listed above —
+   the vitals group's tiles span several different classes (sheet-hp-box,
+   sheet-edit-box, sheet-concentration-box, sheet-ccd-mending-split-box,
+   ...) rather than one shared tile class, so a single attribute selector
+   covers all of them, and anything added later, instead of growing the
+   list above per new tile class. Redundant with the enumerated rule above
+   for square/ability/save, which is harmless — both set the same value. */
+[data-subgrid] > [data-subitem] { position: relative; }
 .sheet-subitem-handle {
   display: none;
   position: absolute;
@@ -3813,6 +3926,29 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-subgrid-vertical.sheet-save-row {
   flex-direction: column;
   align-items: flex-start;
+}
+/* Prefixed with "sheet-vitals >" rather than the bare compound selector:
+   needs to outrank .sheet-vitals > .sheet-vitals-tiles's own
+   flex-direction: row above, which shares a bare compound selector's
+   (0,2,0) specificity — a source-order tie this repo would rather not
+   depend on staying accidentally correct the next time either block
+   moves. */
+.sheet-vitals > .sheet-subgrid-vertical.sheet-vitals-tiles {
+  flex-direction: column;
+  align-items: flex-start;
+}
+/* Square/save tiles are already flex:0 0 auto with a fixed width, so
+   flipping flex-direction alone is enough for them — flex-basis never
+   applied to their sizing in either orientation. The vitals group's own
+   tiles are flex:1 1 130px (see .sheet-vitals-tiles > div above) so they
+   can grow to fill a horizontal row; that same flex-basis would instead set
+   each tile's HEIGHT once flex-direction flips to column, stretching them
+   unevenly to fill the group's height. Neutralized here the same way
+   Ability Scores neutralizes its own grid sizing below: full-width,
+   content-sized rows instead. */
+.sheet-subgrid-vertical.sheet-vitals-tiles > div {
+  flex: 0 0 auto;
+  width: 100%;
 }
 /* Stacked instead of 1fr-wide: a vertical Roll20-style column reads as a
    narrow tower of small tiles, not six full-width bars — 1fr let each tile
@@ -4000,6 +4136,16 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 .companion-trait-list dd { margin: 0; color: var(--text); }
 .companion-base-traits-text { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-dim); }
 
+/* Known Titan Upgrades/Exo-Suit Upgrades — same visual separator
+   .puppet-tactic-detail uses for a short, always-visible detail list. */
+.companion-titan-upgrades-known { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--panel-border); }
+.companion-titan-upgrades-known h4 { margin: 0 0 0.5rem; color: var(--accent); font-size: 0.9rem; }
+.companion-titan-upgrade-entry { margin-bottom: 0.75rem; }
+.companion-titan-upgrade-entry:last-child { margin-bottom: 0; }
+.companion-titan-upgrade-name { font-weight: 600; color: var(--text); }
+.companion-titan-upgrade-meta { margin-left: 0.5rem; color: var(--text-dim); font-size: 0.8rem; }
+.companion-titan-upgrade-desc { margin: 0.25rem 0 0; color: var(--text-dim); font-size: 0.85rem; }
+
 /* Matryoshka Framework's own jutsu-slots counter + Split/Merge action.
    Column flexbox with its own `gap` for breathing room between the counter
    form, its hint, and the split/merge form — same shape as
@@ -4021,6 +4167,23 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    wondering why a feature they read about in the book isn't here yet —
    same reasoning the main sheet's own level-gated content follows. */
 .companion-reference-locked { opacity: 0.55; }
+/* Every subclass_tracker_section Known-pick row (subclass_tracker_popup.html)
+   is a bare <div class="puppet-upgrade-pick"> with no position of its own,
+   but its own .sheet-delete-btn is position:absolute (top/right against
+   whatever ancestor is actually positioned — same bug shape already fixed
+   once for #sheet-puppet-tactics .puppet-upgrade-pick on the Core sheet,
+   see that rule's own doc). Every subclass tracker popup lives on its own
+   bare layout_bare.html page with no .sheet-box (that class's own
+   position:relative is what accidentally anchors the Core sheet's OTHER
+   .puppet-upgrade-pick usages), so without this the delete button skips
+   past .companion-reference and .character-reference-page — neither of
+   which sets position either — all the way to the page's own initial
+   containing block: confirmed live via getBoundingClientRect, the button
+   rendered pinned to the popup window's top-right corner (screen
+   coordinates, not the row's), collapsing every Known pick's own delete
+   button into the same single unreachable spot instead of sitting next to
+   its own row. */
+.companion-reference .puppet-upgrade-pick { position: relative; }
 
 /* character_reference.html's own subclass sections: the gold/blue split
    (see .subclass-scope's own doc up top) applied outside .class-detail —
@@ -4030,9 +4193,21 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    Must include p explicitly: formatDescription always wraps prose in <p>,
    and a directly-matching rule elsewhere (.sheet-feature-list li p) beats
    a color merely inherited from the <li> — same bug shape .class-detail's
-   own p selector above already exists to avoid. */
+   own p selector above already exists to avoid. character_weapon_form.html
+   (the Weapon Form popup) is this rule's second user: unlike every other
+   subclass tracker popup, that page mixes subclass-specific content
+   (wrapped in a nested <div class="subclass-scope">) with base-class
+   content (Superior Weapon Flurry, rendered outside it) in one page, so it
+   can't use the compound .character-reference-page.subclass-scope selector
+   below (that would paint the base-class content blue too) — it needs this
+   descendant selector instead. .puppet-upgrade-pick-name (an <a> or bare
+   <span>, from subclass_tracker_section's own Known-pick markup) and the
+   :not(.section-hint) exclusion (Styles' own Hint paragraph) are named
+   explicitly for the same reasons the compound selector below already
+   documents for its own identical additions. */
 .character-reference-page .subclass-scope li,
-.character-reference-page .subclass-scope p { color: var(--blue); }
+.character-reference-page .subclass-scope p:not(.section-hint),
+.character-reference-page .subclass-scope .puppet-upgrade-pick-name { color: var(--blue); }
 .character-reference-page .subclass-scope li strong { color: var(--text); }
 /* The merged, single, level-sorted feature list puts .subclass-scope
    directly ON each subclass <li> itself (there's no longer a wrapping
@@ -4042,6 +4217,37 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 .character-reference-page li.subclass-scope,
 .character-reference-page li.subclass-scope p { color: var(--blue); }
 .character-reference-page li.subclass-scope strong { color: var(--text); }
+/* Every subclass tracker popup (subclass_tracker_popup.go —
+   character_snb_upgrades.html/character_titan_slots.html and future
+   users) wraps its ENTIRE content in class="character-reference-page
+   subclass-scope" on the SAME div, since the whole page is one
+   subclass's own content by definition — unlike the two rules above,
+   where .subclass-scope always sits on a DIFFERENT, nested element than
+   .character-reference-page. A descendant combinator never matches an
+   element against itself, so neither rule above reaches this page's own
+   body text; this compound selector (same shape #sheet-feature-choices
+   li.subclass-scope's own .puppet-upgrade-pick-name rule below already
+   uses for the identical "subclass-scope IS the interactive element"
+   case) is required in addition, not instead. Known-pick names
+   (.puppet-upgrade-pick-name, an <a> or bare <span>) are named
+   explicitly since a plain "li, p" selector wouldn't reach them — they
+   sit directly inside a <div class="puppet-upgrade-pick">, not an <li>.
+   Epithet badges (.option-picker-epithet, a <span>) are deliberately left
+   alone: real content never lands directly in a bare <li>/<p> here (see
+   below), so that selector never actually reaches them, matching how
+   .puppet-upgrade-pick-name's own epithet stays dim inside a Class
+   Reference .subclass-scope <li> too. Hints (.section-hint) need an
+   explicit :not() exclusion instead — unlike the epithet, a hint IS a
+   bare <p>, so it collides head-on with the plain "p" selector below;
+   .section-hint's own rule is a single class (0,0,1,0) versus this
+   compound selector's higher specificity (0,0,2,1), so without the
+   exclusion this would repaint every hint blue too, a real bug caught by
+   hovering a live popup rather than reasoning about it — Class
+   Reference's own equivalent rule never hit this because it happens to
+   never put a .section-hint inside a .subclass-scope section. */
+.character-reference-page.subclass-scope li,
+.character-reference-page.subclass-scope p:not(.section-hint),
+.character-reference-page.subclass-scope .puppet-upgrade-pick-name { color: var(--blue); }
 .character-reference-page { max-width: 46rem; }
 /* Bare .section-hint's negative top margin (see its own rule) is tuned for
    sitting directly under an <h1> — same wrong-context reuse already fixed
@@ -4073,14 +4279,17 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
    the box's own bottom edge, and cards are visually separated from each
    other by a real border rather than by whitespace alone.
 
-   The Puppets tab's own card is a real <details> (collapsible — see
-   sheet_puppet_tab), the Summons tab's and the popup's own are still a
-   plain <div>; deliberately NOT the .sheet-box class/data-box-id the outer
-   grid-managed boxes use — sheet-layout.js's own box list is built with an
-   unscoped `.sheet-box[data-box-id]` descendant query (not `:scope >`), so
-   reusing that class on an element nested inside a real grid box would get
-   it swept into the drag/resize grid as if it were its own independently
-   positioned box. */
+   Both the Puppets tab's own card (sheet_puppet_tab, always open, nothing
+   to persist) and the Companions tab's own card (sheet_summon_tab,
+   collapsible, [open] driven by server-saved state — see
+   sheet-companion-collapse.js) are a real <details>; the popup's own is
+   still a plain fields-only block with no card wrapper at all, since it
+   only ever shows one companion. Deliberately NOT the .sheet-box class/
+   data-box-id the outer grid-managed boxes use — sheet-layout.js's own box
+   list is built with an unscoped `.sheet-box[data-box-id]` descendant
+   query (not `:scope >`), so reusing that class on an element nested
+   inside a real grid box would get it swept into the drag/resize grid as
+   if it were its own independently positioned box. */
 .companion-card {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -4393,6 +4602,15 @@ summary.companion-card-header::before {
 .companion-skill-groups .sheet-skill-group { flex-basis: 160px; }
 .companion-skill-prof-dot { cursor: default; }
 .companion-skill-prof-dot:hover { border-color: var(--text-dim); }
+/* Saving Throws (companion_stat_fields' own Saves section): same
+   .sheet-skill-line/.sheet-skill-row/.sheet-prof-bullet reuse as Puppet
+   Skills just above, but laid out as one flat wrapping row instead of
+   .sheet-skill-groups' per-ability columns — there is only ever one row
+   per ability here (six total), nothing to sub-group by ability the way
+   the Core tab's own 21-skill list needs to be. */
+.companion-saves { margin-top: 1rem; }
+.companion-save-groups { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0.4rem 0 0; }
+.companion-save-groups .sheet-skill-name { min-width: 2.4rem; }
 /* A Tactic's own pick row has no click-for-detail behavior (its full text
    is already always shown right below it, see .puppet-tactic-detail) —
    override .puppet-upgrade-pick's pointer cursor/hover-highlight so the row

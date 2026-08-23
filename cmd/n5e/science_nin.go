@@ -64,6 +64,38 @@ const scienceNinSlug = "class/science-nin"
 // scienceNinSlug/charsheet.scienceNinClassSlug already made).
 const scienceNinExoskeletonFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/exoskeleton"
 
+// scienceNinBeyondTheVeilFeatureSlug is Elemental Innovationist's 6th-level
+// Beyond the Veil: "you gain access to a new SNT known as the Aether
+// Connector... allows you to store up to 100 bulk in contents in an
+// alternate dimension, so long as the total volume does not exceed 64
+// cubic feet."
+const scienceNinBeyondTheVeilFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/beyond-the-veil"
+
+// beyondTheVeilBulkBonus returns the max-bulk bonus from Beyond the Veil's
+// Aether Connector — a flat +100, gated on the character actually holding
+// the feature. The book's own 64-cubic-foot volume cap has no field to
+// land in (no item in this app tracks its own volume, only bulk), and the
+// "contents spill out if destroyed" / "recraft on a full rest by spending
+// 1 Alchemist Kit use" clauses have no backing mechanism either (no
+// per-item charge/use tracking exists anywhere in this app) — both stay
+// entirely manual/narrated. Only the flat capacity number is modeled here,
+// the same scope puppetAlwaysPreparedBulkBonus (puppets.go) already draws
+// for Always Prepared's own bulk bonus.
+func (s *server) beyondTheVeilBulkBonus(characterID int64) (float64, error) {
+	var clanSlug sql.NullString
+	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&clanSlug); err != nil {
+		return 0, err
+	}
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug.String, s.characterLevel(characterID))
+	if err != nil {
+		return 0, err
+	}
+	if !hasGrantedFeature(granted, scienceNinBeyondTheVeilFeatureSlug) {
+		return 0, nil
+	}
+	return 100, nil
+}
+
 // airTrecksWeaponSlug is the equipment row Storm Rider's own 3rd-level Air
 // Trecks feature grants for free (migration 0050_air_trecks_weapon.sql) —
 // no starting-equipment catalog entry exists for it anywhere, since the
@@ -325,27 +357,35 @@ func (s *server) ensureAirTrecksGranted(characterID int64) error {
 }
 
 // ensureScienceNinAutoGrants runs every one-time, side-effecting grant this
-// class hands out purely for having a feature (currently just Storm Rider's
-// Air Trecks weapon) BEFORE a caller loads inventory/builds the attack
-// table for the same request. loadScienceNinSubclassData (called later, by
-// loadScienceNinTabData, while assembling the Science-Nin sheet box's own
-// data) performs the identical grant itself — harmless to run twice
-// (ensureAirTrecksGranted's own existence check makes it a no-op the
-// second time), but by then the SAME request's own inventory read and
-// buildAttacks call have already run, so a character's very first page
-// load right after gaining Storm Rider would otherwise show the newly
-// granted Air Trecks nowhere in the Attacks & Jutsu table until a second
-// reload. Calling this once, early, alongside the sheet's own
-// charsheet.Compute call, closes that window — every caller that builds
-// the attack table from a freshly loaded inventory should call this first.
+// class hands out purely for having a feature (Storm Rider's Air Trecks
+// weapon), plus Ninjaneer's own weapon-designation overrides (which aren't
+// one-time grants but ARE recomputed on the same schedule — see
+// recomputeNinjaneerWeaponOverrides' own doc), BEFORE a caller loads
+// inventory/builds the attack table for the same request.
+// loadScienceNinSubclassData (called later, by loadScienceNinTabData, while
+// assembling the Science-Nin sheet box's own data) performs the identical
+// Air Trecks grant itself — harmless to run twice (ensureAirTrecksGranted's
+// own existence check makes it a no-op the second time), but by then the
+// SAME request's own inventory read and buildAttacks call have already run,
+// so a character's very first page load right after gaining Storm Rider
+// would otherwise show the newly granted Air Trecks nowhere in the Attacks
+// & Jutsu table until a second reload. Calling this once, early, alongside
+// the sheet's own charsheet.Compute call, closes that window — every caller
+// that builds the attack table from a freshly loaded inventory should call
+// this first.
 func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.Sheet) error {
 	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return err
 	}
-	for _, f := range granted {
-		if f.Slug == scienceNinAirTrecksFeatureSlug {
-			return s.ensureAirTrecksGranted(characterID)
+	if hasFeature(granted, scienceNinAirTrecksFeatureSlug) {
+		if err := s.ensureAirTrecksGranted(characterID); err != nil {
+			return err
+		}
+	}
+	if hasFeature(granted, scienceNinArsenalFeatureSlug) || hasFeature(granted, scienceNinPerfectedWeaponFeatureSlug) {
+		if err := s.recomputeNinjaneerWeaponOverrides(characterID, sheet, granted); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -359,6 +399,38 @@ func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.
 // duplicating the formula.
 func scienceNinCCDMax(scienceNinLevel int) int {
 	return scienceNinLevel * 15
+}
+
+// scienceNinCreationPointsFeatBonus: feats that add a flat bonus onto the
+// Creation Points cap, independent of the level-chart base value
+// class_level_resources provides (loadScienceNinTabData's own "Creation
+// Points" lookup) — the Creation Points equivalent of custom_resources.go's
+// own customResourceGrants table, which already gives CCD this same kind of
+// generic per-feat extension point (Secondary Storage Device's own CCD
+// grant, "feat/class/secondary-storage-device", recomputes CCD's Max
+// directly there). Creation Points had no such extension point at all before
+// this: a single hardcoded Future of Shinobi: Shinobi-Ware doubling check
+// (loadScienceNinTabData) was the only thing ever allowed to touch
+// CreationPointsCap, so every one of these four feats' own "+N Creation
+// Points" text — confirmed against dist/rules.db's feats table — silently
+// never reached the sheet at all. A flat map keyed by feat slug is enough
+// here (unlike CCD's own per-grant Max func) since none of these bonuses
+// depend on class level or ability scores, just presence of the feat.
+//
+// Scientist Training's own feat text also grants the Scientific Ninja Tool
+// feature itself to a character with zero Science-Nin class levels — this
+// map's own bonus is still correctly summed once such a character DOES
+// separately have real Science-Nin levels (e.g. multiclassed in later), but
+// loadScienceNinTabData's own nil-return gate on scienceNinClassLevel == 0
+// means a Scientist Training holder with no actual Science-Nin class levels
+// still sees no Scientific Ninja Tools panel at all — a related, separate
+// gap (synthesizing an entire SNT panel with no class-level context) left
+// unbuilt here.
+var scienceNinCreationPointsFeatBonus = map[string]int{
+	"feat/class/secondary-storage-device": 8,  // "You gain an additional 8 creation Points."
+	"feat/class/scientist-training":       10, // "You gain 10 Creation Points"
+	"feat/class/scientist-expert":         10, // "You gain 10 more Creation Points"
+	"feat/class/scientist-specialist":     10, // "You gain 10 more Creation Points."
 }
 
 // scienceNinClassLevel returns the character's own Science-Nin class level,
@@ -671,11 +743,64 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 			break
 		}
 	}
+	// Flat Creation Points bonuses from feats — Secondary Storage Device
+	// ("You gain an additional 8 creation Points"), Scientist Training/
+	// Expert/Specialist ("You gain 10 [more] Creation Points") — see
+	// scienceNinCreationPointsFeatBonus's own doc for why these need this
+	// generic extension point rather than a single hardcoded check the way
+	// the doubling above is: unlike that one capstone, four independent
+	// feats each add their own flat amount, and any one of them can be
+	// held alongside any of the others (nothing in the feat prerequisite
+	// chains makes them mutually exclusive), so every match must be
+	// summed rather than just the first found. Deliberately NOT doubled by
+	// the Future of Shinobi block above (order-independent here, but see
+	// that field's own doc for why a feat's own flat add is treated as
+	// separate from the class's own scaling formula).
+	//
+	// Feats never appear in `granted` (loadGrantedFeatures only resolves
+	// real class/subclass/clan features — feats are merged in separately
+	// by loadMergedGrantedFeatures, via mergeFeatFeatures), so this reads
+	// character_feats directly rather than scanning `granted`, the same
+	// "feats need their own lookup" split custom_resources.go's own
+	// computeCustomResources already has to account for (see that
+	// function's own doc on why it takes loadMergedGrantedFeatures'
+	// result specifically, not this function's plain granted list).
+	feats, err := s.loadCharacterFeats(characterID)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range feats {
+		if bonus, ok := scienceNinCreationPointsFeatBonus[f.Slug]; ok {
+			data.CreationPointsCap += bonus
+		}
+	}
 	// Elemental Innovationist/Grenadier/Mad Scientist/Ninjaneer's own
-	// subclass catalogs — see cmd/n5e/science_nin_subclasses.go.
+	// subclass catalogs — see cmd/n5e/science_nin_subclasses.go. This also
+	// folds S.N.B Specialist's own S.N.B Upgrades cost into
+	// data.CreationPointsUsed (see that block's own comment) — the base
+	// Scientific Ninja Tools budget above and S.N.B Upgrades share the
+	// identical pool, the same way Titan Upgrades do for Mech Crafter
+	// (below).
 	if err := s.loadScienceNinSubclassData(characterID, sheet, level, granted, data); err != nil {
 		return nil, err
 	}
+
+	// Titan Upgrades (Mech Crafter) draw from this SAME shared Creation
+	// Points budget — loadScienceNinSubclassData deliberately never
+	// touches Mech Crafter/Titan (see that function's own header doc), so
+	// this pulls in just the summed cost from titan.go's own catalog
+	// rather than duplicating its picker logic here. Folding this into
+	// data.CreationPointsUsed (rather than leaving it to be added only on
+	// the Titan panel's own side, as before) is what closes the asymmetry
+	// where a Mech Crafter could spend the full cap on SNTs and, again
+	// independently, the full cap on Titan Upgrades — every consumer of
+	// this budget (this function's own spend-check callers, and
+	// loadTitanUpgradesData/titan.go) now reads the same combined total.
+	titanSpend, err := s.titanUpgradesCreationPointsSpend(characterID, granted)
+	if err != nil {
+		return nil, err
+	}
+	data.CreationPointsUsed += titanSpend
 
 	catalog, err := s.loadScientificNinjaToolCatalog()
 	if err != nil {
@@ -721,6 +846,10 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 			infusedSet[p.OptionSlug] = true
 		}
 		ig.Used = len(infusedPicks)
+		toolDescBySlug := make(map[string]string, len(catalog))
+		for _, o := range catalog {
+			toolDescBySlug[o.Slug] = o.Description
+		}
 		for _, t := range data.KnownTools {
 			if t.Cost > 8 {
 				continue // Infused Genius: "Cost 8 or lower" only
@@ -729,7 +858,7 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 				ig.Known = append(ig.Known, knownScienceNinPick{Slug: t.Slug, Name: t.Name, Tier: t.Tier})
 				continue
 			}
-			ig.Available = append(ig.Available, scienceNinSubclassOption{Slug: t.Slug, Name: t.Name, Tier: t.Tier})
+			ig.Available = append(ig.Available, scienceNinSubclassOption{Slug: t.Slug, Name: t.Name, Tier: t.Tier, Description: toolDescBySlug[t.Slug]})
 		}
 		data.InfusedGenius = ig
 		break

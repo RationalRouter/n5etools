@@ -1,0 +1,79 @@
+{{/* character_medical_nin_combat_medic.html: the "Combat Medic" subclass
+     tracker popup — see cmd/n5e/subclass_tracker_popup.go for the shared
+     pattern. Martial Competency's Fighting Stance (2nd level) and Expert
+     Combatant (9th/13th/17th level) are each independently gated — a
+     Combat Medic below 2nd/9th level shows whichever of the two it has
+     already reached, same "each sub-section gates on its own Cap/pick"
+     shape the inline Core-sheet blocks this replaced already used. Neither
+     is a subclassTrackerSection catalog picker (Fighting Stance is a
+     single <select>, Expert Combatant sources from known jutsu via
+     "jutsu_id" fields), so both are hand-rolled rather than routed through
+     the shared subclass_tracker_section partial. Expects {Title, Data
+     (subclassTrackerPopupData), MedicalNin (*medicalNinTabData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{/* .MedicalNin is only set in the fields map on the non-empty-hint
+       render path (handleCombatMedicPopup) — guarding the whole body on
+       .Data.EmptyHint (rather than just each section's own Cap/pick check)
+       keeps every reference below from ever evaluating .MedicalNin.* when
+       that key is absent, which a bare {{if gt .MedicalNin.ExpertCombatantCap
+       0}} does NOT tolerate: unlike a plain {{if .Field}} truthiness check,
+       gt's own basicKind type-check errors outright ("invalid type for
+       comparison") on an absent map key's zero Value instead of treating
+       it as falsy. */}}
+  {{if not .Data.EmptyHint}}
+  {{if .MedicalNin.Stance}}
+  <section class="companion-reference">
+    <h3>Fighting Stance</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/medical-nin/combat-medic/fighting-stance" class="sheet-inline-form">
+      <select name="stance_slug" class="sheet-option-tooltip-select" required>
+        <option value="">— choose —</option>
+        {{range .MedicalNin.Stance.Options}}
+        <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.MedicalNin.Stance.Current}} selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .MedicalNin.Stance.Current}}{{.MedicalNin.Stance.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+  {{if gt .MedicalNin.ExpertCombatantCap 0}}
+  <section class="companion-reference">
+    <h3>Expert Combatant <span class="option-picker-epithet">{{.MedicalNin.ExpertCombatantUsed}}/{{.MedicalNin.ExpertCombatantCap}} chosen</span></h3>
+    <p class="section-hint">Taijutsu or Bukijutsu you know that gains the Medical Keyword. Freely re-editable on a long rest — this app doesn't enforce that timing. The extra attack Expert Combatant also grants isn't tracked here.</p>
+    {{range .MedicalNin.KnownExpertCombatant}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.Data.CharacterID}}/medical-nin/combat-medic/expert-combatant/delete" class="sheet-inline-form">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .MedicalNin.ExpertCombatantUsed .MedicalNin.ExpertCombatantCap}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/medical-nin/combat-medic/expert-combatant/add" class="sheet-panel-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .MedicalNin.AvailableExpertCombatant}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Expert Combatant</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+  {{end}}
+</div>
+{{end}}

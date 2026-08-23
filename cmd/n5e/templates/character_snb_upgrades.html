@@ -1,0 +1,27 @@
+{{/* character_snb_upgrades.html: the "S.N.B Upgrades" subclass tracker
+     popup — S.N.B Specialist's own upgrade-slot catalog and Future of
+     Shinobi: S.N.B's own permanent picks, pulled out of the Core tab's
+     sheet_science_nin box into its own popup (see cmd/n5e/subclass_
+     tracker_popup.go and partials/subclass_tracker_popup.html for the
+     shared pattern this is built from — the second user is character_
+     titan_slots.html). Opened via reference-popup.js like Class/Clan
+     Reference and Custom Features. Plain POST-and-redirect forms back to
+     this same URL, matching character_custom_features.html's own
+     convention for popup-scoped forms (see snb_upgrades_popup.go's
+     handleSNBUpgradesAdd/handleSNBUpgradesPermanentAdd and
+     subclassTrackerPopupDelete). The whole page is wrapped in
+     .subclass-scope — every popup built from this pattern is, by
+     definition, entirely one subclass's own content, unlike Class
+     Reference which mixes general and subclass features in one merged
+     view. Expects {Title, Data (subclassTrackerPopupData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

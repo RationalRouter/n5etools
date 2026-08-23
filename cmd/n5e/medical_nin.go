@@ -644,6 +644,15 @@ type medicalNinTabData struct {
 	KnownDoctrines    []knownMedicalDoctrine
 	AvailableDoctrine []medicalDoctrineOption
 
+	// CombatMedic is true for a character whose Tenet of Medicine is Combat
+	// Medic, regardless of level — the sidebar's own gate for the "Combat
+	// Medic" subclass tracker popup (medical_nin_combat_medic_popup.go),
+	// same "subclass chosen at all" shape .MartialTechniques.PassionateFlame
+	// already uses for its own single-subclass popup button, rather than
+	// gating on either Stance or ExpertCombatantCap alone (the popup covers
+	// both, independently level-gated at 2nd and 9th).
+	CombatMedic bool
+
 	// Stance is Combat Medic's own Martial Competency Taijutsu Stance pick
 	// — nil for every other subclass (and for a Combat Medic below 2nd
 	// level, though the subclass's own 2nd-level gate makes that
@@ -716,6 +725,8 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 		data.DoctrineUsed = len(picks)
 		data.KnownDoctrines, data.AvailableDoctrine = splitMedicalDoctrinePicks(catalog, pickedSet)
 	}
+
+	data.CombatMedic = subclassSlug == combatMedicSubclassSlug
 
 	if subclassSlug == combatMedicSubclassSlug && level >= 2 {
 		choices, err := features.LoadFeatureChoices(s.charDB, characterID)
@@ -843,13 +854,47 @@ func (s *server) handleMedicalDoctrineDelete(w http.ResponseWriter, r *http.Requ
 	s.respondSheet(w, r, id, "sheet_medical_nin")
 }
 
-// handleMedicalNinFightingStance records Combat Medic's own Martial
-// Competency Taijutsu Stance pick — generalizes taijutsu.go's
+// setMedicalNinFightingStance validates and stores Combat Medic's own
+// Martial Competency Taijutsu Stance pick — generalizes taijutsu.go's
 // storeFightingStanceChoice to a second granting feature instead of
 // hard-gating the whole mechanic to Taijutsu Specialist. A character with
 // levels in both Taijutsu Specialist and Combat Medic gets two independent
 // picks, stored under two different feature slugs — see
-// buildFightingStanceView's own doc comment.
+// buildFightingStanceView's own doc comment. Shared by
+// handleMedicalNinFightingStance's own Core-sheet AJAX route and the Combat
+// Medic popup's own route (medical_nin_combat_medic_popup.go), mirroring
+// setStancerMixedMartialArtsStance's identical shape (taijutsu.go).
+func (s *server) setMedicalNinFightingStance(id int64, slug string) (int, string) {
+	level, err := s.medicalNinClassLevel(id)
+	if err != nil {
+		log.Println("load medical-nin level for fighting stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	subclassSlug, _, err := s.medicalNinSubclassSlug(id)
+	if err != nil {
+		log.Println("load medical-nin subclass for fighting stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if level < 2 || subclassSlug != combatMedicSubclassSlug {
+		return http.StatusBadRequest, "character has no Martial Competency stance choice available"
+	}
+	options, err := s.loadTaijutsuStanceOptions()
+	if err != nil {
+		log.Println("load taijutsu stance options:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if err := s.storeFightingStanceChoice(id, martialCompetencyFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			return http.StatusBadRequest, "not a valid stance"
+		}
+		log.Println("set medical-nin fighting stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleMedicalNinFightingStance is setMedicalNinFightingStance's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleMedicalNinFightingStance(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -861,47 +906,58 @@ func (s *server) handleMedicalNinFightingStance(w http.ResponseWriter, r *http.R
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("stance_slug"))
-	level, err := s.medicalNinClassLevel(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load medical-nin level for fighting stance:", err)
-		return
-	}
-	subclassSlug, _, err := s.medicalNinSubclassSlug(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load medical-nin subclass for fighting stance:", err)
-		return
-	}
-	if level < 2 || subclassSlug != combatMedicSubclassSlug {
-		http.Error(w, "character has no Martial Competency stance choice available", http.StatusBadRequest)
-		return
-	}
-	options, err := s.loadTaijutsuStanceOptions()
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load taijutsu stance options:", err)
-		return
-	}
-	if err := s.storeFightingStanceChoice(id, martialCompetencyFeatureSlug, options, slug); err != nil {
-		if err == errInvalidStance {
-			http.Error(w, "not a valid stance", http.StatusBadRequest)
-		} else {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("set medical-nin fighting stance:", err)
-		}
+	if status, msg := s.setMedicalNinFightingStance(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_medical_nin")
 }
 
-// handleExpertCombatantAdd records one of Combat Medic's Expert Combatant
-// picks (a specific known Taijutsu or Bukijutsu), gated by the character's
-// own current cap — server-side, defense in depth regardless of what the UI
-// already disables. Mirrors handleMedicalDoctrineAdd's shape, keyed by a
-// character_jutsu row id (form field "jutsu_id") instead of a rules-database
-// option_slug, same "jutsu_id" convention handleNinjutsuJutsuPickAdd
-// (ninjutsu_specialist.go) uses.
+// addExpertCombatantPick validates and stores one of Combat Medic's Expert
+// Combatant picks (a specific known Taijutsu or Bukijutsu), gated by the
+// character's own current cap — server-side, defense in depth regardless of
+// what the UI already disables. Keyed by a character_jutsu row id (jutsuID)
+// instead of a rules-database option_slug, same "jutsu_id" convention
+// addAwakenedScrollPick (ninjutsu_specialist.go) uses. Shared by
+// handleExpertCombatantAdd's own Core-sheet AJAX route and the Combat Medic
+// popup's own route (medical_nin_combat_medic_popup.go), so both share one
+// validation path and cannot drift apart.
+func (s *server) addExpertCombatantPick(id int64, jutsuID int64) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for expert combatant add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadMedicalNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load medical-nin for expert combatant add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.ExpertCombatantCap == 0 {
+		return http.StatusBadRequest, "character has not reached Expert Combatant"
+	}
+	if data.ExpertCombatantUsed >= data.ExpertCombatantCap {
+		return http.StatusBadRequest, "no Expert Combatant slots remaining"
+	}
+	valid := false
+	for _, o := range data.AvailableExpertCombatant {
+		if o.JutsuID == jutsuID {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddMedicalNinExpertCombatantPick(s.charDB, id, jutsuID); err != nil {
+		log.Println("add expert combatant pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleExpertCombatantAdd is addExpertCombatantPick's own Core-sheet AJAX
+// wrapper.
 func (s *server) handleExpertCombatantAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -917,40 +973,8 @@ func (s *server) handleExpertCombatantAdd(w http.ResponseWriter, r *http.Request
 		http.Error(w, "missing pick", http.StatusBadRequest)
 		return
 	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for expert combatant add:", err)
-		return
-	}
-	data, err := s.loadMedicalNinTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load medical-nin for expert combatant add:", err)
-		return
-	}
-	if data == nil || data.ExpertCombatantCap == 0 {
-		http.Error(w, "character has not reached Expert Combatant", http.StatusBadRequest)
-		return
-	}
-	if data.ExpertCombatantUsed >= data.ExpertCombatantCap {
-		http.Error(w, "no Expert Combatant slots remaining", http.StatusBadRequest)
-		return
-	}
-	valid := false
-	for _, o := range data.AvailableExpertCombatant {
-		if o.JutsuID == jutsuID {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddMedicalNinExpertCombatantPick(s.charDB, id, jutsuID); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add expert combatant pick:", err)
+	if status, msg := s.addExpertCombatantPick(id, jutsuID); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_medical_nin")

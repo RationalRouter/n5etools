@@ -18,6 +18,9 @@
        button needs to animate in/out via app.css's opacity/visibility
        toggle, which display:none (what [hidden] maps to) can't do. */}}
   <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  {{/* Same fade-in-past-a-threshold mechanism as #back-to-top just above,
+       mirrored for the opposite direction (back-to-bottom.js). */}}
+  <button type="button" id="back-to-bottom" aria-label="Scroll to bottom" title="Scroll to bottom">&darr;</button>
   {{/* dice_roller: the same floating d20 FAB the main sheet uses, so a
        puppet's rollable Attacks/Puppet Skills can actually be rolled from
        this small popup window too. Deliberately WITHOUT dice3d.js/
@@ -28,16 +31,42 @@
        so skipping those two scripts here costs nothing but the visual
        flourish. */}}
   {{template "dice_roller" .}}
+  {{/* Every sheet-popup-trigger link this small window can contain (Known
+       SNT/Spyware Program/Titan Upgrade/... names, all built from
+       subclass_tracker_section) points at a bare detail-card fragment
+       route with no layout of its own — meant to be fetched by
+       sheet-popup.js and shown in this dialog, never navigated to
+       directly. Without this markup+script, clicking one of those names
+       falls through to a real navigation and lands on that unstyled
+       fragment, stranding the player away from the page's own delete
+       buttons in the process. */}}
+  <dialog id="sheet-item-popup" class="sheet-popup-dialog">
+    <button type="button" class="sheet-popup-close" aria-label="Close">&times;</button>
+    <div id="sheet-popup-body"></div>
+  </dialog>
   <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/back-to-top.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/back-to-bottom.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/dice-roller.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/character-sheet.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-popup.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-fields.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-sheet.js?v={{assetVersion}}" defer></script>
   {{/* Nin-Dog Breed's own rollover tooltip (companion_fields.html) reuses
        this generic updater rather than a bespoke popup-only handler — see
        that file's own comment. */}}
   <script src="/static/js/sheet-option-tooltip.js?v={{assetVersion}}" defer></script>
+  {{/* .tooltip/.tooltip-content edge-clamping (see app.css's own doc on
+       the two documented tooltip bugs) — delegated from document, so it's
+       safe to include even on pages with zero .tooltip elements. Every
+       bare-layout page already renders at least one .tooltip somewhere
+       reachable from it (titan_reference/companion_fields.html's Titan
+       Upgrade pickers on companion_sheet.html; the subclass tracker
+       popups' own puppet-upgrade-option pickers, character_snb_upgrades.
+       html/character_titan_slots.html), and without this script those
+       tooltips fall back to the un-clamped left:0 default instead of
+       staying clear of this small window's own edges. */}}
+  <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
 </body>
 </html>
 {{end}}

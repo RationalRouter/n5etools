@@ -111,6 +111,38 @@ func SetExoskeletonDonned(charDB *sql.DB, characterID int64, on bool) error {
 	return err
 }
 
+// SetNinjaneerLegendaryWeaponActive sets Warrior of Science's own Legendary
+// Weapon activation toggle — same shape as SetExoskeletonDonned, and for the
+// same reason (see migration 0072_ninjaneer_legendary_weapon_active.sql).
+func SetNinjaneerLegendaryWeaponActive(charDB *sql.DB, characterID int64, on bool) error {
+	val := 0
+	if on {
+		val = 1
+	}
+	_, err := charDB.Exec(
+		`UPDATE characters SET ninjaneer_legendary_weapon_active = ?, updated_at = datetime('now') WHERE id = ?`,
+		val, characterID,
+	)
+	return err
+}
+
+// NinjaneerLegendaryWeaponActive reads back Warrior of Science's own
+// Legendary Weapon activation toggle. Unlike ExoskeletonDonned this doesn't
+// feed into internal/charsheet.Compute — the class's own +2 attack roll,
+// doubled Weapon Property, THP/damage-reduction bypass, and force-conversion
+// effects all stay manual/narrated (see cmd/n5e/ninjaneer.go) — so it's read
+// directly here rather than through the Sheet struct.
+func NinjaneerLegendaryWeaponActive(charDB *sql.DB, characterID int64) (bool, error) {
+	var on int
+	err := charDB.QueryRow(
+		`SELECT ninjaneer_legendary_weapon_active FROM characters WHERE id = ?`, characterID,
+	).Scan(&on)
+	if err != nil {
+		return false, err
+	}
+	return on != 0, nil
+}
+
 // SetCCDMendingPct sets Mad Scientist's Biotic Mastery split ratio —
 // Mending's percentage share of the base Chakra Containment Device total,
 // Maiming getting the remainder (see migration 0045_ccd_mending_pct.sql).
@@ -141,6 +173,17 @@ func SetBio(charDB *sql.DB, characterID int64, appearance, backstory, alliesOrgs
 			additional_features_text = ?, treasure = ?, updated_at = datetime('now')
 		WHERE id = ?`,
 		appearance, backstory, alliesOrgs, additionalFeatures, treasure, characterID,
+	)
+	return err
+}
+
+// SetName renames the character. The caller (handleSheetName) validates
+// non-empty and length; this just writes whatever it's given, same
+// boundary the other single-field setters below draw.
+func SetName(charDB *sql.DB, characterID int64, name string) error {
+	_, err := charDB.Exec(
+		`UPDATE characters SET name = ?, updated_at = datetime('now') WHERE id = ?`,
+		name, characterID,
 	)
 	return err
 }
@@ -1062,12 +1105,61 @@ func DeleteInventoryItem(charDB *sql.DB, characterID, rowID int64) error {
 }
 
 // UnpackedItem is one thing a container held: a real item when Slug is set,
-// otherwise a free-text line (a pack that grants "1 Toolkit (pick one)" hands
-// out a note, not an item — the player still has to choose).
+// otherwise a free-text line — either inert prose the rules have no row for,
+// or (IsToolkitChoice) a still-open toolkit PICK the pack grants ("1
+// Toolkit (pick one)" hands out a note, not an item — the player still has
+// to choose).
 type UnpackedItem struct {
 	Slug     string
 	Text     string
 	Quantity int
+
+	// IsToolkitChoice/ToolkitChoiceOptions mark this line as a pack-granted
+	// toolkit pick rather than plain unresolved prose: the placeholder row
+	// UnpackInventoryItem creates for it is tagged in `notes` (see
+	// EncodePackToolkitChoiceNotes) so the sheet's pending-choices banner can
+	// find it and ResolvePackToolkitChoice can later turn it into a real
+	// item plus a tool proficiency. ToolkitChoiceOptions is "" for "any
+	// toolkit in the catalog" or a "|"-joined list of specific names for a
+	// scoped choice ("Hackers Kit|Security Kit").
+	IsToolkitChoice      bool
+	ToolkitChoiceOptions string
+}
+
+// PackToolkitChoiceNotesTag marks a character_inventory placeholder row as
+// an unresolved pack toolkit pick. character_inventory has no column of its
+// own for "this row is a request, not an item" (unlike character_feats,
+// which the analogous feat skill-or-tool choice reads straight off — see
+// feat_skill_or_tool_choice.go), so `notes` — otherwise unused on an
+// unpacked free-text row — carries the tag instead, the same "notes is the
+// one free-text field available" reasoning SetEquipment's own
+// 'creation-equipment' tag already relies on.
+const PackToolkitChoiceNotesTag = "pack-toolkit-choice"
+
+// EncodePackToolkitChoiceNotes builds the `notes` value UnpackInventoryItem
+// stores on a toolkit-choice placeholder row. options is "" for "any toolkit
+// in the catalog" or a "|"-joined list of specific names for a scoped choice
+// — option names never contain "|" (they're the book's own proper-noun
+// equipment names), so no escaping is needed.
+func EncodePackToolkitChoiceNotes(options string) string {
+	if options == "" {
+		return PackToolkitChoiceNotesTag
+	}
+	return PackToolkitChoiceNotesTag + ":" + options
+}
+
+// DecodePackToolkitChoiceNotes reverses EncodePackToolkitChoiceNotes. ok is
+// false for any `notes` value this package didn't write itself (nil,
+// "creation-equipment", plain prose) — the caller's signal that a row is not
+// a pending pack toolkit choice at all.
+func DecodePackToolkitChoiceNotes(notes string) (options string, ok bool) {
+	if notes == PackToolkitChoiceNotesTag {
+		return "", true
+	}
+	if rest, found := strings.CutPrefix(notes, PackToolkitChoiceNotesTag+":"); found {
+		return rest, true
+	}
+	return "", false
 }
 
 // UnpackInventoryItem replaces one container row with its contents, in a
@@ -1124,9 +1216,17 @@ func UnpackInventoryItem(charDB *sql.DB, characterID, rowID int64, contents []Un
 			if _, err := tx.Exec(`UPDATE custom_items SET slug = ? WHERE id = ?`, slug, ciID); err != nil {
 				return fmt.Errorf("stamp custom item slug: %w", err)
 			}
+			// A toolkit-choice line is tagged in `notes` so the sheet's
+			// pending-choices banner can find it later (see
+			// PackToolkitChoiceNotesTag) — every other free-text line keeps
+			// notes NULL, same as before this tag existed.
+			var notes sql.NullString
+			if item.IsToolkitChoice {
+				notes = sql.NullString{String: EncodePackToolkitChoiceNotes(item.ToolkitChoiceOptions), Valid: true}
+			}
 			if _, err := tx.Exec(
-				`INSERT INTO character_inventory (character_id, item_slug, quantity, equipped)
-				 VALUES (?, ?, ?, 0)`, characterID, slug, qty,
+				`INSERT INTO character_inventory (character_id, item_slug, quantity, equipped, notes)
+				 VALUES (?, ?, ?, 0, ?)`, characterID, slug, qty, notes,
 			); err != nil {
 				return fmt.Errorf("insert unpacked text line: %w", err)
 			}
@@ -1148,6 +1248,92 @@ func UnpackInventoryItem(charDB *sql.DB, characterID, rowID int64, contents []Un
 			return fmt.Errorf("insert unpacked item: %w", err)
 		}
 	}
+	return tx.Commit()
+}
+
+// ResolvePackToolkitChoice consumes one pick from an unresolved pack
+// toolkit-choice placeholder row (see EncodePackToolkitChoiceNotes): it
+// decrements the placeholder's remaining count — deleting the row once
+// exhausted — merges the chosen toolkit into the character's real inventory
+// (the same merge-by-slug rule UnpackInventoryItem's own resolved items
+// follow), and grants tool proficiency with it. That pair of effects is
+// what every other creation-time toolkit pick already gets (a real,
+// equippable item AND a Tool Proficiencies & Custom Skills row) and the
+// bare placeholder text by itself never had.
+//
+// The caller (handleSheetPackToolkitChoice) is responsible for validating
+// toolkitSlug/toolkitName against the options this placeholder was actually
+// offering (including the "not already held elsewhere" check) — this
+// function trusts them, same layering every other Set*/Resolve* function in
+// this package uses.
+//
+// rowID must point at a still-pending placeholder (notes tagged
+// PackToolkitChoiceNotesTag) belonging to characterID — this reports
+// sql.ErrNoRows otherwise (already resolved in another tab, a forged id, or
+// a row this tag was never written on), the same guard UnpackInventoryItem
+// uses for its own container row.
+func ResolvePackToolkitChoice(charDB *sql.DB, characterID, rowID int64, toolkitSlug, toolkitName string) error {
+	tx, err := charDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var quantity int
+	var notes sql.NullString
+	err = tx.QueryRow(
+		`SELECT quantity, notes FROM character_inventory WHERE id = ? AND character_id = ?`,
+		rowID, characterID,
+	).Scan(&quantity, &notes)
+	if err == sql.ErrNoRows {
+		return sql.ErrNoRows
+	}
+	if err != nil {
+		return fmt.Errorf("load pack toolkit choice row: %w", err)
+	}
+	if !notes.Valid {
+		return sql.ErrNoRows
+	}
+	if _, ok := DecodePackToolkitChoiceNotes(notes.String); !ok {
+		return sql.ErrNoRows
+	}
+
+	if quantity <= 1 {
+		if _, err := tx.Exec(
+			`DELETE FROM character_inventory WHERE id = ? AND character_id = ?`, rowID, characterID,
+		); err != nil {
+			return fmt.Errorf("remove resolved pack toolkit choice: %w", err)
+		}
+	} else if _, err := tx.Exec(
+		`UPDATE character_inventory SET quantity = quantity - 1 WHERE id = ? AND character_id = ?`, rowID, characterID,
+	); err != nil {
+		return fmt.Errorf("decrement pack toolkit choice: %w", err)
+	}
+
+	merged, err := tx.Exec(`
+		UPDATE character_inventory SET quantity = quantity + 1
+		WHERE character_id = ? AND item_slug = ?`, characterID, toolkitSlug)
+	if err != nil {
+		return fmt.Errorf("merge chosen toolkit: %w", err)
+	}
+	if n, err := merged.RowsAffected(); err != nil {
+		return fmt.Errorf("merge chosen toolkit: %w", err)
+	} else if n == 0 {
+		if _, err := tx.Exec(`
+			INSERT INTO character_inventory (character_id, item_slug, quantity, equipped)
+			VALUES (?, ?, 1, 0)`, characterID, toolkitSlug,
+		); err != nil {
+			return fmt.Errorf("insert chosen toolkit: %w", err)
+		}
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO character_proficiencies (character_id, kind, value, source_kind, source_ref)
+		VALUES (?, 'tool', ?, 'pack', ?)`, characterID, toolkitName, toolkitSlug,
+	); err != nil {
+		return fmt.Errorf("grant pack toolkit proficiency: %w", err)
+	}
+
 	return tx.Commit()
 }
 

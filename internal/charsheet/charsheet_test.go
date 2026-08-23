@@ -1537,6 +1537,116 @@ func TestComputeJutsuAttackAbilityOverride(t *testing.T) {
 	}
 }
 
+// TestComputeGenjutsuAbilityCruelAngelsThesis pins Spyware's 3rd-level Cruel
+// Angel's Thesis ("You can use your Intelligence Modifier as your Genjutsu
+// ability modifier"): granted, it swaps Genjutsu's default ability to
+// Intelligence; absent, Genjutsu still defaults to Wisdom; and a player's
+// own manual genjutsu_ability override still wins over the feature, the
+// same override-beats-default precedence TestComputeJutsuAttackAbilityOverride
+// pins for the other Genjutsu-ability-swapping features.
+func TestComputeGenjutsuAbilityCruelAngelsThesis(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/science-nin', 'Science-Nin', 8, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/science-nin/group/scientific-inquiry', 'class/science-nin', 'Scientific Inquiry')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/science-nin/group/scientific-inquiry/spyware', 'class/science-nin/group/scientific-inquiry', 'Spyware')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		('class/science-nin/group/scientific-inquiry/spyware/feature/cruel-angels-thesis',
+		 'class/science-nin/group/scientific-inquiry/spyware', 'Cruel Angel''s Thesis', 3,
+		 'You can use your Intelligence Modifier as your Genjutsu ability modifier.')`); err != nil {
+		t.Fatal(err)
+	}
+
+	// int 16 (+3), wis 10 (+0) — deliberately different, to pin which
+	// ability actually drives the computed modifier.
+	newSpywareCharacter := func(name string) int64 {
+		t.Helper()
+		res, err := charDB.Exec(`
+			INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+			VALUES (?, 10, 10, 10, 16, 10, 10)`, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := charDB.Exec(
+			`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', 3, 0)`, id,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	genjutsuOf := func(sheet *Sheet) JutsuAttack {
+		for _, a := range sheet.JutsuAttacks {
+			if a.Kind == "Genjutsu" {
+				return a
+			}
+		}
+		t.Fatal("no Genjutsu entry in JutsuAttacks")
+		return JutsuAttack{}
+	}
+
+	// Granted: Genjutsu computes off Intelligence.
+	withFeature := newSpywareCharacter("Spyware Test")
+	if _, err := charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/science-nin/group/scientific-inquiry/spyware', 3)`, withFeature,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err := Compute(rulesDB, charDB, withFeature)
+	if err != nil {
+		t.Fatalf("Compute (Cruel Angel's Thesis granted): %v", err)
+	}
+	prof := sheet.ProficiencyBonus
+	if gen := genjutsuOf(sheet); gen.Ability != "int" || gen.Modifier != 3+prof {
+		t.Errorf("Genjutsu (Cruel Angel's Thesis granted) = %s %+d, want int %+d", gen.Ability, gen.Modifier, 3+prof)
+	}
+
+	// Absent: same ability scores, no Spyware subclass — Genjutsu still
+	// defaults to Wisdom.
+	withoutFeature := newSpywareCharacter("No Spyware Test")
+	sheet, err = Compute(rulesDB, charDB, withoutFeature)
+	if err != nil {
+		t.Fatalf("Compute (no subclass): %v", err)
+	}
+	if gen := genjutsuOf(sheet); gen.Ability != "wis" {
+		t.Errorf("Genjutsu (no Cruel Angel's Thesis) = %s, want the wis default", gen.Ability)
+	}
+
+	// Granted, but with a manual override on top: the override still wins,
+	// the same precedence TestComputeJutsuAttackAbilityOverride pins for
+	// genjutsuExpertiseFeatSlug/mentalBoonsFeatSlug/gaseousHazeFeatureSlug.
+	withOverride := newSpywareCharacter("Spyware Override Test")
+	if _, err := charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/science-nin/group/scientific-inquiry/spyware', 3)`, withOverride,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := charDB.Exec(
+		`INSERT INTO character_overrides (character_id, field, value, note) VALUES (?, 'genjutsu_ability', 'str', 'manual override')`, withOverride,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, withOverride)
+	if err != nil {
+		t.Fatalf("Compute (Cruel Angel's Thesis + manual override): %v", err)
+	}
+	if gen := genjutsuOf(sheet); gen.Ability != "str" {
+		t.Errorf("Genjutsu (feature + manual override) = %s, want the str override to win", gen.Ability)
+	}
+}
+
 func TestComputeClashChecks(t *testing.T) {
 	rulesDB, charDB := testDBs(t)
 
@@ -1893,5 +2003,153 @@ func TestComputeAppliesMasteryToToolkit(t *testing.T) {
 	}
 	if got := sheet.MasteryRanks["Armorsmith kit"]; got != 3 {
 		t.Errorf("sheet.MasteryRanks[Armorsmith kit] = %d, want 3", got)
+	}
+}
+
+// TestComputeAppliesElementalInnovationistPermaPerkBonuses covers Perma
+// Perk's (14th-level Elemental Innovationist) one always-on numeric clause
+// for each of the four Perma-Perk-eligible E.I.Ps this package models
+// (Speed/Stamina/Juggernaut/Vulture — Razor E.I.P's own crit-range bonus is
+// applied in cmd/n5e/characters.go instead, since attack rows are built
+// there). Also confirms a designated Perma Perk grants nothing before 14th
+// level, the same "recheck the granting condition" guard
+// TestComputeGatesMobilitySpeedBonusOnPick already establishes for a
+// different feature.
+func TestComputeAppliesElementalInnovationistPermaPerkBonuses(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/science-nin', 'Science-Nin', 8, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/science-nin/group/scientific-inquiry', 'class/science-nin', 'Scientific Inquiry')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/science-nin/group/scientific-inquiry/elemental-innovationist', 'class/science-nin/group/scientific-inquiry', 'Elemental Innovationist')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		('class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/perma-perk',
+		 'class/science-nin/group/scientific-inquiry/elemental-innovationist', 'Perma Perk', 14,
+		 'Choose 1 E.I.P you know, gaining its benefits without Exoskeleton armor and without needing to spend CCD chakra to activate.')`); err != nil {
+		t.Fatal(err)
+	}
+
+	// int 16 (+3) — pins Vulture E.I.P's Passive-Perception bonus to a
+	// non-zero, easily-distinguished value.
+	newCharacter := func(name string, level int) int64 {
+		t.Helper()
+		res, err := charDB.Exec(`
+			INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+			VALUES (?, 10, 10, 10, 16, 10, 10)`, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := charDB.Exec(
+			`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', ?, 0)`, id, level,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := charDB.Exec(
+			`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/science-nin/group/scientific-inquiry/elemental-innovationist', 3)`, id,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	initiativeAbilityOf := func(sheet *Sheet) string { return sheet.InitiativeAbility }
+
+	cases := []struct {
+		name     string
+		permaEIP string
+		check    func(t *testing.T, sheet *Sheet, baseSpeed, baseMaxHP, basePassivePerception int)
+	}{
+		{
+			name:     "Speed E.I.P swaps Initiative to Intelligence",
+			permaEIP: elementalInnovationistSpeedEIPSlug,
+			check: func(t *testing.T, sheet *Sheet, _, _, _ int) {
+				if got := initiativeAbilityOf(sheet); got != "int" {
+					t.Errorf("InitiativeAbility = %s, want int", got)
+				}
+			},
+		},
+		{
+			name:     "Stamina E.I.P adds +5 Speed",
+			permaEIP: elementalInnovationistStaminaEIPSlug,
+			check: func(t *testing.T, sheet *Sheet, baseSpeed, _, _ int) {
+				if sheet.Speed != baseSpeed+5 {
+					t.Errorf("Speed = %d, want %d (base + Stamina E.I.P's +5)", sheet.Speed, baseSpeed+5)
+				}
+			},
+		},
+		{
+			name:     "Juggernaut E.I.P adds 10 + Science-Nin level to Max HP",
+			permaEIP: elementalInnovationistJuggernautEIPSlug,
+			check: func(t *testing.T, sheet *Sheet, _, baseMaxHP, _ int) {
+				want := baseMaxHP + 10 + 14
+				if sheet.MaxHPAuto != want {
+					t.Errorf("MaxHPAuto = %d, want %d (base + 10 + level 14)", sheet.MaxHPAuto, want)
+				}
+			},
+		},
+		{
+			name:     "Vulture E.I.P adds Intelligence modifier to Passive Perception",
+			permaEIP: elementalInnovationistVultureEIPSlug,
+			check: func(t *testing.T, sheet *Sheet, _, _, basePassivePerception int) {
+				want := basePassivePerception + 3
+				if sheet.PassivePerception != want {
+					t.Errorf("PassivePerception = %d, want %d (base + Int modifier +3)", sheet.PassivePerception, want)
+				}
+			},
+		},
+	}
+
+	// Baseline at 14th level, no Perma Perk pick made yet — establishes what
+	// "unboosted" looks like for each of the three additive fields above,
+	// and confirms nothing is granted merely by having Perma Perk available.
+	baseline := newCharacter("Baseline", 14)
+	baseSheet, err := Compute(rulesDB, charDB, baseline)
+	if err != nil {
+		t.Fatalf("Compute (baseline, no pick): %v", err)
+	}
+	if got := initiativeAbilityOf(baseSheet); got != "dex" {
+		t.Errorf("baseline InitiativeAbility = %s, want the dex default", got)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			id := newCharacter(tc.name, 14)
+			if err := charstore.AddScienceNinSubclassPick(charDB, id, charstore.ScienceNinPickPermaPerk, tc.permaEIP, ""); err != nil {
+				t.Fatal(err)
+			}
+			sheet, err := Compute(rulesDB, charDB, id)
+			if err != nil {
+				t.Fatalf("Compute (%s designated): %v", tc.permaEIP, err)
+			}
+			tc.check(t, sheet, baseSheet.Speed, baseSheet.MaxHPAuto, baseSheet.PassivePerception)
+		})
+	}
+
+	// Below 14th level: the SAME Speed E.I.P designation grants nothing —
+	// charstore.SetLevel/the level column here can be lowered after a pick
+	// was made, and Perma Perk's own gate must be rechecked live rather than
+	// trusting the stored pick's mere existence.
+	underleveled := newCharacter("Underleveled", 13)
+	if err := charstore.AddScienceNinSubclassPick(charDB, underleveled, charstore.ScienceNinPickPermaPerk, elementalInnovationistSpeedEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err := Compute(rulesDB, charDB, underleveled)
+	if err != nil {
+		t.Fatalf("Compute (13th level, Speed E.I.P designated): %v", err)
+	}
+	if got := initiativeAbilityOf(sheet); got != "dex" {
+		t.Errorf("13th-level InitiativeAbility = %s, want the dex default (Perma Perk not yet active)", got)
 	}
 }

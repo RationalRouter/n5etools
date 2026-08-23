@@ -149,11 +149,16 @@ func titanMaxHP(scienceNinLevel, titanConMod int) int {
 // titanAC: "12 + Intelligence Modifier + half your Proficiency Bonus"
 // (Natural Armor) — see this file's header doc for why this had to be
 // verified against the source PDF page image rather than read from
-// titan_unit_card.raw_text, which drops the line entirely. Half proficiency
-// is floored, the same convention internal/charsheet.ArmorClass's own
-// "PROF" armor-ability term already uses for a player character's armor.
-func titanAC(intMod, profBonus int) int {
-	return 12 + intMod + profBonus/2
+// titan_unit_card.raw_text, which drops the line entirely. Unlike
+// titanMaxHP's own formula text ("Titan's Constitution Modifer", explicit),
+// this line never says "Titan's" — it's the PLAYER's own Intelligence
+// modifier (a Mech Crafter builds a tougher Titan as they invest in their
+// own Intelligence), so callers must pass sheet.Abilities["int"].Modifier,
+// not titanEffectiveAbilityModifier(companion, "int"). Half proficiency is
+// floored, the same convention internal/charsheet.ArmorClass's own "PROF"
+// armor-ability term already uses for a player character's armor.
+func titanAC(playerIntMod, profBonus int) int {
+	return 12 + playerIntMod + profBonus/2
 }
 
 // titanBarrierMax: Battery Powered Barrier's own "maximum number of hit
@@ -302,6 +307,104 @@ func titanBashAttack(companion charstore.Companion, ownerProfBonus int) companio
 		DamageTotal:        strMod + dexMod,
 		CritRangeThreshold: critRange,
 	}
+}
+
+// titanWeaponUpgradeAttacks returns the standing rollable attack(s) a known
+// Weapon-keyword Titan Upgrade grants, matched by its catalog name — only
+// for the entries with an at-will "deals N in Y damage on a hit" baseline
+// profile (Ion Sword, Predator Cannon, Quad Rocket, and Leadwall's two
+// built-in modes). Every other Weapon-keyword entry (Thermite Launcher,
+// Xo-16 Gatling, Greater Missile Racks, Critical Ejection, Enhanced Attack
+// Protocol) has no standing weapon of its own — its entire offense/effect
+// is gated behind spending its own CCD Drain just to attack at all, is a
+// reactive death-trigger, or is an attack-economy bonus rather than a fixed
+// die+ability+type profile — so those surface only in the Known Titan
+// Upgrades list (companions.go) as reference text, not as a phantom
+// always-available attack row here. nil for any name not on this list.
+func titanWeaponUpgradeAttacks(name string, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
+	strMod := titanEffectiveAbilityModifier(companion, "str")
+	dexMod := titanEffectiveAbilityModifier(companion, "dex")
+	const grantedHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
+	switch {
+	case strings.EqualFold(name, "Ion Sword"):
+		return []companionAttackRow{{
+			CompanionAttack: charstore.CompanionAttack{
+				Name:        "Ion Sword",
+				Description: "Melee Weapon Attack: reach 10 ft., one target.",
+				DamageCount: 1, DamageSides: 8, DamageType: "slashing",
+			},
+			AttackTotal: dexMod + ownerProfBonus,
+			DamageTotal: dexMod,
+			GrantedHint: grantedHint,
+		}}
+	case strings.EqualFold(name, "Predator Cannon"):
+		return []companionAttackRow{{
+			CompanionAttack: charstore.CompanionAttack{
+				Name:        "Predator Cannon",
+				Description: "Ranged Weapon Attack: range 90/180 ft., one target.",
+				DamageCount: 1, DamageSides: 10, DamageType: "piercing",
+			},
+			AttackTotal: strMod + ownerProfBonus,
+			DamageTotal: strMod,
+			GrantedHint: grantedHint,
+		}}
+	case strings.EqualFold(name, "Quad Rocket"):
+		return []companionAttackRow{{
+			CompanionAttack: charstore.CompanionAttack{
+				Name:        "Quad Rocket",
+				Description: "Ranged Weapon Attack: range 60/120 ft., one target.",
+				DamageCount: 2, DamageSides: 4, DamageType: "force",
+			},
+			AttackTotal: strMod + ownerProfBonus,
+			DamageTotal: strMod,
+			GrantedHint: grantedHint,
+		}}
+	case strings.EqualFold(name, "Leadwall"):
+		// The one Titan Upgrade with two built-in modes at once — both
+		// listed as separate rows, same as any other weapon with a melee
+		// and thrown/ranged profile elsewhere on the sheet.
+		return []companionAttackRow{
+			{
+				CompanionAttack: charstore.CompanionAttack{
+					Name:        "Leadwall (Melee)",
+					Description: "Melee Weapon Attack: reach 10 ft., one target.",
+					DamageCount: 1, DamageSides: 6, DamageType: "piercing",
+				},
+				AttackTotal: dexMod + ownerProfBonus,
+				DamageTotal: dexMod,
+				GrantedHint: grantedHint,
+			},
+			{
+				CompanionAttack: charstore.CompanionAttack{
+					Name:        "Leadwall (Ranged)",
+					Description: "Ranged Weapon Attack: range 15/30 ft., one target.",
+					DamageCount: 2, DamageSides: 6, DamageType: "bludgeoning",
+				},
+				AttackTotal: dexMod + ownerProfBonus,
+				DamageTotal: dexMod,
+				GrantedHint: grantedHint,
+			},
+		}
+	default:
+		return nil
+	}
+}
+
+// titanKnownWeaponUpgradeAttacks flattens every Known Titan Upgrade with the
+// Weapon keyword into its own standing attack row(s) — nil-safe against a
+// character with no Ordnance Training (loadTitanReference's own nil case).
+func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
+	if ref == nil {
+		return nil
+	}
+	var out []companionAttackRow
+	for _, k := range ref.KnownUpgrades {
+		if k.Keyword != "weapon" {
+			continue
+		}
+		out = append(out, titanWeaponUpgradeAttacks(k.Name, companion, ownerProfBonus)...)
+	}
+	return out
 }
 
 // titanSpecializationOption is one of the 3 Titan Specializations
@@ -453,6 +556,16 @@ func titanEffectiveUpgradeCost(o titanUpgradeOption, specialistKeyword string) i
 type knownTitanUpgrade struct {
 	Slug, Name, Tier, Keyword string
 	Cost, Drain               int
+	// Description: the catalog entry's own rules text (stat line already
+	// stripped by parseTitanUpgradeStatLine) — shown on the companion sheet
+	// itself (companion_fields.html) so a Mech-keyword upgrade's effect is
+	// readable right there rather than only inside the separate Titan Slots
+	// popup. Weapon-keyword upgrades with a standing attack profile also
+	// show up as their own rollable row (titanWeaponUpgradeAttacks) — this
+	// text is what covers everything that ISN'T a fixed die+ability+type
+	// attack, since most of it (reactions, once-per-rest triggers, passive
+	// stat changes) has no other place on the sheet to live yet.
+	Description string
 }
 
 // titanExoSuitData backs Endless Work's own separate Exo-Suit slot — non-
@@ -487,6 +600,77 @@ type titanUpgradesData struct {
 	ExoSuit *titanExoSuitData
 }
 
+// titanUpgradesCreationPointsSpend sums the Creation Points committed to
+// Titan Slots and, once unlocked, the Exo-Suit slot — the Titan half of Mech
+// Crafter's shared Creation Points budget. Called from
+// loadScienceNinTabData (science_nin.go) so the base Scientific Ninja Tools
+// panel's own CreationPointsUsed total — and therefore
+// handleScienceNinToolAdd's own spend-budget check — sees Titan spend too,
+// closing the asymmetry where only loadTitanUpgradesData (below) ever
+// combined the two: a Mech Crafter could previously spend the full cap on
+// SNTs, then independently spend the full cap again on Titan Upgrades,
+// because the SNT side's own CreationPointsUsed never counted Titan spend.
+//
+// Deliberately independent of loadTitanUpgradesData itself (which needs the
+// full per-entry Known/Available lists for display; this only needs the
+// sum) rather than sharing code with it, to avoid a call cycle:
+// loadTitanUpgradesData already calls loadScienceNinTabData for its own
+// baseline, so loadScienceNinTabData calling loadTitanUpgradesData back
+// would recurse forever. Both apply the identical titanEffectiveUpgradeCost
+// formula against the identical picks/catalog, so the two totals cannot
+// drift apart in practice even though the code itself isn't shared — keep
+// both in sync if either is ever restructured.
+func (s *server) titanUpgradesCreationPointsSpend(characterID int64, granted []grantedFeatureRow) (int, error) {
+	if !hasFeature(granted, scienceNinOrdnanceTrainingFeatureSlug) {
+		return 0, nil
+	}
+
+	specialistKeyword := ""
+	if hasFeature(granted, titanSpecialistCraftingFeatureSlug) {
+		picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickTitanSpecialistCraftingKeyword)
+		if err != nil {
+			return 0, err
+		}
+		if len(picks) > 0 {
+			specialistKeyword = picks[0].OptionSlug
+		}
+	}
+
+	catalog, err := s.loadTitanUpgradeCatalog()
+	if err != nil {
+		return 0, err
+	}
+	catalogBySlug := make(map[string]titanUpgradeOption, len(catalog))
+	for _, o := range catalog {
+		catalogBySlug[o.Slug] = o
+	}
+
+	total := 0
+	slotPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickTitanUpgrade)
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range slotPicks {
+		if o, ok := catalogBySlug[p.OptionSlug]; ok {
+			total += titanEffectiveUpgradeCost(o, specialistKeyword)
+		}
+	}
+
+	if hasFeature(granted, titanEndlessWorkFeatureSlug) {
+		exoPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickTitanExosuitUpgrade)
+		if err != nil {
+			return 0, err
+		}
+		for _, p := range exoPicks {
+			if o, ok := catalogBySlug[p.OptionSlug]; ok {
+				total += titanEffectiveUpgradeCost(o, specialistKeyword)
+			}
+		}
+	}
+
+	return total, nil
+}
+
 // loadTitanUpgradesData returns nil for a character with no Ordnance
 // Training granted — the template gates the whole Titan reference panel's
 // existence on this being non-nil (via loadTitanReference), same treatment
@@ -511,6 +695,13 @@ func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet
 	data := &titanUpgradesData{TitanSlotsCap: sheet.ProficiencyBonus}
 	if scienceNinData != nil {
 		data.CreationPointsCap = scienceNinData.CreationPointsCap
+		// Already the FULL combined total, not just SNT spend —
+		// loadScienceNinTabData folds this same Titan Upgrades cost (via
+		// titanUpgradesCreationPointsSpend, above) into its own
+		// CreationPointsUsed before returning. The loops below build
+		// KnownUpgrades/ExoSuit.Known for DISPLAY only and must NOT add
+		// their own cost into data.CreationPointsUsed again — doing so
+		// would double-count every Titan pick against the budget.
 		data.CreationPointsUsed = scienceNinData.CreationPointsUsed
 	}
 
@@ -546,8 +737,10 @@ func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet
 			continue // stale pick pointing at a since-renamed/removed catalog entry
 		}
 		cost := titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword)
-		data.KnownUpgrades = append(data.KnownUpgrades, knownTitanUpgrade{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Keyword: o.Keyword, Cost: cost, Drain: o.Drain})
-		data.CreationPointsUsed += cost
+		data.KnownUpgrades = append(data.KnownUpgrades, knownTitanUpgrade{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Keyword: o.Keyword, Cost: cost, Drain: o.Drain, Description: o.Description})
+		// NOT added into data.CreationPointsUsed here — see this cost's
+		// twin computation in titanUpgradesCreationPointsSpend, already
+		// folded into scienceNinData.CreationPointsUsed above.
 	}
 	data.TitanSlotsUsed = len(slotPicks)
 	for _, o := range catalog {
@@ -570,8 +763,8 @@ func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet
 				continue
 			}
 			cost := titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword)
-			exo.Known = append(exo.Known, knownTitanUpgrade{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Keyword: o.Keyword, Cost: cost, Drain: o.Drain})
-			data.CreationPointsUsed += cost
+			exo.Known = append(exo.Known, knownTitanUpgrade{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Keyword: o.Keyword, Cost: cost, Drain: o.Drain, Description: o.Description})
+			// Also already folded in — see the identical note above.
 		}
 		exo.Used = len(exoPicks)
 		for _, o := range catalog {
@@ -604,7 +797,7 @@ type titanReference struct {
 	Size                       string // Large/Huge/Gargantuan — Gradual Expansion + Bijuu Slayer
 	ProficiencyBonus           int
 	Senses                     string // titan_unit_card's own "Darkvision(30 feet)" — printed alongside Passive Perception in the same Senses line but previously dropped when that line was transcribed
-	PassivePerception          int // "Yours + Intelligence Modifer" — the caster's own Passive Perception plus the Titan's own Intelligence modifier
+	PassivePerception          int    // "Yours + Intelligence Modifer" — the caster's own Passive Perception plus the Titan's own Intelligence modifier
 	SteadyImprovementASIPoints int
 
 	BaseTraits     []companionFeatureRef
@@ -730,7 +923,17 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 	abilityBonuses := titanSpecializationAbilityBonuses(companion.TitanSpecialization, legionAbility1, legionAbility2)
 
 	conMod := titanEffectiveAbilityModifier(companion, "con")
+	// Passive Perception's own line ("Yours + Intelligence Modifer") is kept
+	// reading the TITAN's own Intelligence modifier, per this struct field's
+	// existing doc comment — distinct from AC below.
 	intMod := titanEffectiveAbilityModifier(companion, "int")
+	// AC's "Intelligence Modifier" is the PLAYER's own, not the Titan's own
+	// stat block — unlike titanMaxHP, whose source text explicitly says
+	// "Titan's Constitution Modifer". titanAC's own source line never says
+	// "Titan's", and a Titan's base Int score (5, modifier -3) would make
+	// AC go DOWN as a player invests more into their own Intelligence,
+	// which contradicts a Mech Crafter building a smarter machine.
+	playerIntMod := sheet.Abilities["int"].Modifier
 
 	size := titanSizeForLevel(scienceNinLevel)
 	for _, k := range upgrades.KnownUpgrades {
@@ -760,7 +963,7 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 
 		Features: features,
 
-		ExpectedAC:         titanAC(intMod, sheet.ProficiencyBonus),
+		ExpectedAC:         titanAC(playerIntMod, sheet.ProficiencyBonus),
 		ExpectedMaxHP:      titanMaxHP(scienceNinLevel, conMod),
 		ExpectedSpeed:      titanSpeedForSpecialization(companion.TitanSpecialization),
 		ExpectedSize:       size,
@@ -859,12 +1062,60 @@ func (s *server) handleSheetTitanLegionAbilityBonus(w http.ResponseWriter, r *ht
 	s.respondCompanionAction(w, r, id, cid)
 }
 
-// handleTitanUpgradeAdd installs one Titan Upgrade into an ordinary Titan
-// Slot (Ordnance Training, cap = Proficiency Bonus), gated by the
-// character's own remaining Creation Points budget — the same Creation-
-// Points-BUDGET shape handleScienceNinToolAdd (science_nin.go) already
-// uses, not a flat slot-count gate, since Titan Upgrades spend from the
-// identical shared pool.
+// addTitanSlotPick validates and installs one Titan Upgrade into an
+// ordinary Titan Slot (Ordnance Training, cap = Proficiency Bonus), gated
+// by the character's own remaining Creation Points budget — the same
+// Creation-Points-BUDGET shape handleScienceNinToolAdd (science_nin.go)
+// already uses, not a flat slot-count gate, since Titan Upgrades spend
+// from the identical shared pool. Returns (http.StatusOK, "") on success,
+// or the status/message an http.Error should report on failure. Shared by
+// the Companions-tab's own AJAX route (handleTitanUpgradeAdd, just below)
+// and the Titan Slots popup's plain POST route (handleTitanSlotsAdd,
+// titan_slots_popup.go) — see addSNBUpgradePick's own doc
+// (science_nin_subclasses.go) for why this split exists.
+func (s *server) addTitanSlotPick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing upgrade"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for titan upgrade add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadTitanUpgradesData(id, sheet)
+	if err != nil {
+		log.Println("load titan upgrades for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no Ordnance Training yet"
+	}
+	if data.TitanSlotsUsed >= data.TitanSlotsCap {
+		return http.StatusBadRequest, "no Titan Slots remaining"
+	}
+	var picked *titanUpgradeOption
+	for i, o := range data.AvailableUpgrades {
+		if o.Slug == slug {
+			picked = &data.AvailableUpgrades[i]
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid upgrade"
+	}
+	cost := titanEffectiveUpgradeCost(*picked, data.SpecialistCraftingKeyword)
+	if data.CreationPointsUsed+cost > data.CreationPointsCap {
+		return http.StatusBadRequest, "not enough Creation Points remaining"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanUpgrade, slug, ""); err != nil {
+		log.Println("add titan upgrade:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleTitanUpgradeAdd is the Companions-tab's own AJAX route for
+// addTitanSlotPick (above).
 func (s *server) handleTitanUpgradeAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -876,58 +1127,63 @@ func (s *server) handleTitanUpgradeAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing upgrade", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for titan upgrade add:", err)
-		return
-	}
-	data, err := s.loadTitanUpgradesData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load titan upgrades for add:", err)
-		return
-	}
-	if data == nil {
-		http.Error(w, "character has no Ordnance Training yet", http.StatusBadRequest)
-		return
-	}
-	if data.TitanSlotsUsed >= data.TitanSlotsCap {
-		http.Error(w, "no Titan Slots remaining", http.StatusBadRequest)
-		return
-	}
-	var picked *titanUpgradeOption
-	for i, o := range data.AvailableUpgrades {
-		if o.Slug == slug {
-			picked = &data.AvailableUpgrades[i]
-			break
-		}
-	}
-	if picked == nil {
-		http.Error(w, "not a valid upgrade", http.StatusBadRequest)
-		return
-	}
-	cost := titanEffectiveUpgradeCost(*picked, data.SpecialistCraftingKeyword)
-	if data.CreationPointsUsed+cost > data.CreationPointsCap {
-		http.Error(w, "not enough Creation Points remaining", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanUpgrade, slug, ""); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add titan upgrade:", err)
+	if status, msg := s.addTitanSlotPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, companionRespondFragment(r))
 }
 
-// handleTitanExoSuitUpgradeAdd installs one Titan Upgrade into Endless
-// Work's own separate Exo-Suit slot — Mech-keyword-only, Cost 8 or lower
-// (see this file's header doc), still gated by the SAME shared Creation
-// Points budget as an ordinary Titan Slot pick.
+// addTitanExoSuitPick validates and installs one Titan Upgrade into
+// Endless Work's own separate Exo-Suit slot — Mech-keyword-only, Cost 8 or
+// lower (see this file's header doc), still gated by the SAME shared
+// Creation Points budget as an ordinary Titan Slot pick. Same
+// success/failure return shape as addTitanSlotPick, shared the same way
+// between handleTitanExoSuitUpgradeAdd (below) and the Titan Slots popup's
+// handleTitanSlotsExoSuitAdd (titan_slots_popup.go).
+func (s *server) addTitanExoSuitPick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing upgrade"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for titan exo-suit upgrade add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadTitanUpgradesData(id, sheet)
+	if err != nil {
+		log.Println("load titan upgrades for exo-suit add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.ExoSuit == nil {
+		return http.StatusBadRequest, "character has no Exo-Suit yet"
+	}
+	if data.ExoSuit.Used >= data.ExoSuit.Cap {
+		return http.StatusBadRequest, "no Exo-Suit slots remaining"
+	}
+	var picked *titanUpgradeOption
+	for i, o := range data.ExoSuit.Available {
+		if o.Slug == slug {
+			picked = &data.ExoSuit.Available[i]
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid upgrade"
+	}
+	cost := titanEffectiveUpgradeCost(*picked, data.SpecialistCraftingKeyword)
+	if data.CreationPointsUsed+cost > data.CreationPointsCap {
+		return http.StatusBadRequest, "not enough Creation Points remaining"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanExosuitUpgrade, slug, ""); err != nil {
+		log.Println("add titan exo-suit upgrade:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleTitanExoSuitUpgradeAdd is the Companions-tab's own AJAX route for
+// addTitanExoSuitPick (above).
 func (s *server) handleTitanExoSuitUpgradeAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -939,49 +1195,8 @@ func (s *server) handleTitanExoSuitUpgradeAdd(w http.ResponseWriter, r *http.Req
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if slug == "" {
-		http.Error(w, "missing upgrade", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for titan exo-suit upgrade add:", err)
-		return
-	}
-	data, err := s.loadTitanUpgradesData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load titan upgrades for exo-suit add:", err)
-		return
-	}
-	if data == nil || data.ExoSuit == nil {
-		http.Error(w, "character has no Exo-Suit yet", http.StatusBadRequest)
-		return
-	}
-	if data.ExoSuit.Used >= data.ExoSuit.Cap {
-		http.Error(w, "no Exo-Suit slots remaining", http.StatusBadRequest)
-		return
-	}
-	var picked *titanUpgradeOption
-	for i, o := range data.ExoSuit.Available {
-		if o.Slug == slug {
-			picked = &data.ExoSuit.Available[i]
-			break
-		}
-	}
-	if picked == nil {
-		http.Error(w, "not a valid upgrade", http.StatusBadRequest)
-		return
-	}
-	cost := titanEffectiveUpgradeCost(*picked, data.SpecialistCraftingKeyword)
-	if data.CreationPointsUsed+cost > data.CreationPointsCap {
-		http.Error(w, "not enough Creation Points remaining", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanExosuitUpgrade, slug, ""); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add titan exo-suit upgrade:", err)
+	if status, msg := s.addTitanExoSuitPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, companionRespondFragment(r))
@@ -1019,7 +1234,7 @@ func (s *server) handleTitanPickDelete(category charstore.ScienceNinSubclassPick
 	}
 }
 
-// handleTitanSpecialistCraftingKeywordSet records (or changes) Specialist
+// setTitanSpecialistCraftingKeyword records (or changes) Specialist
 // Crafting's own single-slot "Mech or Weapon" designation — a single-slot,
 // freely re-picked choice, same "drop whatever's already set, then add the
 // new one" shape Mixed Studies' own single-slot Inquiry pick uses
@@ -1027,6 +1242,37 @@ func (s *server) handleTitanPickDelete(category charstore.ScienceNinSubclassPick
 // achieves the same "cap 1" effect by gating on Used>=Cap instead — this
 // route can't reuse that factory since it isn't keyed off
 // scienceNinToolsTabData, so the drop-then-add is done explicitly here).
+// Same success/failure return shape as addTitanSlotPick, shared the same
+// way between handleTitanSpecialistCraftingKeywordSet (below) and the
+// Titan Slots popup's handleTitanSlotsSpecialistCraftingSet
+// (titan_slots_popup.go).
+func (s *server) setTitanSpecialistCraftingKeyword(id int64, keyword string) (int, string) {
+	if keyword != "mech" && keyword != "weapon" {
+		return http.StatusBadRequest, "keyword must be mech or weapon"
+	}
+	existing, err := charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword)
+	if err != nil {
+		log.Println("load titan specialist crafting keyword:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	for _, p := range existing {
+		if p.OptionSlug == keyword {
+			continue
+		}
+		if err := charstore.RemoveScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword, p.OptionSlug); err != nil {
+			log.Println("clear titan specialist crafting keyword:", err)
+			return http.StatusInternalServerError, "database error"
+		}
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword, keyword, ""); err != nil {
+		log.Println("set titan specialist crafting keyword:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleTitanSpecialistCraftingKeywordSet is the Companions-tab's own AJAX
+// route for setTitanSpecialistCraftingKeyword (above).
 func (s *server) handleTitanSpecialistCraftingKeywordSet(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1038,29 +1284,8 @@ func (s *server) handleTitanSpecialistCraftingKeywordSet(w http.ResponseWriter, 
 		return
 	}
 	keyword := strings.TrimSpace(r.FormValue("keyword"))
-	if keyword != "mech" && keyword != "weapon" {
-		http.Error(w, "keyword must be mech or weapon", http.StatusBadRequest)
-		return
-	}
-	existing, err := charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load titan specialist crafting keyword:", err)
-		return
-	}
-	for _, p := range existing {
-		if p.OptionSlug == keyword {
-			continue
-		}
-		if err := charstore.RemoveScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword, p.OptionSlug); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("clear titan specialist crafting keyword:", err)
-			return
-		}
-	}
-	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickTitanSpecialistCraftingKeyword, keyword, ""); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set titan specialist crafting keyword:", err)
+	if status, msg := s.setTitanSpecialistCraftingKeyword(id, keyword); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, companionRespondFragment(r))

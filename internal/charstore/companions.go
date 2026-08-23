@@ -6,8 +6,13 @@ import (
 )
 
 // Companion is one Puppet/Summon/custom companion sheet — see migration
-// 0017_companions.sql for why every field here is a plain player-entered
-// value rather than anything derived.
+// 0017_companions.sql for the original "every field is plain player-entered"
+// design and cmd/n5e/companions.go's own header for how that's since changed:
+// kind="titan"/"nin-dog"/"snb" (and Puppet Tools) now get these fields
+// auto-computed from a documented formula at creation and on the events that
+// would change them, with a player free to overwrite the computed value
+// afterward. kind="summon"/"custom" still have no formula behind them at all
+// and remain fully manual.
 type Companion struct {
 	ID              int64
 	Kind            string // "puppet", "summon", "custom", "nin-dog", "titan", "snb"
@@ -82,6 +87,13 @@ type Companion struct {
 	MatryoshkaGroupID    sql.NullInt64
 	MatryoshkaJutsuSlots int64
 
+	// SaveProficiencies: which of the six saving throws this companion is
+	// proficient in, comma-separated ability codes (e.g. "str,dex,con") —
+	// see migration 0077's own doc for why this is free text, why it
+	// defaults to '' even for a kind whose rules text names a fixed or
+	// starting set, and why it's never read for kind="puppet".
+	SaveProficiencies string
+
 	SortOrder int
 }
 
@@ -94,7 +106,7 @@ const companionSelectColumns = `id, kind, name, summon_tribe_slug,
 	attacks, traits, notes, armor_chassis, is_armor_form, size,
 	matryoshka_group_id, matryoshka_jutsu_slots, sort_order,
 	nin_dog_breed, jutsu_slots_current, jutsu_slots_max,
-	titan_specialization, barrier_current, barrier_max`
+	titan_specialization, barrier_current, barrier_max, save_proficiencies`
 
 func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 	var c Companion
@@ -105,7 +117,7 @@ func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 		&c.Attacks, &c.Traits, &c.Notes, &c.ArmorChassis, &isArmorForm, &c.Size,
 		&c.MatryoshkaGroupID, &c.MatryoshkaJutsuSlots, &c.SortOrder,
 		&c.NinDogBreed, &c.JutsuSlotsCurrent, &c.JutsuSlotsMax,
-		&c.TitanSpecialization, &c.BarrierCurrent, &c.BarrierMax,
+		&c.TitanSpecialization, &c.BarrierCurrent, &c.BarrierMax, &c.SaveProficiencies,
 	)
 	c.IsArmorForm = isArmorForm != 0
 	return c, err
@@ -371,6 +383,55 @@ func SetTitanStatDefaults(charDB *sql.DB, characterID, companionID int64,
 		WHERE id = ? AND character_id = ?`,
 		ac, hpCurrent, hpMax, speed, barrierCurrent, barrierMax, str, dex, con, intScore, wis, cha,
 		companionID, characterID,
+	)
+	return err
+}
+
+// SetSNBStatDefaults prefills AC/HP-current/HP-max/Speed/six ability scores
+// on a freshly created snb companion from S.N.B Specialist's own computed
+// baseline (see cmd/n5e/snb.go's prefillSNBStatDefaults) — the S.N.B
+// equivalent of SetNinDogStatDefaults/SetTitanStatDefaults just above. No
+// jutsuSlots/barrier params: an S.N.B has neither resource by default (a
+// Combat Programming: Caster pick grants Jutsu Slots, but that count is
+// shown as reference text only, not tracked as a stored pool — see
+// snb.go's own header doc). Every column is written via COALESCE(column,
+// ?), the same "never overwrite an already-set value" contract
+// SetCompanionStatDefaults/SetNinDogStatDefaults/SetTitanStatDefaults
+// document — a field the player has already set is never touched, which is
+// what makes this safe to call again later without risk of clobbering a
+// manual edit.
+func SetSNBStatDefaults(charDB *sql.DB, characterID, companionID int64,
+	ac, hpCurrent, hpMax, speed int64,
+	str, dex, con, intScore, wis, cha int64,
+) error {
+	_, err := charDB.Exec(`
+		UPDATE character_companions SET
+			ac = COALESCE(ac, ?),
+			hp_current = COALESCE(hp_current, ?), hp_max = COALESCE(hp_max, ?),
+			speed = COALESCE(speed, ?),
+			str_score = COALESCE(str_score, ?), dex_score = COALESCE(dex_score, ?),
+			con_score = COALESCE(con_score, ?), int_score = COALESCE(int_score, ?),
+			wis_score = COALESCE(wis_score, ?), cha_score = COALESCE(cha_score, ?),
+			updated_at = datetime('now')
+		WHERE id = ? AND character_id = ?`,
+		ac, hpCurrent, hpMax, speed, str, dex, con, intScore, wis, cha,
+		companionID, characterID,
+	)
+	return err
+}
+
+// SetCompanionSaveProficiencies overwrites one companion's whole saving-
+// throw proficiency list outright (proficiencies is the already-joined
+// comma-separated string — see cmd/n5e/companion_saves.go's own join/parse
+// helpers) — unlike ArmorChassis/NinDogBreed/TitanSpecialization above, this
+// is NOT a locked-once-chosen field, so (unlike those) it carries no CASE
+// WHEN guard: a save proficiency toggle can freely add or remove an ability
+// at any time, the same "ordinary editable field" treatment Speed or an
+// ability score already gets.
+func SetCompanionSaveProficiencies(charDB *sql.DB, characterID, companionID int64, proficiencies string) error {
+	_, err := charDB.Exec(
+		`UPDATE character_companions SET save_proficiencies = ?, updated_at = datetime('now') WHERE id = ? AND character_id = ?`,
+		proficiencies, companionID, characterID,
 	)
 	return err
 }

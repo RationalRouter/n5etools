@@ -1,0 +1,36 @@
+{{/* character_taijutsu_ruin.html: the "Ruin" subclass tracker popup — see
+     cmd/n5e/subclass_tracker_popup.go for the shared pattern. Anti-Chakra
+     Wavelength is a 2-of-10 keyword pick, two independent <select>s — not
+     a catalog picker, so it isn't part of subclassTrackerSection and is
+     hand-rolled here instead (same shape as character_science_nin_
+     technobi.html's own S.E.N.T <select>). Expects {Title, Data
+     (subclassTrackerPopupData), Ruin (*ruinAntiChakraView)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if .Ruin}}
+  <section class="companion-reference">
+    <h3>Anti-Chakra Wavelength</h3>
+    <p class="section-hint">Choose 2 keywords your Martial Techniques from this subclass affect.</p>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/ruin/anti-chakra-wavelength" class="sheet-inline-form">
+      <select name="keyword1" required>
+        <option value="">— choose —</option>
+        {{range .Ruin.Options}}
+        <option value="{{.}}"{{if eq . $.Ruin.Keyword1}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <select name="keyword2" required>
+        <option value="">— choose —</option>
+        {{range .Ruin.Options}}
+        <option value="{{.}}"{{if eq . $.Ruin.Keyword2}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

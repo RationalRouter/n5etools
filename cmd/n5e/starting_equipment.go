@@ -32,6 +32,19 @@ type startingEquipmentLine struct {
 	Text     string // as printed, so an unresolved line still reads naturally
 	Slug     string // "" when the text names nothing in the rules
 	Quantity int
+
+	// IsToolkitChoice marks this line as an unresolved toolkit PICK rather
+	// than a plain unresolved line — the book grants a choice, not one
+	// specific item ("1 Toolkit (pick one)", "3 Toolkits (pick three)", "1
+	// Hackers Kit or Security Kit (pick one)"). Quantity is how many
+	// toolkits the pick grants; ToolkitChoiceOptions is "" for "any toolkit
+	// in the catalog" or a "|"-joined list of specific names for a scoped
+	// choice ("Hackers Kit|Security Kit"). Set only when Slug == "" — see
+	// detectPackToolkitChoice and UnpackedItem/ResolvePackToolkitChoice for
+	// how the placeholder this becomes gets resolved into a real item and a
+	// tool proficiency at unpack time.
+	IsToolkitChoice      bool
+	ToolkitChoiceOptions string
 }
 
 // startingEquipment is a whole parsed equipment_text.
@@ -137,6 +150,43 @@ var packContentOverrides = map[string]struct {
 	"blank data scroll":               {"scroll/data-scroll", 1},
 }
 
+// packToolkitChoicePattern matches a pack-contents segment offering N picks
+// from the whole toolkit catalog: "1 Toolkit (pick one)", "3 Toolkits (pick
+// three)". The number word inside "(pick ...)" always repeats the segment's
+// own leading count in the book's data, so only the leading count (already
+// parsed by parseStartingCount) is used for how many picks to grant.
+var packToolkitChoicePattern = regexp.MustCompile(`(?i)^\d+\s+toolkits?\s*\(pick\s+\w+\)\.?$`)
+
+// packToolkitOrChoicePattern matches a pack-contents segment offering a pick
+// between two specifically named items — "1 Hackers Kit or Security Kit
+// (pick one)". Captures both names as printed; detectPackToolkitChoice
+// still has to confirm both are real toolkits before trusting this as a
+// toolkit choice at all; a structural match on unrelated "X or Y (pick
+// one)" prose (none exists in the five packs today, but nothing stops a
+// future one) must stay honest, unresolved free text instead.
+var packToolkitOrChoicePattern = regexp.MustCompile(`(?i)^\d+\s+(.+?)\s+or\s+(.+?)\s*\(pick\s+\w+\)\.?$`)
+
+// detectPackToolkitChoice recognizes a pack-contents segment that grants a
+// toolkit PICK rather than one specific item, and reports how many picks
+// and from which options (empty means "any toolkit in the live catalog").
+// ok is false for anything else, including a segment that structurally
+// matches packToolkitOrChoicePattern but whose two named options aren't
+// both real toolkits.
+func detectPackToolkitChoice(segment string, toolkitByName map[string]toolkitOption) (count int, options []string, ok bool) {
+	trimmed := strings.TrimSpace(segment)
+	if packToolkitChoicePattern.MatchString(trimmed) {
+		return parseStartingCount(trimmed), nil, true
+	}
+	if m := packToolkitOrChoicePattern.FindStringSubmatch(trimmed); m != nil {
+		a, aok := toolkitByName[normalizeItemName(m[1])]
+		b, bok := toolkitByName[normalizeItemName(m[2])]
+		if aok && bok {
+			return parseStartingCount(trimmed), []string{a.Name, b.Name}, true
+		}
+	}
+	return 0, nil, false
+}
+
 // parsePackContents reads an item's description and returns what it contains,
 // or nil for an item that contains nothing.
 //
@@ -149,10 +199,14 @@ var packContentOverrides = map[string]struct {
 // rules update that adds a sixth pack needs nothing here — any item whose
 // description opens "Contents:" unpacks.
 //
-// Segments that name a choice rather than an item ("1 Toolkit (pick one)",
-// "3 Toolkits (pick three)") come back as free-text lines. That is the honest
-// answer: the pack grants a pick, and the player makes it from the inventory
-// library. Silently choosing for them would be worse.
+// A segment that names a toolkit PICK rather than one item ("1 Toolkit
+// (pick one)", "3 Toolkits (pick three)", "1 Hackers Kit or Security Kit
+// (pick one)") comes back flagged IsToolkitChoice instead of resolved
+// outright — the pack still can't choose FOR the player, but unpacking it
+// now turns the pick into a real dropdown on the sheet (see
+// buildPendingPackToolkitChoiceRows/ResolvePackToolkitChoice) rather than
+// leaving an inert sentence sitting in the inventory with nothing to do
+// with it.
 func (s *server) parsePackContents(description string) ([]startingEquipmentLine, error) {
 	text := strings.TrimSpace(description)
 	if !strings.HasPrefix(text, packContentsPrefix) {
@@ -166,6 +220,14 @@ func (s *server) parsePackContents(description string) ([]startingEquipmentLine,
 	if err != nil {
 		return nil, err
 	}
+	toolkits, err := s.loadToolkitOptions()
+	if err != nil {
+		return nil, err
+	}
+	toolkitByName := make(map[string]toolkitOption, len(toolkits))
+	for _, t := range toolkits {
+		toolkitByName[normalizeItemName(t.Name)] = t
+	}
 
 	var out []startingEquipmentLine
 	for _, segment := range splitEquipmentSentence(text) {
@@ -178,6 +240,13 @@ func (s *server) parsePackContents(description string) ([]startingEquipmentLine,
 			line.Slug = override.Slug
 			if override.Quantity > 0 {
 				line.Quantity = override.Quantity
+			}
+		}
+		if line.Slug == "" {
+			if count, options, ok := detectPackToolkitChoice(segment, toolkitByName); ok {
+				line.IsToolkitChoice = true
+				line.Quantity = count
+				line.ToolkitChoiceOptions = strings.Join(options, "|")
 			}
 		}
 		out = append(out, line)

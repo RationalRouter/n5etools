@@ -51,6 +51,10 @@
        hidden so back-to-top.js's scroll-triggered class toggle can fade it
        in/out, which display:none (what [hidden] maps to) can't animate. */}}
   <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  {{/* Same fade-in-past-a-threshold mechanism as #back-to-top just above,
+       mirrored for the opposite direction (back-to-bottom.js) — placed
+       right next to it so either end of a long page is one click away. */}}
+  <button type="button" id="back-to-bottom" aria-label="Scroll to bottom" title="Scroll to bottom">&darr;</button>
   {{template "dice_roller" .}}
   {{/* First, so its capture-phase listener is registered before any
        fetch-and-swap submit handler further down can act on a form it
@@ -59,6 +63,7 @@
   <script src="/static/js/search.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/back-to-top.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/back-to-bottom.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/subclass-tabs.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/class-outline.js?v={{assetVersion}}" defer></script>
   {{/* Before both of its callers (items-filter.js and sheet-library.js) —
@@ -98,6 +103,7 @@
   <script src="/static/js/sheet-inventory.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-fields.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/companion-popup.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/sheet-companion-collapse.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/reference-popup.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/sheet-puppets.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/sheet-puppet-detail.js?v={{assetVersion}}" defer></script>

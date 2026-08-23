@@ -209,7 +209,7 @@ func TestSplitCompoundGrant(t *testing.T) {
 
 	// And the choice half really does become a pickable dropdown, not
 	// another free-text fallback.
-	row := classifyBackgroundProfValue("skill", "Choose one Ninshou, Martial Arts, Illusions", 1, nil, nil, nil)
+	row := classifyBackgroundProfValue("skill", "Choose one Ninshou, Martial Arts, Illusions", 1, nil, nil, nil, nil)
 	if !row.IsChoice || row.ChooseN != 1 || len(row.Options) != 3 {
 		t.Errorf("choice clause = %+v, want a 1-of-3 picker", row)
 	}

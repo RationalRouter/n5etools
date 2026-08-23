@@ -1,9 +1,10 @@
 // Character sheet click-to-edit boxes and their supporting forms: HP, Temp
-// HP, Base Temp HP, the rest buttons, and Ryo. Everything here posts to one
-// of the /characters/{id}/sheet/{hp,base-temp-hp,rest,ryo} endpoints and
-// gets back a re-rendered fragment (see character_sheet.html's
-// "sheet_vitals"/"sheet_ryo" blocks and characters.go's
-// renderSheetFragment), which replaces its container in place.
+// HP, Base Temp HP, the rest buttons, Ryo, Speed, and the character name.
+// Everything here posts to one of the /characters/{id}/sheet/{hp,base-temp-hp,
+// rest,ryo,speed,name} endpoints and gets back a re-rendered fragment (see
+// character_sheet.html's "sheet_vitals"/"sheet_ryo"/"sheet_header_name"
+// blocks and characters.go's renderSheetFragment), which replaces its
+// container in place.
 //
 // Two reasons everything answers with a fragment instead of redirecting:
 // HP/THP/Chakra/Hit-Dice move together (a rest or a negative HP delta can
@@ -17,6 +18,9 @@
 //   .sheet-edit-box  data-endpoint  where to POST
 //                    data-field     the form field name to send
 //                    data-target    id of the container to swap on success
+//                    data-type      "text" for free-text boxes (the name) —
+//                                   opts out of the numeric/comma parsing
+//                                   every other box uses; omitted elsewhere
 //     [data-role=display]  the button you click to start editing
 //     [data-role=edit]     the input that replaces it
 //   form.sheet-fetch-form  data-target  same, for plain submit-and-swap forms
@@ -69,6 +73,17 @@
     current.outerHTML = html;
     wireAll();
     flashSaveToasts(targetId);
+    // The Companions tab's summons-list box holds every companion card as
+    // plain inner markup, not its own sheet-layout.js-managed box (see
+    // app.css's own comment on why a nested .sheet-box would wrongly sweep
+    // a companion card into the drag/resize grid) — so a companion's own
+    // content growing (an Upgrade installed, a longer feature list at a
+    // new level) never shows up to sheet-layout.js's saved rowSpan on its
+    // own. Scoped to this one fragment id, not every swap target: most
+    // boxes rely on their own overflow:auto scroll on purpose (a capped
+    // Skills list, e.g.), and force-growing them on every unrelated save
+    // would fight that.
+    if (targetId === "sheet-summon-tab" && window.n5eGrowSheetBox) window.n5eGrowSheetBox("summons-list");
   }
 
   // A .sheet-save-toast inside a swapped fragment is a brief on-screen
@@ -140,6 +155,13 @@
   // the server-side handler knows which of its inputs mean what. Sending
   // the raw string keeps that decision in one place instead of splitting it
   // across two languages.
+  //
+  // data-type="text" (the character name box) is the one exception to all
+  // of the above: there's no delta/absolute distinction for free text, so
+  // commas are kept and the numeric-or-cancel check is skipped, and the
+  // input opens pre-filled with the current value (selected, ready to
+  // retype) instead of blank — a numeric box starts blank because the
+  // player is entering a NEW delta, but a rename is editing existing text.
   function wireEditBoxes() {
     document.querySelectorAll(".sheet-edit-box").forEach((box) => {
       if (box.dataset.wired) return;
@@ -150,6 +172,7 @@
       if (!display || !input) return;
       const field = box.dataset.field || "delta";
       const targetId = box.dataset.target;
+      const isText = box.dataset.type === "text";
 
       function closeEdit() {
         display.hidden = false;
@@ -160,7 +183,12 @@
         if (!input.hidden) return; // already editing
         display.hidden = true;
         input.hidden = false;
-        input.value = "";
+        if (isText) {
+          input.value = display.textContent.trim();
+          input.select();
+        } else {
+          input.value = "";
+        }
         input.focus();
       }
 
@@ -183,8 +211,8 @@
         }
         if (e.key !== "Enter") return;
         e.preventDefault();
-        const value = input.value.replace(/,/g, "").trim();
-        if (value === "" || Number.isNaN(Number(value))) {
+        const value = isText ? input.value.trim() : input.value.replace(/,/g, "").trim();
+        if (value === "" || (!isText && Number.isNaN(Number(value)))) {
           closeEdit();
           return;
         }

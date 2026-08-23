@@ -1,0 +1,38 @@
+{{/* character_science_nin_technobi.html: the "Technobi" subclass tracker
+     popup — see cmd/n5e/subclass_tracker_popup.go for the shared pattern.
+     S.E.N.T is a single freely re-editable "which stack is my S.E.N.T"
+     <select>, not a catalog picker — it isn't part of subclassTrackerSection,
+     so it's hand-rolled here rather than routed through the shared
+     subclass_tracker_section partial (same shape as character_titan_slots.
+     html's own Specialist Crafting <select>). Expects {Title, Data
+     (subclassTrackerPopupData), Technobi (*scienceNinTechnobiData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+  {{if .Technobi.SENTOptions}}
+  <section class="companion-reference">
+    <h3>S.E.N.T</h3>
+    <p class="section-hint">During a Short Rest, work an Arrow/Bolt/Kunai/Shuriken/Senbon stack into your S.E.N.T — freely re-workable at any later Short Rest.</p>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/science-nin/technobi/sent" class="sheet-inline-form">
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— none worked yet —</option>
+        {{range .Technobi.SENTOptions}}
+        <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.Technobi.SENTCurrent}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .Technobi.SENTCurrent}}{{range .Technobi.SENTOptions}}{{if eq .Value $.Technobi.SENTCurrent}}{{.Description}}{{end}}{{end}}{{else}}It deals 1d12 damage and uses Intelligence in place of Dexterity for attack and damage rolls.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

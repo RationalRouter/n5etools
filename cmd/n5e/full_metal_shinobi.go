@@ -171,10 +171,49 @@ func fullMetalShinobiPassiveTraitSlug(damageType string) string {
 	return scienceNinFullMetalShinobiFeatureSlug + "/resistance/" + strings.ToLower(damageType)
 }
 
+// setFullMetalShinobiResistancePick validates and stores one resistance
+// slot's pick — shared by handleFullMetalShinobiResistanceAdd's own
+// Core-sheet AJAX route and the Shinobi-Ware subclass tracker popup's own
+// redirect-based equivalent (science_nin_shinobi_ware_popup.go), so both
+// routes validate identically. Re-derives the character's own currently-open
+// slots server-side rather than trusting the form, same boundary
+// handleElementalAffinityAdd already draws.
+func (s *server) setFullMetalShinobiResistancePick(id int64, slotKey, damageType string) (int, string) {
+	if !fullMetalShinobiSlotKeys[slotKey] {
+		return http.StatusBadRequest, "unknown resistance slot"
+	}
+
+	level := s.characterLevel(id)
+	picks, err := charstore.ListFullMetalShinobiResistances(s.charDB, id)
+	if err != nil {
+		log.Println("load full-metal shinobi picks for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+
+	var matched *fullMetalShinobiSlot
+	for _, slot := range fullMetalShinobiSlots(level, picks) {
+		if slot.SlotKey == slotKey {
+			s := slot
+			matched = &s
+			break
+		}
+	}
+	if matched == nil {
+		return http.StatusBadRequest, "this resistance slot isn't open for this character"
+	}
+	if !slices.Contains(matched.Options, damageType) {
+		return http.StatusBadRequest, "not a valid choice for this slot"
+	}
+
+	if err := charstore.SetFullMetalShinobiResistance(s.charDB, id, slotKey, damageType); err != nil {
+		log.Println("set full-metal shinobi resistance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
 // handleFullMetalShinobiResistanceAdd sets (or changes) one resistance
-// slot's pick (form fields "slot_key", "damage_type"). Re-derives the
-// character's own currently-open slots server-side rather than trusting the
-// form, same boundary handleElementalAffinityAdd already draws.
+// slot's pick (form fields "slot_key", "damage_type") from the Core sheet.
 func (s *server) handleFullMetalShinobiResistanceAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -187,39 +226,8 @@ func (s *server) handleFullMetalShinobiResistanceAdd(w http.ResponseWriter, r *h
 	}
 	slotKey := strings.TrimSpace(r.FormValue("slot_key"))
 	damageType := strings.TrimSpace(r.FormValue("damage_type"))
-	if !fullMetalShinobiSlotKeys[slotKey] {
-		http.Error(w, "unknown resistance slot", http.StatusBadRequest)
-		return
-	}
-
-	level := s.characterLevel(id)
-	picks, err := charstore.ListFullMetalShinobiResistances(s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load full-metal shinobi picks for add:", err)
-		return
-	}
-
-	var matched *fullMetalShinobiSlot
-	for _, slot := range fullMetalShinobiSlots(level, picks) {
-		if slot.SlotKey == slotKey {
-			s := slot
-			matched = &s
-			break
-		}
-	}
-	if matched == nil {
-		http.Error(w, "this resistance slot isn't open for this character", http.StatusBadRequest)
-		return
-	}
-	if !slices.Contains(matched.Options, damageType) {
-		http.Error(w, "not a valid choice for this slot", http.StatusBadRequest)
-		return
-	}
-
-	if err := charstore.SetFullMetalShinobiResistance(s.charDB, id, slotKey, damageType); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set full-metal shinobi resistance:", err)
+	if status, msg := s.setFullMetalShinobiResistancePick(id, slotKey, damageType); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_science_nin")

@@ -1,0 +1,11 @@
+-- Ninjaneer's Warrior of Science (9th level, Science-Nin subclass): "As an
+-- Action you can spend 20 CCD chakra and turn an Enhanced Weapon you are
+-- holding into a Legendary Weapon. You must pay 10 CCD chakra at the start
+-- of your turn to maintain this benefit." No equipment row backs this
+-- state — it is temporary, CCD-funded, and independent of WHICH weapon is
+-- currently designated Legendary (that designation lives in the generic
+-- character_science_nin_subclass_picks store, see cmd/n5e/ninjaneer.go) — so, same as
+-- Exoskeleton's own donned/doffed state (0043_exoskeleton_donned.sql), it
+-- needs its own boolean rather than an equipment/inventory flag to hang
+-- off of.
+ALTER TABLE characters ADD COLUMN ninjaneer_legendary_weapon_active INTEGER NOT NULL DEFAULT 0 CHECK (ninjaneer_legendary_weapon_active IN (0,1));

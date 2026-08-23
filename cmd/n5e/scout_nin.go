@@ -981,6 +981,13 @@ func splitScoutNinPicks(catalog []scoutNinPickOption, picked map[string]bool) (k
 // character with no Scout-Nin levels, same "no empty state" treatment
 // every other class box establishes.
 type scoutNinTabData struct {
+	// TechniqueName is the character's own chosen Scouting Technique's
+	// display name (e.g. "Arbiter Scout"), "" until 3rd level — mirrors
+	// hunterTechniquesTabData's own CreedName exactly, including its use
+	// as the Core sheet's sidebar-button gate for the "Scouting Technique"
+	// subclass tracker popup (scout_nin_scouting_technique_popup.go).
+	TechniqueName string
+
 	ShinobiAdeptCap       int
 	ShinobiAdeptUsed      int
 	KnownShinobiAdept     []knownScoutNinPick
@@ -1158,10 +1165,11 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 		data.KnownSignatureTechnique, data.AvailableSignatureTechnique = splitScoutNinPicks(catalog, pickedSet)
 	}
 
-	subclassSlug, _, err := s.scoutNinSubclassSlug(characterID)
+	subclassSlug, subclassName, err := s.scoutNinSubclassSlug(characterID)
 	if err != nil {
 		return nil, err
 	}
+	data.TechniqueName = subclassName
 	if subclassSlug != "" {
 		data.ManeuversCap = scoutNinManeuversKnownCap(subclassSlug, scoutNinLevel)
 		data.ManeuversCap += scoutManeuversCapBonus(grantedFeatures)
@@ -1330,6 +1338,57 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 	return data, nil
 }
 
+// scoutNinPickAddCore validates and stores one category's pick — the
+// shared validate+mutate path handleScoutNinPickAdd's Core-sheet AJAX
+// route and scoutNinTrackerPopupAdd's Scouting Technique popup route
+// (scout_nin_scouting_technique_popup.go) both call, so the two response
+// shapes (fragment swap vs. redirect) can never drift apart on what they
+// actually validate. Mirrors hunterPickAddCore's own shape (hunter_nin.go).
+func (s *server) scoutNinPickAddCore(
+	id int64,
+	category charstore.ScoutNinPickCategory,
+	used func(*scoutNinTabData) int,
+	cap func(*scoutNinTabData) int,
+	available func(*scoutNinTabData) []scoutNinPickOption,
+	rawSlug string,
+) (int, string) {
+	slug := rawSlug
+	if slug == "" {
+		return http.StatusBadRequest, "missing pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for scout-nin pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadScoutNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load scout-nin for add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no levels in Scout-Nin"
+	}
+	if used(data) >= cap(data) {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	valid := false
+	for _, o := range available(data) {
+		if o.Slug == slug {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddScoutNinPick(s.charDB, id, category, slug); err != nil {
+		log.Println("add scout-nin pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
 // handleScoutNinPickAdd builds one category's "learn a pick" route — shared
 // since Shinobi Adept and Jack of All validate/store identically, differing
 // only in which of scoutNinTabData's own fields govern the cap and the
@@ -1351,47 +1410,40 @@ func (s *server) handleScoutNinPickAdd(
 			return
 		}
 		slug := strings.TrimSpace(r.FormValue("option_slug"))
-		if slug == "" {
-			http.Error(w, "missing pick", http.StatusBadRequest)
-			return
-		}
-		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("compute sheet for scout-nin pick add:", err)
-			return
-		}
-		data, err := s.loadScoutNinTabData(id, sheet)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load scout-nin for add:", err)
-			return
-		}
-		if data == nil {
-			http.Error(w, "character has no levels in Scout-Nin", http.StatusBadRequest)
-			return
-		}
-		if used(data) >= cap(data) {
-			http.Error(w, "no slots remaining", http.StatusBadRequest)
-			return
-		}
-		valid := false
-		for _, o := range available(data) {
-			if o.Slug == slug {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			http.Error(w, "not a valid pick", http.StatusBadRequest)
-			return
-		}
-		if err := charstore.AddScoutNinPick(s.charDB, id, category, slug); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("add scout-nin pick:", err)
+		if status, msg := s.scoutNinPickAddCore(id, category, used, cap, available, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
 			return
 		}
 		s.respondSheet(w, r, id, "sheet_scout_nin")
+	}
+}
+
+// scoutNinTrackerPopupAdd is scoutNinPickAddCore's own popup-flavored
+// wrapper — same validation, redirecting back to the Scouting Technique
+// popup's own URL instead of swapping the Core sheet's sheet_scout_nin
+// fragment. Mirrors hunterNinTrackerPopupAdd's own shape (hunter_nin.go).
+func (s *server) scoutNinTrackerPopupAdd(
+	category charstore.ScoutNinPickCategory,
+	used func(*scoutNinTabData) int,
+	cap func(*scoutNinTabData) int,
+	available func(*scoutNinTabData) []scoutNinPickOption,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseCharacterID(r)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		slug := strings.TrimSpace(r.FormValue("option_slug"))
+		if status, msg := s.scoutNinPickAddCore(id, category, used, cap, available, slug); status != http.StatusOK {
+			http.Error(w, msg, status)
+			return
+		}
+		http.Redirect(w, r, scoutingTechniquePopupPath(id), http.StatusSeeOther)
 	}
 }
 
@@ -1490,6 +1542,43 @@ var changeOfHeartOptions = []featureChoiceOption{
 }
 
 // handleChangeOfHeart records Change of Heart's re-selectable benefit pick.
+// setChangeOfHeart validates and stores Change of Heart's re-selectable
+// benefit pick — shared by handleChangeOfHeart's own Core-sheet AJAX route
+// and the Scouting Technique popup's own route (scout_nin_scouting_
+// technique_popup.go). Mirrors setHandWrapsOfPassion's own shape
+// (taijutsu.go).
+func (s *server) setChangeOfHeart(id int64, value string) (int, string) {
+	valid := false
+	for _, o := range changeOfHeartOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for change of heart:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		log.Println("load granted features for change of heart:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if !hasGrantedFeature(grantedFeatures, changeOfHeartFeatureSlug) {
+		return http.StatusBadRequest, "character has not reached Change of Heart"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, changeOfHeartFeatureSlug, 0, value); err != nil {
+		log.Println("set change of heart:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleChangeOfHeart is setChangeOfHeart's own Core-sheet AJAX wrapper.
 func (s *server) handleChangeOfHeart(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1501,36 +1590,8 @@ func (s *server) handleChangeOfHeart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	valid := false
-	for _, o := range changeOfHeartOptions {
-		if o.Value == value {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for change of heart:", err)
-		return
-	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load granted features for change of heart:", err)
-		return
-	}
-	if !hasGrantedFeature(grantedFeatures, changeOfHeartFeatureSlug) {
-		http.Error(w, "character has not reached Change of Heart", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, changeOfHeartFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set change of heart:", err)
+	if status, msg := s.setChangeOfHeart(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_scout_nin")
@@ -1557,8 +1618,44 @@ var paragonsPresenceOptions = []featureChoiceOption{
 	{Value: "frightened", Label: "Frightened", Description: "Allied creatures within 30 feet of you are immune to the Frightened condition."},
 }
 
-// handleParagonsPresence records Paragon's Presence's re-selectable
-// condition-immunity pick — mirrors handleChangeOfHeart exactly.
+// setParagonsPresence validates and stores Paragon's Presence's
+// re-selectable condition-immunity pick — mirrors setChangeOfHeart exactly,
+// shared by handleParagonsPresence's own Core-sheet AJAX route and the
+// Scouting Technique popup's own route (scout_nin_scouting_technique_
+// popup.go).
+func (s *server) setParagonsPresence(id int64, value string) (int, string) {
+	valid := false
+	for _, o := range paragonsPresenceOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for paragons presence:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		log.Println("load granted features for paragons presence:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if !hasGrantedFeature(grantedFeatures, paragonsPresenceFeatureSlug) {
+		return http.StatusBadRequest, "character has not reached Paragon's Presence"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, paragonsPresenceFeatureSlug, 0, value); err != nil {
+		log.Println("set paragons presence:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleParagonsPresence is setParagonsPresence's own Core-sheet AJAX
+// wrapper.
 func (s *server) handleParagonsPresence(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1570,36 +1667,8 @@ func (s *server) handleParagonsPresence(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	valid := false
-	for _, o := range paragonsPresenceOptions {
-		if o.Value == value {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for paragons presence:", err)
-		return
-	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load granted features for paragons presence:", err)
-		return
-	}
-	if !hasGrantedFeature(grantedFeatures, paragonsPresenceFeatureSlug) {
-		http.Error(w, "character has not reached Paragon's Presence", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, paragonsPresenceFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set paragons presence:", err)
+	if status, msg := s.setParagonsPresence(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_scout_nin")

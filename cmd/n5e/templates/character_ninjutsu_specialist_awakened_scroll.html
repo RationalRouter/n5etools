@@ -1,0 +1,47 @@
+{{/* character_ninjutsu_specialist_awakened_scroll.html: the "Awakened
+     Scroll" subclass tracker popup — see cmd/n5e/subclass_tracker_popup.go
+     for the shared pattern. Sourced from the character's own known Ninjutsu
+     (knownJutsuOption) rather than a rules-database catalog, so this is
+     hand-rolled with "jutsu_id" form fields rather than routed through the
+     shared subclass_tracker_section partial (hard-coded to "option_slug") —
+     same shape character_taijutsu_stancer.html's own hand-rolled stance
+     selects use for an unrelated reason. Expects {Title, Data
+     (subclassTrackerPopupData), NinjutsuSpecialist
+     (*ninjutsuSpecialistTabData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Awakened Scroll <span class="option-picker-epithet">{{.NinjutsuSpecialist.AwakenedScrollUsed}}/{{.NinjutsuSpecialist.AwakenedScrollCap}} seals</span></h3>
+    <p class="section-hint">Jutsu sealed from another source (a scroll, a willing creature) instead of your own known jutsu isn't tracked here — apply that by hand.</p>
+    {{range .NinjutsuSpecialist.KnownAwakenedScroll}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.Data.CharacterID}}/ninjutsu-specialist/awakened-scroll/delete" class="sheet-inline-form">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}} seal" title="Remove seal">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .NinjutsuSpecialist.AwakenedScrollUsed .NinjutsuSpecialist.AwakenedScrollCap}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/ninjutsu-specialist/awakened-scroll/add" class="sheet-panel-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .NinjutsuSpecialist.AvailableAwakenedScroll}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Seal Jutsu</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+</div>
+{{end}}

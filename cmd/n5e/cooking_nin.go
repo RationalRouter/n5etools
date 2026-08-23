@@ -1305,12 +1305,49 @@ func (s *server) handleFoodForTheSoul(w http.ResponseWriter, r *http.Request) {
 	s.respondSheet(w, r, id, "sheet_cooking_nin")
 }
 
-// handleFastAndFurious records Fast and Furious's re-selectable Initiative
-// ability pick (Intelligence or Charisma in place of Dexterity) — only the
-// pick is tracked; internal/charsheet.Compute reads it back as
+// setFastAndFurious validates and stores Fast and Furious's re-selectable
+// Initiative ability pick (Intelligence or Charisma in place of Dexterity)
+// — only the pick is tracked; internal/charsheet.Compute reads it back as
 // InitiativeAbility's own default (still overridable by the sheet's
 // existing Adjust-Initiative dropdown, same override-beats-default shape
-// every other Initiative source on this sheet already follows).
+// every other Initiative source on this sheet already follows). Extracted
+// from handleFastAndFurious so the Fast and Furious popup (cooking_nin_
+// fast_and_furious_popup.go) shares the identical validation path as the
+// Core-sheet's own AJAX route instead of reimplementing it — same
+// "extract, don't duplicate" shape addAwakenedScrollPick (ninjutsu_
+// specialist.go) establishes.
+func (s *server) setFastAndFurious(id int64, value string) (int, string) {
+	valid := false
+	for _, o := range fastAndFuriousOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for fast and furious:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		log.Println("load granted features for fast and furious:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if !hasGrantedFeature(grantedFeatures, fastAndFuriousFeatureSlug) {
+		return http.StatusBadRequest, "character does not have Fast and Furious"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, fastAndFuriousFeatureSlug, 0, value); err != nil {
+		log.Println("set fast and furious:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleFastAndFurious is setFastAndFurious's own Core-sheet AJAX wrapper.
 func (s *server) handleFastAndFurious(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1322,36 +1359,8 @@ func (s *server) handleFastAndFurious(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	valid := false
-	for _, o := range fastAndFuriousOptions {
-		if o.Value == value {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for fast and furious:", err)
-		return
-	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load granted features for fast and furious:", err)
-		return
-	}
-	if !hasGrantedFeature(grantedFeatures, fastAndFuriousFeatureSlug) {
-		http.Error(w, "character does not have Fast and Furious", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, fastAndFuriousFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set fast and furious:", err)
+	if status, msg := s.setFastAndFurious(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")
@@ -1771,7 +1780,76 @@ func (s *server) handleCookingToolPropertyL11(w http.ResponseWriter, r *http.Req
 // exactly, gated on cookingToolInfusionPipeEffectiveLevel instead of
 // cookingToolInfusionEffectiveLevel and syncing the Pipe's own disjoint
 // inventory slug prefix (syncCookingToolInfusionPipeInventory) instead of
-// the base tool's.
+// the base tool's. Extracted from handleCookingToolPipeImplement so the
+// Pipe popup (cooking_nin_pipe_popup.go) shares the identical validation
+// path as the Core-sheet's own AJAX route instead of reimplementing it —
+// same "extract, don't duplicate" shape addAwakenedScrollPick (ninjutsu_
+// specialist.go) establishes. Equipping/unequipping the implement here
+// still re-syncs the character's real inventory (syncCookingToolInfusion
+// PipeInventory) exactly as the Core-sheet route does — the popup's own
+// window has no live DOM link back to the Core sheet's Inventory/Attacks
+// boxes to refresh in place (see subclass_tracker_popup.go's own header
+// doc on this pattern's plain POST-and-redirect convention), so a stale
+// Inventory box on the Core sheet's own window only catches up once that
+// window is reloaded, the same accepted gap Ninjaneer's own Enhanced
+// Weapon/Legendary Weapon popup picks already draw.
+func (s *server) setCookingToolPipeImplement(id int64, value string) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for cooking tool pipe implement:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	if err != nil {
+		log.Println("load cooking tool infusion pipe level:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if toolLevel == 0 {
+		return http.StatusBadRequest, "character does not have Bonus Tool Infusion: Pipe"
+	}
+	choices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		log.Println("load feature choices for cooking tool pipe implement:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceImplement)] != "" {
+		return http.StatusBadRequest, "Pipe implement is already chosen and cannot be changed"
+	}
+	if value != "" {
+		catalog, err := s.loadCookingToolPipeImplementCatalog()
+		if err != nil {
+			log.Println("load cooking tool pipe implement catalog:", err)
+			return http.StatusInternalServerError, "database error"
+		}
+		valid := false
+		for _, o := range catalog {
+			if o.Value == value {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return http.StatusBadRequest, "not a valid Pipe implement"
+		}
+	}
+	if value == "" {
+		if err := charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement); err != nil {
+			log.Println("clear cooking tool pipe implement:", err)
+			return http.StatusInternalServerError, "database error"
+		}
+	} else if err := charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement, value); err != nil {
+		log.Println("set cooking tool pipe implement:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if err := s.syncCookingToolInfusionPipeInventory(id, value); err != nil {
+		log.Println("sync cooking tool infusion pipe inventory:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleCookingToolPipeImplement is setCookingToolPipeImplement's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleCookingToolPipeImplement(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1783,74 +1861,69 @@ func (s *server) handleCookingToolPipeImplement(w http.ResponseWriter, r *http.R
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setCookingToolPipeImplement(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// setCookingToolPipeDamageType validates and stores the 3rd-level Pipe
+// damage-type pick (Bludgeoning/Piercing/Slashing) — locked once chosen,
+// no inventory sync needed (the damage TYPE isn't a separate item, just an
+// attribute buildAttacks reads back via
+// cookingToolInfusionPipeAttackOverrides). Extracted from
+// handleCookingToolPipeDamageType so the Pipe popup (cooking_nin_pipe_
+// popup.go) shares the identical validation path as the Core-sheet's own
+// AJAX route instead of reimplementing it.
+func (s *server) setCookingToolPipeDamageType(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for cooking tool pipe implement:", err)
-		return
+		log.Println("compute sheet for cooking tool pipe damage type:", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking tool infusion pipe level:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
 	if toolLevel == 0 {
-		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "character does not have Bonus Tool Infusion: Pipe"
 	}
 	choices, err := features.LoadFeatureChoices(s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for cooking tool pipe implement:", err)
-		return
+		log.Println("load feature choices for cooking tool pipe damage type:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceImplement)] != "" {
-		http.Error(w, "Pipe implement is already chosen and cannot be changed", http.StatusBadRequest)
-		return
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceDamageType)] != "" {
+		return http.StatusBadRequest, "Pipe damage type is already chosen and cannot be changed"
 	}
 	if value != "" {
-		catalog, err := s.loadCookingToolPipeImplementCatalog()
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load cooking tool pipe implement catalog:", err)
-			return
-		}
 		valid := false
-		for _, o := range catalog {
+		for _, o := range cookingToolDamageTypeOptions {
 			if o.Value == value {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			http.Error(w, "not a valid Pipe implement", http.StatusBadRequest)
-			return
+			return http.StatusBadRequest, "not a valid damage type"
 		}
 	}
 	if value == "" {
-		if err := charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("clear cooking tool pipe implement:", err)
-			return
-		}
-	} else if err := charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceImplement, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set cooking tool pipe implement:", err)
-		return
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType)
+	} else {
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType, value)
 	}
-	if err := s.syncCookingToolInfusionPipeInventory(id, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("sync cooking tool infusion pipe inventory:", err)
-		return
+	if err != nil {
+		log.Println("set cooking tool pipe damage type:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_cooking_nin")
+	return http.StatusOK, ""
 }
 
-// handleCookingToolPipeDamageType records the 3rd-level Pipe damage-type
-// pick (Bludgeoning/Piercing/Slashing) — locked once chosen, no inventory
-// sync needed (the damage TYPE isn't a separate item, just an attribute
-// buildAttacks reads back via cookingToolInfusionPipeAttackOverrides).
+// handleCookingToolPipeDamageType is setCookingToolPipeDamageType's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleCookingToolPipeDamageType(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1862,61 +1935,67 @@ func (s *server) handleCookingToolPipeDamageType(w http.ResponseWriter, r *http.
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setCookingToolPipeDamageType(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// setCookingToolPipePropertyL3 validates and stores the Pipe's own
+// 3rd-level weapon-property pick (Deep Breath/Didn't Know You Was Chill
+// Like That/Herb In the Pipe) — locked once chosen. Extracted from
+// handleCookingToolPipePropertyL3 so the Pipe popup (cooking_nin_pipe_
+// popup.go) shares the identical validation path as the Core-sheet's own
+// AJAX route instead of reimplementing it.
+func (s *server) setCookingToolPipePropertyL3(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for cooking tool pipe damage type:", err)
-		return
+		log.Println("compute sheet for cooking tool pipe property (3rd):", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking tool infusion pipe level:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
 	if toolLevel == 0 {
-		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "character does not have Bonus Tool Infusion: Pipe"
 	}
 	choices, err := features.LoadFeatureChoices(s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for cooking tool pipe damage type:", err)
-		return
+		log.Println("load feature choices for cooking tool pipe property (3rd):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoiceDamageType)] != "" {
-		http.Error(w, "Pipe damage type is already chosen and cannot be changed", http.StatusBadRequest)
-		return
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL3)] != "" {
+		return http.StatusBadRequest, "Pipe 3rd-level property is already chosen and cannot be changed"
 	}
 	if value != "" {
 		valid := false
-		for _, o := range cookingToolDamageTypeOptions {
+		for _, o := range cookingToolPipePropertyL3Options {
 			if o.Value == value {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			http.Error(w, "not a valid damage type", http.StatusBadRequest)
-			return
+			return http.StatusBadRequest, "not a valid 3rd-level property"
 		}
 	}
 	if value == "" {
-		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType)
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3)
 	} else {
-		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoiceDamageType, value)
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3, value)
 	}
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set cooking tool pipe damage type:", err)
-		return
+		log.Println("set cooking tool pipe property (3rd):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_cooking_nin")
+	return http.StatusOK, ""
 }
 
-// handleCookingToolPipePropertyL3 records the Pipe's own 3rd-level
-// weapon-property pick (Deep Breath/Didn't Know You Was Chill Like That/
-// Herb In the Pipe) — locked once chosen.
+// handleCookingToolPipePropertyL3 is setCookingToolPipePropertyL3's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleCookingToolPipePropertyL3(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1928,61 +2007,67 @@ func (s *server) handleCookingToolPipePropertyL3(w http.ResponseWriter, r *http.
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setCookingToolPipePropertyL3(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// setCookingToolPipePropertyL6 validates and stores the Pipe's own
+// 6th-level weapon-property pick (Inhaled Herb/Deeper Breath/Harsh Inhale)
+// — gated on the character having reached 6th level, and locked once
+// chosen. Extracted from handleCookingToolPipePropertyL6 so the Pipe popup
+// (cooking_nin_pipe_popup.go) shares the identical validation path as the
+// Core-sheet's own AJAX route instead of reimplementing it.
+func (s *server) setCookingToolPipePropertyL6(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for cooking tool pipe property (3rd):", err)
-		return
+		log.Println("compute sheet for cooking tool pipe property (6th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking tool infusion pipe level:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
-	if toolLevel == 0 {
-		http.Error(w, "character does not have Bonus Tool Infusion: Pipe", http.StatusBadRequest)
-		return
+	if toolLevel < 6 {
+		return http.StatusBadRequest, "character has not reached 6th level in Bonus Tool Infusion: Pipe"
 	}
 	choices, err := features.LoadFeatureChoices(s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for cooking tool pipe property (3rd):", err)
-		return
+		log.Println("load feature choices for cooking tool pipe property (6th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL3)] != "" {
-		http.Error(w, "Pipe 3rd-level property is already chosen and cannot be changed", http.StatusBadRequest)
-		return
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL6)] != "" {
+		return http.StatusBadRequest, "Pipe 6th-level property is already chosen and cannot be changed"
 	}
 	if value != "" {
 		valid := false
-		for _, o := range cookingToolPipePropertyL3Options {
+		for _, o := range cookingToolPipePropertyL6Options {
 			if o.Value == value {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			http.Error(w, "not a valid 3rd-level property", http.StatusBadRequest)
-			return
+			return http.StatusBadRequest, "not a valid 6th-level property"
 		}
 	}
 	if value == "" {
-		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3)
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6)
 	} else {
-		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL3, value)
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6, value)
 	}
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set cooking tool pipe property (3rd):", err)
-		return
+		log.Println("set cooking tool pipe property (6th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_cooking_nin")
+	return http.StatusOK, ""
 }
 
-// handleCookingToolPipePropertyL6 records the Pipe's own 6th-level
-// weapon-property pick (Inhaled Herb/Deeper Breath/Harsh Inhale) — gated on
-// the character having reached 6th level, and locked once chosen.
+// handleCookingToolPipePropertyL6 is setCookingToolPipePropertyL6's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleCookingToolPipePropertyL6(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1994,61 +2079,67 @@ func (s *server) handleCookingToolPipePropertyL6(w http.ResponseWriter, r *http.
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setCookingToolPipePropertyL6(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// setCookingToolPipePropertyL11 validates and stores the Pipe's own
+// 11th-level weapon-property pick (Constant Smoke/Quick Inhale) — gated on
+// the character having reached 11th level, and locked once chosen.
+// Extracted from handleCookingToolPipePropertyL11 so the Pipe popup
+// (cooking_nin_pipe_popup.go) shares the identical validation path as the
+// Core-sheet's own AJAX route instead of reimplementing it.
+func (s *server) setCookingToolPipePropertyL11(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for cooking tool pipe property (6th):", err)
-		return
+		log.Println("compute sheet for cooking tool pipe property (11th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
 	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking tool infusion pipe level:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
-	if toolLevel < 6 {
-		http.Error(w, "character has not reached 6th level in Bonus Tool Infusion: Pipe", http.StatusBadRequest)
-		return
+	if toolLevel < 11 {
+		return http.StatusBadRequest, "character has not reached 11th level in Bonus Tool Infusion: Pipe"
 	}
 	choices, err := features.LoadFeatureChoices(s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for cooking tool pipe property (6th):", err)
-		return
+		log.Println("load feature choices for cooking tool pipe property (11th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL6)] != "" {
-		http.Error(w, "Pipe 6th-level property is already chosen and cannot be changed", http.StatusBadRequest)
-		return
+	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL11)] != "" {
+		return http.StatusBadRequest, "Pipe 11th-level property is already chosen and cannot be changed"
 	}
 	if value != "" {
 		valid := false
-		for _, o := range cookingToolPipePropertyL6Options {
+		for _, o := range cookingToolPipePropertyL11Options {
 			if o.Value == value {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			http.Error(w, "not a valid 6th-level property", http.StatusBadRequest)
-			return
+			return http.StatusBadRequest, "not a valid 11th-level property"
 		}
 	}
 	if value == "" {
-		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6)
+		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11)
 	} else {
-		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL6, value)
+		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11, value)
 	}
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set cooking tool pipe property (6th):", err)
-		return
+		log.Println("set cooking tool pipe property (11th):", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_cooking_nin")
+	return http.StatusOK, ""
 }
 
-// handleCookingToolPipePropertyL11 records the Pipe's own 11th-level
-// weapon-property pick (Constant Smoke/Quick Inhale) — gated on the
-// character having reached 11th level, and locked once chosen.
+// handleCookingToolPipePropertyL11 is setCookingToolPipePropertyL11's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleCookingToolPipePropertyL11(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -2060,64 +2151,76 @@ func (s *server) handleCookingToolPipePropertyL11(w http.ResponseWriter, r *http
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setCookingToolPipePropertyL11(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_cooking_nin")
+}
+
+// setBattleCookExpertCombatantWeapon validates and stores Battle Cook's own
+// Expert Combatant weapon-type pick — distinct from Combat Medic's own
+// unrelated "Expert Combatant" feature (Medical-Nin, medical_nin.go's
+// handleExpertCombatantAdd/handleExpertCombatantDelete); the two classes'
+// features simply share a printed name, nothing else. Locked once chosen
+// (see the doc comment above expertCombatantFeatureSlug). Extracted from
+// handleBattleCookExpertCombatantWeapon so the Expert Combatant popup
+// (cooking_nin_expert_combatant_popup.go) shares the identical validation
+// path as the Core-sheet's own AJAX route instead of reimplementing it —
+// same "extract, don't duplicate" shape setFastAndFurious above establishes.
+func (s *server) setBattleCookExpertCombatantWeapon(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for cooking tool pipe property (11th):", err)
-		return
+		log.Println("compute sheet for expert combatant weapon:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	toolLevel, err := s.cookingToolInfusionPipeEffectiveLevel(id, sheet)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load cooking tool infusion pipe level:", err)
-		return
+		log.Println("load granted features for expert combatant weapon:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if toolLevel < 11 {
-		http.Error(w, "character has not reached 11th level in Bonus Tool Infusion: Pipe", http.StatusBadRequest)
-		return
+	if !hasGrantedFeature(grantedFeatures, expertCombatantFeatureSlug) {
+		return http.StatusBadRequest, "character does not have Expert Combatant"
 	}
 	choices, err := features.LoadFeatureChoices(s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for cooking tool pipe property (11th):", err)
-		return
+		log.Println("load feature choices for expert combatant weapon:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	if choices[cookingToolPipeChoiceKey(cookingToolPipeChoicePropertyL11)] != "" {
-		http.Error(w, "Pipe 11th-level property is already chosen and cannot be changed", http.StatusBadRequest)
-		return
+	if choices[features.ChoiceKey{FeatureSlug: expertCombatantFeatureSlug, ChoiceIndex: 0}] != "" {
+		return http.StatusBadRequest, "Expert Combatant weapon is already chosen and cannot be changed"
 	}
 	if value != "" {
+		catalog, err := s.loadExpertCombatantWeaponCatalog()
+		if err != nil {
+			log.Println("load expert combatant weapon catalog:", err)
+			return http.StatusInternalServerError, "database error"
+		}
 		valid := false
-		for _, o := range cookingToolPipePropertyL11Options {
+		for _, o := range catalog {
 			if o.Value == value {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			http.Error(w, "not a valid 11th-level property", http.StatusBadRequest)
-			return
+			return http.StatusBadRequest, "not a valid weapon"
 		}
 	}
 	if value == "" {
-		err = charstore.ClearFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11)
+		err = charstore.ClearFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0)
 	} else {
-		err = charstore.SetFeatureChoice(s.charDB, id, bonusToolInfusionPipeFeatureSlug, cookingToolPipeChoicePropertyL11, value)
+		err = charstore.SetFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0, value)
 	}
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set cooking tool pipe property (11th):", err)
-		return
+		log.Println("set expert combatant weapon:", err)
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_cooking_nin")
+	return http.StatusOK, ""
 }
 
-// handleBattleCookExpertCombatantWeapon records Battle Cook's own Expert
-// Combatant weapon-type pick — distinct from Combat Medic's own unrelated
-// "Expert Combatant" feature (Medical-Nin, medical_nin.go's
-// handleExpertCombatantAdd/handleExpertCombatantDelete); the two classes'
-// features simply share a printed name, nothing else. Locked once chosen
-// (see the doc comment above expertCombatantFeatureSlug).
+// handleBattleCookExpertCombatantWeapon is
+// setBattleCookExpertCombatantWeapon's own Core-sheet AJAX wrapper.
 func (s *server) handleBattleCookExpertCombatantWeapon(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -2129,70 +2232,66 @@ func (s *server) handleBattleCookExpertCombatantWeapon(w http.ResponseWriter, r 
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for expert combatant weapon:", err)
-		return
-	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load granted features for expert combatant weapon:", err)
-		return
-	}
-	if !hasGrantedFeature(grantedFeatures, expertCombatantFeatureSlug) {
-		http.Error(w, "character does not have Expert Combatant", http.StatusBadRequest)
-		return
-	}
-	choices, err := features.LoadFeatureChoices(s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feature choices for expert combatant weapon:", err)
-		return
-	}
-	if choices[features.ChoiceKey{FeatureSlug: expertCombatantFeatureSlug, ChoiceIndex: 0}] != "" {
-		http.Error(w, "Expert Combatant weapon is already chosen and cannot be changed", http.StatusBadRequest)
-		return
-	}
-	if value != "" {
-		catalog, err := s.loadExpertCombatantWeaponCatalog()
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load expert combatant weapon catalog:", err)
-			return
-		}
-		valid := false
-		for _, o := range catalog {
-			if o.Value == value {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			http.Error(w, "not a valid weapon", http.StatusBadRequest)
-			return
-		}
-	}
-	if value == "" {
-		err = charstore.ClearFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0)
-	} else {
-		err = charstore.SetFeatureChoice(s.charDB, id, expertCombatantFeatureSlug, 0, value)
-	}
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set expert combatant weapon:", err)
+	if status, msg := s.setBattleCookExpertCombatantWeapon(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")
 }
 
-// handleCookingNinBlendEnhancementAdd records one Nature's Blend Enhancement
-// pick (form fields "jutsu_id", "enhancement_type") — a known jutsu of the
-// character's own Nature's Blend release element(s) paired with one of the
-// 4 Enhancement types. Only the PICK is tracked; the Enhancement's actual
-// chakra-plus-Snack-spend-to-apply mechanic stays fully Group 2/3 — see
-// gastrochemistEnhancementOptions' own comment.
+// addCookingNinBlendEnhancementPick validates and stores one Nature's Blend
+// Enhancement pick — a known jutsu of the character's own Nature's Blend
+// release element(s) paired with one of the 4 Enhancement types. Only the
+// PICK is tracked; the Enhancement's actual chakra-plus-Snack-spend-to-apply
+// mechanic stays fully Group 2/3 — see gastrochemistEnhancementOptions' own
+// comment. Extracted from handleCookingNinBlendEnhancementAdd so the Blend
+// Enhancements popup (cooking_nin_blend_enhancements_popup.go) shares the
+// identical validation path as the Core-sheet's own AJAX route instead of
+// reimplementing it — same "extract, don't duplicate" shape
+// addAwakenedScrollPick (ninjutsu_specialist.go) establishes.
+func (s *server) addCookingNinBlendEnhancementPick(id int64, jutsuID int64, enhancementType string) (int, string) {
+	valid := false
+	for _, o := range gastrochemistEnhancementOptions {
+		if o.Value == enhancementType {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid Enhancement type"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for blend enhancement add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadCookingNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load cooking-nin for blend enhancement add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.BlendEnhancementUsed >= data.BlendEnhancementCap {
+		return http.StatusBadRequest, "no Enhancement slots remaining"
+	}
+	jutsuValid := false
+	for _, o := range data.AvailableBlendJutsu {
+		if o.JutsuID == jutsuID {
+			jutsuValid = true
+			break
+		}
+	}
+	if !jutsuValid {
+		return http.StatusBadRequest, "not a valid jutsu to enhance"
+	}
+	if err := charstore.AddCookingNinBlendEnhancementPick(s.charDB, id, jutsuID, enhancementType); err != nil {
+		log.Println("add cooking-nin blend enhancement pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleCookingNinBlendEnhancementAdd is addCookingNinBlendEnhancementPick's
+// own Core-sheet AJAX wrapper (form fields "jutsu_id", "enhancement_type").
 func (s *server) handleCookingNinBlendEnhancementAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -2209,47 +2308,8 @@ func (s *server) handleCookingNinBlendEnhancementAdd(w http.ResponseWriter, r *h
 		return
 	}
 	enhancementType := strings.TrimSpace(r.FormValue("enhancement_type"))
-	valid := false
-	for _, o := range gastrochemistEnhancementOptions {
-		if o.Value == enhancementType {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid Enhancement type", http.StatusBadRequest)
-		return
-	}
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for blend enhancement add:", err)
-		return
-	}
-	data, err := s.loadCookingNinTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load cooking-nin for blend enhancement add:", err)
-		return
-	}
-	if data == nil || data.BlendEnhancementUsed >= data.BlendEnhancementCap {
-		http.Error(w, "no Enhancement slots remaining", http.StatusBadRequest)
-		return
-	}
-	jutsuValid := false
-	for _, o := range data.AvailableBlendJutsu {
-		if o.JutsuID == jutsuID {
-			jutsuValid = true
-			break
-		}
-	}
-	if !jutsuValid {
-		http.Error(w, "not a valid jutsu to enhance", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.AddCookingNinBlendEnhancementPick(s.charDB, id, jutsuID, enhancementType); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("add cooking-nin blend enhancement pick:", err)
+	if status, msg := s.addCookingNinBlendEnhancementPick(id, jutsuID, enhancementType); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_cooking_nin")

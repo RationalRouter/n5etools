@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sort"
@@ -18,12 +19,23 @@ import (
 // per Puppet Tool or summoned creature they field, alongside the main sheet
 // but never nested inside it.
 //
-// Deliberately NOT computed like the main sheet. A Puppet Master's puppet
-// and a summon tribe's creature each follow bespoke stat rules (see
-// summon_tribes.toughness/defensive_ability, which print as formulas, not
-// values) that vary by chassis/tribe far more than this app tries to model.
-// Every stat here is a plain player-entered field (charstore.Companion);
-// the only thing this file computes is which of the character's OWN
+// charstore.Companion's stat fields are player-editable, but that no longer
+// means "manual-only": kinds with a documented, kind-specific formula
+// (kind="titan" via titanAC/titanMaxHP/titanBashAttack, kind="nin-dog" via
+// ninDogAC/ninDogMaxHP/ninDogBiteAttack, kind="snb" via snbAC/snbMaxHP/
+// snbBiteAttack, and Puppet Tools via puppetToolDefaultAC and the other
+// puppet*Attack functions) get those fields auto-computed at creation and on
+// the events that would change them (level-up, chassis/specialization pick,
+// etc.), same as the main sheet. A player can still overwrite any of those
+// fields afterward — the computed value is only ever a starting default, not
+// a locked value — which is what actually accommodates the "every chassis/
+// tribe is different" variance this comment used to cite as the reason nothing
+// was computed at all. Only kind="summon" (a chosen Summon Tribe's creature)
+// and kind="custom" remain fully manual: no per-tribe formula is modeled for
+// generic summons, so every stat on those two kinds is still a plain
+// player-entered value with no computed default behind it.
+//
+// The only other thing this file computes is which of the character's OWN
 // already-level-gated rules content is worth showing as read-only
 // reference next to those fields — the character's Puppet Master subclass
 // features (kind="puppet") or a chosen summon tribe's rank-gated content
@@ -138,6 +150,18 @@ func companionAttacksFragment(kind string) string {
 	return "sheet_summon_tab"
 }
 
+// companionAttacksTabLabel names the main-sheet tab a companion's own
+// Attacks are added/removed from, for the popup's read-only empty-state
+// hint (companion_fields.html's ReadOnlyAttacks branch) to point at — the
+// same puppet-vs-everything-else split as companionAttacksFragment above,
+// just spelled out as the tab's display name instead of its fragment id.
+func companionAttacksTabLabel(kind string) string {
+	if kind == "puppet" {
+		return "Puppets"
+	}
+	return "Companions"
+}
+
 // parseCharacterAndCompanionID reads the {id}/{cid} path values shared by
 // every companion route, the same "NotFound rather than a parse error"
 // contract parseCharacterAndRowID uses for inventory rows.
@@ -203,6 +227,11 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 			// companion starting blank, same as prefillNinDogStatDefaults'
 			// own treatment of a load failure just above.
 			log.Println("prefill titan stat defaults:", err)
+		}
+	}
+	if kind == "snb" {
+		if err := s.prefillSNBStatDefaults(id, companionID); err != nil {
+			log.Println("prefill snb stat defaults:", err)
 		}
 	}
 	s.respondSheet(w, r, id, companionRespondFragment(r))
@@ -580,12 +609,21 @@ type summonCompanionView struct {
 	Reference       *summonTribeReference
 	NinDogReference *ninDogReference
 	TitanReference  *titanReference
+	SNBReference    *snbReference
 	// Attacks: only populated for a kind companionSupportsStructuredAttacks
 	// reports true for (nin-dog, titan, summon, custom — puppet has its own
 	// richer card on the Puppets tab instead, see sheet_puppet_tab's own
 	// doc). nil for any kind that hasn't reached structured attacks yet,
 	// which keeps rendering the plain freeform textarea.
 	Attacks []companionAttackRow
+	// Saves: computed for every kind (cheap — six subtractions and a map
+	// lookup), even "puppet", which this view struct can also represent when
+	// a Puppet Tool shows up in the Companions tab's own no-kind-filter list
+	// (see loadSummonsTabData's own doc) — companion_fields.html's own
+	// {{if ne .Companion.Kind "puppet"}} guard is what actually keeps the
+	// Saving Throws box from rendering for that kind, not this field being
+	// left unset, so there's no per-kind branching needed here at all.
+	Saves companionSavesView
 }
 
 // summonsTabData is everything the main sheet's Companions tab (labeled
@@ -603,6 +641,16 @@ type summonCompanionView struct {
 type summonsTabData struct {
 	Tribes     []summonTribeOption
 	Companions []summonCompanionView
+	// Collapsed: which companion ids are currently minimized on the
+	// Companions tab (state_key "summons:collapsed" in
+	// character_sheet_ui_state — see sheet-companion-collapse.js's own doc
+	// for why this lives server-side rather than in localStorage). Read
+	// fresh on every render, including a live fragment refresh, rather than
+	// only at the initial page load, so a card's [open] attribute never
+	// drifts from what was last actually saved — unlike sheet-layout.js's
+	// own grid state, this needs no client-side reapply-after-swap pass at
+	// all (see that file's own header comment).
+	Collapsed map[int64]bool
 }
 
 func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (summonsTabData, error) {
@@ -613,12 +661,18 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 	}
 	data.Tribes = tribes
 
+	uiState, err := charstore.GetSheetUIState(s.charDB, characterID)
+	if err != nil {
+		return data, err
+	}
+	data.Collapsed = parseCollapsedCompanionIDs(uiState["summons:collapsed"])
+
 	all, err := charstore.ListCompanions(s.charDB, characterID)
 	if err != nil {
 		return data, err
 	}
 	for _, c := range all {
-		view := summonCompanionView{Companion: c}
+		view := summonCompanionView{Companion: c, Saves: companionSaves(c, sheet.ProficiencyBonus, sheet.Level)}
 		if c.Kind == "summon" && c.SummonTribeSlug != "" {
 			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, sheet.Level)
 			if err != nil {
@@ -651,11 +705,27 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			if err != nil {
 				return data, err
 			}
-			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				titanBashAttack(c, sheet.ProficiencyBonus))
+			view.Attacks = append(append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+				titanBashAttack(c, sheet.ProficiencyBonus)),
+				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus)...)
 		}
-		if c.Kind == "summon" || c.Kind == "custom" || c.Kind == "snb" {
-			// None of these three kinds has a computed baseline attack the
+		if c.Kind == "snb" {
+			ref, err := s.loadSNBReference(characterID, c, sheet)
+			if err != nil {
+				return data, err
+			}
+			view.SNBReference = ref
+
+			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			playerIntMod := sheet.Abilities["int"].Modifier
+			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus))
+		}
+		if c.Kind == "summon" || c.Kind == "custom" {
+			// Neither of these two kinds has a computed baseline attack the
 			// way Bite/Bash do (no rules-defined natural weapon or stat
 			// block to derive one from — see companionStructuredAttackKinds'
 			// own doc), so this is just the player-added rows, with nothing
@@ -669,6 +739,30 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 		data.Companions = append(data.Companions, view)
 	}
 	return data, nil
+}
+
+// parseCollapsedCompanionIDs decodes the "summons:collapsed" UI-state blob
+// (a plain JSON array of companion ids, e.g. "[3,5]" — written by
+// sheet-companion-collapse.js) into a lookup set. Malformed or absent state
+// (raw == "", a brand-new character with nothing ever minimized) yields a
+// nil map, which index/lookup treats the same as "nothing collapsed" —
+// there is no meaningful distinction between "never saved" and "saved as
+// empty" for this particular blob, unlike save_proficiencies' own similar-
+// looking ambiguity (see migration 0077's doc), since collapsing is freely
+// re-toggleable state with no rules-text default to accidentally reapply.
+func parseCollapsedCompanionIDs(raw string) map[int64]bool {
+	if raw == "" {
+		return nil
+	}
+	var ids []int64
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return nil
+	}
+	set := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set
 }
 
 // handleCompanionSheet serves one companion's own standalone popup page —
@@ -703,10 +797,21 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Title":         companion.Name + " — " + sheet.Name,
-		"CharacterID":   id,
-		"CharacterName": sheet.Name,
-		"Companion":     companion,
+		"Title":          companion.Name + " — " + sheet.Name,
+		"CharacterID":    id,
+		"CharacterName":  sheet.Name,
+		"Companion":      companion,
+		"AttacksTabName": companionAttacksTabLabel(companion.Kind),
+		// Saves: same "computed for every kind, hidden only by the
+		// template's own kind check" treatment loadSummonsTabData's own
+		// summonCompanionView.Saves field gets — see that field's doc.
+		// ShowSaveToggles is deliberately never set here: the popup is a
+		// read-only quick reference for combat (ReadOnlyAttacks' own doc
+		// above states the same rule for structured Attacks), and its bare
+		// layout (layout_bare.html) doesn't load sheet-toggles.js at all, so
+		// a toggle form rendered here would silently fall through to a real,
+		// unhandled page navigation on click instead of doing nothing.
+		"Saves": companionSaves(companion, sheet.ProficiencyBonus, sheet.Level),
 	}
 
 	switch companion.Kind {
@@ -898,12 +1003,16 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	case "snb":
-		// Same bare "no rules-reference panel" treatment as "custom" above
-		// — a Scientific Ninja Beast has real rules-defined stats (see
-		// scienceNinSNBSpecialistData), but this app doesn't model a second
-		// full stat block the way it does for Puppet/Nin-Dog/Titan; it gets
-		// the shared plain stat fields plus structured Attacks like any
-		// other bare companion kind.
+		ref, err := s.loadSNBReference(id, companion, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load snb reference:", err)
+			return
+		}
+		data["SNBReference"] = ref
+
+		// Same "read-only quick reference, editing happens on the tab"
+		// treatment nin-dog's own popup case gives structured Attacks above.
 		data["ReadOnlyAttacks"] = true
 		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
 		if err != nil {
@@ -911,7 +1020,9 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			log.Println("load companion attacks for snb popup:", err)
 			return
 		}
-		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+		playerIntMod := sheet.Abilities["int"].Modifier
+		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+			snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus))
 	case "nin-dog":
 		ref, err := s.loadNinDogReference(id, companion, sheet.Level)
 		if err != nil {
@@ -950,8 +1061,9 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			log.Println("load companion attacks for titan popup:", err)
 			return
 		}
-		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			titanBashAttack(companion, sheet.ProficiencyBonus))
+		data["Attacks"] = append(append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+			titanBashAttack(companion, sheet.ProficiencyBonus)),
+			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus)...)
 	}
 
 	s.render(w, "companion_sheet.html", data)

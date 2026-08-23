@@ -1,0 +1,39 @@
+{{/* character_taijutsu_passionate_flame.html: the "Passionate Flame"
+     subclass tracker popup — see cmd/n5e/subclass_tracker_popup.go for the
+     shared pattern. Fists of Iron's bonus-dice readout is a plain
+     computed-value hint (no pick to make); Hand Wraps of Passion is a
+     single freely re-editable <select>, not a catalog picker — it isn't
+     part of subclassTrackerSection, so it's hand-rolled here rather than
+     routed through the shared subclass_tracker_section partial (same
+     shape as character_science_nin_technobi.html's own S.E.N.T <select>).
+     Expects {Title, Data (subclassTrackerPopupData), PassionateFlame
+     (*passionateFlameView)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if .PassionateFlame}}
+  <section class="companion-reference">
+    {{if .PassionateFlame.FistsOfIronDice}}
+    <p class="section-hint">Fists of Iron: +{{.PassionateFlame.FistsOfIronDice}} Martial Dice bonus unarmed damage on a hit, once per turn.</p>
+    {{end}}
+    <h3>Hand Wraps of Passion</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/passionate-flame/hand-wraps-of-passion" class="sheet-inline-form">
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— none chosen —</option>
+        {{range .PassionateFlame.HandWrapsOptions}}
+        <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.PassionateFlame.HandWraps}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .PassionateFlame.HandWraps}}{{range .PassionateFlame.HandWrapsOptions}}{{if eq .Value $.PassionateFlame.HandWraps}}{{.Description}}{{end}}{{end}}{{else}}Choose an enhancement above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,24 @@
+{{/* character_science_nin_elemental_innovationist.html: the "Elemental
+     Innovationist" subclass tracker popup — see cmd/n5e/subclass_tracker_
+     popup.go for the shared pattern. Expects {Title, Data
+     (subclassTrackerPopupData), Exoskeleton (*scienceNinExoskeletonData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if .Exoskeleton}}
+  <section class="companion-reference">
+    <form method="post" action="/characters/{{.Data.CharacterID}}/science-nin/elemental-innovationist/exoskeleton" class="sheet-inline-form">
+      <input type="hidden" name="on" value="{{if .Exoskeleton.Donned}}0{{else}}1{{end}}">
+      <button type="submit" class="sheet-exoskeleton-toggle{{if .Exoskeleton.Donned}} sheet-exoskeleton-on{{end}}">Exoskeleton: {{if .Exoskeleton.Donned}}Donned{{else}}Doffed{{end}}</button>
+    </form>
+    <p class="section-hint">While donned and light or medium armor is equipped, Intelligence may substitute for Dexterity in your AC — whichever is higher is used automatically.</p>
+  </section>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,60 @@
+{{/* character_cooking_nin_blend_enhancements.html: the "Nature's Blend
+     Enhancements" subclass tracker popup — see
+     cmd/n5e/subclass_tracker_popup.go for the shared pattern. Sourced from
+     the character's own known jutsu of their Nature's Blend release
+     element(s) (knownJutsuOption) paired with one of 4 Enhancement types,
+     so this is hand-rolled with "jutsu_id"/"enhancement_type" form fields
+     rather than routed through the shared subclass_tracker_section partial
+     (hard-coded to a single "option_slug") — same shape character_genjutsu_
+     twisted_casting.html's own hand-rolled section uses for its own single
+     extra field. Expects {Title, Data (subclassTrackerPopupData),
+     CookingNin (*cookingNinTabData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Nature's Blend Enhancements <span class="option-picker-epithet">{{.CookingNin.BlendEnhancementUsed}}/{{.CookingNin.BlendEnhancementCap}} chosen</span></h3>
+    <p class="section-hint">Applying an Enhancement still costs Chakra and a Snack at cast time — narrate that yourself, this only tracks which jutsu/Enhancement pair you've chosen. Freely re-editable at any time — this app doesn't enforce a rest/level-up gate on this pick.</p>
+    {{range .CookingNin.KnownBlendEnhancements}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.Data.CharacterID}}/cooking-nin/blend-enhancements/delete" class="sheet-inline-form">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}'s Enhancement" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}} · {{.EnhancementLabel}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .CookingNin.BlendEnhancementUsed .CookingNin.BlendEnhancementCap}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/cooking-nin/blend-enhancements/add" class="sheet-panel-form">
+      <p class="section-hint">Jutsu of your Nature's Blend release:</p>
+      <ul class="puppet-upgrade-option-list">
+        {{range .CookingNin.AvailableBlendJutsu}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <p class="section-hint">Enhancement type:</p>
+      <ul class="puppet-upgrade-option-list">
+        {{range .CookingNin.BlendEnhancementOptions}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="enhancement_type" value="{{.Value}}" required> {{.Label}}
+            <span class="tooltip-content">{{.Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Give Enhancement</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+</div>
+{{end}}

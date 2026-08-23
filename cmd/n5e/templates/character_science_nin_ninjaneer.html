@@ -1,0 +1,24 @@
+{{/* character_science_nin_ninjaneer.html: the "Ninjaneer" subclass tracker
+     popup — see cmd/n5e/subclass_tracker_popup.go for the shared pattern.
+     Expects {Title, Data (subclassTrackerPopupData), WarriorOfScience
+     (*scienceNinWarriorOfScienceData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{if eq .Title "Warrior of Science: Legendary Weapon"}}
+  <section class="companion-reference">
+    <h3>{{.Title}}</h3>
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/science-nin/ninjaneer/legendary-weapon-active" class="sheet-inline-form">
+      <input type="hidden" name="on" value="{{if $.WarriorOfScience.Active}}0{{else}}1{{end}}">
+      <button type="submit" class="sheet-exoskeleton-toggle{{if $.WarriorOfScience.Active}} sheet-exoskeleton-on{{end}}">Legendary Weapon: {{if $.WarriorOfScience.Active}}Active{{else}}Inactive{{end}}</button>
+    </form>
+  </section>
+  {{end}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

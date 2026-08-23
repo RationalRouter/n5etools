@@ -114,27 +114,36 @@ func (s *server) handleSENTPick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
+	if status, msg := s.setSENTPick(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
+// setSENTPick validates and stores (or changes) which catalog weapon the
+// character has currently worked into their S.E.N.T — shared by
+// handleSENTPick's own Core-sheet AJAX route and the Technobi subclass
+// tracker popup's own redirect-based equivalent
+// (science_nin_technobi_popup.go).
+func (s *server) setSENTPick(id int64, value string) (int, string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("compute sheet for sent pick:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
 	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load granted features for sent pick:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
 	if !hasGrantedFeature(grantedFeatures, scienceNinSENTsFeatureSlug) {
-		http.Error(w, "character does not have S.E.N.Ts", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "character does not have S.E.N.Ts"
 	}
 	catalog, err := s.loadSENTWeaponCatalog()
 	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load sent weapon catalog:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
 	valid := false
 	for _, o := range catalog {
@@ -144,13 +153,11 @@ func (s *server) handleSENTPick(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !valid {
-		http.Error(w, "not a valid S.E.N.T weapon", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, "not a valid S.E.N.T weapon"
 	}
 	if err := charstore.SetFeatureChoice(s.charDB, id, scienceNinSENTsFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set sent pick:", err)
-		return
+		return http.StatusInternalServerError, "database error"
 	}
-	s.respondSheet(w, r, id, "sheet_science_nin")
+	return http.StatusOK, ""
 }

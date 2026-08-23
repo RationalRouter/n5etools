@@ -93,10 +93,12 @@ func TestCompanionAttacksFragment(t *testing.T) {
 // TestCompanionSupportsStructuredAttacks above only covers the whitelist
 // lookup itself, not that loadSummonsTabData (Companions tab) and
 // handleCompanionSheet (standalone popup) actually populate structured
-// Attacks for these three kinds now, with no baseline attack appended (see
-// loadSummonsTabData's own doc — none of the three has a computed natural
-// weapon the way Nin-Dog Bite/Titan Bash do).
-func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
+// Attacks for these two kinds now, with no baseline attack appended (see
+// loadSummonsTabData's own doc — neither has a computed natural weapon the
+// way Nin-Dog Bite/Titan Bash/S.N.B Bite do; snb_test.go's own
+// TestSNBAttacksIncludeComputedBite covers that third, structurally
+// different case instead of being folded in here).
+func TestSummonCustomAttacksLoadStructured(t *testing.T) {
 	s := testServer(t)
 	if _, err := s.charDB.Exec(`
 		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
@@ -112,10 +114,6 @@ func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snbID, err := charstore.AddCompanion(s.charDB, 1, "snb", "Unit 7")
-	if err != nil {
-		t.Fatal(err)
-	}
 	if _, err := charstore.AddCompanionAttack(s.charDB, 1, summonID, charstore.CompanionAttack{
 		Name: "Claw Swipe", AttackAbility: "str", DamageCount: 1, DamageSides: 6, DamageAbility: "str", DamageType: "slashing",
 	}); err != nil {
@@ -123,11 +121,6 @@ func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
 	}
 	if _, err := charstore.AddCompanionAttack(s.charDB, 1, customID, charstore.CompanionAttack{
 		Name: "Improvised Bonk", AttackAbility: "str", DamageCount: 1, DamageSides: 4, DamageAbility: "str", DamageType: "bludgeoning",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := charstore.AddCompanionAttack(s.charDB, 1, snbID, charstore.CompanionAttack{
-		Name: "Bite", AttackAbility: "int", DamageCount: 1, DamageSides: 6, DamageAbility: "int", DamageType: "piercing",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +143,6 @@ func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
 	if got := byID[customID].Attacks; len(got) != 1 || got[0].Name != "Improvised Bonk" {
 		t.Errorf("custom Attacks = %+v, want exactly the one player-added row, nothing appended", got)
 	}
-	if got := byID[snbID].Attacks; len(got) != 1 || got[0].Name != "Bite" {
-		t.Errorf("snb Attacks = %+v, want exactly the one player-added row, nothing appended", got)
-	}
 
 	for _, tc := range []struct {
 		id         int64
@@ -160,7 +150,6 @@ func TestSummonCustomSNBAttacksLoadStructured(t *testing.T) {
 	}{
 		{summonID, "Claw Swipe"},
 		{customID, "Improvised Bonk"},
-		{snbID, "Bite"},
 	} {
 		cid := strconv.FormatInt(tc.id, 10)
 		req := httptest.NewRequest(http.MethodGet, "/characters/1/companions/"+cid, nil)

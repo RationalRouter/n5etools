@@ -1,0 +1,38 @@
+{{/* character_cooking_nin_expert_combatant.html: the "Expert Combatant
+     (Battle Cook)" subclass tracker popup — see
+     cmd/n5e/subclass_tracker_popup.go for the shared pattern. A single
+     lock-once-chosen weapon-type <select>, not a catalog Known/Available
+     list, hand-rolled rather than routed through the shared
+     subclass_tracker_section partial — same shape Combat Medic's own
+     Fighting Stance <select> uses (character_medical_nin_combat_medic.
+     html). Expects {Title, Data (subclassTrackerPopupData), ExpertCombatant
+     (*expertCombatantView)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Expert Combatant</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/expert-combatant/weapon" class="sheet-inline-form">
+      <label class="sheet-vitals-label">Weapon
+        <select name="value" class="sheet-option-tooltip-select"{{if .ExpertCombatant.Weapon}} disabled{{end}}>
+          <option value="">— none chosen —</option>
+          {{range .ExpertCombatant.WeaponOptions}}
+          <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.ExpertCombatant.Weapon}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ExpertCombatant.Weapon}}{{range .ExpertCombatant.WeaponOptions}}{{if eq .Value $.ExpertCombatant.Weapon}}{{.Description}}{{end}}{{end}}{{else}}Choose one martial or simple weapon — your Cooking Tool is considered to be this weapon for the purpose of Bukijutsu, including fulfilling keyword requirements (narrate this at the table; no keyword-requirement check exists to automate).{{end}}</span>
+      </span>
+      {{if not .ExpertCombatant.Weapon}}
+      <button type="submit">Set</button>
+      {{end}}
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}

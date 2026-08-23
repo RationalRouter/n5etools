@@ -1046,14 +1046,44 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 	s.respondSheet(w, r, id, "sheet_martial_techniques")
 }
 
-// handleStancerMixedMartialArtsStance records Stancer's own Mixed Martial
-// Arts (3rd level) known-stance pick — an independent grant from the base
-// Unarmed Technique stance above, stored under its own feature slug so a
+// setStancerMixedMartialArtsStance validates and stores Stancer's own Mixed
+// Martial Arts (3rd level) known-stance pick — an independent grant from
+// the base Unarmed Technique stance, stored under its own feature slug so a
 // Stancer's two picks never collide (see buildFightingStanceView's own doc
-// comment). Reuses loadMartialTechniquesTabData's own gate (the field is
-// nil unless the character actually has the granting feature) instead of
-// re-deriving the granted-features check here, same shape handleFightingStance
-// already uses for the base Stance pick.
+// comment). Shared by handleStancerMixedMartialArtsStance's own Core-sheet
+// AJAX route and the Stancer popup's own route (taijutsu_stancer_popup.go),
+// so both share one validation path and cannot drift apart.
+func (s *server) setStancerMixedMartialArtsStance(id int64, slug string) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for mixed martial arts stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	if err != nil {
+		log.Println("load martial techniques for mixed martial arts stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.StancerMixedMartialArts == nil {
+		return http.StatusBadRequest, "character has no Mixed Martial Arts stance choice available"
+	}
+	options, err := s.loadTaijutsuStanceOptions()
+	if err != nil {
+		log.Println("load taijutsu stance options:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if err := s.storeFightingStanceChoice(id, mixedMartialArtsFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			return http.StatusBadRequest, "not a valid stance"
+		}
+		log.Println("set mixed martial arts stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleStancerMixedMartialArtsStance is setStancerMixedMartialArtsStance's
+// own Core-sheet AJAX wrapper.
 func (s *server) handleStancerMixedMartialArtsStance(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1065,44 +1095,50 @@ func (s *server) handleStancerMixedMartialArtsStance(w http.ResponseWriter, r *h
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("stance_slug"))
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for mixed martial arts stance:", err)
-		return
-	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load martial techniques for mixed martial arts stance:", err)
-		return
-	}
-	if data == nil || data.StancerMixedMartialArts == nil {
-		http.Error(w, "character has no Mixed Martial Arts stance choice available", http.StatusBadRequest)
-		return
-	}
-	options, err := s.loadTaijutsuStanceOptions()
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load taijutsu stance options:", err)
-		return
-	}
-	if err := s.storeFightingStanceChoice(id, mixedMartialArtsFeatureSlug, options, slug); err != nil {
-		if err == errInvalidStance {
-			http.Error(w, "not a valid stance", http.StatusBadRequest)
-		} else {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("set mixed martial arts stance:", err)
-		}
+	if status, msg := s.setStancerMixedMartialArtsStance(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_martial_techniques")
 }
 
-// handleStancerStanceBlendingStance records Stancer's own Stance Blending
-// (9th level) known-stance pick — a third independent stance grant on the
-// same character (base Unarmed Technique + Mixed Martial Arts), stored
-// under its own feature slug.
+// setStancerStanceBlendingStance validates and stores Stancer's own Stance
+// Blending (9th level) known-stance pick — a third independent stance grant
+// on the same character (base Unarmed Technique + Mixed Martial Arts),
+// stored under its own feature slug. Shared by
+// handleStancerStanceBlendingStance's own Core-sheet AJAX route and the
+// Stancer popup's own route (taijutsu_stancer_popup.go).
+func (s *server) setStancerStanceBlendingStance(id int64, slug string) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for stance blending stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	if err != nil {
+		log.Println("load martial techniques for stance blending stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.StancerStanceBlending == nil {
+		return http.StatusBadRequest, "character has no Stance Blending stance choice available"
+	}
+	options, err := s.loadTaijutsuStanceOptions()
+	if err != nil {
+		log.Println("load taijutsu stance options:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if err := s.storeFightingStanceChoice(id, stanceBlendingFeatureSlug, options, slug); err != nil {
+		if err == errInvalidStance {
+			return http.StatusBadRequest, "not a valid stance"
+		}
+		log.Println("set stance blending stance:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleStancerStanceBlendingStance is setStancerStanceBlendingStance's own
+// Core-sheet AJAX wrapper.
 func (s *server) handleStancerStanceBlendingStance(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1114,43 +1150,47 @@ func (s *server) handleStancerStanceBlendingStance(w http.ResponseWriter, r *htt
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("stance_slug"))
-	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("compute sheet for stance blending stance:", err)
-		return
-	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load martial techniques for stance blending stance:", err)
-		return
-	}
-	if data == nil || data.StancerStanceBlending == nil {
-		http.Error(w, "character has no Stance Blending stance choice available", http.StatusBadRequest)
-		return
-	}
-	options, err := s.loadTaijutsuStanceOptions()
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load taijutsu stance options:", err)
-		return
-	}
-	if err := s.storeFightingStanceChoice(id, stanceBlendingFeatureSlug, options, slug); err != nil {
-		if err == errInvalidStance {
-			http.Error(w, "not a valid stance", http.StatusBadRequest)
-		} else {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("set stance blending stance:", err)
-		}
+	if status, msg := s.setStancerStanceBlendingStance(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_martial_techniques")
 }
 
-// handleHandWrapsOfPassion records Passionate Flame's re-selectable Hand
-// Wraps of Passion pick. RAW gates re-picking to a Full Rest — not
-// enforced here, same "trust the player" boundary Mastery already draws.
+// setHandWrapsOfPassion validates and stores Passionate Flame's
+// re-selectable Hand Wraps of Passion pick. RAW gates re-picking to a Full
+// Rest — not enforced here, same "trust the player" boundary Mastery
+// already draws. Shared by handleHandWrapsOfPassion's own Core-sheet AJAX
+// route and the Passionate Flame popup's own route (taijutsu_passionate_
+// flame_popup.go).
+func (s *server) setHandWrapsOfPassion(id int64, value string) (int, string) {
+	valid := false
+	for _, o := range handWrapsOfPassionOptions {
+		if o.Value == value {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	subclassSlug, _, err := s.taijutsuSpecialistSubclassSlug(id)
+	if err != nil {
+		log.Println("load subclass for hand wraps of passion:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if subclassSlug != passionateFlameSubclassSlug {
+		return http.StatusBadRequest, "not a Passionate Flame character"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, handWrapsOfPassionFeatureSlug, 0, value); err != nil {
+		log.Println("set hand wraps of passion:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleHandWrapsOfPassion is setHandWrapsOfPassion's own Core-sheet AJAX
+// wrapper.
 func (s *server) handleHandWrapsOfPassion(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1162,37 +1202,51 @@ func (s *server) handleHandWrapsOfPassion(w http.ResponseWriter, r *http.Request
 		return
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
-	valid := false
-	for _, o := range handWrapsOfPassionOptions {
-		if o.Value == value {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		http.Error(w, "not a valid pick", http.StatusBadRequest)
-		return
-	}
-	subclassSlug, _, err := s.taijutsuSpecialistSubclassSlug(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load subclass for hand wraps of passion:", err)
-		return
-	}
-	if subclassSlug != passionateFlameSubclassSlug {
-		http.Error(w, "not a Passionate Flame character", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, handWrapsOfPassionFeatureSlug, 0, value); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set hand wraps of passion:", err)
+	if status, msg := s.setHandWrapsOfPassion(id, value); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_martial_techniques")
 }
 
-// handleAntiChakraWavelength records Ruin's 2-of-10 keyword pick, one
-// choice_index slot each — freely re-editable, same boundary as above.
+// setAntiChakraWavelength validates and stores Ruin's 2-of-10 keyword pick,
+// one choice_index slot each — freely re-editable, same boundary as Hand
+// Wraps of Passion above. Shared by handleAntiChakraWavelength's own
+// Core-sheet AJAX route and the Ruin popup's own route (taijutsu_ruin_
+// popup.go).
+func (s *server) setAntiChakraWavelength(id int64, first, second string) (int, string) {
+	subclassSlug, _, err := s.taijutsuSpecialistSubclassSlug(id)
+	if err != nil {
+		log.Println("load subclass for anti-chakra wavelength:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if subclassSlug != ruinSubclassSlug {
+		return http.StatusBadRequest, "not a Ruin character"
+	}
+	validKeyword := func(v string) bool {
+		for _, k := range antiChakraWavelengthKeywords {
+			if k == v {
+				return true
+			}
+		}
+		return false
+	}
+	if !validKeyword(first) || !validKeyword(second) || first == second {
+		return http.StatusBadRequest, "choose two different keywords"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, antiChakraWavelengthFeatureSlug, 0, first); err != nil {
+		log.Println("set anti-chakra wavelength keyword 1:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if err := charstore.SetFeatureChoice(s.charDB, id, antiChakraWavelengthFeatureSlug, 1, second); err != nil {
+		log.Println("set anti-chakra wavelength keyword 2:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleAntiChakraWavelength is setAntiChakraWavelength's own Core-sheet
+// AJAX wrapper.
 func (s *server) handleAntiChakraWavelength(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -1203,38 +1257,10 @@ func (s *server) handleAntiChakraWavelength(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	subclassSlug, _, err := s.taijutsuSpecialistSubclassSlug(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load subclass for anti-chakra wavelength:", err)
-		return
-	}
-	if subclassSlug != ruinSubclassSlug {
-		http.Error(w, "not a Ruin character", http.StatusBadRequest)
-		return
-	}
-	validKeyword := func(v string) bool {
-		for _, k := range antiChakraWavelengthKeywords {
-			if k == v {
-				return true
-			}
-		}
-		return false
-	}
 	first := strings.TrimSpace(r.FormValue("keyword1"))
 	second := strings.TrimSpace(r.FormValue("keyword2"))
-	if !validKeyword(first) || !validKeyword(second) || first == second {
-		http.Error(w, "choose two different keywords", http.StatusBadRequest)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, antiChakraWavelengthFeatureSlug, 0, first); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set anti-chakra wavelength keyword 1:", err)
-		return
-	}
-	if err := charstore.SetFeatureChoice(s.charDB, id, antiChakraWavelengthFeatureSlug, 1, second); err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("set anti-chakra wavelength keyword 2:", err)
+	if status, msg := s.setAntiChakraWavelength(id, first, second); status != http.StatusOK {
+		http.Error(w, msg, status)
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_martial_techniques")

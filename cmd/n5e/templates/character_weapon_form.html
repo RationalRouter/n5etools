@@ -1,0 +1,84 @@
+{{/* character_weapon_form.html: the "Weapon Form" subclass tracker popup —
+     see cmd/n5e/subclass_tracker_popup.go for the shared pattern, and
+     weapon_form_popup.go's own header doc for why ONE popup covers all 8
+     Weapon Forms and how the mixed subclass-specific/base-class content
+     below is split.
+
+     Unlike every other user of this pattern, the outer
+     .character-reference-page is NOT also .subclass-scope — Superior
+     Weapon Flurry (base class, independent of which Form is chosen) needs
+     to render in the page's default (gold) text, so only Techniques/
+     Styles/Stalking Predator (genuinely Form-specific) are wrapped in a
+     nested <div class="subclass-scope">. This reuses app.css's own
+     DESCENDANT selector (`.character-reference-page .subclass-scope li,
+     p { color: var(--blue); }`, already built for character_reference.
+     html/class_detail.html's mixed general+subclass content) rather than
+     the compound `.character-reference-page.subclass-scope` selector every
+     single-subclass popup's whole-page wrapper uses — that compound rule
+     would color Superior Weapon Flurry blue too if applied to the outer
+     div here, which is exactly the mix-up this split avoids. The
+     descendant rule needed one addition to reach this popup's own markup:
+     .puppet-upgrade-pick-name (Styles' Known list uses subclass_tracker_
+     section's own <div class="puppet-upgrade-pick"> markup, not a bare
+     <li>), plus a :not(.section-hint) exclusion so Styles' own Hint
+     paragraph doesn't get repainted blue — the same two additions
+     app.css's own compound-selector rule already needed for the identical
+     reason (see that rule's own doc comment).
+
+     Techniques (always known, no delete) and Stalking Predator (a single
+     freely re-editable <select>) aren't catalog pickers, so both are
+     hand-rolled rather than routed through subclass_tracker_section; Styles
+     and Superior Weapon Flurry both fit that shared partial's Known/
+     Available/cap shape (see weapon_form_popup.go's own weaponFormStyles
+     Section/superiorWeaponFlurrySection). Expects {Title, Data
+     (subclassTrackerPopupData), FormName, Techniques
+     ([]weaponFormTechnique), StalkingPredator (*stalkingPredatorView),
+     Styles (subclassTrackerSection), SuperiorWeaponFlurry
+     (*subclassTrackerSection, nil below 14th level)}. */}}
+{{define "content"}}
+<div class="character-reference-page">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if .FormName}}
+  <div class="subclass-scope">
+    {{if .Techniques}}
+    <section class="companion-reference">
+      <h3>{{.FormName}} Techniques</h3>
+      <p class="section-hint">Always known, granted for free — doesn't count against any cap.</p>
+      {{range .Techniques}}
+      <div class="puppet-upgrade-pick">
+        <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}} (granted)
+          <span class="tooltip-content">{{formatDescription .Description}}</span>
+        </span>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+    {{template "subclass_tracker_section" .Styles}}
+    {{if .StalkingPredator}}
+    <section class="companion-reference">
+      <h3>Stalking Predator</h3>
+      <form method="post" action="/characters/{{.Data.CharacterID}}/weapon-specialist/weapon-form/stalking-predator" class="sheet-inline-form">
+        <select name="value" class="sheet-option-tooltip-select">
+          <option value="">— none chosen —</option>
+          {{range .StalkingPredator.Options}}
+          <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.StalkingPredator.Current}} selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+        <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content">{{if .StalkingPredator.Current}}{{range .StalkingPredator.Options}}{{if eq .Value $.StalkingPredator.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose an Exploit above to see what it does.{{end}}</span>
+        </span>
+        <button type="submit">Set</button>
+      </form>
+    </section>
+    {{end}}
+  </div>
+  {{if .SuperiorWeaponFlurry}}
+  {{template "subclass_tracker_section" .SuperiorWeaponFlurry}}
+  {{end}}
+  {{end}}
+</div>
+{{end}}

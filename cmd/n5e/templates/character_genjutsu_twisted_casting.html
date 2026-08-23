@@ -1,0 +1,46 @@
+{{/* character_genjutsu_twisted_casting.html: the "Twisted Casting" subclass
+     tracker popup — see cmd/n5e/subclass_tracker_popup.go for the shared
+     pattern. Sourced from the character's own known Genjutsu
+     (knownJutsuOption) rather than a rules-database catalog, so this is
+     hand-rolled with "jutsu_id" form fields rather than routed through the
+     shared subclass_tracker_section partial — same shape character_
+     ninjutsu_specialist_awakened_scroll.html's own hand-rolled section
+     uses. Expects {Title, Data (subclassTrackerPopupData), Genjutsu
+     (*genjutsuTabData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{else}}
+  <section class="companion-reference">
+    <h3>Twisted Casting <span class="option-picker-epithet">{{.Genjutsu.TwistedCastingUsed}}/{{.Genjutsu.TwistedCastingCap}} chosen</span></h3>
+    <p class="section-hint">Genjutsu you know that can appear to originate from another creature you can see, as a Bonus Action. Freely re-editable on a long rest — this app doesn't enforce that timing.</p>
+    {{range .Genjutsu.KnownTwistedCasting}}
+    <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
+      <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/twisted-casting/delete" class="sheet-inline-form">
+        <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+    </div>
+    {{end}}
+    {{if lt .Genjutsu.TwistedCastingUsed .Genjutsu.TwistedCastingCap}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/twisted-casting/add" class="sheet-panel-form">
+      <ul class="puppet-upgrade-option-list">
+        {{range .Genjutsu.AvailableTwistedCasting}}
+        <li>
+          <label class="puppet-upgrade-option tooltip">
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <span class="tooltip-content">{{formatDescription .Description}}</span>
+          </label>
+        </li>
+        {{end}}
+      </ul>
+      <button type="submit">Choose Twisted Casting</button>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+</div>
+{{end}}

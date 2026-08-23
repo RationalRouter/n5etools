@@ -1,0 +1,42 @@
+{{/* character_science_nin_shinobi_ware.html: the "Shinobi-Ware" subclass
+     tracker popup — see cmd/n5e/subclass_tracker_popup.go for the shared
+     pattern. Expects {Title, Data (subclassTrackerPopupData), ShinobiWare
+     (*scienceNinShinobiWareData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{if or .ShinobiWare.FullMetalShinobiResistances .ShinobiWare.FullMetalShinobiSlots}}
+  <section class="companion-reference">
+    <h3>Full-Metal Shinobi</h3>
+    <p class="section-hint">Choose a damage resistance at 6th level, another at 9th — the last is automatic at 14th.</p>
+    {{if .ShinobiWare.FullMetalShinobiResistances}}
+    <ul class="sheet-elemental-affinity-list">
+      {{range .ShinobiWare.FullMetalShinobiResistances}}
+      <li>{{.}}</li>
+      {{end}}
+    </ul>
+    {{end}}
+    {{range .ShinobiWare.FullMetalShinobiSlots}}
+    <form method="post" action="/characters/{{$.Data.CharacterID}}/science-nin/shinobi-ware/fms-resistance/add" class="sheet-inline-form">
+      <input type="hidden" name="slot_key" value="{{.SlotKey}}">
+      <label class="sheet-elemental-affinity-slot">
+        {{.Label}}
+        <select name="damage_type">
+          <option value="">— choose —</option>
+          {{$currentSlot := .Current}}
+          {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
+        </select>
+        <button type="submit">Set</button>
+      </label>
+    </form>
+    {{end}}
+  </section>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

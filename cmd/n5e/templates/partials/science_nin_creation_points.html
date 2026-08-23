@@ -1,0 +1,22 @@
+{{/* science_nin_creation_points_tile: the shared Creation Points readout
+     every panel that spends from Science-Nin's Creation Points budget shows
+     — the base Scientific Ninja Tools box (sheet_science_nin,
+     character_sheet.html) and, for Mech Crafter, the Titan Slots panel
+     (titan_reference, companion_fields.html). A single derived, read-only
+     number (like Passive Perception, not an editable pool like HP/Chakra/
+     CCD), so this reuses .sheet-mini-stat rather than becoming a new
+     .sheet-edit-box — there is nothing here for a player to type a delta
+     into, only a Used/Cap pair every consuming panel must display
+     IDENTICALLY, since it's the same single shared total (S.N.B Specialist's
+     own S.N.B Upgrades panel draws from this same total too, shown via this
+     same tile at the top of sheet_science_nin, without a second copy of its
+     own — a character only ever has one Scientific Inquiry subclass active
+     at a time, so at most one sibling pool ever contributes anything).
+
+     Call with: {{template "science_nin_creation_points_tile" (dict "Used" X "Cap" Y)}} */}}
+{{define "science_nin_creation_points_tile"}}
+<div class="sheet-mini-stat sheet-creation-points-tile">
+  <span class="sheet-mini-stat-label">Creation Points</span>
+  <span class="sheet-mini-stat-value">{{.Used}}/{{.Cap}}</span>
+</div>
+{{end}}

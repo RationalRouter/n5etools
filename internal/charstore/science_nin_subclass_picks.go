@@ -111,29 +111,78 @@ const (
 	// same "trust the player" boundary ScienceNinPickMixedStudiesInquiry's
 	// own single-slot pick already draws.
 	ScienceNinPickTitanSpecialistCraftingKeyword ScienceNinSubclassPickCategory = "titan_specialist_crafting_keyword"
+
+	// The three categories below — added by
+	// 0073_ninjaneer_weapon_designations.sql — are Ninjaneer's own
+	// single-slot "which owned weapon" designations. Unlike every category
+	// above, option_slug is a character_inventory.id (cast to text), not a
+	// class_options/class_option_entries slug or a hand-assigned string —
+	// WHICH specific owned copy of a weapon is designated matters here,
+	// since two owned copies of the same weapon type must stay
+	// distinguishable. See cmd/n5e/ninjaneer.go for what each backs and how
+	// the designation feeds character_weapon_attack_options.
+	ScienceNinPickEnhancedWeapon      ScienceNinSubclassPickCategory = "enhanced_weapon"
+	ScienceNinPickLegendaryWeapon     ScienceNinSubclassPickCategory = "legendary_weapon"
+	ScienceNinPickPerfectedWeaponMark ScienceNinSubclassPickCategory = "perfected_weapon_mark"
+
+	// ScienceNinPickEverEvolvingSeal is Shinobi-Ware's own 14th-level Ever
+	// Evolving — added by 0074_science_nin_ever_evolving_seal.sql. Single
+	// slot (cap 1: "apply IT to your Full Metal Shinobi armor," singular),
+	// gated by the SAME shared Creation Points budget as the base
+	// Scientific Ninja Tools catalog rather than a flat slot-count cap —
+	// the same CP-BUDGET shape ScienceNinPickTitanUpgrade already uses,
+	// unlike every category above. option_slug is the picked equipment
+	// slug (kind='enhancement_seal', seal_applies_to='armor'), the same
+	// catalog shape Martial Defense's own guard-slot picks draw from
+	// (character_martial_defense_seals, a separate dedicated table) — Ever
+	// Evolving reuses this generic table instead since it's a single CP-
+	// budget pick, not a multi-slot count. See cmd/n5e/ever_evolving.go.
+	ScienceNinPickEverEvolvingSeal ScienceNinSubclassPickCategory = "ever_evolving_seal"
 )
 
 // ScienceNinSubclassPick is one stored pick, along with its own pool
 // ("mending"/"maiming"/"") when the category records one — every category
-// except inversion_serum leaves this "".
+// except inversion_serum leaves this "" — and its own held Quantity (always
+// 1 outside 'bim'; see AddScienceNinSubclassPick/RemoveScienceNinSubclassPick
+// for the one category where it can climb above 1 or fall while the row
+// still exists).
 type ScienceNinSubclassPick struct {
 	OptionSlug string
 	Pool       string
+	Quantity   int
 }
 
 // AddScienceNinSubclassPick records one catalog pick within its own
 // category, optionally noting which CCD pool paid for it (Inversion Serums
-// only; every other category passes pool=""). A duplicate add UPDATES the
-// stored pool rather than silently no-opping — unlike every other pick
-// table in this package, Inversion Serums' own pool choice is meant to be
-// changeable after the fact (the book allows "created during a Long Rest",
-// this app doesn't enforce that timing, same "trust the player" boundary
-// every other pick already draws), so re-submitting the same serum with a
-// different pool is how a player switches it, not a no-op.
+// only; every other category passes pool="").
+//
+// For 'bim' (Grenadier's bandolier — "you can pick any modification with
+// 'B.I.M' in the name more than once, other than the Barrier B.I.M"), a
+// duplicate add INCREMENTS the stored quantity instead of no-opping; the
+// Barrier B.I.M exception itself is enforced by AvailableBIM never
+// re-offering an already-known Barrier B.I.M (cmd/n5e/
+// science_nin_subclasses.go), not by anything here — a direct repeat call
+// against Barrier B.I.M's own option_slug would still increment it, same as
+// any other bim slug.
+//
+// For every other category, a duplicate add UPDATES the stored pool rather
+// than silently no-opping — unlike every other pick table in this package,
+// Inversion Serums' own pool choice is meant to be changeable after the
+// fact (the book allows "created during a Long Rest", this app doesn't
+// enforce that timing, same "trust the player" boundary every other pick
+// already draws), so re-submitting the same serum with a different pool is
+// how a player switches it, not a no-op. quantity is left untouched by this
+// path (stays at its DEFAULT 1), preserving the existing "a character
+// either holds a given pick or doesn't" semantics for every non-bim
+// category.
 func AddScienceNinSubclassPick(charDB *sql.DB, characterID int64, category ScienceNinSubclassPickCategory, optionSlug, pool string) error {
+	onConflict := `pool = excluded.pool`
+	if category == ScienceNinPickBIM {
+		onConflict = `quantity = quantity + 1`
+	}
 	_, err := charDB.Exec(
 		`INSERT INTO character_science_nin_subclass_picks (character_id, category, option_slug, pool) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (character_id, category, option_slug) DO UPDATE SET pool = excluded.pool`,
+		 ON CONFLICT (character_id, category, option_slug) DO UPDATE SET `+onConflict,
 		characterID, category, optionSlug, pool)
 	return err
 }
@@ -141,7 +190,39 @@ func AddScienceNinSubclassPick(charDB *sql.DB, characterID int64, category Scien
 // RemoveScienceNinSubclassPick drops one pick — freely, at any time, same
 // "trust the player" boundary every other pick removal in this package
 // draws.
+//
+// For 'bim', this decrements the held quantity by one instead of always
+// discarding the whole row, so removing one held copy of a duplicate-held
+// B.I.M type leaves the rest in place — the row itself is only deleted once
+// quantity would drop to (or was already at) zero or below. Every other
+// category still deletes the row outright, since quantity never leaves 1
+// there.
 func RemoveScienceNinSubclassPick(charDB *sql.DB, characterID int64, category ScienceNinSubclassPickCategory, optionSlug string) error {
+	if category == ScienceNinPickBIM {
+		tx, err := charDB.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		// Delete first, matching only a row already at quantity <= 1 (a
+		// single remaining copy, decremented away entirely) — done before
+		// the UPDATE below so that UPDATE never has a chance to sink this
+		// same row to 0 and leave a zero-quantity row behind instead of
+		// deleting it.
+		if _, err := tx.Exec(
+			`DELETE FROM character_science_nin_subclass_picks WHERE character_id = ? AND category = ? AND option_slug = ? AND quantity <= 1`,
+			characterID, category, optionSlug,
+		); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(
+			`UPDATE character_science_nin_subclass_picks SET quantity = quantity - 1 WHERE character_id = ? AND category = ? AND option_slug = ?`,
+			characterID, category, optionSlug,
+		); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
 	_, err := charDB.Exec(
 		`DELETE FROM character_science_nin_subclass_picks WHERE character_id = ? AND category = ? AND option_slug = ?`,
 		characterID, category, optionSlug)
@@ -150,10 +231,10 @@ func RemoveScienceNinSubclassPick(charDB *sql.DB, characterID int64, category Sc
 
 // ListScienceNinSubclassPicks returns every pick a character has stored
 // within one category, each carrying its own pool (empty for every
-// category but inversion_serum).
+// category but inversion_serum) and Quantity (always 1 outside 'bim').
 func ListScienceNinSubclassPicks(charDB *sql.DB, characterID int64, category ScienceNinSubclassPickCategory) ([]ScienceNinSubclassPick, error) {
 	rows, err := charDB.Query(
-		`SELECT option_slug, pool FROM character_science_nin_subclass_picks WHERE character_id = ? AND category = ?`,
+		`SELECT option_slug, pool, quantity FROM character_science_nin_subclass_picks WHERE character_id = ? AND category = ?`,
 		characterID, category)
 	if err != nil {
 		return nil, err
@@ -162,7 +243,7 @@ func ListScienceNinSubclassPicks(charDB *sql.DB, characterID int64, category Sci
 	var out []ScienceNinSubclassPick
 	for rows.Next() {
 		var p ScienceNinSubclassPick
-		if err := rows.Scan(&p.OptionSlug, &p.Pool); err != nil {
+		if err := rows.Scan(&p.OptionSlug, &p.Pool, &p.Quantity); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

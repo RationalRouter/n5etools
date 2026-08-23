@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/sergio/n5e/internal/backup"
 	"github.com/sergio/n5e/internal/charsheet"
@@ -47,7 +48,8 @@ type characterListRow struct {
 	ID             int64
 	Name           string
 	CreationStatus string
-	ClassSummary   string // "Level 1 Genjutsu Specialist", or "" pre-class
+	ClassSummary   string // "Level 1 Genjutsu Specialist — Illusionist", or "" pre-class
+	Clan           string // "" if no clan chosen
 	Sheet          *charsheet.Sheet
 }
 
@@ -80,8 +82,11 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 	// One query per character for its class summary — same small-N, N+1
 	// shape classes.go's loadClassLevels uses; character counts here are
 	// realistically single digits to low tens, not worth batching.
+	// loadClassSummary (not the plainer loadCharacterClassLevels) so each
+	// class's chosen subclass — if any — shows here too, not just on the
+	// sheet's own header.
 	for i := range characters {
-		classes, err := s.loadCharacterClassLevels(characters[i].ID)
+		classes, err := s.loadClassSummary(characters[i].ID)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("query character class summary:", err)
@@ -91,17 +96,25 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if len(classes) == 1 {
-			characters[i].ClassSummary = "Level " + strconv.Itoa(classes[0].Levels) + " " + s.className(classes[0].Slug)
+			c := classes[0]
+			characters[i].ClassSummary = "Level " + strconv.Itoa(c.Levels) + " " + c.ClassName
+			if c.Subclass != "" {
+				characters[i].ClassSummary += " — " + c.Subclass
+			}
 			continue
 		}
-		// Multiclassed: "Level 8 (Weapon Specialist 5 / Ninjutsu
+		// Multiclassed: "Level 8 (Weapon Specialist 5 — Duelist / Ninjutsu
 		// Specialist 3)" — total first since that's what governs
 		// proficiency bonus, the per-class breakdown after it.
 		total := 0
 		parts := make([]string, len(classes))
 		for j, c := range classes {
 			total += c.Levels
-			parts[j] = s.className(c.Slug) + " " + strconv.Itoa(c.Levels)
+			part := c.ClassName + " " + strconv.Itoa(c.Levels)
+			if c.Subclass != "" {
+				part += " — " + c.Subclass
+			}
+			parts[j] = part
 		}
 		characters[i].ClassSummary = "Level " + strconv.Itoa(total) + " (" + strings.Join(parts, " / ") + ")"
 	}
@@ -118,6 +131,9 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		characters[i].Sheet = sheet
+		if sheet.ClanSlug != "" {
+			characters[i].Clan = s.clanName(sheet.ClanSlug)
+		}
 	}
 
 	s.render(w, "characters.html", map[string]any{"Title": "Characters", "Characters": characters})
@@ -947,9 +963,24 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 	for _, t := range offeredToolkits {
 		offeredNames[t.Name] = true
 	}
+	// A raw POST isn't bound by the dropdowns' render-time exclusion either
+	// (buildClassStepData's own s.characterProficiencyValues call) or by
+	// create-equipment.js's client-side sibling-slot exclusion — both are
+	// re-checked here so a hand-built submission can't grant a toolkit the
+	// character already has, whether from another source (heldToolkit) or
+	// from a duplicate pick across this class's own slots (dupToolkit).
+	heldElsewhere, err := s.characterProficiencyValues(characterID, "tool", "class", classSlug)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load held toolkits:", err)
+		return
+	}
 	chosenToolkits := make([]string, len(toolkitSlots))
 	missingToolkit := false
 	badToolkit := false
+	heldToolkit := false
+	dupToolkit := false
+	seenToolkit := make(map[string]bool, len(toolkitSlots))
 	for i := range toolkitSlots {
 		chosenToolkits[i] = strings.TrimSpace(r.FormValue("toolkit_" + strconv.Itoa(i)))
 		switch {
@@ -957,10 +988,16 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 			missingToolkit = true
 		case !offeredNames[chosenToolkits[i]]:
 			badToolkit = true
+		case heldElsewhere[chosenToolkits[i]]:
+			heldToolkit = true
+		case seenToolkit[chosenToolkits[i]]:
+			dupToolkit = true
+		default:
+			seenToolkit[chosenToolkits[i]] = true
 		}
 	}
 
-	if (chooseN > 0 && len(chosenSkills) != chooseN) || missingToolkit || badToolkit {
+	if (chooseN > 0 && len(chosenSkills) != chooseN) || missingToolkit || badToolkit || heldToolkit || dupToolkit {
 		chosenSet := make(map[string]bool, len(chosenSkills))
 		for _, sk := range chosenSkills {
 			chosenSet[sk] = true
@@ -986,6 +1023,10 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 			data["Error"] = "Choose exactly " + strconv.Itoa(chooseN) + " skills."
 		case badToolkit:
 			data["Error"] = "Characters start with basic toolkits only — Greater, Superior and Supreme kits are bought in play."
+		case heldToolkit:
+			data["Error"] = "You already have proficiency with one of those toolkits from elsewhere — pick a different one for each slot."
+		case dupToolkit:
+			data["Error"] = "Pick a different toolkit for each slot — the same one can't be chosen twice."
 		default:
 			data["Error"] = "Pick a toolkit for every slot."
 		}
@@ -1312,8 +1353,17 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus s
 		if err != nil {
 			return nil, err
 		}
+		// Excludes this same class's own already-saved picks (source_ref
+		// focus) so a re-edit doesn't blank its own dropdowns — see
+		// characterProficiencyValues' doc. A duplicate pick across this
+		// class's own sibling slots is still caught client-side
+		// (create-equipment.js) plus server-side on submit, same as before.
+		heldElsewhere, err := s.characterProficiencyValues(characterID, "tool", "class", focus)
+		if err != nil {
+			return nil, err
+		}
 		data["ToolkitChoices"] = slots
-		data["Toolkits"] = toolkits
+		data["Toolkits"] = excludeHeldOptions(toolkits, heldElsewhere)
 	}
 	return data, nil
 }
@@ -1601,8 +1651,14 @@ func (s *server) loadCharacterBackgroundChoices(characterID int64, backgroundSlu
 // which only needs the pool/ChooseN shape, not hydration). toolkits backs
 // two tool-kind cases: chooseFromPattern's named list (for "View stats"
 // slugs) and the open "One of your choice" grant, whose Options is the
-// full catalog rather than names parsed out of the value text.
-func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChosen map[string]bool, toolkits []toolkitOption) ([]backgroundProfRow, error) {
+// full catalog rather than names parsed out of the value text. heldTools
+// (from characterProficiencyValues, kind "tool", self-excluding this
+// background) drops any tool name the character already has from BOTH
+// those cases, so a background can't re-offer a toolkit picked at an
+// earlier step — see characterProficiencyValues' own doc for why; nil (the
+// POST validation path, which re-derives the real set separately) offers
+// everything, same as before this filtering existed.
+func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChosen map[string]bool, toolkits []toolkitOption, heldTools map[string]bool) ([]backgroundProfRow, error) {
 	toolkitSlugByName := make(map[string]string, len(toolkits))
 	for _, t := range toolkits {
 		toolkitSlugByName[strings.ToLower(t.Name)] = t.Slug
@@ -1621,7 +1677,7 @@ func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChos
 			return nil, err
 		}
 		for _, part := range splitCompoundGrant(value) {
-			out = append(out, classifyBackgroundProfValue(kind, part, len(out), alreadyChosen, toolkits, toolkitSlugByName))
+			out = append(out, classifyBackgroundProfValue(kind, part, len(out), alreadyChosen, toolkits, toolkitSlugByName, heldTools))
 		}
 	}
 	return out, rows.Err()
@@ -1651,8 +1707,11 @@ func splitCompoundGrant(value string) []string {
 
 // classifyBackgroundProfValue classifies one clause. Split out of
 // classifyBackgroundProfs so a compound value can be run through it once per
-// clause.
-func classifyBackgroundProfValue(kind, value string, index int, alreadyChosen map[string]bool, toolkits []toolkitOption, toolkitSlugByName map[string]string) backgroundProfRow {
+// clause. heldTools filtering is scoped to kind=="tool" only — a
+// background's skill-choice lists are untouched (in scope is the
+// toolkit/weapon proficiency shape of bug this was written for, not a
+// general "no repeated skills" rule).
+func classifyBackgroundProfValue(kind, value string, index int, alreadyChosen map[string]bool, toolkits []toolkitOption, toolkitSlugByName map[string]string, heldTools map[string]bool) backgroundProfRow {
 	row := backgroundProfRow{Index: index, Kind: kind, Value: value}
 	switch {
 	case chooseFromPattern.MatchString(value):
@@ -1660,12 +1719,19 @@ func classifyBackgroundProfValue(kind, value string, index int, alreadyChosen ma
 		row.IsChoice = true
 		row.ChooseN = chooseWordToN[strings.ToLower(m[1])]
 		for _, opt := range strings.Split(m[2], ",") {
-			row.Options = append(row.Options, strings.TrimSpace(opt))
+			name := strings.TrimSpace(opt)
+			if kind == "tool" && heldTools[name] {
+				continue
+			}
+			row.Options = append(row.Options, name)
 		}
 	case kind == "tool" && toolYourChoicePattern.MatchString(value):
 		row.IsChoice = true
 		row.ChooseN = 1
 		for _, t := range toolkits {
+			if heldTools[t.Name] {
+				continue
+			}
 			row.Options = append(row.Options, t.Name)
 		}
 	case strings.HasPrefix(value, "Choose"):
@@ -1741,7 +1807,16 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 			log.Println("load toolkit options:", err)
 			return
 		}
-		profs, err := classifyBackgroundProfs(s.rulesDB, backgroundSlug, nil, toolkits) // validation only — hydration doesn't matter here
+		// Self-excludes this same background (source_ref backgroundSlug) so
+		// re-submitting an already-chosen background doesn't reject its own
+		// prior pick as "already held".
+		heldTools, err := s.characterProficiencyValues(id, "tool", "background", backgroundSlug)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load held toolkits:", err)
+			return
+		}
+		profs, err := classifyBackgroundProfs(s.rulesDB, backgroundSlug, nil, toolkits, heldTools) // validation only — hydration doesn't matter here
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("classify background profs:", err)
@@ -1767,6 +1842,13 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 					}
 					if seen[chosen] {
 						dupErr = "You picked " + chosen + " twice for " + p.Kind + " — choose " + strconv.Itoa(p.ChooseN) + " different options."
+						continue
+					}
+					// Re-checked here (not just left to classifyBackgroundProfs
+					// already excluding it from p.Options) since a hand-built
+					// POST isn't bound by what the dropdown offered.
+					if p.Kind == "tool" && heldTools[chosen] {
+						dupErr = "You already have proficiency with " + chosen + " from elsewhere — pick something you don't already have."
 						continue
 					}
 					seen[chosen] = true
@@ -1893,7 +1975,14 @@ func (s *server) buildBackgroundStepData(characterID int64, focus string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	profs, err := classifyBackgroundProfs(s.rulesDB, focus, alreadyChosen, toolkits)
+	// Self-excludes this same background so revisiting it doesn't exclude
+	// its own already-saved pick from its own dropdown — see
+	// characterProficiencyValues' doc.
+	heldTools, err := s.characterProficiencyValues(characterID, "tool", "background", focus)
+	if err != nil {
+		return nil, err
+	}
+	profs, err := classifyBackgroundProfs(s.rulesDB, focus, alreadyChosen, toolkits, heldTools)
 	if err != nil {
 		return nil, err
 	}
@@ -1943,6 +2032,16 @@ type equipmentChoiceGroup struct {
 
 type toolkitOption struct {
 	Slug, Name string
+
+	// Description is the equipment row's full rules text — populated only by
+	// loadToolkitOptions (every other caller that builds a toolkitOption by
+	// hand, e.g. weaponChoiceLists' weapon dropdowns, leaves it blank since
+	// nothing reads it there). Used for the pack-toolkit pending-choice
+	// picker's rollover tooltip (see buildPendingPackToolkitChoiceRows) —
+	// with a dozen-plus toolkits in the catalog, "what does this one even
+	// do" is the same question the option-tooltip mechanism already answers
+	// everywhere else a dropdown offers more than a couple of named picks.
+	Description string
 }
 
 // isKitChoiceOption flags an unresolved equipment-choice bullet that's
@@ -2133,6 +2232,59 @@ func isStartingTierGear(name string) bool {
 	return true
 }
 
+// characterProficiencyValues returns every value already saved in
+// character_proficiencies for this character under the given kind (e.g.
+// "tool", "weapon"), from ANY source — the shared "does the character
+// already have this" set every creation-step proficiency picker filters its
+// offered options against, so a later step (or an earlier one, re-rendered
+// after a later step already saved something) can't re-offer a name the
+// character is already proficient in. excludeSourceKind/excludeSourceRef,
+// when both non-empty, drop that one source's own rows from the result —
+// the step currently being edited excluding itself, so revisiting an
+// already-saved pick doesn't make that pick vanish from its own dropdown.
+//
+// Written for the reported bug: Science-Nin's class-step toolkit picks
+// (source_kind='class') were still offered whole by the Genius background's
+// own "toolkit of your choice" pick, letting Hacker's Kit be chosen twice.
+func (s *server) characterProficiencyValues(characterID int64, kind, excludeSourceKind, excludeSourceRef string) (map[string]bool, error) {
+	rows, err := s.charDB.Query(`
+		SELECT value, source_kind, source_ref FROM character_proficiencies
+		WHERE character_id = ? AND kind = ?`, characterID, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var value, srcKind, srcRef string
+		if err := rows.Scan(&value, &srcKind, &srcRef); err != nil {
+			return nil, err
+		}
+		if excludeSourceKind != "" && srcKind == excludeSourceKind && srcRef == excludeSourceRef {
+			continue
+		}
+		out[value] = true
+	}
+	return out, rows.Err()
+}
+
+// excludeHeldOptions drops every option whose Name is in held — the render-
+// time half of characterProficiencyValues' exclusion (the submit-time half
+// is a plain map lookup against the same held set, no options list needed).
+func excludeHeldOptions(options []toolkitOption, held map[string]bool) []toolkitOption {
+	if len(held) == 0 {
+		return options
+	}
+	out := make([]toolkitOption, 0, len(options))
+	for _, o := range options {
+		if held[o.Name] {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
 // loadToolkitOptions returns the toolkits a character may start with — every
 // equipment.kind='toolkit' row EXCEPT the Greater/Superior/Supreme tiers
 // (see isStartingTierGear) — folding-sorted the same way every other browse
@@ -2142,7 +2294,7 @@ func isStartingTierGear(name string) bool {
 // offers the full catalogue through loadEquipmentOptions: buying a Supreme
 // kit at 1200 Ryo mid-campaign is exactly what it's for.
 func (s *server) loadToolkitOptions() ([]toolkitOption, error) {
-	rows, err := s.rulesDB.Query(`SELECT slug, name FROM equipment WHERE kind = 'toolkit'`)
+	rows, err := s.rulesDB.Query(`SELECT slug, name, description FROM equipment WHERE kind = 'toolkit'`)
 	if err != nil {
 		return nil, err
 	}
@@ -2150,9 +2302,11 @@ func (s *server) loadToolkitOptions() ([]toolkitOption, error) {
 	var out []toolkitOption
 	for rows.Next() {
 		var t toolkitOption
-		if err := rows.Scan(&t.Slug, &t.Name); err != nil {
+		var desc sql.NullString
+		if err := rows.Scan(&t.Slug, &t.Name, &desc); err != nil {
 			return nil, err
 		}
+		t.Description = desc.String
 		if !isStartingTierGear(t.Name) {
 			continue
 		}
@@ -2225,15 +2379,26 @@ func (s *server) loadClassAddGrantFields(characterID int64, classSlug string) (m
 			if err != nil {
 				return nil, err
 			}
+			// classSlug isn't held yet (that's exactly what this form is
+			// adding), so nothing of its own to self-exclude — every
+			// currently-held tool, from any source, is off the list.
+			heldTools, err := s.characterProficiencyValues(characterID, "tool", "", "")
+			if err != nil {
+				return nil, err
+			}
 			fields["NeedsToolkit"] = true
-			fields["ToolkitOptions"] = toolkits
+			fields["ToolkitOptions"] = excludeHeldOptions(toolkits, heldTools)
 		case charstore.ChoiceMartialWeapon:
 			weapons, err := s.loadMartialWeaponOptions()
 			if err != nil {
 				return nil, err
 			}
+			heldWeapons, err := s.characterProficiencyValues(characterID, "weapon", "", "")
+			if err != nil {
+				return nil, err
+			}
 			fields["NeedsWeapon"] = true
-			fields["WeaponOptions"] = weapons
+			fields["WeaponOptions"] = excludeHeldOptions(weapons, heldWeapons)
 		}
 	}
 	total, err := charstore.TotalClassLevels(s.charDB, characterID, "")
@@ -2253,6 +2418,18 @@ func (s *server) className(classSlug string) string {
 		return classSlug
 	}
 	return name
+}
+
+// clanName looks up a clan's bare display name (no trailing "Clan" — v_clans
+// stores it baked into the name itself, e.g. "Nara Clan", but every call
+// site wants to add its own "Clan" suffix in its own prose), same fallback
+// tolerance as className above.
+func (s *server) clanName(clanSlug string) string {
+	var name string
+	if err := s.rulesDB.QueryRow(`SELECT name FROM v_clans WHERE slug = ?`, clanSlug).Scan(&name); err != nil {
+		return clanSlug
+	}
+	return strings.TrimSuffix(strings.TrimSpace(name), " Clan")
 }
 
 // characterAbilityScores returns the character's current FINAL ability
@@ -2550,6 +2727,19 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 		for _, t := range toolkits {
 			toolkitNames[t.Slug] = t.Name
 		}
+		// Toolkits the character is already proficient with, from ANY source
+		// (a class's own fixed grant, a class step's toolkit-choice slot, or
+		// a background's tool pick) — a "Two Kits of your Choice" grant
+		// can't hand out one of those a second time. The equipment step's
+		// own kit picks never write to character_proficiencies themselves,
+		// so there is no "self" source to exclude here, unlike
+		// submitClassStep's exclusion of its own already-saved picks.
+		heldTools, err := s.characterProficiencyValues(id, "tool", "", "")
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load held toolkits for equipment step:", err)
+			return
+		}
 
 		var lines []charstore.EquipmentLine
 		var kitErr string
@@ -2563,14 +2753,29 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				if opt.IsKitChoice {
+					// A raw POST isn't bound by the dropdowns' render-time
+					// exclusion (below) or by create-equipment.js's
+					// client-side sibling-slot exclusion — both are
+					// re-checked here so a hand-built submission can't grant
+					// a kit the character already has, whether from another
+					// source (heldTools) or from a duplicate pick across
+					// this grant's own slots (seenKit). Same shape as
+					// submitClassStep's heldToolkit/dupToolkit checks.
+					seenKit := make(map[string]bool, opt.Quantity)
 					for slot := 0; slot < opt.Quantity; slot++ {
 						slug := r.FormValue("kit_" + strconv.Itoa(g.GroupIdx) + "_" + strconv.Itoa(opt.ChoiceIdx) + "_" + strconv.Itoa(slot))
 						name, ok := toolkitNames[slug]
-						if !ok {
+						switch {
+						case !ok:
 							kitErr = "Pick a toolkit for every slot under \"" + opt.Description + "\"."
-							continue
+						case heldTools[name]:
+							kitErr = "You already have proficiency with one of those toolkits from elsewhere — pick a different one for each slot under \"" + opt.Description + "\"."
+						case seenKit[name]:
+							kitErr = "Pick a different toolkit for each slot under \"" + opt.Description + "\" — the same one can't be chosen twice."
+						default:
+							seenKit[name] = true
+							lines = append(lines, charstore.EquipmentLine{Slug: slug, Text: name, Quantity: 1})
 						}
-						lines = append(lines, charstore.EquipmentLine{Slug: slug, Text: name, Quantity: 1})
 					}
 				} else if opt.WeaponCategory != "" {
 					// Same slot-per-pick shape as the kit choices: one real
@@ -2635,7 +2840,7 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 			}
 			data := map[string]any{
 				"Title": "Starting Equipment", "ID": id, "Groups": groups,
-				"Toolkits": toolkits, "Weapons": weapons, "Error": kitErr,
+				"Toolkits": excludeHeldOptions(toolkits, heldTools), "Weapons": weapons, "Error": kitErr,
 			}
 			if backgroundSlug.Valid {
 				s.addBackgroundEquipmentData(data, id, backgroundSlug.String)
@@ -2731,7 +2936,15 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 			log.Println("load toolkit options:", err)
 			return
 		}
-		data["Toolkits"] = toolkits
+		// Excludes toolkits the character is already proficient with from
+		// any source — see the POST branch's identical heldTools comment.
+		heldTools, err := s.characterProficiencyValues(id, "tool", "", "")
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load held toolkits for equipment step:", err)
+			return
+		}
+		data["Toolkits"] = excludeHeldOptions(toolkits, heldTools)
 		weapons, err := s.weaponChoiceLists(groups)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
@@ -3708,8 +3921,9 @@ type attackRow struct {
 	// hit for THIS attack roll — 0 means no widening (default 20), same
 	// "0 means untouched" shape companionAttackRow's own field
 	// (puppets.go) already uses. Weapon Specialist's Critical Focus
-	// (class_features level 7, +1/+2/+3 ranks at 7/11/17) is the only
-	// source right now — see weaponSpecialistCritRangeThreshold.
+	// (class_features level 7, +1/+2/+3 ranks at 7/11/17) and Elemental
+	// Innovationist's Razor E.I.P (once it's the designated Perma Perk) are
+	// the two sources — see weaponAttackCritRangeThreshold.
 	CritRangeThreshold int
 
 	// The composition behind AttackBonus/DamageBonus, so the row's "Adjust"
@@ -3735,12 +3949,14 @@ type customAttackRow struct {
 	DamageTotal int
 	// CritRangeThreshold: same shape as attackRow's own field of the same
 	// name — 0 means no widening (default 20). Callers pass the character's
-	// current Weapon Specialist Critical Focus threshold (see
-	// weaponSpecialistCritRangeThreshold) for a "weapon"-kind list and 0 for
+	// current combined weapon-attack crit-range threshold (see
+	// weaponAttackCritRangeThreshold) for a "weapon"-kind list and 0 for
 	// "jutsu"/"item" lists, since the book text grants the widening to
-	// weapons (and Bukijutsu jutsu casts, which this custom-attack list
-	// does not distinguish from other jutsu kinds and so is left untouched
-	// here).
+	// weapons (and, for Weapon Specialist's own Critical Focus only,
+	// Bukijutsu jutsu casts — see loadCharacterJutsuSheet's own separate
+	// weaponSpecialistCritRangeThreshold call — which this custom-attack
+	// list does not distinguish from other jutsu kinds and so is left
+	// untouched here).
 	CritRangeThreshold int
 }
 
@@ -3795,13 +4011,57 @@ func weaponSpecialistCritFocusRank(level int) int {
 // both treat 0 as "use the default 20"). Applies unconditionally to every
 // equipped/custom weapon attack once the character has the rank — the book
 // text says "all weapons you are proficient in", not gated to a Weapon
-// Focus pick the way weaponFocusBonusSet's flat bonus is.
+// Focus pick the way weaponFocusBonusSet's flat bonus is. Critical Focus's
+// own text additionally states this "now applies to Bukijutsu you cast"
+// (loadCharacterJutsuSheet's own Bukijutsu-classified rows read this
+// function directly), which is why weaponAttackCritRangeThreshold below —
+// Razor E.I.P's own wider source — is a separate function layered on top
+// rather than folded in here: Razor's printed text names only "your
+// Unarmed Strike and Weapon Attacks," no jutsu-casting clause, so it must
+// reach real weapon attack rows without also leaking into jutsu rows.
 func (s *server) weaponSpecialistCritRangeThreshold(characterID int64) (int, error) {
 	level, err := s.weaponSpecialistClassLevel(characterID)
 	if err != nil || level == 0 {
 		return 0, err
 	}
 	rank := weaponSpecialistCritFocusRank(level)
+	if rank == 0 {
+		return 0, nil
+	}
+	return 20 - rank, nil
+}
+
+// weaponAttackCritRangeThreshold resolves every crit-range-widening source
+// that actually reaches a real weapon attack row (buildAttacks/
+// composeCustomAttacks for weapon-kind attacks) — Weapon Specialist's
+// Critical Focus, PLUS Elemental Innovationist's Razor E.I.P once it's the
+// character's designated Perma Perk (scienceNinHasPermaPerk,
+// science_nin_subclasses.go): "Increase your critical threat range with
+// your Unarmed Strike and Weapon Attacks by +1." Deliberately NOT used for
+// loadCharacterJutsuSheet's own Bukijutsu-classified rows — see
+// weaponSpecialistCritRangeThreshold's own doc comment for why Razor's
+// printed text doesn't extend there the way Critical Focus's does. Both
+// sources fold into the same rank (a widened crit RANGE, same underlying
+// concept either way) rather than being combined via a narrower-wins
+// comparison — unlike cookingToolCritBonus's own per-weapon Critical
+// PROPERTY, which explicitly doesn't stack with itself, these are two
+// independent character-level bonuses with no book text saying they don't
+// stack.
+func (s *server) weaponAttackCritRangeThreshold(characterID int64) (int, error) {
+	level, err := s.weaponSpecialistClassLevel(characterID)
+	if err != nil {
+		return 0, err
+	}
+	rank := weaponSpecialistCritFocusRank(level)
+
+	hasRazor, err := s.scienceNinHasPermaPerk(characterID, scienceNinRazorEIPSlug)
+	if err != nil {
+		return 0, err
+	}
+	if hasRazor {
+		rank++
+	}
+
 	if rank == 0 {
 		return 0, nil
 	}
@@ -3862,7 +4122,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
-	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
+	critRangeThreshold, err := s.weaponAttackCritRangeThreshold(characterID)
 	if err != nil {
 		return nil, err
 	}
@@ -4063,8 +4323,8 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// (cookingDieSize, 1d4 at 1st-4th up to 1d12 at 17th+) replaces the
 		// catalog row's own inert 1d4 outright, and the Critical/Critical 2
 		// property picks widen this weapon's own crit-threat range (+1 per
-		// rank, same "0 means untouched" shape weaponSpecialistCritRangeThreshold
-		// already uses) — the narrower of the two thresholds (Critical Focus's
+		// rank, same "0 means untouched" shape weaponAttackCritRangeThreshold
+		// already uses) — the narrower of the two thresholds (the character's
 		// own class-wide threshold, if any) wins, since either alone widens
 		// the range and they don't stack per weapon_properties' own text.
 		rowCritRangeThreshold := critRangeThreshold
@@ -4402,7 +4662,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load backup plan bulk bonus:", err)
 		return
 	}
-	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus)
+	aetherConnectorBonus, err := s.beyondTheVeilBulkBonus(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load beyond the veil bulk bonus:", err)
+		return
+	}
+	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus+aetherConnectorBonus)
 	attacks, err := s.buildAttacks(id, inventory, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4435,7 +4701,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load custom item attacks:", err)
 		return
 	}
-	critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(id)
+	critRangeThreshold, err := s.weaponAttackCritRangeThreshold(id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon specialist crit range threshold:", err)
@@ -4673,6 +4939,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load science-nin:", err)
 		return
 	}
+	// Gates the Titan Slots popup's own sidebar button (subclass_tracker_
+	// popup.go/titan_slots_popup.go) — a plain granted-feature check
+	// rather than a full loadTitanUpgradesData call, since the button only
+	// needs a yes/no. Mech Crafter has no scienceNinToolsTabData field of
+	// its own to check the way SNBSpecialist does (see that struct's own
+	// doc on why), so this is its own separate signal.
+	showTitanSlotsPopup := hasFeature(grantedFeatures, scienceNinOrdnanceTrainingFeatureSlug)
 
 	// The three library panes. Each is told what the character already has
 	// so an owned row can be dimmed rather than offered again.
@@ -4862,6 +5135,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pendingPackToolkitChoices, err := s.buildPendingPackToolkitChoiceRows(id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("build pending pack toolkit choice rows:", err)
+		return
+	}
+
 	s.render(w, "character_sheet.html", map[string]any{
 		"Title": sheet.Name, "ID": id, "Sheet": sheet,
 		"AbilityOrder": charsheet.Abilities, // Sheet.Abilities is a map — fixed display order comes from here
@@ -4889,16 +5169,19 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"IntelligenceOperative":         intelligenceOperative,
 		"NinjutsuSpecialist":            ninjutsuSpecialist,
 		"ScienceNin":                    scienceNin,
+		"ShowTitanSlotsPopup":           showTitanSlotsPopup,
 		"Mastery":                       mastery,
 		"PendingFeatureChoices":         pendingFeatureChoices,
 		"PendingASI":                    pendingASI,
 		"PendingFeatAbilityChoices":     pendingFeatAbilityChoices,
 		"PendingFeatSkillOrToolChoices": pendingFeatSkillOrToolChoices,
 		"PendingHunterPatternChoices":   pendingHunterPatternChoices,
+		"PendingPackToolkitChoices":     pendingPackToolkitChoices,
 		"ChatLog":                       chatLog,
 		"ToolProficiencies":             toolRows, "Languages": languages, "CustomSkills": customSkillRows,
 		"AllTools": allTools, "AllLanguages": allLanguages,
 		"ClassSummary":     classSummary,
+		"ClanName":         s.clanName(sheet.ClanSlug),
 		"EquipmentOptions": equipmentOptions,
 		"Companions":       companions,
 		"PuppetsTab":       puppetsTab,
@@ -5541,7 +5824,28 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 			j.DamageType = opt.DamageType
 			if j.DamageCount > 0 && j.DamageSides > 0 {
 				j.DamageDice = strconv.Itoa(j.DamageCount) + "d" + strconv.Itoa(j.DamageSides)
-				j.DamageBonus = sheet.Abilities[j.DamageAbility].Modifier + opt.DamageBonus
+				j.DamageBonus = opt.DamageBonus
+				// Taijutsu/Bukijutsu damage always includes the caster's
+				// ability modifier — ordinary weapon-attack math, same as any
+				// 5e melee/ranged weapon attack. Ninjutsu/Genjutsu jutsu do
+				// NOT get it by default: the core rulebook's jutsu-creation
+				// chapter gates this behind "Powerful Offense" ("Required
+				// Effects: Damage... you add your [Ninjutsu/Genjutsu] ability
+				// modifier to your first damage roll"), an optional pick most
+				// catalog jutsu never take. There is no reliable per-jutsu
+				// signal in rules.db for which ones did take it (a text
+				// search for "ability modifier" is only ~35% true positives —
+				// most hits describe healing, a summon's AC, or unrelated
+				// checks), so a player whose jutsu's own printed text calls
+				// for the bonus folds it into opt.DamageBonus by hand, the
+				// same manual-entry step already used for the dice
+				// themselves. kind == "" (no attack roll at all) and "Custom"
+				// (a player-added attack roll the book's text never
+				// described) default to no automatic bonus for the same
+				// reason.
+				if kind == "Taijutsu" || kind == "Bukijutsu" {
+					j.DamageBonus += sheet.Abilities[j.DamageAbility].Modifier
+				}
 			}
 			// Combat's own "+1/+2 bonus to attack & damage rolls made with
 			// Ninjutsu, Taijutsu, Genjutsu and Bukijutsu you cast" — applied
@@ -6194,7 +6498,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load custom weapon attacks for fragment:", err)
 			return
 		}
-		critRangeThreshold, err := s.weaponSpecialistCritRangeThreshold(characterID)
+		critRangeThreshold, err := s.weaponAttackCritRangeThreshold(characterID)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load weapon specialist crit range threshold for fragment:", err)
@@ -6242,7 +6546,13 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("load backup plan bulk bonus for "+name+" fragment:", err)
 			return
 		}
-		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus)
+		aetherConnectorBonus, err := s.beyondTheVeilBulkBonus(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load beyond the veil bulk bonus for "+name+" fragment:", err)
+			return
+		}
+		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus+aetherConnectorBonus)
 	case "sheet_elemental_affinities":
 		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 		if err != nil {
@@ -6423,11 +6733,18 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			log.Println("build pending hunter pattern choice rows for fragment:", err)
 			return
 		}
+		pendingPackToolkitChoices, err := s.buildPendingPackToolkitChoiceRows(characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("build pending pack toolkit choice rows for fragment:", err)
+			return
+		}
 		data["PendingFeatureChoices"] = pendingFeatureChoices
 		data["PendingASI"] = pendingASI
 		data["PendingFeatAbilityChoices"] = pendingFeatAbilityChoices
 		data["PendingFeatSkillOrToolChoices"] = pendingFeatSkillOrToolChoices
 		data["PendingHunterPatternChoices"] = pendingHunterPatternChoices
+		data["PendingPackToolkitChoices"] = pendingPackToolkitChoices
 	case "sheet_companions":
 		companions, err := charstore.ListCompanions(s.charDB, characterID)
 		if err != nil {
@@ -6516,6 +6833,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["ClassSummary"] = classSummary
+		data["ClanName"] = s.clanName(sheet.ClanSlug)
 	case "sheet_tools_skills":
 		toolProfs, err := s.loadCharacterProficiencyValues(characterID, "tool")
 		if err != nil {
@@ -7014,6 +7332,44 @@ func (s *server) handleSheetSpeed(w http.ResponseWriter, r *http.Request) {
 	s.respondSheet(w, r, id, "sheet_squares")
 }
 
+// maxCharacterNameLength caps a rename — generous enough for any real
+// character name, small enough that a pasted paragraph gets rejected
+// instead of silently truncated or blowing out the header layout.
+const maxCharacterNameLength = 100
+
+// handleSheetName renames the character (form field "value", same field
+// name every other click-to-edit box in sheet-vitals.js sends — see
+// wireEditBoxes). It's the one edit box on the sheet that takes free text
+// instead of a number, so the header's sheet-edit-box carries
+// data-type="text", which tells wireEditBoxes to skip its numeric parsing
+// and pre-fill the input with the current name rather than blanking it.
+func (s *server) handleSheetName(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("value"))
+	if name == "" {
+		http.Error(w, "name can't be empty", http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(name) > maxCharacterNameLength {
+		http.Error(w, fmt.Sprintf("name can't be longer than %d characters", maxCharacterNameLength), http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetName(s.charDB, id, name); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set character name:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_header_name")
+}
+
 // handleSheetAbility overwrites one base ability score from the sheet's
 // ability editor (form fields "ability" and "value").
 //
@@ -7241,6 +7597,7 @@ func (s *server) handleSheetInventoryUnpack(w http.ResponseWriter, r *http.Reque
 	for _, line := range contents {
 		unpacked = append(unpacked, charstore.UnpackedItem{
 			Slug: line.Slug, Text: line.Text, Quantity: line.Quantity,
+			IsToolkitChoice: line.IsToolkitChoice, ToolkitChoiceOptions: line.ToolkitChoiceOptions,
 		})
 	}
 	if err := charstore.UnpackInventoryItem(s.charDB, id, rowID, unpacked); err != nil {
@@ -8229,6 +8586,7 @@ func (s *server) handleSheetInventoryAddCustom(w http.ResponseWriter, r *http.Re
 // ask for an arbitrary template and so the set of blocks that are allowed
 // to refresh independently stays visible in one place.
 var sheetLiveFragments = map[string]bool{
+	"sheet_header_name":            true,
 	"sheet_vitals":                 true,
 	"sheet_squares":                true,
 	"sheet_skills":                 true,

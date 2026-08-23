@@ -2210,6 +2210,18 @@ type companionAttackRow struct {
 	// when the immediately-preceding Attack roll on the SAME row crit (see
 	// dice-roller.js's onResult).
 	CritDamageBonus int
+	// GrantedHint: "" for every stored (.ID != 0) row AND for a computed
+	// baseline attack no upgrade grants or removes (Bash, Bite) — the
+	// template shows neither a delete button nor this hint for those, since
+	// there's nothing the player can do to remove an innate attack. Non-
+	// empty only for a computed row that genuinely comes FROM a removable
+	// pick elsewhere on the sheet (a Puppet Integrated Weapon choice, a
+	// Weapon-keyword Titan Upgrade) — before this field existed, the
+	// template inferred "granted by an upgrade" from .ID == 0 alone, which
+	// wrongly labeled Bash/Bite the same way (confirmed live: Bash showed
+	// "Granted by a Puppet Upgrade — remove the upgrade to remove this
+	// attack" on a Titan, which has no Puppet Upgrades at all).
+	GrantedHint string
 }
 
 // composeCompanionAttacks resolves each row's ability/proficiency/flat
@@ -2269,6 +2281,7 @@ func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string) *co
 		},
 		AttackTotal: modifier,
 		DamageTotal: modifier,
+		GrantedHint: "Granted by a Puppet Upgrade — remove the upgrade to remove this attack",
 	}
 }
 

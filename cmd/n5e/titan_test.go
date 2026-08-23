@@ -123,10 +123,11 @@ func TestPrefillTitanStatDefaultsOnCreation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Base stat block's own -3 Intelligence modifier (5 baseline) — same
-	// "companion's own fields still blank, base stat block baseline used"
-	// reasoning as wantHP's own +1 CON modifier above.
-	wantAC := int64(titanAC(charsheet.AbilityModifier(titanBaseAbilityScores["int"]), sheet.ProficiencyBonus))
+	// AC's Intelligence modifier is the PLAYER's own (base_int 10, modifier
+	// 0 here) — unlike HP's Constitution modifier, it never falls back to
+	// the Titan's own stat block baseline, since the source text never says
+	// "Titan's Intelligence Modifier" the way it does for HP's CON term.
+	wantAC := int64(titanAC(sheet.Abilities["int"].Modifier, sheet.ProficiencyBonus))
 	if !c.AC.Valid || c.AC.Int64 != wantAC {
 		t.Errorf("AC = %+v, want %d", c.AC, wantAC)
 	}

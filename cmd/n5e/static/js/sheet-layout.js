@@ -70,6 +70,29 @@
     });
   }
 
+  // One grow-if-needed callback per box id, populated by every initLayout()
+  // call below — a single shared map (not per-layout) since a caller
+  // outside this file only knows a box's id, not which named layout
+  // (core/bio/summons/...) it belongs to. A box's content can grow after
+  // its own layout was already measured-and-saved (a companion attached, a
+  // Tactic/Mastery pick added — see loadOrComputeState's own comment on why
+  // nothing here ever re-checks an already-saved layout on its own), and
+  // the fragment swap that grows it only replaces the box's INNER markup,
+  // never the box element itself — so nothing here notices unless asked.
+  // window.n5eGrowSheetBox is that ask: exposed so a swap elsewhere
+  // (sheet-vitals.js's swap(), sheet-refresh.js's n5eRefreshBlocks) can
+  // request one specific box re-measure itself once its content has
+  // changed. Deliberately grow-only (see the registration below) and
+  // deliberately opt-in per box id rather than run automatically after
+  // every swap — most boxes rely on their own overflow:auto scroll on
+  // purpose (a capped Skills list, e.g.), and force-growing them on every
+  // unrelated save would fight that.
+  const growCallbacks = new Map();
+  window.n5eGrowSheetBox = function (boxId) {
+    const grow = growCallbacks.get(boxId);
+    if (grow) grow();
+  };
+
   document.querySelectorAll("[data-sheet-layout]").forEach((layout) => {
     initLayout(layout);
   });
@@ -725,6 +748,40 @@
           // session; nothing about THIS toggle needs to reach the server.
         });
       }
+
+      // See growCallbacks' own doc above. Grow-only, same reasoning as
+      // correctFreshDefaults: shrinking a box the player deliberately sized
+      // smaller than a moment's content would undo their own choice, and
+      // there's no way from here to tell "stale auto-default" apart from
+      // "player's own resize" — growing is the safe direction in both
+      // cases, since it only ever recovers space the box's own content
+      // already needs.
+      growCallbacks.set(box.dataset.boxId, () => {
+        const current = state.get(box.dataset.boxId);
+        if (!current) return;
+        // Same "temporarily unhide the inactive tab to measure" trick
+        // computeDefaultState uses — a display:none ancestor (the OTHER
+        // tab being open) would otherwise measure 0 and never grow
+        // anything. Invisible to the user: nothing yields back to the
+        // browser's paint loop between the two attribute writes.
+        const wasHidden = layout.hidden;
+        if (wasHidden) layout.hidden = false;
+        const prevAlignSelf = box.style.alignSelf;
+        const prevOverflow = box.style.overflow;
+        box.style.alignSelf = "start";
+        box.style.overflow = "visible";
+        const naturalHeight = box.getBoundingClientRect().height;
+        box.style.alignSelf = prevAlignSelf;
+        box.style.overflow = prevOverflow;
+        if (wasHidden) layout.hidden = true;
+        const currentPx = current.rowSpan * window.N5eGrid.ROW_HEIGHT + (current.rowSpan - 1) * window.N5eGrid.ROW_GAP;
+        if (naturalHeight <= currentPx) return;
+        const rowSpan = Math.ceil((naturalHeight + window.N5eGrid.ROW_GAP) / (window.N5eGrid.ROW_HEIGHT + window.N5eGrid.ROW_GAP));
+        const proposed = Object.assign({}, current, { rowSpan: rowSpan });
+        state = window.N5eGrid.compact(window.N5eGrid.resolvePush(state, box.dataset.boxId, proposed));
+        applyGridStyles(state);
+        saveLayout();
+      });
 
       wireResize(box);
     });

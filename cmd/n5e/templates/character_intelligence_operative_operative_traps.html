@@ -1,0 +1,15 @@
+{{/* character_intelligence_operative_operative_traps.html: the "Operative
+     Traps" subclass tracker popup — see cmd/n5e/subclass_tracker_popup.go
+     for the shared pattern this is built from. Expects {Title, Data
+     (subclassTrackerPopupData)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+</div>
+{{end}}

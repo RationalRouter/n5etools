@@ -1343,13 +1343,60 @@ func (s *server) handleGenjutsuPickDelete(category charstore.GenjutsuPickCategor
 	}
 }
 
-// handleGenjutsuJutsuPickAdd builds one of Twisted Casting/Psyche Breaker's
-// own "pick a known Genjutsu" routes — shared since both validate/store
-// identically, differing only in which of genjutsuTabData's own fields
-// govern the cap and the currently-pickable list. Same shape
-// handleNinjutsuJutsuPickAdd (ninjutsu_specialist.go) already establishes,
-// keyed by a character_jutsu row id (form field "jutsu_id") instead of a
-// rules-database option_slug.
+// addGenjutsuJutsuPick validates and stores one Twisted Casting/Psyche
+// Breaker pick — shared since both validate/store identically, differing
+// only in which of genjutsuTabData's own fields govern the cap and the
+// currently-pickable list. Extracted from handleGenjutsuJutsuPickAdd's own
+// factory below so the Twisted Casting/Psyche Breaker subclass tracker
+// popups (genjutsu_twisted_casting_popup.go, genjutsu_psyche_breaker_
+// popup.go) share the identical validation path as the Core-sheet's own
+// AJAX route instead of reimplementing it — same "extract, don't duplicate"
+// shape addAwakenedScrollPick (ninjutsu_specialist.go) establishes.
+func (s *server) addGenjutsuJutsuPick(
+	id int64,
+	category charstore.GenjutsuJutsuPickCategory,
+	jutsuID int64,
+	used func(*genjutsuTabData) int,
+	cap func(*genjutsuTabData) int,
+	available func(*genjutsuTabData) []knownJutsuOption,
+) (int, string) {
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for genjutsu jutsu pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadGenjutsuTabData(id, sheet)
+	if err != nil {
+		log.Println("load genjutsu for jutsu pick add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil {
+		return http.StatusBadRequest, "character has no levels in Genjutsu Specialist"
+	}
+	if used(data) >= cap(data) {
+		return http.StatusBadRequest, "no slots remaining"
+	}
+	valid := false
+	for _, o := range available(data) {
+		if o.JutsuID == jutsuID {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return http.StatusBadRequest, "not a valid pick"
+	}
+	if err := charstore.AddGenjutsuJutsuPick(s.charDB, id, category, jutsuID); err != nil {
+		log.Println("add genjutsu jutsu pick:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleGenjutsuJutsuPickAdd is addGenjutsuJutsuPick's own Core-sheet AJAX
+// wrapper. Same shape handleNinjutsuJutsuPickAdd (ninjutsu_specialist.go)
+// already establishes, keyed by a character_jutsu row id (form field
+// "jutsu_id") instead of a rules-database option_slug.
 func (s *server) handleGenjutsuJutsuPickAdd(
 	category charstore.GenjutsuJutsuPickCategory,
 	used func(*genjutsuTabData) int,
@@ -1371,40 +1418,8 @@ func (s *server) handleGenjutsuJutsuPickAdd(
 			http.Error(w, "missing pick", http.StatusBadRequest)
 			return
 		}
-		sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("compute sheet for genjutsu jutsu pick add:", err)
-			return
-		}
-		data, err := s.loadGenjutsuTabData(id, sheet)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load genjutsu for jutsu pick add:", err)
-			return
-		}
-		if data == nil {
-			http.Error(w, "character has no levels in Genjutsu Specialist", http.StatusBadRequest)
-			return
-		}
-		if used(data) >= cap(data) {
-			http.Error(w, "no slots remaining", http.StatusBadRequest)
-			return
-		}
-		valid := false
-		for _, o := range available(data) {
-			if o.JutsuID == jutsuID {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			http.Error(w, "not a valid pick", http.StatusBadRequest)
-			return
-		}
-		if err := charstore.AddGenjutsuJutsuPick(s.charDB, id, category, jutsuID); err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("add genjutsu jutsu pick:", err)
+		if status, msg := s.addGenjutsuJutsuPick(id, category, jutsuID, used, cap, available); status != http.StatusOK {
+			http.Error(w, msg, status)
 			return
 		}
 		s.respondSheet(w, r, id, "sheet_genjutsu")

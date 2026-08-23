@@ -59,6 +59,13 @@
           // this, Speed's listener dies the moment any rest refreshes this
           // block and never comes back until a full page reload.
           if (window.n5eRewireControls) window.n5eRewireControls();
+          // Adding/removing a companion refreshes sheet-summon-tab as a
+          // data-also-refresh target (its own primary target is
+          // sheet-companions, on the Core tab) — same stale-rowSpan gap as
+          // sheet-vitals.js's swap() covers for the companion-specific
+          // forms that target this fragment directly. See that comment for
+          // why this check stays scoped to this one fragment id.
+          if (elementID === "sheet-summon-tab" && window.n5eGrowSheetBox) window.n5eGrowSheetBox("summons-list");
         })
         .catch((err) => console.warn("refreshing " + elementID + " failed:", err));
     });

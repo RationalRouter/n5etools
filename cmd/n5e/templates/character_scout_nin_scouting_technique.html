@@ -1,0 +1,60 @@
+{{/* character_scout_nin_scouting_technique.html: the "Scouting Technique"
+     subclass tracker popup — see cmd/n5e/subclass_tracker_popup.go for the
+     shared pattern and scout_nin_scouting_technique_popup.go's own header
+     doc for why ONE popup covers all 9 Scouting Techniques. Change of
+     Heart (Trickster Scout) and Paragon's Presence (Arbiter Scout) are
+     both single freely re-editable <select>s, not catalog pickers — same
+     "hand-rolled outside subclass_tracker_section" shape character_
+     taijutsu_passionate_flame.html's own Hand Wraps of Passion <select>
+     already establishes; at most one of the two is ever non-nil for a
+     given character, since Change of Heart and Paragon's Presence each
+     belong to a different, mutually exclusive Scouting Technique. Expects
+     {Title, Data (subclassTrackerPopupData), ChangeOfHeart
+     (*changeOfHeartView), ParagonsPresence (*paragonsPresenceView)}. */}}
+{{define "content"}}
+<div class="character-reference-page subclass-scope">
+  {{template "subclass_tracker_popup_header" .Data}}
+  {{if .Data.EmptyHint}}
+  <p class="section-hint">{{.Data.EmptyHint}}</p>
+  {{end}}
+  {{range .Data.Sections}}
+  {{template "subclass_tracker_section" .}}
+  {{end}}
+  {{if .ChangeOfHeart}}
+  <section class="companion-reference">
+    <h3>Change of Heart</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/scout-nin/scouting-technique/change-of-heart" class="sheet-inline-form">
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— none chosen —</option>
+        {{range .ChangeOfHeart.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.ChangeOfHeart.Current}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ChangeOfHeart.Current}}{{range .ChangeOfHeart.Options}}{{if eq .Value $.ChangeOfHeart.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a benefit above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+  {{if .ParagonsPresence}}
+  <section class="companion-reference">
+    <h3>Paragon's Presence</h3>
+    <form method="post" action="/characters/{{.Data.CharacterID}}/scout-nin/scouting-technique/paragons-presence" class="sheet-inline-form">
+      <select name="value" class="sheet-option-tooltip-select">
+        <option value="">— none chosen —</option>
+        {{range .ParagonsPresence.Options}}
+        <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.ParagonsPresence.Current}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content">{{if .ParagonsPresence.Current}}{{range .ParagonsPresence.Options}}{{if eq .Value $.ParagonsPresence.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a condition above to see what it does.{{end}}</span>
+      </span>
+      <button type="submit">Set</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{end}}
