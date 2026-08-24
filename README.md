@@ -8,7 +8,7 @@ some HTML, CSS and JavaScript sprinkled in to make the web server ✨ pop ✨
 
 ## Download
 
-Prebuilt binaries for Windows, Linux, and macOS (Apple Silicon and Intel) are
+Prebuilt binaries for Windows, Linux, and macOS are
 attached to each [GitHub Release](https://github.com/RationalRouter/n5etools/releases).
 Download the zip for your platform, unzip it, and run the executable — no
 build step required. `characters.db` is created next to the executable on
@@ -48,36 +48,10 @@ already in the local database.
 - **`characters.db`** — created next to the executable on first run; holds
   player characters. Copy the folder and everything travels with it.
 
-## Building from source
+## Security
 
-Building from source is only needed to develop the app or cut a new release
-— see [Download](#download) above for prebuilt binaries. `cmd/n5e` is a
-local web server: on launch it picks a free port on `127.0.0.1`, opens the
-default browser to it, and keeps running in the background even if that tab
-is closed — quit it from the in-page **Quit** button (or Ctrl+C in a
-terminal). It has no other CLI surface.
-
-```sh
-make build   # embeds out/rules.db, builds dist/n5e and dist/n5e-ingest
-make run     # build + launch
-```
-
-`out/rules.db` must already exist (built via `n5e-ingest`, see below) before
-`make build`/`make embed-rules` will succeed. `make build-windows` cross-builds
-a Windows binary with the console window suppressed (`-H=windowsgui`), so
-players never see a terminal — a native message box (see
-`cmd/n5e/errdialog_windows.go`) covers the one case that would otherwise be
-invisible without it: a fatal startup failure. `make build-windows` embeds an
-app icon from `assets/n5e.ico` if present (not committed — supply your own;
-the build just skips the icon step with a warning if it's missing).
-`make release-windows` builds and zips the player-facing exe into
-`dist-release/n5e-windows.zip` — a "download, unzip, double-click" package,
-no installer, using `tools/zipdist` (stdlib `archive/zip`) so it doesn't
-depend on a system `zip` binary being installed.
-
-A note on security: the server binds to `127.0.0.1` only — never reachable from
-the network — and every request must carry a per-launch secret token (set as
-a cookie on first load, the same pattern Jupyter notebook uses) plus a
+The server binds to `127.0.0.1` only and every request must carry a per-launch secret 
+token (set as a cookie on first load, (the same pattern Jupyter notebooks use) plus a
 matching `Origin` header on any cross-origin-capable request. This blocks the
 one realistic residual threat for a long-lived loopback server: another
 browser tab trying to script requests against it.
@@ -113,12 +87,6 @@ go run ./cmd/n5e-ingest classes -db out/rules.db -version 3.12 Orochimarus_Obser
 # Core book → fighting stances, feats, backgrounds, enhancement seals,
 # multiclassing rules
 go run ./cmd/n5e-ingest core -db out/rules.db -version 3.11 "Naruto 5e - Full Document.pdf"
-
-# Community Mastersheet → the tables that print as images in the PDFs:
-# class progression charts, armor/weapon stats. Bootstrap only — see the
-# note in internal/sources/books.go about replacing this with real OCR
-# against the PDF images after v1 ships.
-go run ./cmd/n5e-ingest sheet -db out/rules.db -version 3.1 "Mastersheet - N5E v3.1.xlsx"
 ```
 
 ## Design rules
