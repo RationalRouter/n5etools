@@ -424,3 +424,65 @@ func TestFormatDescriptionDoesNotFalsePositiveOnTheWordOr(t *testing.T) {
 		t.Errorf("intro sentence containing \"Or\" was mangled, got: %s", got)
 	}
 }
+
+// wowDraconicGauntletDescription is the real Draconic Gauntlet raw text
+// (class_options.description, list_name "W.O.W (Weapons of Wonder)") —
+// no "•" bullets and no named-entry shape in its base half, so
+// formatDescription alone falls all the way through to its single-<p>
+// fallback for the whole ~2500-character field. This is the exact text
+// behind the user-reported "one big jumble" screenshot.
+const wowDraconicGauntletDescription = `You forge a mighty gauntlet using your element, granting your fists the strength of dragons. This weapon has the Deadly, Reach, Trip, and Unarmed properties. While equipped, increase your [Unarmed Damage] by +1d6 force damage, and you may calculate your Unarmed attack and damage rolls with Intelligence instead of Strength. When you cast a Taijutsu, you may use this Weapon of Wonder as a component. ASCENSION: DRACONIC GAUNTLET If the Draconic Gauntlet is Ascended, you use your element to create and give life to a small Whelp, a tiny youngling dragon. Aether Fireball (Cost: 5 Chakra). Ranged Weapon Attack: Range 90 feet, one target. Hit: 4d10+4 fire damage.`
+
+func TestFormatWoWDescriptionSplitsBaseFromAscension(t *testing.T) {
+	got := string(formatWoWDescription(wowDraconicGauntletDescription))
+
+	if !strings.Contains(got, "granting your fists the strength of dragons") {
+		t.Errorf("missing base description text, got: %s", got)
+	}
+	if !strings.Contains(got, `<h4 class="wow-ascension-heading">Ascension: Draconic Gauntlet</h4>`) {
+		t.Errorf("missing Ascension heading, got: %s", got)
+	}
+	if !strings.Contains(got, "If the Draconic Gauntlet is Ascended, you use your element") {
+		t.Errorf("missing Ascension body text, got: %s", got)
+	}
+	if strings.Contains(got, "ASCENSION: DRACONIC GAUNTLET") {
+		t.Errorf("raw ASCENSION marker leaked into output, got: %s", got)
+	}
+
+	baseEnd := strings.Index(got, "wow-ascension-heading")
+	ascensionStart := strings.Index(got, "If the Draconic Gauntlet is Ascended")
+	if baseEnd == -1 || ascensionStart == -1 || ascensionStart < baseEnd {
+		t.Errorf("Ascension heading/body did not come after the base description, got: %s", got)
+	}
+}
+
+func TestFormatWoWDescriptionFallsBackWithoutMarker(t *testing.T) {
+	raw := "A plain weapon with no Ascension text at all."
+	got := formatWoWDescription(raw)
+	want := formatDescription(raw)
+	if got != want {
+		t.Errorf("got %q, want fallback to formatDescription: %q", got, want)
+	}
+}
+
+// wowBlunderbussAscensionExcerpt is a trimmed excerpt of the real Blunderbuss
+// description's own Ascension half — it lists three "•"-marked custom
+// properties, confirming formatWoWDescription's per-half formatDescription
+// call still detects and renders bullets nested inside the Ascension text.
+const wowBlunderbussAscensionExcerpt = `Clip Size: 8 [16] You make a large double-barreled exotic rifle with a rustic appearance using your element. ASCENSION: BLUNDERBUSS If the Blunderbuss is Ascended, it gains one of the following custom properties, granting it new effects. • Sweeping: The normal and maximum ranged of the Blunderbuss doubles. • Vitriolic: The Blunderbuss’ damage becomes Acid. • Withering: The Blunderbuss’ damage becomes Fire and is increased by +5.`
+
+func TestFormatWoWDescriptionPreservesNestedBullets(t *testing.T) {
+	got := string(formatWoWDescription(wowBlunderbussAscensionExcerpt))
+
+	if !strings.Contains(got, `<h4 class="wow-ascension-heading">Ascension: Blunderbuss</h4>`) {
+		t.Errorf("missing Ascension heading, got: %s", got)
+	}
+	if !strings.Contains(got, `<ul class="prose-list">`) {
+		t.Errorf("missing bullet list in Ascension half, got: %s", got)
+	}
+	for _, want := range []string{"Sweeping:", "Vitriolic:", "Withering:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing bullet %q, got: %s", want, got)
+		}
+	}
+}

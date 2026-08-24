@@ -189,7 +189,7 @@ func jsonify(v any) (template.JS, error) {
 // layout.html but still needs the same helpers (formatDescription in
 // particular, for its rules-reference panels).
 var templateFuncs = template.FuncMap{
-	"formatDescription": formatDescription, "dict": dict, "diceAvg": diceAvg,
+	"formatDescription": formatDescription, "formatWoWDescription": formatWoWDescription, "dict": dict, "diceAvg": diceAvg,
 	"jsonify": jsonify, "skillOptionPairs": skillOptionPairs, "seq": seq,
 	"jutsuKnownCount": jutsuKnownCount,
 	"abilityLabel":    abilityLabel, "signed": signed, "signedFloat": signedFloat,
@@ -229,6 +229,7 @@ var templateFuncs = template.FuncMap{
 	"ninDogReferenceOrZero":              ninDogReferenceOrZero,
 	"titanReferenceOrZero":               titanReferenceOrZero,
 	"snbReferenceOrZero":                 snbReferenceOrZero,
+	"puppetCompanionViewOrZero":          puppetCompanionViewOrZero,
 	"companionKindLabel":                 companionKindLabel,
 	"companionSupportsStructuredAttacks": companionSupportsStructuredAttacks,
 	// firstNonEmpty: picks whichever companion-kind reference's own

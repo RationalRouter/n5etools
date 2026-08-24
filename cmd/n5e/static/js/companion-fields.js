@@ -136,7 +136,7 @@
   document.addEventListener("submit", (e) => {
     const form = e.target;
     if (!(form instanceof HTMLFormElement)) return;
-    if (!/\/companions\/\d+(\/(ac|hp|hp_max|jutsu_slots_current|jutsu_slots_max|matryoshka_jutsu_slots|barrier_current|barrier_max))?$/.test(form.action)) return;
+    if (!/\/companions\/\d+(\/(ac|hp|hp_max|temp_hp|speed|fly_speed|str_score|dex_score|con_score|int_score|wis_score|cha_score|size|jutsu_slots_current|jutsu_slots_max|matryoshka_jutsu_slots|barrier_current|barrier_max))?$/.test(form.action)) return;
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
@@ -222,75 +222,14 @@
       .catch((err) => console.warn("armor chassis AC save failed:", err));
   };
 
-  // The Puppet Upgrade "Sync AC to N"/"Sync Max HP to N"/"Sync Speed to
-  // N"/"Sync Fly to N" buttons — a plain <button type="button">, not a
-  // <form> posting to the same /ac or /hp_max URL the field's own tiny
-  // form already targets. Two different forms both able to submit to that
-  // one endpoint invites exactly the kind of race the Enter-key guard
-  // further up this file exists to prevent, so this reuses the field's OWN
-  // already-working autosave instead of adding a second path to the same
-  // place — same "set the value, dispatch focusout" shape the armor_chassis
-  // handler just above already uses for the identical reason.
-  //
-  // Two different kinds of field can be synced, which is why the lookup
-  // tries both: AC and Max HP are .companion-delta-field inputs with their
-  // own per-field <form> (they accept "+3" deltas as well as absolute
-  // values), while Speed and Fly are plain .companion-field inputs on the
-  // card's shared whole-record form. Both autosave on focusout, so the
-  // same dispatch drives either one.
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".companion-sync-btn");
-    if (!btn) return;
-    const container = btn.closest(".companion-card, .companion-sheet");
-    if (!container) return;
-    const name = btn.dataset.field;
-    const field =
-      container.querySelector('.companion-delta-field[data-field="' + name + '"]') ||
-      container.querySelector('.companion-field[name="' + name + '"]');
-    if (!field) return;
-    field.value = btn.dataset.value;
-    field.dispatchEvent(new Event("focusout", { bubbles: true }));
-  });
-
-  // The Sync-buttons popout (.companion-sync-menu, companion_fields.html) —
-  // same .dropdown-filter/.dropdown-toggle/.dropdown-panel shape the Jutsu
-  // page's Categories menu uses (jutsu-filter.js), but delegated from
-  // document instead of bound directly to one toggle/panel pair: a
-  // companion card, and the popout inside it, can be replaced wholesale by
-  // a fragment swap at any time (see this file's own header comment), and
-  // unlike the Jutsu page there can be several of these panels open at once
-  // across different companion cards on the same Companions tab. Clicking a
-  // .companion-sync-btn inside an open panel does NOT close it — the panel
-  // stays open so several fields (e.g. every ability score after a level
-  // up) can be synced in one pass instead of reopening the menu each time.
-  function closeAllCompanionSyncPanels() {
-    document.querySelectorAll(".companion-sync-panel").forEach((panel) => {
-      panel.hidden = true;
-      const toggle = panel.parentElement && panel.parentElement.querySelector(".companion-sync-toggle");
-      if (toggle) toggle.setAttribute("aria-expanded", "false");
-    });
-  }
-  document.addEventListener("click", (e) => {
-    const toggle = e.target.closest(".companion-sync-toggle");
-    if (toggle) {
-      const panel = toggle.parentElement && toggle.parentElement.querySelector(".companion-sync-panel");
-      if (!panel) return;
-      const opening = panel.hidden;
-      closeAllCompanionSyncPanels();
-      panel.hidden = !opening;
-      toggle.setAttribute("aria-expanded", String(opening));
-      return;
-    }
-    if (!e.target.closest(".companion-sync-panel")) closeAllCompanionSyncPanels();
-  });
-
   // The Nin-Dog "Cast" button next to each auto-known Inuzuka Hijutsu
   // (nindog_reference's own Known Hijutsu list, companion_fields.html) —
   // same "set the value, dispatch focusout" reuse of jutsu_slots_current's
-  // own already-working delta-field autosave as .companion-sync-btn just
-  // above, just spending a fixed -1 delta instead of syncing to a computed
-  // value. AddCompanionIntField floors at 0 server-side, so casting with no
-  // Jutsu Slots left is a harmless no-op rather than going negative.
+  // own already-working delta-field autosave the armor_chassis handler
+  // above also relies on, just spending a fixed -1 delta instead of syncing
+  // to a computed value. AddCompanionIntField floors at 0 server-side, so
+  // casting with no Jutsu Slots left is a harmless no-op rather than going
+  // negative.
   document.addEventListener("click", (e) => {
     const btn = e.target.closest(".companion-jutsu-cast-btn");
     if (!btn) return;

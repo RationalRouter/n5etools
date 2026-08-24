@@ -31,20 +31,21 @@
   {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" .CharacterID "FormID" "companion-form"
               "SummonTribes" .SummonTribes "ArmorChassisOptions" .ArmorChassisOptions "BaseTraits" .BaseTraits
               "ReadOnlyAttacks" .ReadOnlyAttacks "Attacks" .Attacks "AttacksTarget" "" "AttacksTabName" .AttacksTabName
-              "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
+              "SymphonyEnhancement" .SymphonyEnhancement
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName
               "NinDogReference" .NinDogReference "TitanReference" .TitanReference "SNBReference" .SNBReference
               "Saves" .Saves
-              "ExpectedAC" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC) (snbReferenceOrZero .SNBReference).ExpectedAC)
-              "ExpectedMaxHP" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP) (snbReferenceOrZero .SNBReference).ExpectedMaxHP)
-              "ExpectedSpeed" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed) (snbReferenceOrZero .SNBReference).ExpectedSpeed)
-              "ExpectedSize" (firstNonEmpty (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize) (snbReferenceOrZero .SNBReference).ExpectedSize)
-              "ExpectedStr" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedStr (titanReferenceOrZero .TitanReference).ExpectedStr) (snbReferenceOrZero .SNBReference).ExpectedStr)
-              "ExpectedDex" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedDex (titanReferenceOrZero .TitanReference).ExpectedDex) (snbReferenceOrZero .SNBReference).ExpectedDex)
-              "ExpectedCon" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedCon (titanReferenceOrZero .TitanReference).ExpectedCon) (snbReferenceOrZero .SNBReference).ExpectedCon)
-              "ExpectedInt" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedInt (titanReferenceOrZero .TitanReference).ExpectedInt) (snbReferenceOrZero .SNBReference).ExpectedInt)
-              "ExpectedWis" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedWis (titanReferenceOrZero .TitanReference).ExpectedWis) (snbReferenceOrZero .SNBReference).ExpectedWis)
-              "ExpectedCha" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedCha (titanReferenceOrZero .TitanReference).ExpectedCha) (snbReferenceOrZero .SNBReference).ExpectedCha)
+              "ExpectedAC" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC) (snbReferenceOrZero .SNBReference).ExpectedAC) (puppetCompanionViewOrZero .PuppetView).ExpectedAC)
+              "ExpectedMaxHP" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP) (snbReferenceOrZero .SNBReference).ExpectedMaxHP) (puppetCompanionViewOrZero .PuppetView).ExpectedMaxHP)
+              "ExpectedSpeed" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedSpeed (titanReferenceOrZero .TitanReference).ExpectedSpeed) (snbReferenceOrZero .SNBReference).ExpectedSpeed) (puppetCompanionViewOrZero .PuppetView).ExpectedSpeed)
+              "ExpectedSize" (firstNonEmpty (firstNonEmpty (firstNonEmpty (ninDogReferenceOrZero .NinDogReference).ExpectedSize (titanReferenceOrZero .TitanReference).ExpectedSize) (snbReferenceOrZero .SNBReference).ExpectedSize) (puppetCompanionViewOrZero .PuppetView).ExpectedSize)
+              "ExpectedStr" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedStr (titanReferenceOrZero .TitanReference).ExpectedStr) (snbReferenceOrZero .SNBReference).ExpectedStr) (puppetCompanionViewOrZero .PuppetView).ExpectedStr)
+              "ExpectedDex" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedDex (titanReferenceOrZero .TitanReference).ExpectedDex) (snbReferenceOrZero .SNBReference).ExpectedDex) (puppetCompanionViewOrZero .PuppetView).ExpectedDex)
+              "ExpectedCon" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedCon (titanReferenceOrZero .TitanReference).ExpectedCon) (snbReferenceOrZero .SNBReference).ExpectedCon) (puppetCompanionViewOrZero .PuppetView).ExpectedCon)
+              "ExpectedInt" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedInt (titanReferenceOrZero .TitanReference).ExpectedInt) (snbReferenceOrZero .SNBReference).ExpectedInt) (puppetCompanionViewOrZero .PuppetView).ExpectedInt)
+              "ExpectedWis" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedWis (titanReferenceOrZero .TitanReference).ExpectedWis) (snbReferenceOrZero .SNBReference).ExpectedWis) (puppetCompanionViewOrZero .PuppetView).ExpectedWis)
+              "ExpectedCha" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedCha (titanReferenceOrZero .TitanReference).ExpectedCha) (snbReferenceOrZero .SNBReference).ExpectedCha) (puppetCompanionViewOrZero .PuppetView).ExpectedCha)
+              "ExpectedFlySpeed" (puppetCompanionViewOrZero .PuppetView).ExpectedFlySpeed
               "ExpectedJutsuSlotsMax" (ninDogReferenceOrZero .NinDogReference).JutsuSlotsMax
               "ExpectedBarrierMax" (titanReferenceOrZero .TitanReference).ExpectedBarrierMax)}}
 

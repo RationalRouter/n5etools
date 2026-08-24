@@ -48,7 +48,7 @@ func (s *server) handlePassionateFlamePopup(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Passionate Flame", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Passionate Flame", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || data.PassionateFlame == nil {
 		popup.EmptyHint = "This character isn't a Passionate Flame Taijutsu Specialist."
 		s.renderSubclassTrackerPopup(w, "character_taijutsu_passionate_flame.html", popup, nil)

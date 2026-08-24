@@ -2351,29 +2351,15 @@ type puppetCompanionView struct {
 	SealCap     int
 	SealOptions []puppetSealOption
 	// UpgradeBonuses is every modeled always-on numeric upgrade bonus this
-	// companion currently has (see puppet_upgrade_bonuses.go). Each is
-	// folded into the very first computed AC/Max HP/Speed/flying speed a
-	// brand-new companion backfills to (see the SetCompanionStatDefaults
-	// call below), but — same as every other computed default on this tab —
-	// never silently rewritten into an EXISTING companion's own already-set
-	// value, so they are also surfaced as a hint with a Sync button per
-	// affected field.
+	// companion currently has (see puppet_upgrade_bonuses.go), folded into
+	// the computed AC/Max HP/Speed/flying speed every render backfills (see
+	// the SetCompanionStatDefaults call below) — shown here only as an
+	// explanatory annotation, since there is no editable field left to sync
+	// it into.
 	UpgradeBonuses []puppetUpgradeBonusNote
 	// ChassisProperties is the worn chassis's own property list, with any
 	// Reinforced value already adjusted for Enhanced Durability (Purple).
 	ChassisProperties []puppetArmorChassisProperty
-	// ElevatedDesignBonus is Black Technique's own +2-per-ability bonus
-	// (map[ability]amount), applied to every Puppet Tool once resolved —
-	// nil if not resolved yet or not applicable. Read-only annotation
-	// only; see puppetElevatedDesignAbilityBonus's own doc for why it is
-	// never folded into the editable ability score fields.
-	ElevatedDesignBonus map[string]int
-	// PuppetToolASIBonus is Puppet Tool's own base-class per-ASI-breakpoint
-	// ability bonus (map[ability]amount), applied to every Puppet Tool the
-	// character possesses — nil if no breakpoint has been resolved yet.
-	// Same display-only annotation treatment as ElevatedDesignBonus; see
-	// puppetToolASIAbilityBonus's own doc for the bonus math.
-	PuppetToolASIBonus map[string]int
 	// SymphonyEnhancement is set only for the (at most two) Puppet Tools
 	// Symphony of Puppetry's Enhancement branch applies to, once that
 	// branch has been chosen — nil otherwise.
@@ -2386,6 +2372,20 @@ type puppetCompanionView struct {
 	// any companion whose MatryoshkaGroupID is set, regardless of this
 	// flag — see character_sheet.html's own gate.
 	IsMatryoshkaFramework bool
+}
+
+// puppetCompanionViewOrZero returns *view, or a zero-value puppetCompanionView
+// if view is nil — mirrors ninDogReferenceOrZero (nindog.go)/titanReferenceOrZero
+// (titan.go)/snbReferenceOrZero (snb.go) exactly, same reason: companion_
+// sheet.html's own companion_stat_fields dict call needs to field-access a
+// puppet's Expected* values regardless of the companion's actual kind (the
+// dict is built once, before the kind branch), and html/template's parser
+// rejects an {{if}} inside a pipeline argument outright.
+func puppetCompanionViewOrZero(view *puppetCompanionView) puppetCompanionView {
+	if view == nil {
+		return puppetCompanionView{}
+	}
+	return *view
 }
 
 // puppetUpgradeBonusNote is one modeled upgrade's contribution, as shown on
@@ -3162,15 +3162,32 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 			ownerProfBonus = sheet.ProficiencyBonus
 		}
 
-		// A puppet with any stat field still NULL — created before this
-		// feature computed any baseline at all, or one whose fields were
-		// only ever partially set (e.g. AC/HP typed in by hand during play
-		// before Speed/ability scores existed as tracked fields) — gets
-		// those still-missing fields backfilled here. Safe to call
-		// unconditionally on every render: SetCompanionStatDefaults writes
-		// every column via COALESCE(column, ?), so a field that already has
-		// a real value (including one the player customized) is never
-		// touched, only a genuinely-NULL one gets the computed default.
+		// overrides: this puppet's own manual pins (companionOverrideFields —
+		// AC, Max HP, Speed, Fly Speed, the six ability scores, Size), read
+		// once and consulted below by every one of those fields' own
+		// computation, ahead of SetCompanionStatDefaults writing whichever
+		// value (pinned or freshly computed) actually lands in the row —
+		// see migration 0079_companion_overrides.sql's own doc for why a
+		// dangling stat can't just be left un-recomputed the way the
+		// COALESCE-based prefill this call site used to be worked.
+		overrides, err := charstore.GetCompanionOverrides(s.charDB, c.ID)
+		if err != nil {
+			return data, err
+		}
+
+		// Every one of AC/Max HP/Speed/Fly Speed/the six ability scores/Size
+		// is recomputed fresh here on every render and unconditionally
+		// overwritten via SetCompanionStatDefaults below (falling back to a
+		// player's own pinned value where one exists, via the overrides map
+		// just loaded) — the auto-then-pin contract the main sheet's own Max
+		// HP/Max Chakra boxes already use (internal/charsheet.go's
+		// MaxHP/MaxHPAuto/MaxHPPinned), extended to a companion's own stat
+		// block. Unlike that contract, a companion's raw
+		// character_companions columns always hold the CURRENT EFFECTIVE
+		// value (pinned or auto), never just the auto one — see migration
+		// 0079's own doc for why (internal/charsheet.puppetWornAsArmorAC and
+		// cmd/n5e/companion_saves.go's companionSaves both read these
+		// columns directly and have no way to reach the formulas below).
 		bonusCtx := puppetupgrades.BonusContext{
 			SubclassColor: subclassColor,
 			MasterLevel:   level,
@@ -3286,25 +3303,88 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 			total.FlySpeed = finalSpeed
 			total.GrantsFlight = true
 		}
+		if v, ok := companionOverrideInt(overrides, "fly_speed"); ok {
+			total.FlySpeed = int(v)
+			total.GrantsFlight = true
+		}
+		if v, ok := companionOverrideInt(overrides, "speed"); ok {
+			finalSpeed = int(v)
+		}
+		if v, ok := overrides["size"]; ok {
+			size = v
+		}
 
+		symphony := symphonyEnhancementViews[c.ID]
+		// finalAbilityScore folds in every source that contributes to a
+		// Puppet Tool's own six ability scores: the class baseline, this
+		// companion's Foundation catalog pick (abilitySets/abilityDeltas),
+		// Elevated Design (Black Technique L17), Puppet Tool's own base-
+		// class ASI bonus, and Symphony of Puppetry's Enhancement branch
+		// (Red Technique L17) — every one of these used to be a display-only
+		// annotation the player had to add up by hand and Sync in
+		// separately (see ElevatedDesignBonus/PuppetToolASIBonus's own
+		// still-current doc above), now folded directly into the one
+		// number the field shows since there is no longer a manual Sync
+		// step to keep it honest. A Puppet Master subclass only ever grants
+		// ONE of Elevated Design/Symphony Enhancement (they belong to
+		// different, mutually exclusive subclasses), so there is no
+		// combining case to worry about beyond simple addition.
+		finalAbilityScore := func(key string, baseValue int) int {
+			if v, ok := companionOverrideInt(overrides, key+"_score"); ok {
+				return int(v)
+			}
+			v := baseValue
+			if s, ok := abilitySets[key]; ok && s > v {
+				v = s
+			}
+			v += abilityDeltas[key]
+			v += elevatedDesignBonus[key]
+			v += puppetToolASIBonus[key]
+			if symphony != nil && symphony.Ability == key {
+				v += 2
+			}
+			return v
+		}
+		var finalMaxHP int
+		var acValue int
 		if baseline != nil {
-			ac := int64(puppetToolDefaultAC(baseline.ACBase, masterProfBonus) + total.AC)
-			hpMax := int64(puppetToolMaxHP(*baseline, level, masterConMod) + total.MaxHP)
+			finalMaxHP = puppetToolMaxHP(*baseline, level, masterConMod) + total.MaxHP
+			if symphony != nil {
+				// "double their maximum hit points" (Symphony of Puppetry,
+				// Enhancement) — confirmed against rules.db as a permanent
+				// effect with no "in combat" qualifier, so it applies to the
+				// flat total the same way every other always-on bonus here does.
+				finalMaxHP *= 2
+			}
+			if v, ok := companionOverrideInt(overrides, "hp_max"); ok {
+				finalMaxHP = int(v)
+			}
+			// AC is computed here, ahead of the SetCompanionStatDefaults write
+			// below, using a worn chassis's own formula when one is equipped —
+			// the raw ac column this writes must already be chassis-aware,
+			// since internal/charsheet.puppetWornAsArmorAC reads that column
+			// directly and has no way to reach puppetArmorChassisAC itself.
+			// Dex comes from finalAbilityScore so a pinned Dex override (or
+			// any other Dex source folded in above) is reflected here too,
+			// instead of re-reading the companion row's own stale Dex column.
+			dexScore := finalAbilityScore("dex", baseline.Dex)
+			if ch, ok := chassisByName[c.ArmorChassis]; ok {
+				acValue = puppetArmorChassisAC(ch, dexScore) + total.AC
+			} else {
+				acValue = puppetToolDefaultAC(baseline.ACBase, masterProfBonus) + total.AC
+			}
+			if v, ok := companionOverrideInt(overrides, "ac"); ok {
+				acValue = int(v)
+			}
+			ac := int64(acValue)
 			flySpeed := sql.NullInt64{}
 			if total.GrantsFlight {
 				flySpeed = sql.NullInt64{Int64: int64(total.FlySpeed), Valid: true}
 			}
-			abilityScore := func(key string, baseValue int) int64 {
-				v := baseValue
-				if s, ok := abilitySets[key]; ok && s > v {
-					v = s
-				}
-				return int64(v + abilityDeltas[key])
-			}
 			if err := charstore.SetCompanionStatDefaults(s.charDB, characterID, c.ID,
-				ac, hpMax, hpMax, int64(finalSpeed), flySpeed,
-				abilityScore("str", baseline.Str), abilityScore("dex", baseline.Dex), abilityScore("con", baseline.Con),
-				abilityScore("int", baseline.Int), abilityScore("wis", baseline.Wis), abilityScore("cha", baseline.Cha),
+				ac, int64(finalMaxHP), int64(finalSpeed), flySpeed,
+				int64(finalAbilityScore("str", baseline.Str)), int64(dexScore), int64(finalAbilityScore("con", baseline.Con)),
+				int64(finalAbilityScore("int", baseline.Int)), int64(finalAbilityScore("wis", baseline.Wis)), int64(finalAbilityScore("cha", baseline.Cha)),
 				size,
 			); err != nil {
 				return data, err
@@ -3326,33 +3406,20 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		view.FoundationEntryName = entryName
 		view.FoundationTraits = foundationTraits
 		view.IsMatryoshkaFramework = isMatryoshkaFramework
-		if len(elevatedDesignBonus) > 0 {
-			view.ElevatedDesignBonus = elevatedDesignBonus
-		}
-		if len(puppetToolASIBonus) > 0 {
-			view.PuppetToolASIBonus = puppetToolASIBonus
-		}
 		view.SymphonyEnhancement = symphonyEnhancementViews[c.ID]
 		if baseline != nil {
-			view.ExpectedMaxHP = puppetToolMaxHP(*baseline, level, masterConMod) + total.MaxHP
+			view.ExpectedMaxHP = finalMaxHP
 			view.ExpectedSpeed = finalSpeed
-			expected := func(key string, baseValue int) int {
-				v := baseValue
-				if s, ok := abilitySets[key]; ok && s > v {
-					v = s
-				}
-				return v + abilityDeltas[key]
-			}
-			view.ExpectedStr = expected("str", baseline.Str)
-			view.ExpectedDex = expected("dex", baseline.Dex)
-			view.ExpectedCon = expected("con", baseline.Con)
-			view.ExpectedInt = expected("int", baseline.Int)
-			view.ExpectedWis = expected("wis", baseline.Wis)
-			view.ExpectedCha = expected("cha", baseline.Cha)
-			// Same values the Sync STR/DEX/.../CHA buttons above show — reused
-			// below so the natural weapon's own attack/damage modifier always
-			// matches what a fully-synced companion's stored score would give,
-			// whether or not the player has actually clicked Sync yet.
+			view.ExpectedStr = finalAbilityScore("str", baseline.Str)
+			view.ExpectedDex = finalAbilityScore("dex", baseline.Dex)
+			view.ExpectedCon = finalAbilityScore("con", baseline.Con)
+			view.ExpectedInt = finalAbilityScore("int", baseline.Int)
+			view.ExpectedWis = finalAbilityScore("wis", baseline.Wis)
+			view.ExpectedCha = finalAbilityScore("cha", baseline.Cha)
+			// Reused below so the natural weapon's own attack/damage
+			// modifier always matches the live computed score shown on the
+			// card — the two can never drift now that there is no manual
+			// Sync step in between them.
 			expectedAbilityScores = map[string]int{
 				"str": view.ExpectedStr, "dex": view.ExpectedDex, "con": view.ExpectedCon,
 				"int": view.ExpectedInt, "wis": view.ExpectedWis, "cha": view.ExpectedCha,
@@ -3360,19 +3427,17 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		}
 		view.ExpectedSize = size
 		view.ExpectedFlySpeed = total.FlySpeed
-		// A worn chassis's own formula supersedes the natural-armor baseline
-		// (see puppetArmorChassisAC's doc) — falls back to the baseline
-		// whenever ArmorChassis is blank or doesn't match a known chassis
-		// name (free text predating this feature, or the player's own
-		// note). Enhanced Durability's own +1 AC (Purple Technique) applies
-		// on top of either formula — its own text reads as a flat bonus to
-		// "its AC calculation", not specific to which one is in use.
+		// acValue was already computed chassis-aware (and override-aware)
+		// above, ahead of the SetCompanionStatDefaults write — reused here
+		// rather than recomputed so the displayed AC can never drift from
+		// the value actually persisted to the row. Enhanced Durability's
+		// own +1 AC (Purple Technique) is already folded into total.AC
+		// above; ChassisProperties is purely a property-tooltip list and
+		// has no bearing on the AC number itself.
+		view.ExpectedAC = acValue
 		if ch, ok := chassisByName[c.ArmorChassis]; ok {
-			view.ExpectedAC = puppetArmorChassisAC(ch, int(c.Dex.Int64)) + total.AC
 			view.ChassisProperties = adjustChassisReinforced(ch.PropertyTooltips,
 				puppetupgrades.ChassisReinforcedBonus(subclassColor, picksByCompanion[c.ID][puppetupgrades.EnhancedDurabilityEntrySlug] > 0))
-		} else if baseline != nil {
-			view.ExpectedAC = puppetToolDefaultAC(baseline.ACBase, masterProfBonus) + total.AC
 		}
 		tiers, err := s.loadPuppetUpgradeTiers(characterID, c.ID, level, subclassSlug, c.ArmorChassis)
 		if err != nil {

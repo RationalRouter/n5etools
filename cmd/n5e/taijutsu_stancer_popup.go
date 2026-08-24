@@ -48,7 +48,7 @@ func (s *server) handleStancerPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Stancer", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Stancer", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || (data.StancerMixedMartialArts == nil && data.StancerStanceBlending == nil) {
 		popup.EmptyHint = "This character has no Stancer stance picks available yet — Mixed Martial Arts grants at 3rd-level Stancer, Stance Blending at 9th."
 		s.renderSubclassTrackerPopup(w, "character_taijutsu_stancer.html", popup, nil)

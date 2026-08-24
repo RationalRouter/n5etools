@@ -11,12 +11,13 @@
      kind="summon"), ArmorChassisOptions (only read for kind="puppet" —
      []puppetArmorChassis; the Armor Chassis dropdown works identically on
      the popup and the tab, since it's just another whole-form field like
-     Speed). AC and Max HP are pre-populated from the computed baseline at
-     creation time (and backfilled for any older companion still missing
-     one — see loadPuppetsTabData) rather than shown as a separate
-     "expected" hint, so they need no Expected* params here anymore;
-     puppetCompanionView still carries ExpectedAC/ExpectedMaxHP for that
-     write-time computation, this partial just doesn't read them.
+     Speed). Puppet/Nin-Dog/Titan/S.N.B (every kind with a rules-defined
+     stat formula) show AC/Max HP/Speed/Fly Speed/Jutsu Slots Max/Barrier
+     Max/ability scores/Size as pure computed readouts (Expected*, from
+     each kind's own Reference struct — see companion_stat_fields's
+     $autoComputed gate below) with no manual override at all; only Summon
+     and Custom (no formula of their own) keep plain editable inputs for
+     those same fields.
 
      ShowStructuredAttacks/AttacksTarget (set by the Companions and Puppets
      tabs, for any kind companionSupportsStructuredAttacks reports true
@@ -36,16 +37,32 @@
 {{define "companion_stat_fields"}}
 <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}" id="{{.FormID}}"></form>
 
+{{/* $autoComputed: Puppet/Nin-Dog/Titan/S.N.B all have a rules-defined
+     formula for AC/Max HP/Speed/ability scores (and, kind-specific,
+     Fly Speed/Barrier Max/Size) — for these four kinds every one of those
+     fields is recomputed fresh on every render (see e.g. puppets.go's
+     loadPuppetsTabData) and shown in the SAME always-populated
+     delta-editable input every other companion field already uses: a bare
+     number pins the field, overriding the auto value until cleared
+     (character_companion_overrides, migration 0079); leaving it alone
+     just keeps showing (and re-showing, every render) the live computed
+     total. Summon and Custom (no formula of their own) get the identical
+     input with no auto-recompute behind it — there's nothing to override.
+     HP-current (and Barrier-current/Jutsu-Slots-current) stay editable for
+     every kind regardless — real fluctuating state, not a formula target. */}}
+{{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom")}}
 <div class="companion-stat-row">
   {{/* AC/HP-current/HP-max share the same delta-editable shape: a leading
-       +/- adjusts, a bare number sets outright, blank clears, mirroring
-       the main sheet's HP/Ryo boxes. Each response is the new plain
-       value, written back into its input so a leftover "+3" is never
-       resubmitted by a later, unrelated field's blur. */}}
+       +/- adjusts, a bare number sets outright (and, for an auto-computed
+       kind, pins that field going forward), blank clears (and, for an
+       auto-computed kind, un-pins it back to the live formula), mirroring
+       the main sheet's HP/Ryo boxes. Each response is the new plain value,
+       written back into its input so a leftover "+3" is never resubmitted
+       by a later, unrelated field's blur. */}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/ac" class="companion-delta-form">
     <label>AC <input type="text" inputmode="numeric" name="value" value="{{if .Companion.AC.Valid}}{{.Companion.AC.Int64}}{{end}}"
                       class="companion-delta-field" data-field="ac" placeholder="—"
-                      title="Type a number to set AC, or +1 / -1 to adjust it"></label>
+                      title="{{if $autoComputed}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set AC, or +1 / -1 to adjust it{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp" class="companion-hp-form">
     <label>HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPCurrent.Valid}}{{.Companion.HPCurrent.Int64}}{{end}}"
@@ -56,15 +73,40 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPMax.Valid}}{{.Companion.HPMax.Int64}}{{end}}"
                       class="companion-delta-field" data-field="hp_max" placeholder="—" aria-label="Max HP"
-                      title="Type a number to set Max HP, or +2 / -2 to adjust it"></label>
+                      title="{{if $autoComputed}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Max HP, or +2 / -2 to adjust it{{end}}"></label>
   </form>
-  <label>Speed <input type="number" name="speed" form="{{.FormID}}" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}" class="companion-field"></label>
-  {{/* Flying speed is only shown once the puppet actually has one — either
-       granted by Hovering Mechanism (ExpectedFlySpeed) or typed in by the
-       player at some point. A blank field on every ordinary walking puppet
-       would be a permanent empty box on a card that is already dense. */}}
-  {{if or .Companion.FlySpeed.Valid .ExpectedFlySpeed}}
-  <label>Fly <input type="number" name="fly_speed" form="{{.FormID}}" value="{{if .Companion.FlySpeed.Valid}}{{.Companion.FlySpeed.Int64}}{{end}}" class="companion-field"></label>
+  {{/* Temp HP: a separate pool absorbed before HP on damage (see
+       AddCompanionHP's own cascade, migration 0080_companion_temp_hp.sql),
+       set outright rather than added to — same mechanic as the Core
+       Sheet's own Temp HP box, minus its separate Base-Temp-HP denominator:
+       a companion's temp_hp has no stored max of its own, so a bare number
+       both grants and displays the pool in one step instead of needing a
+       second "Base Temp HP" form to set a max first. Never pinnable (not in
+       companionOverrideFields) — like HP-current, it's a fluctuating
+       resource with no formula default to protect. */}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/temp_hp" class="companion-delta-form">
+    <label>Temp HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.TempHP.Valid}}{{.Companion.TempHP.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="temp_hp" placeholder="—"
+                      title="Type a number to set Temp HP, or +3 / -2 to adjust it — absorbed before HP on damage, same as the Core Sheet's own Temp HP"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/speed" class="companion-delta-form">
+    <label>Speed <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="speed" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Speed, or +5 / -5 to adjust it{{end}}"></label>
+  </form>
+  {{/* Flying speed is shown once this companion already has one (an
+       auto-computed kind's own formula granted it, or a Summon/Custom's
+       manual pin already set it) — a blank field on every ordinary walking
+       companion would be a permanent empty box on a card that is already
+       dense. Typing into a blank Fly field for an auto-computed kind with
+       no flight source of its own still works (it pins fly_speed), it just
+       isn't shown by default since there's nothing to show yet. */}}
+  {{if .Companion.FlySpeed.Valid}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/fly_speed" class="companion-delta-form">
+    <label>Fly <input type="text" inputmode="numeric" name="value" value="{{.Companion.FlySpeed.Int64}}"
+                      class="companion-delta-field" data-field="fly_speed" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Fly Speed, or +5 / -5 to adjust it{{end}}"></label>
+  </form>
   {{end}}
 
   {{/* A Nin-Dog's own Jutsu Slots resource (Beast Master: "Your Nin-Dog
@@ -72,7 +114,9 @@
        Slots on a Long Rest") — same delta-editable +/-/blank shape AC and
        Max HP already use, its own pair of fields rather than folded into
        HP since it's a completely separate resource. Nin-Dog only: no other
-       companion kind has a jutsu-slot pool of its own. */}}
+       companion kind has a jutsu-slot pool of its own. Jutsu Slots MAX is
+       auto-computed from rank (loadNinDogReference) same as AC/Max HP, and
+       just as pinnable; current is always a plain fluctuating resource. */}}
   {{if eq .Companion.Kind "nin-dog"}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_current" class="companion-delta-form">
     <label>Jutsu Slots <input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsCurrent.Valid}}{{.Companion.JutsuSlotsCurrent.Int64}}{{end}}"
@@ -83,7 +127,7 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsMax.Valid}}{{.Companion.JutsuSlotsMax.Int64}}{{end}}"
                       class="companion-delta-field" data-field="jutsu_slots_max" placeholder="—" aria-label="Max Jutsu Slots"
-                      title="Type a number to set Max Jutsu Slots, or +1 / -1 to adjust it"></label>
+                      title="Auto-calculated from Nin-Dog rank — type a number to pin it, or clear to return to the live total"></label>
   </form>
   {{end}}
 
@@ -91,7 +135,9 @@
        points from its barrier first" — a separate HP pool layered on top
        of the Titan's own HP, same delta-editable +/-/blank shape as every
        other stat here. Titan only: no other companion kind has a barrier
-       pool. */}}
+       pool. Barrier MAX is auto-computed from Science-Nin level
+       (loadTitanReference) same as AC/Max HP, and just as pinnable;
+       current is always a plain fluctuating resource. */}}
   {{if eq .Companion.Kind "titan"}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_current" class="companion-delta-form">
     <label>Barrier <input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierCurrent.Valid}}{{.Companion.BarrierCurrent.Int64}}{{end}}"
@@ -102,7 +148,7 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierMax.Valid}}{{.Companion.BarrierMax.Int64}}{{end}}"
                       class="companion-delta-field" data-field="barrier_max" placeholder="—" aria-label="Max Barrier"
-                      title="Type a number to set Max Barrier hit points, or +2 / -2 to adjust it"></label>
+                      title="Auto-calculated from Science-Nin level — type a number to pin it, or clear to return to the live total"></label>
   </form>
   {{end}}
 
@@ -145,125 +191,61 @@
   {{end}}
 </div>
 
-{{/* Every modeled always-on Puppet Upgrade bonus (internal/puppetupgrades)
-     is folded into a brand-new companion's very first computed
-     AC/Max HP/Speed/flying speed (see loadPuppetsTabData), but — same as
-     every other computed default here — never SILENTLY rewritten into an
-     EXISTING companion's own already-set value (that stays a hard rule — a
-     stored AC/HP might be the player's own deliberate override, not just a
-     stale computed default). Instead: a real "Sync" button per field that
-     sets that field's own value to the FULL current computed total
-     (.ExpectedAC/.ExpectedMaxHP/.ExpectedSpeed/.ExpectedFlySpeed, baseline
-     + chassis + every bonus, already right whether or not the stored value
-     has ever been set) and fires that field's OWN existing autosave
-     (companion-fields.js) — deliberately a plain <button type="button">,
-     NOT a second <form> posting to the same /ac or /hp_max URL the field's
-     own tiny form already targets, since two forms racing to submit to one
-     endpoint is exactly the shape of bug that field's own Enter-key guard
-     (companion-fields.js) exists to prevent elsewhere. Idempotent either
-     way (sets the total, not a "+1" delta, so clicking twice never
-     double-applies), but still an explicit player action, not an automatic
-     one. */}}
-{{/* Ability-score/size sync buttons (Expected* from a picked Puppeteer
-     Chassis/Puppet Framework/Puppet Role/Puppet Weapon Type — see
-     puppet_foundation.go) share this same block/button shape even when
-     there are no puppetUpgradeBonusNote entries at all, since a fresh
-     companion can have a Foundation pick and nothing else yet. */}}
-{{if or .UpgradeBonuses .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize .ElevatedDesignBonus .PuppetToolASIBonus .ExpectedJutsuSlotsMax .ExpectedBarrierMax}}
+{{/* Every modeled always-on Puppet Upgrade bonus (internal/puppetupgrades) —
+     plus Elevated Design and Puppet Tool ASI's own per-ability bonuses, for
+     kinds that have them — is folded directly into the computed AC/Max HP/
+     Speed/Fly Speed/ability-score readouts above (see loadPuppetsTabData).
+     This is now just an annotation explaining what's already in those
+     numbers, not a call to action — nothing needs a manual Sync anymore
+     (any of those fields can still be pinned by hand below if the player
+     wants to override the computed total, same as Max HP/Max Chakra on the
+     Core sheet). */}}
+{{if .UpgradeBonuses}}
 <div class="section-hint companion-enhanced-durability-hint">
-  {{if .UpgradeBonuses}}
   <span>
     {{range $i, $b := .UpgradeBonuses}}{{if $i}}; {{end}}{{$b.Name}}: {{range $j, $p := $b.Parts}}{{if $j}}, {{end}}{{$p}}{{end}}{{end}}
-    — already folded into a brand-new puppet's starting numbers.
+    — already folded into the numbers above.
   </span>
-  {{end}}
-  {{/* ElevatedDesignBonus: a computed +2-per-ability annotation, not baked
-       into the editable score fields above — see
-       puppetElevatedDesignAbilityBonus's own doc for why. */}}
-  {{if .ElevatedDesignBonus}}
-  <span>
-    Elevated Design: {{range $ab, $amt := .ElevatedDesignBonus}}{{upper $ab}} +{{$amt}} (max 22); {{end}}not reflected in the fields above.
-  </span>
-  {{end}}
-  {{/* PuppetToolASIBonus: Puppet Tool's own base-class per-ASI-breakpoint
-       ability bonus, same computed-annotation treatment as
-       ElevatedDesignBonus just above — see puppetToolASIAbilityBonus's own
-       doc for the bonus math and puppetElevatedDesignAbilityBonus's doc
-       for why it's never baked into the editable score fields. */}}
-  {{if .PuppetToolASIBonus}}
-  <span>
-    Puppet Tool ASI: {{range $ab, $amt := .PuppetToolASIBonus}}{{upper $ab}} +{{$amt}} (max 20); {{end}}not reflected in the fields above.
-  </span>
-  {{end}}
-  {{/* All the individual Sync buttons collapse behind one toggle instead of
-       rendering inline — a Puppet with every Foundation pick made can have
-       up to 13 of these at once, which used to spill across several lines
-       of the card before a single field was ever edited. Same .dropdown-
-       filter/.dropdown-toggle/.dropdown-panel shape the Jutsu page's
-       Categories menu uses (app.css), but with its own small delegated
-       click handler in companion-fields.js — a companion card can be
-       replaced wholesale by a fragment swap at any time, so a directly-
-       bound listener (jutsu-filter.js's own toggle wiring) isn't safe to
-       reuse here. Each button keeps its existing .companion-sync-btn class
-       and data-field/data-value attributes untouched, so the click handler
-       that actually performs the sync is unaffected by where the button
-       lives in the DOM. */}}
-  {{if or .ExpectedAC .ExpectedMaxHP .ExpectedSpeed .ExpectedFlySpeed .ExpectedJutsuSlotsMax .ExpectedBarrierMax .ExpectedStr .ExpectedDex .ExpectedCon .ExpectedInt .ExpectedWis .ExpectedCha .ExpectedSize}}
-  <div class="dropdown-filter companion-sync-menu">
-    <button type="button" class="dropdown-toggle companion-sync-toggle" aria-haspopup="true" aria-expanded="false">Sync &#9662;</button>
-    <div class="dropdown-panel companion-sync-panel" hidden>
-      {{if .ExpectedAC}}
-      <button type="button" class="companion-sync-btn" data-field="ac" data-value="{{.ExpectedAC}}">Sync AC to {{.ExpectedAC}}</button>
-      {{end}}
-      {{if .ExpectedMaxHP}}
-      <button type="button" class="companion-sync-btn" data-field="hp_max" data-value="{{.ExpectedMaxHP}}">Sync Max HP to {{.ExpectedMaxHP}}</button>
-      {{end}}
-      {{if .ExpectedSpeed}}
-      <button type="button" class="companion-sync-btn" data-field="speed" data-value="{{.ExpectedSpeed}}">Sync Speed to {{.ExpectedSpeed}}</button>
-      {{end}}
-      {{if .ExpectedFlySpeed}}
-      <button type="button" class="companion-sync-btn" data-field="fly_speed" data-value="{{.ExpectedFlySpeed}}">Sync Fly to {{.ExpectedFlySpeed}}</button>
-      {{end}}
-      {{if .ExpectedJutsuSlotsMax}}
-      <button type="button" class="companion-sync-btn" data-field="jutsu_slots_max" data-value="{{.ExpectedJutsuSlotsMax}}">Sync Jutsu Slots to {{.ExpectedJutsuSlotsMax}}</button>
-      {{end}}
-      {{if .ExpectedBarrierMax}}
-      <button type="button" class="companion-sync-btn" data-field="barrier_max" data-value="{{.ExpectedBarrierMax}}">Sync Barrier to {{.ExpectedBarrierMax}}</button>
-      {{end}}
-      {{if .ExpectedStr}}
-      <button type="button" class="companion-sync-btn" data-field="str_score" data-value="{{.ExpectedStr}}">Sync STR to {{.ExpectedStr}}</button>
-      {{end}}
-      {{if .ExpectedDex}}
-      <button type="button" class="companion-sync-btn" data-field="dex_score" data-value="{{.ExpectedDex}}">Sync DEX to {{.ExpectedDex}}</button>
-      {{end}}
-      {{if .ExpectedCon}}
-      <button type="button" class="companion-sync-btn" data-field="con_score" data-value="{{.ExpectedCon}}">Sync CON to {{.ExpectedCon}}</button>
-      {{end}}
-      {{if .ExpectedInt}}
-      <button type="button" class="companion-sync-btn" data-field="int_score" data-value="{{.ExpectedInt}}">Sync INT to {{.ExpectedInt}}</button>
-      {{end}}
-      {{if .ExpectedWis}}
-      <button type="button" class="companion-sync-btn" data-field="wis_score" data-value="{{.ExpectedWis}}">Sync WIS to {{.ExpectedWis}}</button>
-      {{end}}
-      {{if .ExpectedCha}}
-      <button type="button" class="companion-sync-btn" data-field="cha_score" data-value="{{.ExpectedCha}}">Sync CHA to {{.ExpectedCha}}</button>
-      {{end}}
-      {{if .ExpectedSize}}
-      <button type="button" class="companion-sync-btn" data-field="size" data-value="{{.ExpectedSize}}">Sync Size to {{.ExpectedSize}}</button>
-      {{end}}
-    </div>
-  </div>
-  {{end}}
 </div>
 {{end}}
 
+{{/* Ability scores share the same always-populated delta-editable shape
+     AC/Max HP use above: for an auto-computed kind, a bare number pins
+     that ability going forward (character_companion_overrides); for
+     Summon/Custom (no formula of their own), it's just a plain set. Its
+     own form/endpoint per ability, same "forms cannot nest" reason this
+     partial's own header doc gives for AC/Max HP. */}}
 <div class="companion-ability-row">
-  <label>STR <input type="number" name="str_score" form="{{.FormID}}" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}" class="companion-field"></label>
-  <label>DEX <input type="number" name="dex_score" form="{{.FormID}}" value="{{if .Companion.Dex.Valid}}{{.Companion.Dex.Int64}}{{end}}" class="companion-field"></label>
-  <label>CON <input type="number" name="con_score" form="{{.FormID}}" value="{{if .Companion.Con.Valid}}{{.Companion.Con.Int64}}{{end}}" class="companion-field"></label>
-  <label>INT <input type="number" name="int_score" form="{{.FormID}}" value="{{if .Companion.Int.Valid}}{{.Companion.Int.Int64}}{{end}}" class="companion-field"></label>
-  <label>WIS <input type="number" name="wis_score" form="{{.FormID}}" value="{{if .Companion.Wis.Valid}}{{.Companion.Wis.Int64}}{{end}}" class="companion-field"></label>
-  <label>CHA <input type="number" name="cha_score" form="{{.FormID}}" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}" class="companion-field"></label>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/str_score" class="companion-delta-form">
+    <label>STR <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="str_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Strength{{end}}"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/dex_score" class="companion-delta-form">
+    <label>DEX <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Dex.Valid}}{{.Companion.Dex.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="dex_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Dexterity{{end}}"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/con_score" class="companion-delta-form">
+    <label>CON <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Con.Valid}}{{.Companion.Con.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="con_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Constitution{{end}}"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/int_score" class="companion-delta-form">
+    <label>INT <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Int.Valid}}{{.Companion.Int.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="int_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Intelligence{{end}}"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/wis_score" class="companion-delta-form">
+    <label>WIS <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Wis.Valid}}{{.Companion.Wis.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="wis_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Wisdom{{end}}"></label>
+  </form>
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/cha_score" class="companion-delta-form">
+    <label>CHA <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}"
+                      class="companion-delta-field" data-field="cha_score" placeholder="—"
+                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Charisma{{end}}"></label>
+  </form>
 </div>
 
 {{/* Saving Throws: every kind except "puppet" — a Puppet Tool's own
@@ -322,15 +304,17 @@
 
 {{/* SymphonyEnhancement: Red Technique's Symphony of Puppetry, Enhancement
      branch — "double their maximum hit points, and increase one of their
-     ability scores by +2, each." Both effects are annotation-only (see
-     ElevatedDesignBonus's own comment above for why); the ability half also
-     needs a one-time picker, since unlike Elevated Design's flat +2/+2 this
-     is a genuinely independent pick per companion. */}}
+     ability scores by +2, each." Both effects are a permanent change to the
+     Puppet Tool's stat block, not a combat-only buff, and are folded
+     directly into the computed Max HP/ability-score fields above (see
+     loadPuppetsTabData); the ability half also needs a one-time picker,
+     since unlike Elevated Design's flat +2/+2 this is a genuinely
+     independent pick per companion. */}}
 {{if .SymphonyEnhancement}}
 <div class="section-hint companion-symphony-enhancement-hint">
-  <span>Symphony of Puppetry (Enhancement): this Puppet Tool's max HP is doubled in combat — not reflected in the Max HP field above.</span>
+  <span>Symphony of Puppetry (Enhancement): this Puppet Tool's max HP is permanently doubled — already folded into the Max HP field above.</span>
   {{if .SymphonyEnhancement.Ability}}
-  <span>Ability bonus: {{abilityLabel .SymphonyEnhancement.Ability}} +2 — not reflected in the field above.</span>
+  <span>Ability bonus: {{abilityLabel .SymphonyEnhancement.Ability}} +2 — already folded into the field above.</span>
   {{else}}
   {{/* A permanent, one-way pick (this whole form disappears for good once
        .SymphonyEnhancement.Ability is set — same "picking is itself the
@@ -356,9 +340,16 @@
 </div>
 {{end}}
 
-{{if eq .Companion.Kind "puppet"}}
-<label class="companion-block-label">Size <input type="text" name="size" form="{{.FormID}}" value="{{.Companion.Size}}" class="companion-field" placeholder="Medium"></label>
-{{end}}
+{{/* Size shares AC/Max HP's always-populated pin/unpin shape, but as a
+     plain string (a size category like "Medium"/"Large") rather than a
+     number, so it posts to its own dedicated handler (handleCompanionSize)
+     instead of the shared numeric delta endpoint — see that handler's doc
+     for why a bare set/clear is enough without +/- adjustment. */}}
+<form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/size" class="companion-delta-form">
+  <label class="companion-block-label">Size <input type="text" name="value" value="{{.Companion.Size}}"
+                    class="companion-delta-field companion-size-field" data-field="size" placeholder="—"
+                    title="{{if $autoComputed}}Auto-calculated — type a size category to pin it, or clear to return to the live value{{else}}Type a size category (Small, Medium, Large...){{end}}"></label>
+</form>
 
 {{/* Beast Master's own one-time breed pick ("Choose between one of the
      following breeds. Your Nin-Dog gains the chosen breed as its Role") —
@@ -516,7 +507,7 @@
      same treatment Symphony Enhancement's own resolved pick gets. */}}
 {{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.IsLegionSpecialization}}
 <div class="section-hint companion-titan-legion-ability-bonus">
-  <span>Legion Specialization: two ability scores increase by +2 (and their maximums by +2) — not reflected in the fields above.</span>
+  <span>Legion Specialization: two ability scores increase by +2 (and their maximums by +2) — already folded into the ability scores above.</span>
   {{if .TitanReference.LegionAbility1}}
   <span>Ability bonus 1: {{abilityLabel .TitanReference.LegionAbility1}} +2</span>
   {{else}}
@@ -763,9 +754,14 @@
      puppet casting jutsu "under certain circumstances": a row is just a
      name/optional dice/description, added the same way any other attack
      is, rather than a separate jutsu-known/casting-economy system this app
-     has no chakra-pool model for a companion to support. */}}
+     has no chakra-pool model for a companion to support. An <h3>, not a plain
+     <span>, so it picks up the same gold/bold panel-header look every other
+     sheet box title uses (h1-h3 { color: var(--gold) } — see app.css) —
+     matching "Saving Throws"/"Puppet Skills" just below on this same card,
+     rather than reading as dim label text like Traits/Notes' own plain
+     .companion-block-label headers. */}}
 <section class="companion-block-label companion-attacks">
-  <span>Attacks</span>
+  <h3>Attacks</h3>
   {{if .Attacks}}
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
@@ -825,9 +821,11 @@
      isn't loaded here) — the popup is a quick reference for combat, not
      an editing surface; add/remove a companion's attacks from its own tab
      on the main sheet instead (AttacksTabName — "Puppets" for kind="puppet",
-     "Companions" for every other kind, see companionAttacksTabLabel). */}}
+     "Companions" for every other kind, see companionAttacksTabLabel). Same
+     <h3> header as the structured-attacks branch above, for the same gold/
+     bold panel-header look. */}}
 <section class="companion-block-label companion-attacks">
-  <span>Attacks</span>
+  <h3>Attacks</h3>
   {{if .Attacks}}
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
@@ -1231,7 +1229,7 @@
   {{end}}
 
   <h3>S.N.B Specialist Features</h3>
-  <p class="section-hint">Locked ones are dimmed until the character's level catches up. S.N.B Upgrades and Secondary C.C.D are tracked elsewhere (the Scientific Ninja Tools box / the character's own resource pools) and aren't repeated here.</p>
+  <p class="section-hint">Locked ones are dimmed until the character's level catches up. Secondary C.C.D is tracked elsewhere (the character's own resource pools) and isn't repeated here.</p>
   <ul class="sheet-feature-list">
     {{range .Ref.Features}}
     <li{{if .Locked}} class="companion-reference-locked"{{end}}>
@@ -1241,5 +1239,28 @@
     </li>
     {{end}}
   </ul>
+
+  {{/* Known S.N.B Upgrades: every S.N.B Upgrades pick (bought via the
+       Scientific Ninja Tools box's own popup tracker), shown here so a
+       player can see what they actually do without leaving the companion
+       sheet — the same "always-visible full text" treatment Titan's own
+       Known Titan Upgrades block gives its non-hardcoded upgrades, just
+       above. Armored Exterior/Improved Accuracy/Sturdy/Piston Legs/
+       Enhanced Size are ALSO folded into this sheet's own AC/HP/Speed/Size
+       fields (loadSNBReference) — still listed here too, same as Titan's
+       own Weapon-keyword picks getting both a rollable row AND a listing
+       here. */}}
+  {{if .Ref.KnownUpgrades}}
+  <h3>Known S.N.B Upgrades</h3>
+  <div class="companion-titan-upgrades-known">
+    {{range .Ref.KnownUpgrades}}
+    <div class="companion-titan-upgrade-entry">
+      <span class="companion-titan-upgrade-name">{{.Name}}</span>
+      {{if .Tier}}<span class="companion-titan-upgrade-meta">{{.Tier}}</span>{{end}}
+      <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
 </section>
 {{end}}

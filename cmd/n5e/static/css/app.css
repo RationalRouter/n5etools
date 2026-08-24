@@ -879,6 +879,20 @@ dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin:
    stat block next to the entry name, not more of the sentence. */
 .entry-stat-line { color: var(--text-dim); font-size: 0.85rem; }
 
+/* A Weapon of Wonder's Ascension section heading (formatWoWDescription in
+   format.go, splitting the book's own "ASCENSION: <NAME>" marker out of the
+   run-on prose that follows it into its own clearly separated section). A
+   top border rather than just spacing, so the break between a W.o.W's base
+   weapon description and its Ascended-form upgrade text reads as a real
+   section boundary, not just another paragraph. */
+.wow-ascension-heading {
+  margin: 1rem 0 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 1rem;
+}
+
 .section-hint { margin: -0.5rem 0 0.75rem; color: var(--text-dim); font-size: 0.8rem; font-style: italic; }
 
 .table-scroll { overflow-x: auto; margin-bottom: 1.5rem; }
@@ -2402,6 +2416,14 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
   border-color: var(--gold-hover);
 }
 
+/* The bare .section-hint's negative top-margin is tuned for sitting right
+   under an <h1>/<h3> pair — here it instead follows the toggle button
+   directly, with no heading between them, so the negative margin pulls it
+   up against the button instead of giving it breathing room. */
+.sheet-exoskeleton-hint {
+  margin-top: 0.75rem;
+}
+
 /* 1.5rem, not the 0.6rem the Level form's own controls use: this is the gap
    between two DIFFERENT things (the Level control and the class/subclass
    line, part 10), not between a label and its own input, so it needs the
@@ -3191,8 +3213,11 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    "Class Feature", "Subclass Feature", "Clan", "Feat", or a specific
    feature name like "Wolf Technique"). Blue is already this app's "this is
    specific to your subclass/lineage" signal (see the classes page), so it
-   carries over. */
-.jutsu-source-badge {
+   carries over. .weapon-source-badge is the Weapons-table twin (attackRow's
+   own SourceLabel, characters.go) — currently only "Weapon of Wonder" sets
+   it (see wowCustomItemKind, wow_weapons.go) — sharing the identical rule
+   rather than a separate near-duplicate. */
+.jutsu-source-badge, .weapon-source-badge {
   margin-left: 0.5rem;
   padding: 0.05rem 0.35rem;
   border: 1px solid var(--blue);
@@ -4121,6 +4146,26 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
   font-family: inherit;
   font-size: 0.9rem;
 }
+/* companion-computed-value: read-only stand-in for the input boxes above,
+   used wherever a companion kind's own stat formula (Puppet/Nin-Dog/Titan/
+   S.N.B) leaves nothing for the player to type — same box look as a plain
+   .companion-field/.companion-delta-field input so a computed row reads
+   identically to an editable one, just without a cursor implying it's
+   clickable. */
+.companion-computed-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: default;
+}
 /* HP current/max reads as one "current / max" pair, not two unrelated
    stats, so the separator sits at input height rather than label height. */
 .companion-stat-sep { align-self: flex-end; padding-bottom: 0.5rem; color: var(--text-dim); }
@@ -4145,6 +4190,14 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
   font-size: 0.85rem;
   resize: vertical;
 }
+/* .companion-block-label is a column flexbox (align-items: stretch by
+   default), which otherwise stretches the Size input to the card's full
+   width — confirmed live (364px, matching the surrounding card) even
+   though its longest real value ("Gargantuan") only needs about a third
+   of that. An explicit width overrides the stretch default without
+   touching every other .companion-block-label input/select/textarea,
+   several of which (Notes, Armor Chassis) do want the full-width look. */
+.companion-size-field { width: 8rem; }
 /* Sits right below the Armor Chassis field above it — its own bottom
    margin keeps it from crowding whichever field/section comes next
    (the puppet reference panel's own top border+padding when present). */
@@ -4534,14 +4587,6 @@ summary.companion-card-header::before {
 
 .companion-enhanced-durability-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.75rem 0; }
 .companion-enhanced-durability-hint button { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
-
-/* Sync-buttons popout (companion_fields.html) — reuses the Jutsu page's
-   .dropdown-filter/.dropdown-toggle/.dropdown-panel base (sizing/position/
-   shadow already come from those), just stacking the individual
-   .companion-sync-btn buttons in a column instead of the checkbox-row
-   layout .dropdown-panel-item is tuned for. */
-.companion-sync-panel { display: flex; flex-direction: column; gap: 0.3rem; min-width: 180px; }
-.companion-sync-panel button { width: 100%; text-align: left; white-space: nowrap; }
 
 /* Overrides bare .section-hint's negative top margin (tuned for sitting
    directly under an <h1> — see this file's other overrides of the same

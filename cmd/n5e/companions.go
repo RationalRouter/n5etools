@@ -11,7 +11,6 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/features"
 )
 
 // This file is the whole Puppet/Summon/custom companion feature: a small,
@@ -270,11 +269,14 @@ func (s *server) prefillPuppetStatDefaults(characterID, companionID int64) error
 	// nothing to backfill it with — same reasoning as flying speed above.
 	// loadPuppetsTabData's own per-render backfill fills it in once a
 	// Foundation catalog pick exists.
-	return charstore.SetCompanionStatDefaults(s.charDB, characterID, companionID,
-		ac, hpMax, hpMax, int64(baseline.Speed), sql.NullInt64{},
+	if err := charstore.SetCompanionStatDefaults(s.charDB, characterID, companionID,
+		ac, hpMax, int64(baseline.Speed), sql.NullInt64{},
 		int64(baseline.Str), int64(baseline.Dex), int64(baseline.Con),
 		int64(baseline.Int), int64(baseline.Wis), int64(baseline.Cha), "",
-	)
+	); err != nil {
+		return err
+	}
+	return charstore.SetCompanionHP(s.charDB, characterID, companionID, sql.NullInt64{Int64: hpMax, Valid: true})
 }
 
 // handleSheetCompanionDelete removes one companion and re-renders the main
@@ -687,6 +689,19 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			view.NinDogReference = ref
 
+			// Re-read: loadNinDogReference just wrote fresh AC/HP-max/Speed/
+			// Jutsu-Slots-Max/ability scores (auto-then-pin resolved) to this
+			// companion's own row — c and view.Saves must reflect that same
+			// write before Bite's own strMod (below) and companionSaves both
+			// read off them, the same re-read-after-write pattern
+			// loadPuppetsTabData already uses (puppets.go).
+			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Companion = c
+			view.Saves = companionSaves(c, sheet.ProficiencyBonus, sheet.Level)
+
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
 				return data, err
@@ -701,12 +716,24 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			view.TitanReference = ref
 
+			// Re-read for the same reason as the nin-dog block above —
+			// loadTitanReference just wrote fresh effective values this
+			// render, and titanBashAttack/titanKnownWeaponUpgradeAttacks
+			// both read the Titan's own ability scores straight off c.
+			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Companion = c
+			view.Saves = applyTitanSturdyFrameSaves(
+				companionSaves(c, sheet.ProficiencyBonus, sheet.Level), ref, sheet.Abilities["int"].Modifier)
+
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
 				return data, err
 			}
 			view.Attacks = append(append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				titanBashAttack(c, sheet.ProficiencyBonus)),
+				titanBashAttack(c, ref, sheet.ProficiencyBonus)),
 				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus)...)
 		}
 		if c.Kind == "snb" {
@@ -716,13 +743,21 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			view.SNBReference = ref
 
+			// Re-read for the same reason as the nin-dog/titan blocks above.
+			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Companion = c
+			view.Saves = companionSaves(c, sheet.ProficiencyBonus, sheet.Level)
+
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
 				return data, err
 			}
 			playerIntMod := sheet.Abilities["int"].Modifier
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus))
+				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus))
 		}
 		if c.Kind == "summon" || c.Kind == "custom" {
 			// Neither of these two kinds has a computed baseline attack the
@@ -824,141 +859,45 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		// sheet-puppet-reference-panel). What the popup DOES show, read-
 		// only and rollable: the resolved Puppet Skills list and whatever
 		// Attacks are already on this puppet (from the tab or an upgrade).
-		// Armor Chassis (Juggernaut Armor) is Purple Technique Juggernaut's
-		// own 2nd-level subclass feature — every other subclass's popup
-		// gets no chassis options at all, matching loadPuppetsTabData's
-		// identical gate on the main sheet's Puppets tab.
-		subclassSlug, _, err := s.puppetMasterSubclassSlug(id)
+		//
+		// Reuses loadPuppetsTabData wholesale rather than hand-reconstructing
+		// this one companion's own view a second time — that used to leave
+		// AC/Max HP/Speed/ability scores permanently stuck at zero here (this
+		// handler never computed Expected* at all), which was harmless back
+		// when those fields were still editable inputs bound to a stored
+		// value, but is a real bug now that companion_fields.html renders
+		// them as pure computed display (see this file's own header doc on
+		// the Sync dropdown's removal). loadPuppetsTabData is also the
+		// single place SetCompanionStatDefaults gets called to keep the
+		// stored row in sync, so calling it here means opening this popup
+		// after visiting the Puppets tab (the only way to reach it — see
+		// companion-popup.js) always sees the same fresh numbers the tab
+		// itself just wrote.
+		tabData, err := s.loadPuppetsTabData(id, sheet)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load puppet master subclass for popup:", err)
+			log.Println("load puppets tab data for popup:", err)
 			return
 		}
-		var chassisOptions []puppetArmorChassis
-		if puppetSubclassColorBySlug[subclassSlug] == "Purple" {
-			chassisOptions, err = s.loadPuppetArmorChassisOptions()
-			if err != nil {
-				http.Error(w, "database error", http.StatusInternalServerError)
-				log.Println("load armor chassis options:", err)
-				return
-			}
-		}
-		data["ArmorChassisOptions"] = chassisOptions
-
-		baseTraits, err := s.loadPuppetToolStatBlock()
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load puppet tool stat block:", err)
-			return
-		}
-		data["BaseTraits"] = baseTraits
-
+		data["ArmorChassisOptions"] = tabData.ArmorChassisOptions
+		data["BaseTraits"] = tabData.BaseTraits
 		data["ReadOnlyAttacks"] = true
-		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load companion attacks for popup:", err)
-			return
-		}
-		view := composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
-
-		upgradePicks, err := charstore.ListCompanionUpgrades(s.charDB, id, cid)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load companion upgrades for popup:", err)
-			return
-		}
-		upgradeChoices, err := charstore.ListCompanionUpgradeChoices(s.charDB, id, cid)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load companion upgrade choices for popup:", err)
-			return
-		}
-		view = append(view, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices)...)
-
-		foundationPicks := resolvePuppetFoundationPicks(upgradePicks, upgradeChoices)
-		expectedAbilityScores := puppetFoundationExpectedAbilityScores(baseTraits, foundationPicks)
-		attackRollBonus, critRangeThreshold := 0, 20
-		critDamageBonus := 0
-		var foundationTraits []string
-		for _, fp := range foundationPicks {
-			if row := puppetFoundationWeaponAttack(expectedAbilityScores, sheet.ProficiencyBonus, fp); row != nil {
-				view = append(view, *row)
+		var view *puppetCompanionView
+		for i := range tabData.Companions {
+			if tabData.Companions[i].ID == cid {
+				view = &tabData.Companions[i]
+				break
 			}
-			attackRollBonus += fp.Entry.FlatAttackRollBonus
-			if fp.Entry.RoleEffect != nil {
-				if fp.Entry.RoleEffect.AttackRollBonus != nil {
-					attackRollBonus += fp.Entry.RoleEffect.AttackRollBonus(sheet.ProficiencyBonus)
-				}
-				if fp.Entry.RoleEffect.CritRangeBonus > 0 && 20-fp.Entry.RoleEffect.CritRangeBonus < critRangeThreshold {
-					critRangeThreshold = 20 - fp.Entry.RoleEffect.CritRangeBonus
-				}
-				if fp.Entry.RoleEffect.CritDamageBonus != nil {
-					critDamageBonus += fp.Entry.RoleEffect.CritDamageBonus(sheet.ProficiencyBonus)
-				}
-				if fp.Entry.RoleEffect.TextBonus != nil {
-					foundationTraits = append(foundationTraits, fp.Entry.RoleEffect.TextBonus(sheet.ProficiencyBonus))
-				}
-			}
-			foundationTraits = append(foundationTraits, fp.Entry.ReferenceTraits...)
-			if fp.Entry.SageCreatureFramework {
-				bestialTraits, err := s.bestialFrameworkReferenceTraits(fp)
-				if err != nil {
-					http.Error(w, "database error", http.StatusInternalServerError)
-					log.Println("load bestial framework reference traits for popup:", err)
-					return
-				}
-				foundationTraits = append(foundationTraits, bestialTraits...)
-			}
-			data["FoundationCatalogLabel"] = fp.Entry.Catalog
-			data["FoundationEntryName"] = fp.Entry.Name
 		}
-		for i := range view {
-			view[i].AttackTotal += attackRollBonus
-			view[i].CritRangeThreshold = critRangeThreshold
-			view[i].CritDamageBonus = critDamageBonus
+		if view != nil {
+			data["PuppetView"] = view
+			data["Attacks"] = view.Attacks
+			data["FoundationCatalogLabel"] = view.FoundationCatalogLabel
+			data["FoundationEntryName"] = view.FoundationEntryName
+			data["FoundationTraits"] = view.FoundationTraits
+			data["PuppetSkills"] = view.PuppetSkills
+			data["SymphonyEnhancement"] = view.SymphonyEnhancement
 		}
-		data["Attacks"] = view
-		data["FoundationTraits"] = foundationTraits
-
-		generalizedPicks, err := charstore.ListGeneralizedSkills(s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load generalized skills for popup:", err)
-			return
-		}
-		upgradeSlugs := make([]string, len(upgradePicks))
-		for i, u := range upgradePicks {
-			upgradeSlugs[i] = u.UpgradeEntrySlug
-		}
-		data["PuppetSkills"] = resolvePuppetSkills(sheet, companion, generalizedPicks, upgradeSlugs,
-			puppetFoundationSkillAbilityOverride(foundationPicks))
-
-		resolvedFeatureChoices, err := features.LoadFeatureChoices(s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load feature choices for companion popup:", err)
-			return
-		}
-		if bonus := puppetElevatedDesignAbilityBonus(resolvedFeatureChoices); len(bonus) > 0 {
-			data["ElevatedDesignBonus"] = bonus
-		}
-		if bonus := puppetToolASIAbilityBonus(resolvedFeatureChoices); len(bonus) > 0 {
-			data["PuppetToolASIBonus"] = bonus
-		}
-		allCompanions, err := charstore.ListCompanions(s.charDB, id)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load companions for symphony enhancement view:", err)
-			return
-		}
-		symphonyEnhancementViews, err := s.puppetSymphonyEnhancementViews(id, resolvedFeatureChoices, allCompanions)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load symphony enhancement view for companion popup:", err)
-			return
-		}
-		data["SymphonyEnhancement"] = symphonyEnhancementViews[cid]
 	case "summon":
 		tribes, err := s.loadSummonTribeOptions()
 		if err != nil {
@@ -1011,6 +950,19 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["SNBReference"] = ref
 
+		// Re-read: loadSNBReference just wrote fresh effective values this
+		// render (same auto-then-pin write loadSummonsTabData's own snb
+		// block re-reads after) — companion/data["Companion"]/data["Saves"]
+		// must reflect that same write before snbBiteAttack reads off it.
+		companion, err = charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("reload companion after snb reference:", err)
+			return
+		}
+		data["Companion"] = companion
+		data["Saves"] = companionSaves(companion, sheet.ProficiencyBonus, sheet.Level)
+
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment nin-dog's own popup case gives structured Attacks above.
 		data["ReadOnlyAttacks"] = true
@@ -1022,7 +974,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		playerIntMod := sheet.Abilities["int"].Modifier
 		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus))
+			snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus))
 	case "nin-dog":
 		ref, err := s.loadNinDogReference(id, companion, sheet.Level)
 		if err != nil {
@@ -1031,6 +983,16 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["NinDogReference"] = ref
+
+		// Re-read for the same reason as the snb case above.
+		companion, err = charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("reload companion after nin-dog reference:", err)
+			return
+		}
+		data["Companion"] = companion
+		data["Saves"] = companionSaves(companion, sheet.ProficiencyBonus, sheet.Level)
 
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment puppet's own popup case gives structured Attacks above.
@@ -1052,6 +1014,17 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["TitanReference"] = ref
 
+		// Re-read for the same reason as the snb/nin-dog cases above.
+		companion, err = charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("reload companion after titan reference:", err)
+			return
+		}
+		data["Companion"] = companion
+		data["Saves"] = applyTitanSturdyFrameSaves(
+			companionSaves(companion, sheet.ProficiencyBonus, sheet.Level), ref, sheet.Abilities["int"].Modifier)
+
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment nin-dog's own popup case gives structured Attacks above.
 		data["ReadOnlyAttacks"] = true
@@ -1062,28 +1035,11 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Attacks"] = append(append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			titanBashAttack(companion, sheet.ProficiencyBonus)),
+			titanBashAttack(companion, ref, sheet.ProficiencyBonus)),
 			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus)...)
 	}
 
 	s.render(w, "companion_sheet.html", data)
-}
-
-// parseOptionalInt turns a companion popup number field's raw text into a
-// sql.NullInt64 — blank means "not entered yet" (SQL NULL), matching every
-// stat on a fresh companion. A non-blank value that doesn't parse is a
-// client bug (the inputs are type="number"), not a normal empty state, so
-// it's rejected rather than silently dropped.
-func parseOptionalInt(s string) (sql.NullInt64, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return sql.NullInt64{}, nil
-	}
-	v, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return sql.NullInt64{}, err
-	}
-	return sql.NullInt64{Int64: v, Valid: true}, nil
 }
 
 // handleCompanionSave is the companion popup's whole-form autosave target —
@@ -1134,30 +1090,16 @@ func (s *server) handleCompanionSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// hp_current/ac/hp_max are deliberately not read here — each has its own
-	// endpoint (handleCompanionHP/handleCompanionIntField) and its own
-	// <form> in the template. See charstore.SetCompanionFields' doc for why
-	// folding any of them into this whole-form save would silently wipe it
-	// on every unrelated field's blur.
-	var speed, flySpeed, str, dex, con, intScore, wis, cha sql.NullInt64
-	for field, dest := range map[string]*sql.NullInt64{
-		"speed": &speed, "fly_speed": &flySpeed,
-		"str_score": &str, "dex_score": &dex, "con_score": &con,
-		"int_score": &intScore, "wis_score": &wis, "cha_score": &cha,
-	} {
-		v, err := parseOptionalInt(r.FormValue(field))
-		if err != nil {
-			http.Error(w, "bad "+field, http.StatusBadRequest)
-			return
-		}
-		*dest = v
-	}
-
+	// hp_current/ac/hp_max/speed/fly_speed/the six ability scores/size are
+	// deliberately not read here — each has its own endpoint
+	// (handleCompanionHP/handleCompanionIntField/handleCompanionSize) and
+	// its own <form> in the template. See charstore.SetCompanionFields' doc
+	// for why folding any of them into this whole-form save would silently
+	// wipe it on every unrelated field's blur.
 	err := charstore.SetCompanionFields(s.charDB, id, cid, name, summonTribeSlug,
-		speed, flySpeed, str, dex, con, intScore, wis, cha,
 		r.FormValue("attacks"), r.FormValue("traits"), r.FormValue("notes"),
 		armorChassis, r.FormValue("is_armor_form") == "1",
-		strings.TrimSpace(r.FormValue("size")), strings.TrimSpace(r.FormValue("nin_dog_breed")),
+		strings.TrimSpace(r.FormValue("nin_dog_breed")),
 		strings.TrimSpace(r.FormValue("titan_specialization")),
 	)
 	if err != nil {
@@ -1224,19 +1166,66 @@ func (s *server) handleCompanionHP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(strconv.FormatInt(newValue, 10)))
 }
 
+// companionOverrideFields whitelists which companion stat fields support a
+// manual pin overriding their auto-computed default, mirroring
+// sheetOverrideFields' own role for the main sheet — AC, Max HP, Speed, Fly
+// Speed, the six ability scores, a Nin-Dog's Jutsu Slots Max, a Titan's
+// Barrier Max. Only meaningful for the four kinds with a formula behind
+// these fields at all (puppet/nin-dog/titan/snb — see charstore.Companion's
+// own header doc); pinning one of these on a summon/custom companion is
+// harmless but inert, since nothing ever recomputes a default for those two
+// kinds to override in the first place. Size is pin-capable too (kind =
+// "puppet" only, via handleCompanionSize) but isn't listed here since it
+// goes through its own dedicated string setter (charstore.SetCompanionSize),
+// not the int-only companionIntFields path this map gates.
+var companionOverrideFields = map[string]bool{
+	"ac": true, "hp_max": true, "speed": true, "fly_speed": true,
+	"str_score": true, "dex_score": true, "con_score": true,
+	"int_score": true, "wis_score": true, "cha_score": true,
+	"jutsu_slots_max": true, "barrier_max": true,
+}
+
+// companionOverrideInt reads field out of a companion's own override map
+// (charstore.GetCompanionOverrides) as an int64 — ok is false if the field
+// isn't pinned, or (defensively, should never happen through this app's own
+// writers) if the stored text fails to parse. Every kind-specific loader
+// (loadPuppetsTabData, loadNinDogReference, loadTitanReference,
+// loadSNBReference) calls this once per pinnable field, ahead of computing
+// that field's own auto default, to decide which one actually lands in the
+// row it writes back via that kind's own per-render stat-defaults writer.
+func companionOverrideInt(overrides map[string]string, field string) (int64, bool) {
+	raw, ok := overrides[field]
+	if !ok {
+		return 0, false
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
 // handleCompanionIntField returns the endpoint for one of a companion's own
-// delta-editable int fields (AC, HP-max) — same request/response shape as
-// handleCompanionHP just above (form field "value": a leading "+"/"-"
-// adjusts, a bare number sets outright, empty clears, and the response is
-// always the new plain value so the field never carries a stale "+1" into
-// a later, unrelated blur), generalized via charstore.AddCompanionIntField/
-// SetCompanionIntField's own field whitelist. This is what replaced the
-// "Use computed" hint button: a fresh puppet's AC/HP-max already start at
-// the computed baseline (see prefillPuppetStatDefaults/loadPuppetsTabData's
-// backfill), and this lets a player nudge them from there — typing "+1"
-// after an Armor Chassis pick, for instance — without doing the
-// arithmetic themselves.
-func (s *server) handleCompanionIntField(field string) http.HandlerFunc {
+// delta-editable int fields (AC, HP-max, Speed, ability scores, ...) — same
+// request/response shape as handleCompanionHP just above (form field
+// "value": a leading "+"/"-" adjusts, a bare number sets outright, empty
+// clears, and the response is always the new plain value so the field never
+// carries a stale "+1" into a later, unrelated blur), generalized via
+// charstore.AddCompanionIntField/SetCompanionIntField's own field
+// whitelist.
+//
+// pin controls whether this field also gets a row in
+// character_companion_overrides (charstore.SetCompanionOverride) — true for
+// every field in companionOverrideFields (AC/Max HP/Speed/Fly Speed/ability
+// scores/Jutsu Slots Max/Barrier Max: fields a kind-specific loader
+// recomputes and overwrites on every render, so without a pin recorded here
+// that recompute would silently discard whatever the player just typed the
+// very next time the page renders — the same "auto-then-pin" contract the
+// main sheet's own Max HP/Max Chakra boxes use), false for a pure resource
+// pool with no computed default to protect against at all (HP-current's own
+// handleCompanionHP, Jutsu-Slots-current, Barrier-current, Matryoshka's
+// known-jutsu-slots count, Temp HP).
+func (s *server) handleCompanionIntField(field string, pin bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, cid, ok := parseCharacterAndCompanionID(w, r)
 		if !ok {
@@ -1253,6 +1242,13 @@ func (s *server) handleCompanionIntField(field string) http.HandlerFunc {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("clear companion "+field+":", err)
 				return
+			}
+			if pin {
+				if err := charstore.SetCompanionOverride(s.charDB, cid, field, ""); err != nil {
+					http.Error(w, "database error", http.StatusInternalServerError)
+					log.Println("clear companion override "+field+":", err)
+					return
+				}
 			}
 			w.Write(nil)
 			return
@@ -1277,6 +1273,46 @@ func (s *server) handleCompanionIntField(field string) http.HandlerFunc {
 			log.Println("set companion "+field+":", err)
 			return
 		}
+		if pin {
+			if err := charstore.SetCompanionOverride(s.charDB, cid, field, strconv.FormatInt(newValue, 10)); err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("set companion override "+field+":", err)
+				return
+			}
+		}
 		w.Write([]byte(strconv.FormatInt(newValue, 10)))
 	}
+}
+
+// handleCompanionSize is Size's own dedicated endpoint (form field
+// "value") — pin-capable like the fields handleCompanionIntField serves,
+// but a plain string (a companion's size category, "Medium"/"Large"/...)
+// rather than a number, so it can't reuse that handler's numeric delta/set/
+// clear contract. Blank clears both the raw column and the pin, matching
+// every other pinnable field's own "blank un-pins" behavior. Size is
+// currently only ever rendered as an input for kind="puppet" (see
+// companion_fields.html's $autoComputed Size branch), but this handler
+// doesn't re-check kind — writing a size override for a kind with no Size
+// formula to override is simply never read back by anything.
+func (s *server) handleCompanionSize(w http.ResponseWriter, r *http.Request) {
+	id, cid, ok := parseCharacterAndCompanionID(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	value := strings.TrimSpace(r.FormValue("value"))
+	if err := charstore.SetCompanionSize(s.charDB, id, cid, value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set companion size:", err)
+		return
+	}
+	if err := charstore.SetCompanionOverride(s.charDB, cid, "size", value); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set companion override size:", err)
+		return
+	}
+	w.Write([]byte(value))
 }

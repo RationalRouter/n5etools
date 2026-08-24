@@ -1,7 +1,6 @@
 package charstore
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -19,8 +18,7 @@ func TestSetCompanionFieldsLocksArmorChassis(t *testing.T) {
 	set := func(chassis string) {
 		t.Helper()
 		if err := SetCompanionFields(db, 1, companionID, "Test Puppet", "",
-			sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{},
-			"", "", "", chassis, false, "", "", "",
+			"", "", "", chassis, false, "", "",
 		); err != nil {
 			t.Fatal(err)
 		}

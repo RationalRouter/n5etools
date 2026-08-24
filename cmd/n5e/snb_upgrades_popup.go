@@ -55,9 +55,10 @@ func (s *server) handleSNBUpgradesPopup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	popup := subclassTrackerPopupData{
-		Title:         "S.N.B Upgrades",
-		CharacterID:   id,
-		CharacterName: sheet.Name,
+		Title:               "S.N.B Upgrades",
+		CharacterID:         id,
+		CharacterName:       sheet.Name,
+		RefreshOpenerBlocks: "sheet-summon-tab sheet-science-nin",
 	}
 	if data == nil || data.SNBSpecialist == nil {
 		popup.EmptyHint = "This character has no S.N.B Upgrades yet — Combat Programming's Scientific Ninja Beast grants this at 3rd-level S.N.B Specialist."

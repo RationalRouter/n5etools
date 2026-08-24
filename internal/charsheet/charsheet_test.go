@@ -2126,6 +2126,14 @@ func TestComputeAppliesElementalInnovationistPermaPerkBonuses(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			id := newCharacter(tc.name, 14)
+			// Perma Perk can only ever be designated from an E.I.P the
+			// character already knows (the real add flow only offers
+			// already-known E.I.Ps as choices) — resolveScienceNinPermaPerk
+			// cross-checks this same invariant live, so a designation with
+			// no matching Known E.I.P pick must not be treated as active.
+			if err := charstore.AddScienceNinSubclassPick(charDB, id, charstore.ScienceNinPickEIP, tc.permaEIP, ""); err != nil {
+				t.Fatal(err)
+			}
 			if err := charstore.AddScienceNinSubclassPick(charDB, id, charstore.ScienceNinPickPermaPerk, tc.permaEIP, ""); err != nil {
 				t.Fatal(err)
 			}
@@ -2142,6 +2150,9 @@ func TestComputeAppliesElementalInnovationistPermaPerkBonuses(t *testing.T) {
 	// was made, and Perma Perk's own gate must be rechecked live rather than
 	// trusting the stored pick's mere existence.
 	underleveled := newCharacter("Underleveled", 13)
+	if err := charstore.AddScienceNinSubclassPick(charDB, underleveled, charstore.ScienceNinPickEIP, elementalInnovationistSpeedEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := charstore.AddScienceNinSubclassPick(charDB, underleveled, charstore.ScienceNinPickPermaPerk, elementalInnovationistSpeedEIPSlug, ""); err != nil {
 		t.Fatal(err)
 	}

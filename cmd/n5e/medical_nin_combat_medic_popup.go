@@ -62,7 +62,7 @@ func (s *server) handleCombatMedicPopup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Combat Medic", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Combat Medic", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-medical-nin"}
 	if data == nil || !data.CombatMedic {
 		popup.EmptyHint = "This character isn't a Combat Medic — Martial Competency and Expert Combatant are Combat Medic's own Tenet of Medicine features."
 		s.renderSubclassTrackerPopup(w, "character_medical_nin_combat_medic.html", popup, nil)

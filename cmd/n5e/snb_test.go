@@ -83,39 +83,52 @@ func seedSNBCharacter(t *testing.T, s *server, level int) {
 
 // TestSNBAC pins "10 + Your Proficiency Bonus (Natural Armor)", plus Combat
 // Programming's own Defensive option folding in a further "1/3rd your
-// Proficiency Bonus, rounded down" once picked.
+// Proficiency Bonus, rounded down" once picked, and Armored Exterior's own
+// base-value override (12/13/14 by level) once known.
 func TestSNBAC(t *testing.T) {
-	if got := snbAC(2, ""); got != 12 {
-		t.Errorf("snbAC(2, \"\") = %d, want 12 (10+2, no pick)", got)
+	if got := snbAC(2, 1, "", false); got != 12 {
+		t.Errorf("snbAC(2, 1, \"\", false) = %d, want 12 (10+2, no pick)", got)
 	}
-	if got := snbAC(2, "Striker"); got != 12 {
-		t.Errorf("snbAC(2, Striker) = %d, want 12 (non-Defensive pick adds nothing)", got)
+	if got := snbAC(2, 1, "Striker", false); got != 12 {
+		t.Errorf("snbAC(2, 1, Striker, false) = %d, want 12 (non-Defensive pick adds nothing)", got)
 	}
-	if got := snbAC(6, "Defensive"); got != 18 {
-		t.Errorf("snbAC(6, Defensive) = %d, want 18 (10+6+floor(6/3)=2)", got)
+	if got := snbAC(6, 6, "Defensive", false); got != 18 {
+		t.Errorf("snbAC(6, 6, Defensive, false) = %d, want 18 (10+6+floor(6/3)=2)", got)
 	}
-	if got := snbAC(4, "Defensive"); got != 15 {
-		t.Errorf("snbAC(4, Defensive) = %d, want 15 (10+4+floor(4/3)=1)", got)
+	if got := snbAC(4, 4, "Defensive", false); got != 15 {
+		t.Errorf("snbAC(4, 4, Defensive, false) = %d, want 15 (10+4+floor(4/3)=1)", got)
+	}
+	if got := snbAC(2, 6, "", true); got != 14 {
+		t.Errorf("snbAC(2, 6, \"\", true) = %d, want 14 (Armored Exterior base 12+2, below 9th)", got)
+	}
+	if got := snbAC(2, 9, "", true); got != 15 {
+		t.Errorf("snbAC(2, 9, \"\", true) = %d, want 15 (Armored Exterior base 13+2, at 9th)", got)
+	}
+	if got := snbAC(2, 17, "", true); got != 16 {
+		t.Errorf("snbAC(2, 17, \"\", true) = %d, want 16 (Armored Exterior base 14+2, at 17th)", got)
 	}
 }
 
 // TestSNBMaxHP pins "Your Intelligence modifier + your Science-Nin level
 // times 5" read by plain left-to-right precedence (IntMod + Level*5, not
-// (IntMod+Level)*5 — see snbMaxHP's own doc), plus the floor of 1 for a
-// pathological negative-modifier case.
+// (IntMod+Level)*5 — see snbMaxHP's own doc), the floor of 1 for a
+// pathological negative-modifier case, and Sturdy's own additional "5 times
+// your Science-Nin level" term once known.
 func TestSNBMaxHP(t *testing.T) {
 	cases := []struct {
 		level, intMod int
+		hasSturdy     bool
 		want          int
 	}{
-		{1, 3, 8},    // 3 + 1*5
-		{6, 3, 33},   // 3 + 6*5 — NOT (3+6)*5=45
-		{1, -5, 1},   // 1*5-5=0, floored to 1
-		{20, -1, 99}, // -1 + 20*5
+		{1, 3, false, 8},    // 3 + 1*5
+		{6, 3, false, 33},   // 3 + 6*5 — NOT (3+6)*5=45
+		{1, -5, false, 1},   // 1*5-5=0, floored to 1
+		{20, -1, false, 99}, // -1 + 20*5
+		{6, 3, true, 63},    // 3 + 6*5 + 6*5 (Sturdy's own extra level*5 term)
 	}
 	for _, c := range cases {
-		if got := snbMaxHP(c.level, c.intMod); got != c.want {
-			t.Errorf("snbMaxHP(%d, %d) = %d, want %d", c.level, c.intMod, got, c.want)
+		if got := snbMaxHP(c.level, c.intMod, c.hasSturdy); got != c.want {
+			t.Errorf("snbMaxHP(%d, %d, %v) = %d, want %d", c.level, c.intMod, c.hasSturdy, got, c.want)
 		}
 	}
 }
@@ -139,9 +152,10 @@ func TestSNBBiteDieForLevel(t *testing.T) {
 // TestSNBBiteAttack pins Bite's own "Your Intelligence modifier + Your Prof
 // Bonus to hit ... 1d6 + Your Intelligence modifier piercing damage", with
 // the Intelligence modifier read as the PLAYER's own (same reasoning as
-// snbMaxHP's doc), not the S.N.B's own fixed -1 Int baseline.
+// snbMaxHP's doc), not the S.N.B's own fixed -1 Int baseline, plus Improved
+// Accuracy's own to-hit bonus once known.
 func TestSNBBiteAttack(t *testing.T) {
-	row := snbBiteAttack(9, 3, 4)
+	row := snbBiteAttack(9, 3, 4, 0)
 	if row.Name != "Bite" {
 		t.Errorf("Name = %q, want Bite", row.Name)
 	}
@@ -156,6 +170,11 @@ func TestSNBBiteAttack(t *testing.T) {
 	}
 	if row.DamageType != "piercing" {
 		t.Errorf("DamageType = %q, want piercing", row.DamageType)
+	}
+
+	withAccuracy := snbBiteAttack(9, 3, 4, 2)
+	if withAccuracy.AttackTotal != 3+4+2 {
+		t.Errorf("AttackTotal with Improved Accuracy = %d, want 9 (player int mod + prof + accuracy bonus)", withAccuracy.AttackTotal)
 	}
 }
 
@@ -219,8 +238,8 @@ func TestPrefillSNBStatDefaultsOnCreation(t *testing.T) {
 	}
 	playerIntMod := sheet.Abilities["int"].Modifier // base_int 16 => +3
 
-	wantAC := int64(snbAC(sheet.ProficiencyBonus, "")) // no Combat Programming pick yet
-	wantHP := int64(snbMaxHP(6, playerIntMod))
+	wantAC := int64(snbAC(sheet.ProficiencyBonus, 6, "", false)) // no Combat Programming pick, no upgrades yet
+	wantHP := int64(snbMaxHP(6, playerIntMod, false))
 	wantSpeed := int64(snbBaseSpeed)
 
 	if !c.AC.Valid || c.AC.Int64 != wantAC {
@@ -244,10 +263,12 @@ func TestPrefillSNBStatDefaultsOnCreation(t *testing.T) {
 		}
 	}
 
-	// The same COALESCE-based safety prefillNinDogStatDefaults/
-	// prefillTitanStatDefaults already rely on: re-running the prefill must
-	// never clobber a field the player has since edited by hand.
-	if err := charstore.SetCompanionIntField(s.charDB, 1, c.ID, "ac", sql.NullInt64{Int64: 99, Valid: true}); err != nil {
+	// loadSNBReference now recomputes and unconditionally overwrites AC (and
+	// every other formula field) on every render — see the identical note
+	// in nindog_test.go's TestPrefillNinDogStatDefaultsOnCreation. Pinning
+	// via character_companion_overrides (migration 0079) is what protects a
+	// value across a re-render now, not a bare column edit.
+	if err := charstore.SetCompanionOverride(s.charDB, c.ID, "ac", "99"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.prefillSNBStatDefaults(1, c.ID); err != nil {
@@ -258,7 +279,7 @@ func TestPrefillSNBStatDefaultsOnCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !after.AC.Valid || after.AC.Int64 != 99 {
-		t.Errorf("re-running the prefill overwrote a manually-set AC: got %+v, want 99 preserved", after.AC)
+		t.Errorf("re-running the prefill overwrote a pinned AC: got %+v, want 99 preserved", after.AC)
 	}
 }
 
@@ -479,7 +500,7 @@ func TestSNBCombatProgrammingPick(t *testing.T) {
 	if ref.CombatProgrammingPick != "Defensive" {
 		t.Errorf("ref.CombatProgrammingPick = %q, want Defensive", ref.CombatProgrammingPick)
 	}
-	wantAC := snbAC(sheet.ProficiencyBonus, "Defensive")
+	wantAC := snbAC(sheet.ProficiencyBonus, sheet.Level, "Defensive", false)
 	if ref.ExpectedAC != wantAC {
 		t.Errorf("ExpectedAC after Defensive pick = %d, want %d (Defensive's own AC bonus folded in)", ref.ExpectedAC, wantAC)
 	}

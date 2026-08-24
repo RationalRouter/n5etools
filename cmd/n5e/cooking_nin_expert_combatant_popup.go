@@ -61,7 +61,7 @@ func (s *server) handleBattleCookExpertCombatantPopup(w http.ResponseWriter, r *
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Expert Combatant (Battle Cook)", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Expert Combatant (Battle Cook)", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.ExpertCombatant == nil {
 		popup.EmptyHint = "This character has no Expert Combatant yet — Battle Cook grants this at 2nd level."
 		s.renderSubclassTrackerPopup(w, "character_cooking_nin_expert_combatant.html", popup, nil)

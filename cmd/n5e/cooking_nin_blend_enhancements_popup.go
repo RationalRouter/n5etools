@@ -60,7 +60,7 @@ func (s *server) handleBlendEnhancementsPopup(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Nature's Blend Enhancements", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Nature's Blend Enhancements", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.BlendEnhancementCap == 0 {
 		popup.EmptyHint = "This character has no Nature's Blend Enhancements yet — Gastrochemist grants this at 2nd level."
 		s.renderSubclassTrackerPopup(w, "character_cooking_nin_blend_enhancements.html", popup, nil)

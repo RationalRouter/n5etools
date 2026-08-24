@@ -271,6 +271,49 @@ func writeEntryBody(b *strings.Builder, name, body string, kind entryKind) {
 	}
 }
 
+// wowAscensionPattern matches the W.O.W (Weapons of Wonder) catalog's own
+// printed section break, e.g. "ASCENSION: DRACONIC GAUNTLET If the Draconic
+// Gauntlet is Ascended, ..." — the boundary between a Weapon of Wonder's
+// base description and its own Ascended-form upgrade text, with no line
+// break surviving PDF extraction between them (see formatDescription's own
+// doc for the general "one run-on paragraph" problem this file works
+// around). Confirmed unique to this one catalog by sweeping every
+// class_options row containing the literal "ASCENSION:" string, so this
+// can't misfire against any other class's own prose — kept as its own
+// narrowly-scoped pattern rather than folded into capsProseEntryPattern,
+// which is reused at ingest time to split other classes' bundled catalog
+// text and shouldn't grow a case only one catalog needs.
+var wowAscensionPattern = regexp.MustCompile(`ASCENSION: (\p{Lu}[\p{Lu} ]*) If `)
+
+// formatWoWDescription renders a Weapon of Wonder's raw description as two
+// independently-structured sections — the base weapon description, then a
+// clearly headed Ascension section — instead of formatDescription's single
+// run-on-paragraph fallback, which is what a W.o.W's raw text always hits on
+// its own (no "•" bullets and no named-entry shape in the base half). Each
+// half still goes through formatDescription itself, so bullets or named
+// sub-entries nested inside either half (Blunderbuss's Ascension text lists
+// three "•"-marked custom properties; Ghost of Konoha's lists two named
+// abilities) still render with real structure. Falls back to plain
+// formatDescription when the marker isn't found, so a W.o.W ever added
+// without this convention still renders sensibly.
+func formatWoWDescription(raw string) template.HTML {
+	loc := wowAscensionPattern.FindStringSubmatchIndex(raw)
+	if loc == nil {
+		return formatDescription(raw)
+	}
+	base := strings.TrimSpace(raw[:loc[0]])
+	name := titleCase(raw[loc[2]:loc[3]])
+	ascension := strings.TrimSpace(raw[loc[3]:])
+
+	var b strings.Builder
+	b.WriteString(string(formatDescription(base)))
+	b.WriteString(`<h4 class="wow-ascension-heading">Ascension: `)
+	b.WriteString(html.EscapeString(name))
+	b.WriteString(`</h4>`)
+	b.WriteString(string(formatDescription(ascension)))
+	return template.HTML(b.String())
+}
+
 // formatBulletedDescription is the pre-existing "•" bullet handling,
 // unchanged, just split out of formatDescription so it reads as one branch
 // among several list shapes rather than the only one.

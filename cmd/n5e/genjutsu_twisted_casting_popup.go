@@ -62,7 +62,7 @@ func (s *server) handleTwistedCastingPopup(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Twisted Casting", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Twisted Casting", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
 	if data == nil || data.TwistedCastingCap == 0 {
 		popup.EmptyHint = "This character isn't a 10th-level (or higher) Beguiler Genjutsu Specialist — Twisted Casting is Beguiler's own 10th-level feature."
 		s.renderSubclassTrackerPopup(w, "character_genjutsu_twisted_casting.html", popup, nil)

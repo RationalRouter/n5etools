@@ -1,6 +1,7 @@
 package main
 
 import (
+	"html/template"
 	"log"
 	"net/http"
 	"strings"
@@ -82,6 +83,13 @@ type subclassTrackerOption struct {
 	Name        string
 	Epithet     string
 	Description string
+	// DescriptionHTML, when set, is shown in the tooltip instead of running
+	// Description through the template's own formatDescription call — the
+	// escape hatch a catalog needs when its raw text wants different
+	// formatting than every other subclass tracker's plain-prose fields
+	// (W.O.W's own base/Ascension split — see formatWoWDescription — is the
+	// first and, so far, only user).
+	DescriptionHTML template.HTML
 }
 
 // subclassTrackerKnownPick is one already-installed pick's display row.
@@ -132,6 +140,39 @@ type subclassTrackerPopupData struct {
 	// the popup's URL directly after a respec, since the sidebar button
 	// that links here is itself gated on the same condition.
 	EmptyHint string
+	// RefreshOpenerBlocks: space-separated character_sheet.html element ids
+	// (the same id list a sheet-fetch-form's own data-also-refresh already
+	// takes — see sheet-refresh.js) to refresh on the OPENER window once
+	// this popup page loads. Every mutation in this pattern is a plain
+	// POST-and-redirect back to this same GET URL (this file's own header
+	// doc), so "this page just (re)loaded" already covers "a pick
+	// was just added or removed" — nothing further needs to trigger this
+	// beyond the page load itself. Sent to subclass-tracker-popup.js via a
+	// data attribute on subclass_tracker_popup_header's own <h1>
+	// (partials/subclass_tracker_popup.html), which calls the opener's own
+	// window.opener.n5eRefreshBlocks — the exact mechanism companion-fields.
+	// js's notifyOpenerToRefresh already uses for a companion popup's own
+	// field saves, just triggered by a page load here instead of a fetch,
+	// since this pattern has no fetch of its own to hook (a real popup
+	// window has no other way back into the opener's DOM — see
+	// subclass_tracker_popup.go's own header doc on why every mutation here
+	// is redirect-based rather than fetch-and-swap).
+	//
+	// Set by each popup's own GET handler to whatever Core-sheet fragment(s)
+	// that subclass's picks are actually rendered inside — normally the
+	// single sheet_X fragment its own (pre-existing) Core-sheet/Companions-
+	// tab AJAX route already responds with (e.g. "sheet-science-nin" for
+	// most Science-Nin subclasses), but wider when a pick's effect is
+	// ALSO visible somewhere else: Titan Slots/SNB Upgrades additionally
+	// need "sheet-summon-tab" (the companion card showing Known Upgrades),
+	// W.o.W/Ascended-W.o.W additionally need "sheet-weapon-attacks
+	// sheet-inventory sheet-inventory-full" (the granted weapon itself —
+	// see wow_weapons.go), and Hunter Creed's Warden Weapon additionally
+	// needs "sheet-weapon-attacks" (hunterNinWardenWeaponBonuses feeds
+	// buildAttacks directly, characters.go). Refreshing an unaffected block
+	// is harmless — n5eRefreshBlocks already no-ops on any id not present
+	// on the current tab — so erring wide here costs nothing.
+	RefreshOpenerBlocks string
 }
 
 // renderSubclassTrackerPopup renders any subclass tracker popup page — the

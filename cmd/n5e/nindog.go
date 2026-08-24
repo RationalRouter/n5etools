@@ -615,39 +615,81 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 		return nil, err
 	}
 
-	dexMod := ninDogEffectiveAbilityModifier(companion, "dex")
-	conMod := ninDogEffectiveAbilityModifier(companion, "con")
+	// overrides: this Nin-Dog's own manual pins (companionOverrideFields),
+	// consulted by every formula below ahead of SetNinDogStatDefaultsLive
+	// writing whichever value (pinned or freshly computed) actually lands
+	// in the row — see migration 0079_companion_overrides.sql's own doc.
+	overrides, err := charstore.GetCompanionOverrides(s.charDB, companion.ID)
+	if err != nil {
+		return nil, err
+	}
+	finalAbilityScore := func(key string) int {
+		if v, ok := companionOverrideInt(overrides, key+"_score"); ok {
+			return int(v)
+		}
+		return ninDogBaseAbilityScores[key]
+	}
+	dexMod := charsheet.AbilityModifier(finalAbilityScore("dex"))
+	conMod := charsheet.AbilityModifier(finalAbilityScore("con"))
 
 	speed := ninDogBaseSpeedForRank(rank)
 	if companion.NinDogBreed == "young-inuit" {
 		speed += 10
 	}
+	if v, ok := companionOverrideInt(overrides, "speed"); ok {
+		speed = int(v)
+	}
+
+	ac := ninDogAC(characterLevel, dexMod)
+	if v, ok := companionOverrideInt(overrides, "ac"); ok {
+		ac = int(v)
+	}
+	hpMax := ninDogMaxHP(characterLevel, conMod)
+	if v, ok := companionOverrideInt(overrides, "hp_max"); ok {
+		hpMax = int(v)
+	}
+	jutsuSlotsMax := ninDogJutsuSlotsMaxForRank(rank)
+	if v, ok := companionOverrideInt(overrides, "jutsu_slots_max"); ok {
+		jutsuSlotsMax = int(v)
+	}
+	size := ninDogSizeForLevel(characterLevel)
+	if v, ok := overrides["size"]; ok {
+		size = v
+	}
+
+	if err := charstore.SetNinDogStatDefaultsLive(s.charDB, characterID, companion.ID,
+		int64(ac), int64(hpMax), int64(speed), int64(jutsuSlotsMax),
+		int64(finalAbilityScore("str")), int64(finalAbilityScore("dex")), int64(finalAbilityScore("con")),
+		int64(finalAbilityScore("int")), int64(finalAbilityScore("wis")), int64(finalAbilityScore("cha")), size,
+	); err != nil {
+		return nil, err
+	}
 
 	ref := &ninDogReference{
 		Rank:                rank,
-		Size:                ninDogSizeForLevel(characterLevel),
+		Size:                size,
 		Level:               characterLevel,
 		Breeds:              ninDogBreeds,
 		Breed:               ninDogBreedBySlug(companion.NinDogBreed),
 		Features:            features,
 		Slots:               slots,
-		JutsuSlotsMax:       ninDogJutsuSlotsMaxForRank(rank),
+		JutsuSlotsMax:       jutsuSlotsMax,
 		JutsuSlotShortRegen: ninDogJutsuSlotShortRestRegen(characterLevel),
 		KnownHijutsu:        knownHijutsu,
 		HijutsuTraitOptions: hijutsuOptions,
 		HijutsuTraitPick:    hijutsuPick,
 		JutsuSpecialtyText:  jutsuSpecialtyText,
 		BiteDescription:     biteDescription,
-		ExpectedAC:          ninDogAC(characterLevel, dexMod),
-		ExpectedMaxHP:       ninDogMaxHP(characterLevel, conMod),
+		ExpectedAC:          ac,
+		ExpectedMaxHP:       hpMax,
 		ExpectedSpeed:       speed,
-		ExpectedSize:        ninDogSizeForLevel(characterLevel),
-		ExpectedStr:         ninDogBaseAbilityScores["str"],
-		ExpectedDex:         ninDogBaseAbilityScores["dex"],
-		ExpectedCon:         ninDogBaseAbilityScores["con"],
-		ExpectedInt:         ninDogBaseAbilityScores["int"],
-		ExpectedWis:         ninDogBaseAbilityScores["wis"],
-		ExpectedCha:         ninDogBaseAbilityScores["cha"],
+		ExpectedSize:        size,
+		ExpectedStr:         finalAbilityScore("str"),
+		ExpectedDex:         finalAbilityScore("dex"),
+		ExpectedCon:         finalAbilityScore("con"),
+		ExpectedInt:         finalAbilityScore("int"),
+		ExpectedWis:         finalAbilityScore("wis"),
+		ExpectedCha:         finalAbilityScore("cha"),
 	}
 	return ref, nil
 }

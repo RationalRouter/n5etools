@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -290,18 +291,68 @@ func titanSpecializationAbilityBonuses(specializationSlug, legionAbility1, legio
 // Taijutsu attacks" widens the crit range to 19 here, the same mechanism
 // Puppet Roles' Lurker Role Effect already uses (see
 // companionAttackRow.CritRangeThreshold's own doc, puppets.go).
-func titanBashAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+// titanHasKnownUpgrade reports whether ref (nil-safe) lists a Known Titan
+// Upgrade by exact catalog name (case-insensitive) — shared check for
+// entries whose effect hooks into an existing computed field elsewhere on
+// the sheet, rather than surfacing only as reference text (loadTitanReference
+// already duplicates this same loop inline for Bijuu Slayer's own Gargantuan
+// size override; Hulking Strength's Bash die bump below and Sturdy Frame's
+// saving-throw bonus, applyTitanSturdyFrameSaves, both reuse it here instead
+// of a third copy).
+//
+// Checks BOTH ref.KnownUpgrades (regular Titan Slots) and ref.ExoSuit.Known
+// (Endless Work's separate slot) — Endless Work only accepts a Mech-keyword
+// entry costing 8 Creation Points or less, which Sturdy Frame (Refined, 8
+// CP) exactly qualifies for, so a Titan can genuinely carry it in EITHER
+// slot. Bijuu Slayer (Mastercraft, 32 CP) and Hulking Strength (Supreme, 24
+// CP) both cost far more than Endless Work's own cap and so can never
+// actually appear in ExoSuit.Known — checking it for them too is still
+// correct, just never matches.
+func titanHasKnownUpgrade(ref *titanReference, name string) bool {
+	if ref == nil {
+		return false
+	}
+	for _, k := range ref.KnownUpgrades {
+		if strings.EqualFold(k.Name, name) {
+			return true
+		}
+	}
+	if ref.ExoSuit != nil {
+		for _, k := range ref.ExoSuit.Known {
+			if strings.EqualFold(k.Name, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// titanBashDamageSteps is Bash's own damage die, stepped up one size by
+// Hulking Strength (Supreme, Mech): "increases the damage of its Bash attack
+// by 1 damage die" — the same one-step-up shape hunter_nin.go's own
+// stepWeaponDie applies to a dice STRING; Bash keeps its die as separate
+// DamageCount/DamageSides ints instead, so this is a small parallel table
+// rather than a round trip through that string-based helper.
+var titanBashDamageSteps = map[int]int{4: 6, 6: 8, 8: 10, 10: 12, 12: 20}
+
+func titanBashAttack(companion charstore.Companion, ref *titanReference, ownerProfBonus int) companionAttackRow {
 	strMod := titanEffectiveAbilityModifier(companion, "str")
 	dexMod := titanEffectiveAbilityModifier(companion, "dex")
 	critRange := 20
 	if strings.Contains(companion.TitanSpecialization, "ronin") {
 		critRange = 19
 	}
+	damageSides := 6
+	if titanHasKnownUpgrade(ref, "Hulking Strength") {
+		if stepped, ok := titanBashDamageSteps[damageSides]; ok {
+			damageSides = stepped
+		}
+	}
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
 			Name:        "Bash",
 			Description: "Melee Weapon Attack: reach 10 ft., one target. This weapon can be used for the unarmed damage of Taijutsu.",
-			DamageCount: 1, DamageSides: 6, DamageType: "bludgeoning",
+			DamageCount: 1, DamageSides: damageSides, DamageType: "bludgeoning",
 		},
 		AttackTotal:        strMod + dexMod + ownerProfBonus,
 		DamageTotal:        strMod + dexMod,
@@ -309,85 +360,78 @@ func titanBashAttack(companion charstore.Companion, ownerProfBonus int) companio
 	}
 }
 
-// titanWeaponUpgradeAttacks returns the standing rollable attack(s) a known
-// Weapon-keyword Titan Upgrade grants, matched by its catalog name — only
-// for the entries with an at-will "deals N in Y damage on a hit" baseline
-// profile (Ion Sword, Predator Cannon, Quad Rocket, and Leadwall's two
-// built-in modes). Every other Weapon-keyword entry (Thermite Launcher,
-// Xo-16 Gatling, Greater Missile Racks, Critical Ejection, Enhanced Attack
-// Protocol) has no standing weapon of its own — its entire offense/effect
-// is gated behind spending its own CCD Drain just to attack at all, is a
-// reactive death-trigger, or is an attack-economy bonus rather than a fixed
-// die+ability+type profile — so those surface only in the Known Titan
-// Upgrades list (companions.go) as reference text, not as a phantom
-// always-available attack row here. nil for any name not on this list.
-func titanWeaponUpgradeAttacks(name string, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
-	strMod := titanEffectiveAbilityModifier(companion, "str")
-	dexMod := titanEffectiveAbilityModifier(companion, "dex")
-	const grantedHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
-	switch {
-	case strings.EqualFold(name, "Ion Sword"):
-		return []companionAttackRow{{
-			CompanionAttack: charstore.CompanionAttack{
-				Name:        "Ion Sword",
-				Description: "Melee Weapon Attack: reach 10 ft., one target.",
-				DamageCount: 1, DamageSides: 8, DamageType: "slashing",
-			},
-			AttackTotal: dexMod + ownerProfBonus,
-			DamageTotal: dexMod,
-			GrantedHint: grantedHint,
-		}}
-	case strings.EqualFold(name, "Predator Cannon"):
-		return []companionAttackRow{{
-			CompanionAttack: charstore.CompanionAttack{
-				Name:        "Predator Cannon",
-				Description: "Ranged Weapon Attack: range 90/180 ft., one target.",
-				DamageCount: 1, DamageSides: 10, DamageType: "piercing",
-			},
-			AttackTotal: strMod + ownerProfBonus,
-			DamageTotal: strMod,
-			GrantedHint: grantedHint,
-		}}
-	case strings.EqualFold(name, "Quad Rocket"):
-		return []companionAttackRow{{
-			CompanionAttack: charstore.CompanionAttack{
-				Name:        "Quad Rocket",
-				Description: "Ranged Weapon Attack: range 60/120 ft., one target.",
-				DamageCount: 2, DamageSides: 4, DamageType: "force",
-			},
-			AttackTotal: strMod + ownerProfBonus,
-			DamageTotal: strMod,
-			GrantedHint: grantedHint,
-		}}
-	case strings.EqualFold(name, "Leadwall"):
-		// The one Titan Upgrade with two built-in modes at once — both
-		// listed as separate rows, same as any other weapon with a melee
-		// and thrown/ranged profile elsewhere on the sheet.
-		return []companionAttackRow{
-			{
-				CompanionAttack: charstore.CompanionAttack{
-					Name:        "Leadwall (Melee)",
-					Description: "Melee Weapon Attack: reach 10 ft., one target.",
-					DamageCount: 1, DamageSides: 6, DamageType: "piercing",
-				},
-				AttackTotal: dexMod + ownerProfBonus,
-				DamageTotal: dexMod,
-				GrantedHint: grantedHint,
-			},
-			{
-				CompanionAttack: charstore.CompanionAttack{
-					Name:        "Leadwall (Ranged)",
-					Description: "Ranged Weapon Attack: range 15/30 ft., one target.",
-					DamageCount: 2, DamageSides: 6, DamageType: "bludgeoning",
-				},
-				AttackTotal: dexMod + ownerProfBonus,
-				DamageTotal: dexMod,
-				GrantedHint: grantedHint,
-			},
-		}
-	default:
+// titanWeaponAttackClausePattern matches a Weapon-keyword Titan Upgrade's own
+// baseline "[a] [Melee|Ranged] [Blade|Ammunition|...] Weapon with a
+// [Reach|Range] of X[,] and deals NdM [+ Str|Dex] in TYPE damage" clause —
+// the stated at-will attack profile Ion Sword/Predator Cannon/Quad Rocket/
+// Leadwall's own two modes each give, before any separate CCD-gated bonus
+// effect. Confirmed directly against every one of this catalog's 19 raw
+// description strings (rules.db, list_name='Titan Upgrades'): the other 5
+// Weapon-keyword entries (Thermite Launcher, Xo-16 Gatling, Greater Missile
+// Racks, Critical Ejection, Enhanced Attack Protocol) never contain a
+// "Weapon with a Reach/Range of" clause at all — their entire offense is
+// gated behind spending the CCD Drain just to act, a reactive death-trigger,
+// or an attack-economy bonus — so this pattern naturally excludes them
+// without a separate name-based denylist, and naturally extends to any
+// future entry sharing the same baseline-weapon shape instead of growing a
+// hardcoded per-name switch.
+var titanWeaponAttackClausePattern = regexp.MustCompile(
+	`(Melee|Ranged)\s+\w+\s+Weapon\s+with\s+a\s+(?:Reach|Range)\s+of\s+(.+?)\s*,?\s+and\s+deals:?\s+(\d+d\d+)\s*\+\s*(Str|Dex)\s+in\s+(\w+)\s+damage`)
+
+// titanWeaponAttacksFromDescription extracts every baseline weapon clause
+// (titanWeaponAttackClausePattern) from a Known Titan Upgrade's own raw
+// description text and turns each into a standing rollable attack row — one
+// row per clause, so Leadwall's own two built-in modes ("both a Melee
+// ...and a Ranged...") each still produce their own row exactly as the
+// former hand-coded switch did, with a "(Melee)"/"(Ranged)" name suffix only
+// added when an entry has more than one clause. nil for any description with
+// no matching clause (every Mech-keyword entry, and the 5 Weapon-keyword
+// entries with no standing weapon of their own — see
+// titanWeaponAttackClausePattern's own doc).
+func titanWeaponAttacksFromDescription(name, description string, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
+	matches := titanWeaponAttackClausePattern.FindAllStringSubmatch(description, -1)
+	if matches == nil {
 		return nil
 	}
+	const grantedHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
+	var out []companionAttackRow
+	for _, m := range matches {
+		isMelee := strings.EqualFold(m[1], "Melee")
+		reachOrRange := strings.TrimSpace(strings.Trim(m[2], "()"))
+		count, sides := 1, 6
+		if dice := damageDicePattern.FindStringSubmatch(m[3]); dice != nil {
+			count, _ = strconv.Atoi(dice[1])
+			sides, _ = strconv.Atoi(dice[2])
+		}
+		abilityMod := titanEffectiveAbilityModifier(companion, strings.ToLower(m[4]))
+		damageType := strings.ToLower(m[5])
+
+		rowName := name
+		var desc string
+		if isMelee {
+			desc = fmt.Sprintf("Melee Weapon Attack: reach %s ft., one target.", strings.TrimSuffix(reachOrRange, "ft"))
+			if len(matches) > 1 {
+				rowName = name + " (Melee)"
+			}
+		} else {
+			desc = fmt.Sprintf("Ranged Weapon Attack: range %s ft., one target.", reachOrRange)
+			if len(matches) > 1 {
+				rowName = name + " (Ranged)"
+			}
+		}
+
+		out = append(out, companionAttackRow{
+			CompanionAttack: charstore.CompanionAttack{
+				Name:        rowName,
+				Description: desc,
+				DamageCount: count, DamageSides: sides, DamageType: damageType,
+			},
+			AttackTotal: abilityMod + ownerProfBonus,
+			DamageTotal: abilityMod,
+			GrantedHint: grantedHint,
+		})
+	}
+	return out
 }
 
 // titanKnownWeaponUpgradeAttacks flattens every Known Titan Upgrade with the
@@ -402,9 +446,41 @@ func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Com
 		if k.Keyword != "weapon" {
 			continue
 		}
-		out = append(out, titanWeaponUpgradeAttacks(k.Name, companion, ownerProfBonus)...)
+		out = append(out, titanWeaponAttacksFromDescription(k.Name, k.Description, companion, ownerProfBonus)...)
 	}
 	return out
+}
+
+// titanSturdyFrameSaveAbilities is Sturdy Frame's own "Physical saving
+// throws" — this app's existing STR/DEX/CON split for "Physical" vs.
+// "Mental" (INT/WIS/CHA), the same grouping titan_reference's own base
+// traits text already uses for Titan's fixed-proficiency saves.
+var titanSturdyFrameSaveAbilities = map[string]bool{"str": true, "dex": true, "con": true}
+
+// applyTitanSturdyFrameSaves adds Sturdy Frame's (Refined, Mech) own "you can
+// add half your Intelligence modifier to Physical saving throws that you are
+// not proficient in" bonus to a Titan's already-computed Saving Throws box,
+// no-op if the Titan doesn't have the upgrade. Uses the PLAYER's own
+// Intelligence modifier, not the Titan's, the same precedent titanAC and
+// titanPassivePerception already set for every other Titan formula that
+// names "Intelligence Modifier" without saying "Titan's" (loadTitanReference
+// captures this once per render as playerIntMod; callers pass it through
+// rather than each recomputing it). Only reaches non-proficient STR/DEX/CON
+// rows — a row already proficient, or any of INT/WIS/CHA, is left untouched.
+func applyTitanSturdyFrameSaves(saves companionSavesView, ref *titanReference, playerIntMod int) companionSavesView {
+	if !titanHasKnownUpgrade(ref, "Sturdy Frame") {
+		return saves
+	}
+	bonus := playerIntMod / 2
+	if playerIntMod%2 != 0 && playerIntMod < 0 {
+		bonus-- // floor, not truncate — half of -3 is -2, not -1
+	}
+	for i, row := range saves.Rows {
+		if !row.Proficient && titanSturdyFrameSaveAbilities[row.Ability] {
+			saves.Rows[i].Modifier += bonus
+		}
+	}
+	return saves
 }
 
 // titanSpecializationOption is one of the 3 Titan Specializations
@@ -922,11 +998,26 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 	}
 	abilityBonuses := titanSpecializationAbilityBonuses(companion.TitanSpecialization, legionAbility1, legionAbility2)
 
-	conMod := titanEffectiveAbilityModifier(companion, "con")
+	// overrides: this Titan's own manual pins (companionOverrideFields),
+	// consulted by every formula below ahead of SetTitanStatDefaultsLive
+	// writing whichever value (pinned or freshly computed) actually lands
+	// in the row — see migration 0079_companion_overrides.sql's own doc.
+	overrides, err := charstore.GetCompanionOverrides(s.charDB, companion.ID)
+	if err != nil {
+		return nil, err
+	}
+	finalAbilityScore := func(key string) int {
+		if v, ok := companionOverrideInt(overrides, key+"_score"); ok {
+			return int(v)
+		}
+		return titanBaseAbilityScores[key] + abilityBonuses[key]
+	}
+
+	conMod := charsheet.AbilityModifier(finalAbilityScore("con"))
 	// Passive Perception's own line ("Yours + Intelligence Modifer") is kept
 	// reading the TITAN's own Intelligence modifier, per this struct field's
 	// existing doc comment — distinct from AC below.
-	intMod := titanEffectiveAbilityModifier(companion, "int")
+	intMod := charsheet.AbilityModifier(finalAbilityScore("int"))
 	// AC's "Intelligence Modifier" is the PLAYER's own, not the Titan's own
 	// stat block — unlike titanMaxHP, whose source text explicitly says
 	// "Titan's Constitution Modifer". titanAC's own source line never says
@@ -940,6 +1031,34 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		if strings.EqualFold(k.Name, "Bijuu Slayer") {
 			size = "Gargantuan" // Mastercraft: "Your Titan's size becomes Gargantuan"
 		}
+	}
+	if v, ok := overrides["size"]; ok {
+		size = v
+	}
+
+	ac := titanAC(playerIntMod, sheet.ProficiencyBonus)
+	if v, ok := companionOverrideInt(overrides, "ac"); ok {
+		ac = int(v)
+	}
+	hpMax := titanMaxHP(scienceNinLevel, conMod)
+	if v, ok := companionOverrideInt(overrides, "hp_max"); ok {
+		hpMax = int(v)
+	}
+	speed := titanSpeedForSpecialization(companion.TitanSpecialization)
+	if v, ok := companionOverrideInt(overrides, "speed"); ok {
+		speed = int(v)
+	}
+	barrierMax := titanBarrierMax(scienceNinLevel)
+	if v, ok := companionOverrideInt(overrides, "barrier_max"); ok {
+		barrierMax = int(v)
+	}
+
+	if err := charstore.SetTitanStatDefaultsLive(s.charDB, characterID, companion.ID,
+		int64(ac), int64(hpMax), int64(speed), int64(barrierMax),
+		int64(finalAbilityScore("str")), int64(finalAbilityScore("dex")), int64(finalAbilityScore("con")),
+		int64(finalAbilityScore("int")), int64(finalAbilityScore("wis")), int64(finalAbilityScore("cha")), size,
+	); err != nil {
+		return nil, err
 	}
 
 	return &titanReference{
@@ -963,17 +1082,17 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 
 		Features: features,
 
-		ExpectedAC:         titanAC(playerIntMod, sheet.ProficiencyBonus),
-		ExpectedMaxHP:      titanMaxHP(scienceNinLevel, conMod),
-		ExpectedSpeed:      titanSpeedForSpecialization(companion.TitanSpecialization),
+		ExpectedAC:         ac,
+		ExpectedMaxHP:      hpMax,
+		ExpectedSpeed:      speed,
 		ExpectedSize:       size,
-		ExpectedBarrierMax: titanBarrierMax(scienceNinLevel),
-		ExpectedStr:        titanBaseAbilityScores["str"] + abilityBonuses["str"],
-		ExpectedDex:        titanBaseAbilityScores["dex"] + abilityBonuses["dex"],
-		ExpectedCon:        titanBaseAbilityScores["con"] + abilityBonuses["con"],
-		ExpectedInt:        titanBaseAbilityScores["int"] + abilityBonuses["int"],
-		ExpectedWis:        titanBaseAbilityScores["wis"] + abilityBonuses["wis"],
-		ExpectedCha:        titanBaseAbilityScores["cha"] + abilityBonuses["cha"],
+		ExpectedBarrierMax: barrierMax,
+		ExpectedStr:        finalAbilityScore("str"),
+		ExpectedDex:        finalAbilityScore("dex"),
+		ExpectedCon:        finalAbilityScore("con"),
+		ExpectedInt:        finalAbilityScore("int"),
+		ExpectedWis:        finalAbilityScore("wis"),
+		ExpectedCha:        finalAbilityScore("cha"),
 	}, nil
 }
 

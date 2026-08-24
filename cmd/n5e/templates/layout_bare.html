@@ -67,6 +67,12 @@
        tooltips fall back to the un-clamped left:0 default instead of
        staying clear of this small window's own edges. */}}
   <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
+  {{/* No-op on every bare-layout page except a subclass tracker popup
+       (character_snb_upgrades.html, character_titan_slots.html, and the
+       rest of subclass_tracker_popup.go's pattern) — see
+       subclass-tracker-popup.js's own header doc for why a popup page load
+       is this pattern's own hook for refreshing the opener window. */}}
+  <script src="/static/js/subclass-tracker-popup.js?v={{assetVersion}}" defer></script>
 </body>
 </html>
 {{end}}

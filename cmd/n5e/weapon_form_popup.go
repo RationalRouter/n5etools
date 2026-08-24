@@ -76,7 +76,7 @@ func (s *server) handleWeaponFormPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Weapon Form", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Weapon Form", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-weapon-form"}
 	if data == nil {
 		popup.EmptyHint = "This character has no Weapon Form chosen yet — every Weapon Specialist picks one of the 8 Weapon Forms at 3rd level."
 		s.renderSubclassTrackerPopup(w, "character_weapon_form.html", popup, nil)

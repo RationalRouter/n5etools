@@ -1673,6 +1673,12 @@ func TestWeaponAttackCritRangeThresholdRazorEIP(t *testing.T) {
 	// weapon attack row — but the plain, jutsu-facing function stays
 	// untouched at 0, since Razor's own text never mentions jutsu-casting.
 	razor := newElementalInnovationist("Razor", 14)
+	// Perma Perk can only ever be designated from an E.I.P the character
+	// already knows — scienceNinHasPermaPerk cross-checks this same
+	// invariant live, so seed the matching Known E.I.P pick alongside it.
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, razor, charstore.ScienceNinPickEIP, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := charstore.AddScienceNinSubclassPick(s.charDB, razor, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -1698,6 +1704,9 @@ func TestWeaponAttackCritRangeThresholdRazorEIP(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, both, charstore.ScienceNinPickEIP, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := charstore.AddScienceNinSubclassPick(s.charDB, both, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -1718,6 +1727,9 @@ func TestWeaponAttackCritRangeThresholdRazorEIP(t *testing.T) {
 	// ninjaneer.go's recomputeNinjaneerWeaponOverrides re-checking its own
 	// designations' granting feature on every load).
 	underleveled := newElementalInnovationist("Underleveled", 13)
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, underleveled, charstore.ScienceNinPickEIP, scienceNinRazorEIPSlug, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := charstore.AddScienceNinSubclassPick(s.charDB, underleveled, charstore.ScienceNinPickPermaPerk, scienceNinRazorEIPSlug, ""); err != nil {
 		t.Fatal(err)
 	}

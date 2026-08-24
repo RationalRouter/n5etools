@@ -42,7 +42,7 @@ func (s *server) handleMadScientistPopup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Mad Scientist", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Mad Scientist", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.MadScientist == nil {
 		popup.EmptyHint = "This character has no Inversion Serums yet — Inversion Serums grants this at 3rd-level Mad Scientist."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_mad_scientist.html", popup, nil)

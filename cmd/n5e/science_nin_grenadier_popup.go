@@ -41,7 +41,7 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Grenadier", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Grenadier", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Grenadier == nil {
 		popup.EmptyHint = "This character has no B.I.M yet — Explosive Modifications grants this at 3rd-level Grenadier."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_grenadier.html", popup, nil)

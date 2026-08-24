@@ -46,7 +46,7 @@ func (s *server) handleRuinPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Ruin", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Ruin", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || data.Ruin == nil {
 		popup.EmptyHint = "This character isn't a Ruin Taijutsu Specialist."
 		s.renderSubclassTrackerPopup(w, "character_taijutsu_ruin.html", popup, nil)

@@ -163,6 +163,108 @@ func TestElementalInnovationistPopupRenderAddDelete(t *testing.T) {
 	}
 }
 
+// TestElementalInnovationistForgetEIPClearsStalePermaPerk covers the
+// cascade-delete fix for task #106: forgetting a known E.I.P must also clear
+// a Perma Perk designation built on that same E.I.P, not leave it dangling.
+// Before this fix, the popup's own display read (loadScienceNinSubclassData,
+// gated on KnownEIPs) already hid a dangling designation, but that same
+// KnownEIPs gate let scienceNinSubclassPickAddCore's cap check
+// (used()>=cap()) see the slot as free and accept a SECOND Perma Perk row —
+// leaving two rows on record and making resolveScienceNinPermaPerk/
+// scienceNinHasPermaPerk's choice of which one is "active" depend on
+// insertion order rather than the player's actual, current designation.
+func TestElementalInnovationistForgetEIPClearsStalePermaPerk(t *testing.T) {
+	s := testServer(t)
+	seedElementalInnovationistCatalog(t, s, 14)
+	// Perma Perk's own granting feature (14th level) — not part of
+	// seedElementalInnovationistCatalog's own base seed, since most callers
+	// only need Exoskeleton/E.I.Ps (3rd level).
+	if _, err := s.rulesDB.Exec(
+		`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		(?, 'class/science-nin/group/scientific-inquiry/elemental-innovationist', 'Perma Perk', 14, 'Test.', 3)`,
+		scienceNinPermaPerkFeatureSlug,
+	); err != nil {
+		t.Fatal(err)
+	}
+	const eiTestEIPSlug2 = "class/science-nin/option/e-i-ps/minor/entry/test-eip-2"
+	if _, err := s.rulesDB.Exec(
+		`INSERT INTO class_option_entries (slug, class_option_slug, name, description, sort_order) VALUES
+		(?, 'class/science-nin/option/e-i-ps/minor', 'Test E.I.P Two', 'A second test elemental perk.', 2)`,
+		eiTestEIPSlug2,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	id := seedElementalInnovationistCharacter(t, s, "Boruto", 14)
+	popupPath := elementalInnovationistPopupPath(id)
+
+	if w := postPopupForm(t, s, popupPath+"/eip/add", url.Values{"option_slug": {eiTestEIPSlug}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("eip add: status %d, body %q", w.Code, w.Body.String())
+	}
+	if w := postPopupForm(t, s, popupPath+"/perma-perk/add", url.Values{"option_slug": {eiTestEIPSlug}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("perma-perk add: status %d, body %q", w.Code, w.Body.String())
+	}
+
+	permaPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(permaPicks) != 1 || permaPicks[0].OptionSlug != eiTestEIPSlug {
+		t.Fatalf("perma perk picks after designation = %+v, want one row for %q", permaPicks, eiTestEIPSlug)
+	}
+	if has, err := s.scienceNinHasPermaPerk(id, eiTestEIPSlug); err != nil {
+		t.Fatal(err)
+	} else if !has {
+		t.Errorf("scienceNinHasPermaPerk(%q) = false right after designation, want true", eiTestEIPSlug)
+	}
+
+	// Forget the E.I.P the Perma Perk designation was built on.
+	if w := postPopupForm(t, s, popupPath+"/eip/delete", url.Values{"option_slug": {eiTestEIPSlug}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("eip delete: status %d, body %q", w.Code, w.Body.String())
+	}
+
+	eipPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickEIP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eipPicks) != 0 {
+		t.Fatalf("eip picks after delete = %+v, want none", eipPicks)
+	}
+	permaPicks, err = charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(permaPicks) != 0 {
+		t.Fatalf("perma perk picks after forgetting its E.I.P = %+v, want none (cascade delete should have cleared it)", permaPicks)
+	}
+	if has, err := s.scienceNinHasPermaPerk(id, eiTestEIPSlug); err != nil {
+		t.Fatal(err)
+	} else if has {
+		t.Errorf("scienceNinHasPermaPerk(%q) = true after forgetting the E.I.P it was designated from, want false", eiTestEIPSlug)
+	}
+
+	// A fresh E.I.P can be learned and freely designated Perma Perk — no
+	// stale row should be left over to block or shadow the new designation.
+	if w := postPopupForm(t, s, popupPath+"/eip/add", url.Values{"option_slug": {eiTestEIPSlug2}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("second eip add: status %d, body %q", w.Code, w.Body.String())
+	}
+	if w := postPopupForm(t, s, popupPath+"/perma-perk/add", url.Values{"option_slug": {eiTestEIPSlug2}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("second perma-perk add: status %d, body %q", w.Code, w.Body.String())
+	}
+	permaPicks, err = charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(permaPicks) != 1 || permaPicks[0].OptionSlug != eiTestEIPSlug2 {
+		t.Fatalf("perma perk picks after re-designating a fresh E.I.P = %+v, want exactly one row for %q", permaPicks, eiTestEIPSlug2)
+	}
+	if has, err := s.scienceNinHasPermaPerk(id, eiTestEIPSlug2); err != nil {
+		t.Fatal(err)
+	} else if !has {
+		t.Errorf("scienceNinHasPermaPerk(%q) = false after fresh designation, want true", eiTestEIPSlug2)
+	}
+}
+
 // seedNinjaneerlessScienceNinCharacter inserts a plain Science-Nin character
 // with no subclass chosen — used by every EmptyHint test in this file that
 // only needs the base class seeded (via one of this file's own *Catalog

@@ -63,7 +63,7 @@ func (s *server) handlePipePopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Bonus Tool Infusion: Pipe", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Bonus Tool Infusion: Pipe", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.BonusToolInfusionPipe == nil {
 		popup.EmptyHint = "This character has no Bonus Tool Infusion: Pipe yet — Herbalist grants this at 3rd level."
 		s.renderSubclassTrackerPopup(w, "character_cooking_nin_pipe.html", popup, nil)

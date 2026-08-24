@@ -53,7 +53,7 @@ func (s *server) handleTechnobiPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Technobi", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Technobi", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Technobi == nil {
 		popup.EmptyHint = "This character has no Technobi Mechanizations yet — The Best Laid Trap grants this at 3rd-level Technobi."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_technobi.html", popup, nil)

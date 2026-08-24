@@ -1301,7 +1301,7 @@
     {{range .Attacks}}
     <tr>
       <th scope="row"><a class="sheet-popup-trigger" href="/items/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-        <span class="option-picker-epithet">{{.Ability}}{{if not .Derived}} · adjusted{{end}}</span></th>
+        <span class="option-picker-epithet">{{.Ability}}{{if not .Derived}} · adjusted{{end}}</span>{{if .SourceLabel}} <span class="weapon-source-badge">{{.SourceLabel}}</span>{{end}}</th>
       <td>
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
                 data-modifier="{{.AttackBonus}}" data-label="{{.Name}} Attack"
@@ -1321,11 +1321,13 @@
              form opens in a row underneath the one it belongs to. */}}
         <button type="button" class="sheet-attack-edit-btn" data-edit-target="weapon-attack-{{.InventoryID}}"
                 aria-label="Adjust {{.Name}}'s modifiers" title="Adjust {{.Name}}'s modifiers" aria-expanded="false">✎</button>
+        {{if not .SourceLabel}}
         <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.InventoryID}}/delete" class="sheet-inventory-form"
               data-target="sheet-weapon-attacks"
               data-confirm="Remove {{.Name}} from your inventory? That drops the weapon itself, not just this attack row.">
           <button type="submit" class="sheet-delete-btn sheet-trash-btn" aria-label="Remove {{.Name}}" title="Remove {{.Name}}">🗑</button>
         </form>
+        {{end}}
       </td>
     </tr>
     <tr class="sheet-custom-attack-edit-row" id="weapon-attack-{{.InventoryID}}" hidden>
@@ -1903,7 +1905,7 @@
               "ExpectedStr" .ExpectedStr "ExpectedDex" .ExpectedDex "ExpectedCon" .ExpectedCon
               "ExpectedInt" .ExpectedInt "ExpectedWis" .ExpectedWis "ExpectedCha" .ExpectedCha
               "ExpectedSize" .ExpectedSize
-              "ElevatedDesignBonus" .ElevatedDesignBonus "PuppetToolASIBonus" .PuppetToolASIBonus "SymphonyEnhancement" .SymphonyEnhancement
+              "SymphonyEnhancement" .SymphonyEnhancement
               "ShowMatryoshka" true "IsMatryoshkaFramework" .IsMatryoshkaFramework
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName)}}
 
@@ -3303,6 +3305,20 @@
 {{define "hunter_pick_detail_card"}}
 <h1>{{.Name}}</h1>
 {{formatDescription .Description}}
+{{end}}
+
+{{/* wow_pick_detail_card: hunter_pick_detail_card's own W.O.W (Weapons of
+     Wonder) variant — same popup mechanism and call shape ({Name,
+     Description}), but runs Description through formatWoWDescription
+     instead of formatDescription so the book's own "ASCENSION: <NAME>"
+     marker splits a W.o.W's base weapon text from its Ascended-form upgrade
+     text into two clearly headed sections, instead of one run-on paragraph.
+     See formatWoWDescription's own doc (cmd/n5e/format.go) for why this
+     needed a W.o.W-specific template rather than teaching the shared
+     formatDescription this one catalog's own convention. */}}
+{{define "wow_pick_detail_card"}}
+<h1>{{.Name}}</h1>
+{{formatWoWDescription .Description}}
 {{end}}
 
 {{/* sheet_genjutsu: Genjutsu Specialist's Actualization Die size readout

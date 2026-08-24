@@ -60,9 +60,10 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	popup := subclassTrackerPopupData{
-		Title:         "Titan Slots",
-		CharacterID:   id,
-		CharacterName: sheet.Name,
+		Title:               "Titan Slots",
+		CharacterID:         id,
+		CharacterName:       sheet.Name,
+		RefreshOpenerBlocks: "sheet-summon-tab sheet-science-nin",
 	}
 	if data == nil {
 		popup.EmptyHint = "This character has no Titan Slots yet — Ordnance Training grants this at 3rd-level Mech Crafter."

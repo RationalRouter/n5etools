@@ -155,11 +155,13 @@ func TestPrefillTitanStatDefaultsOnCreation(t *testing.T) {
 		}
 	}
 
-	// The same COALESCE-based safety prefillNinDogStatDefaults already
-	// relies on: re-running the prefill (as a future per-render backfill
-	// would) must never clobber a field the player has since edited by
-	// hand.
-	if err := charstore.SetCompanionIntField(s.charDB, 1, c.ID, "hp_max", sql.NullInt64{Int64: 999, Valid: true}); err != nil {
+	// loadTitanReference now recomputes and unconditionally overwrites HP
+	// Max (and every other formula field) on every render — see the
+	// identical note in nindog_test.go's
+	// TestPrefillNinDogStatDefaultsOnCreation. Pinning via
+	// character_companion_overrides (migration 0079) is what protects a
+	// value across a re-render now, not a bare column edit.
+	if err := charstore.SetCompanionOverride(s.charDB, c.ID, "hp_max", "999"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.prefillTitanStatDefaults(1, c.ID); err != nil {
@@ -170,7 +172,7 @@ func TestPrefillTitanStatDefaultsOnCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !after.HPMax.Valid || after.HPMax.Int64 != 999 {
-		t.Errorf("re-running the prefill overwrote a manually-set HP Max: got %+v, want 999 preserved", after.HPMax)
+		t.Errorf("re-running the prefill overwrote a pinned HP Max: got %+v, want 999 preserved", after.HPMax)
 	}
 }
 
@@ -316,8 +318,7 @@ func TestTitanSpecializationCommitMarkup(t *testing.T) {
 	}
 
 	if err := charstore.SetCompanionFields(s.charDB, 1, companionID, "Iron Titan", "",
-		sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{},
-		"", "", "", "", false, "", "",
+		"", "", "", "", false, "",
 		"class/science-nin/group/scientific-inquiry/mech-crafter/option/titan/ronin-specialization",
 	); err != nil {
 		t.Fatal(err)
@@ -548,7 +549,7 @@ func TestTitanBashAttack(t *testing.T) {
 		Str: sql.NullInt64{Int64: 17, Valid: true}, // +3
 		Dex: sql.NullInt64{Int64: 15, Valid: true}, // +2
 	}
-	row := titanBashAttack(companion, 4)
+	row := titanBashAttack(companion, nil, 4)
 	if row.Name != "Bash" {
 		t.Errorf("Name = %q, want Bash", row.Name)
 	}
@@ -569,8 +570,193 @@ func TestTitanBashAttack(t *testing.T) {
 	}
 
 	companion.TitanSpecialization = "option/titan/ronin-specialization"
-	row = titanBashAttack(companion, 4)
+	row = titanBashAttack(companion, nil, 4)
 	if row.CritRangeThreshold != 19 {
 		t.Errorf("Ronin CritRangeThreshold = %d, want 19", row.CritRangeThreshold)
+	}
+}
+
+// TestTitanBashAttackHulkingStrength pins Hulking Strength's (Supreme, Mech)
+// own "increases the damage of its Bash attack by 1 damage die" — d6 -> d8,
+// nil-ref-safe (a Titan with no Ordnance Training at all has ref == nil, the
+// same as an empty Known Upgrades list).
+func TestTitanBashAttackHulkingStrength(t *testing.T) {
+	companion := charstore.Companion{
+		Str: sql.NullInt64{Int64: 17, Valid: true},
+		Dex: sql.NullInt64{Int64: 15, Valid: true},
+	}
+	ref := &titanReference{titanUpgradesData: &titanUpgradesData{
+		KnownUpgrades: []knownTitanUpgrade{{Name: "Hulking Strength", Keyword: "mech"}},
+	}}
+	row := titanBashAttack(companion, ref, 4)
+	if row.DamageDice() != "1d8" {
+		t.Errorf("DamageDice() = %q, want 1d8 (Hulking Strength)", row.DamageDice())
+	}
+}
+
+// TestApplyTitanSturdyFrameSaves pins Sturdy Frame's (Refined, Mech) own
+// "add half your Intelligence modifier to Physical saving throws that you
+// are not proficient in" — STR/DEX/CON only, and only non-proficient rows.
+// Also pins the fix for a real gap found via live data: Sturdy Frame (8
+// Creation Points) is cheap enough to sit in Endless Work's separate
+// Exo-Suit slot (ref.ExoSuit.Known) instead of a regular Titan Slot
+// (ref.KnownUpgrades) — titanHasKnownUpgrade must check both lists, not just
+// KnownUpgrades, or a Titan built exactly that way (as a real character in
+// this project's own scratch data was) silently loses the bonus.
+func TestApplyTitanSturdyFrameSaves(t *testing.T) {
+	// A fresh copy per subtest — applyTitanSturdyFrameSaves mutates Rows in
+	// place (companionSavesView.Rows is a slice, a reference type), so
+	// subtests sharing one backing array would corrupt each other's input.
+	freshSaves := func() companionSavesView {
+		return companionSavesView{Rows: []companionSaveRow{
+			{Ability: "str", Modifier: 1, Proficient: false},
+			{Ability: "dex", Modifier: 2, Proficient: true},
+			{Ability: "con", Modifier: 3, Proficient: false},
+			{Ability: "int", Modifier: 4, Proficient: false},
+		}}
+	}
+
+	t.Run("no Sturdy Frame is a no-op", func(t *testing.T) {
+		got := applyTitanSturdyFrameSaves(freshSaves(), nil, 5)
+		if got.Rows[0].Modifier != 1 {
+			t.Errorf("str Modifier = %d, want unchanged 1", got.Rows[0].Modifier)
+		}
+	})
+
+	t.Run("via regular Titan Slot", func(t *testing.T) {
+		ref := &titanReference{titanUpgradesData: &titanUpgradesData{
+			KnownUpgrades: []knownTitanUpgrade{{Name: "Sturdy Frame", Keyword: "mech"}},
+		}}
+		got := applyTitanSturdyFrameSaves(freshSaves(), ref, 5) // playerIntMod=5, bonus=2
+		if got.Rows[0].Modifier != 1+2 {
+			t.Errorf("str (non-proficient) Modifier = %d, want 3", got.Rows[0].Modifier)
+		}
+		if got.Rows[1].Modifier != 2 {
+			t.Errorf("dex (proficient) Modifier = %d, want unchanged 2", got.Rows[1].Modifier)
+		}
+		if got.Rows[2].Modifier != 3+2 {
+			t.Errorf("con (non-proficient) Modifier = %d, want 5", got.Rows[2].Modifier)
+		}
+		if got.Rows[3].Modifier != 4 {
+			t.Errorf("int Modifier = %d, want unchanged 4 (not Physical)", got.Rows[3].Modifier)
+		}
+	})
+
+	t.Run("via Endless Work Exo-Suit slot", func(t *testing.T) {
+		ref := &titanReference{titanUpgradesData: &titanUpgradesData{
+			ExoSuit: &titanExoSuitData{Known: []knownTitanUpgrade{{Name: "Sturdy Frame", Keyword: "mech"}}},
+		}}
+		got := applyTitanSturdyFrameSaves(freshSaves(), ref, 5)
+		if got.Rows[0].Modifier != 1+2 {
+			t.Errorf("str Modifier = %d, want 3 (Sturdy Frame via Exo-Suit slot)", got.Rows[0].Modifier)
+		}
+	})
+
+	t.Run("negative Intelligence modifier rounds down, not toward zero", func(t *testing.T) {
+		ref := &titanReference{titanUpgradesData: &titanUpgradesData{
+			KnownUpgrades: []knownTitanUpgrade{{Name: "Sturdy Frame", Keyword: "mech"}},
+		}}
+		got := applyTitanSturdyFrameSaves(freshSaves(), ref, -3) // half of -3 is -2 (floor), not -1 (truncate)
+		if got.Rows[0].Modifier != 1-2 {
+			t.Errorf("str Modifier = %d, want -1 (1 + floor(-3/2)=-2)", got.Rows[0].Modifier)
+		}
+	})
+}
+
+// TestTitanWeaponAttacksFromDescription pins titanWeaponAttackClausePattern's
+// extraction against every Weapon-keyword Titan Upgrade's own raw
+// class_option_entries.description text (rules.db, list_name='Titan
+// Upgrades', confirmed directly by querying it) — the 4 entries with a
+// standing baseline weapon (Ion Sword, Predator Cannon, Quad Rocket,
+// Leadwall's own two modes) must each still produce the exact rows the
+// former hand-coded switch produced; the 5 entries with no such clause
+// (Thermite Launcher, Xo-16 Gatling, Greater Missile Racks, Critical
+// Ejection, Enhanced Attack Protocol) must still produce nil, confirming the
+// regex excludes them without a separate name-based denylist.
+func TestTitanWeaponAttacksFromDescription(t *testing.T) {
+	companion := charstore.Companion{
+		Str: sql.NullInt64{Int64: 17, Valid: true}, // +3
+		Dex: sql.NullInt64{Int64: 15, Valid: true}, // +2
+	}
+	const prof = 4
+
+	t.Run("Ion Sword", func(t *testing.T) {
+		desc := "A large katana-like blade made industrialized steel. It is a Melee Blade Weapon with a Reach of 10ft and deals: 1d8 + Dex in slashing damage on a hit. On your turn, you can spend the CCD Drain and send an arc of electricity through the blade."
+		rows := titanWeaponAttacksFromDescription("Ion Sword", desc, companion, prof)
+		if len(rows) != 1 {
+			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
+		}
+		r := rows[0]
+		if r.Name != "Ion Sword" || r.DamageDice() != "1d8" || r.DamageType != "slashing" {
+			t.Errorf("row = %+v", r)
+		}
+		if r.AttackTotal != 2+prof || r.DamageTotal != 2 {
+			t.Errorf("AttackTotal/DamageTotal = %d/%d, want %d/2 (dex+prof)", r.AttackTotal, r.DamageTotal, 2+prof)
+		}
+		if r.Description != "Melee Weapon Attack: reach 10 ft., one target." {
+			t.Errorf("Description = %q", r.Description)
+		}
+	})
+
+	t.Run("Predator Cannon", func(t *testing.T) {
+		desc := "A large rotary cannon with multiple barrels that fire piercing rounds to devastate foes. It is a Ranged Ammunition Weapon with a Range of (90/180), and deals 1d10 + Str in piercing damage. Its Ammunition die starts as a d10."
+		rows := titanWeaponAttacksFromDescription("Predator Cannon", desc, companion, prof)
+		if len(rows) != 1 {
+			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
+		}
+		r := rows[0]
+		if r.Name != "Predator Cannon" || r.DamageDice() != "1d10" || r.DamageType != "piercing" {
+			t.Errorf("row = %+v", r)
+		}
+		if r.AttackTotal != 3+prof || r.DamageTotal != 3 {
+			t.Errorf("AttackTotal/DamageTotal = %d/%d, want %d/3 (str+prof)", r.AttackTotal, r.DamageTotal, 3+prof)
+		}
+		if r.Description != "Ranged Weapon Attack: range 90/180 ft., one target." {
+			t.Errorf("Description = %q", r.Description)
+		}
+	})
+
+	t.Run("Quad Rocket", func(t *testing.T) {
+		desc := "A large platform with 4 chambers capable of firing rockets together or alone. It is a Ranged Ammunition Weapon with a Range of (60/120), and deals 2d4 + Str in force damage on a hit. Its Ammunition die starts as a d10."
+		rows := titanWeaponAttacksFromDescription("Quad Rocket", desc, companion, prof)
+		if len(rows) != 1 {
+			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
+		}
+		if rows[0].DamageDice() != "2d4" || rows[0].DamageType != "force" {
+			t.Errorf("row = %+v", rows[0])
+		}
+	})
+
+	t.Run("Leadwall dual mode", func(t *testing.T) {
+		desc := "A large cartridge trench gun that has two firing modes and a bayonet attachment. It is a both a Melee Blade Weapon with a Reach of 10ft and deals: 1d6 + Dex in piercing damage on a hit and a Ranged Ammunition Weapon with a Range of (15/30), and deals 2d6 + Dex in bludgeoning damage on a hit. Its Ammunition die starts as a d8."
+		rows := titanWeaponAttacksFromDescription("Leadwall", desc, companion, prof)
+		if len(rows) != 2 {
+			t.Fatalf("got %d rows, want 2: %+v", len(rows), rows)
+		}
+		melee, ranged := rows[0], rows[1]
+		if melee.Name != "Leadwall (Melee)" || melee.DamageDice() != "1d6" || melee.DamageType != "piercing" {
+			t.Errorf("melee row = %+v", melee)
+		}
+		if ranged.Name != "Leadwall (Ranged)" || ranged.DamageDice() != "2d6" || ranged.DamageType != "bludgeoning" {
+			t.Errorf("ranged row = %+v", ranged)
+		}
+		if ranged.Description != "Ranged Weapon Attack: range 15/30 ft., one target." {
+			t.Errorf("ranged Description = %q", ranged.Description)
+		}
+	})
+
+	noWeaponClause := map[string]string{
+		"Thermite Launcher":        "A large tubular launcher which fires thermite projectiles. While equipped with this weapon, your Titan is resistant to Fire and Acid damage. As an action, you can spend the CCD Drain and shoot a Thermite Grenade at a space within 60 feet.",
+		"Xo-16 Gatling":            "A large assault rifle that focuses fire as it ramps up its fire-rate. As an action, you can spend the CCD Drain up to 5 times and select a creature within 60 feet of you, dealing 1d6+1 force damage on each hit.",
+		"Greater Missile Racks":    "You equip your Titan with several mounts for missiles on its shoulders. As a bonus action, you can spend the CCD Drain to fire a barrage of missiles, dealing 1d6 fire and 1d6 force damage on hit.",
+		"Critical Ejection":        "You equip your Titan with explosive tools in the event of a disaster. When your Titan reaches 0 hit points, all creatures within a 30-foot radius must make a Dexterity saving throw, taking Xd10 fire damage.",
+		"Enhanced Attack Protocol": "Your Titan attacks faster than any other Titan. When your Titan takes the attack action, it can attack three times, instead of only two times.",
+	}
+	for name, desc := range noWeaponClause {
+		t.Run(name, func(t *testing.T) {
+			if rows := titanWeaponAttacksFromDescription(name, desc, companion, prof); rows != nil {
+				t.Errorf("got %d rows, want nil: %+v", len(rows), rows)
+			}
+		})
 	}
 }

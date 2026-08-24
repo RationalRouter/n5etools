@@ -18,12 +18,24 @@ import (
 // baseline stats, the base traits, the level-gated subclass feature list,
 // and Combat Programming's own one-time Striker/Caster/Defensive/Lurker
 // pick — mirroring how nindog.go turns a kind="nin-dog" row into a full
-// stat block and titan.go turns a kind="titan" row into one. S.N.B
-// Specialist's own S.N.B Upgrades cap+catalog picker (science_nin_
-// subclasses.go's scienceNinSNBSpecialistData) and Secondary C.C.D's own
-// custom-resource pool (custom_resources.go) are NOT touched here — this
-// file is purely the reference-panel display layer those two mechanisms
-// were always missing.
+// stat block and titan.go turns a kind="titan" row into one. Secondary
+// C.C.D's own custom-resource pool (custom_resources.go) is NOT touched
+// here.
+//
+// S.N.B Upgrades' own cap+catalog picker (science_nin_subclasses.go's
+// scienceNinSNBSpecialistData) IS read here — loadSNBReference folds every
+// known upgrade's own flat, always-on numeric effect (Armored Exterior's AC
+// floor, Improved Accuracy's attack bonus, Sturdy's HP bonus, Piston Legs'
+// speed override, Enhanced Size's size override) into the same Expected*
+// fields ninDogReference/titanReference already fold their own bonuses
+// into — the identical "known upgrade, matched by name, folded into a
+// computed baseline" treatment titan.go gives Bijuu Slayer's own size
+// override (loadTitanReference). Every OTHER S.N.B Upgrade is a
+// resource-gated ability (spend a CCD Drain to activate, or a reactive
+// death-trigger) rather than a flat stat modifier — those stay
+// informational-only, shown via KnownUpgrades' own full description text,
+// the same restraint titanWeaponUpgradeAttacks documents for every Titan
+// Upgrade that isn't a standing at-will weapon.
 //
 // Source: subclass_features (rules.db), subclass_slug LIKE
 // '%s-n-b-specialist%'. The base stat block (Medium Construct, AC/HP/Speed/
@@ -202,12 +214,45 @@ func snbEffectiveAbilityModifier(companion charstore.Companion, key string) int 
 // — the same "breed/specialization bonus folded straight into the
 // computed baseline" treatment ninDogBaseSpeedForRank's own Young Inuit
 // +10ft already gets, rather than a separate annotation-only note.
-func snbAC(proficiencyBonus int, combatProgrammingPick string) int {
-	ac := 10 + proficiencyBonus
+//
+// Armored Exterior ("Your S.N.B's AC calculation now begins at 12, this
+// increases to 13 at 9th level and 14 at 17th level") replaces the base
+// "10" term the same formula still adds Proficiency Bonus on top of — read
+// as a base-value increase, not a full formula replacement, since every
+// other tier of this same upgrade line states its own progression purely as
+// "the AC calculation begins at N" against the identical "+ Proficiency
+// Bonus" frame the base stat block already establishes.
+func snbAC(proficiencyBonus, level int, combatProgrammingPick string, hasArmoredExterior bool) int {
+	base := 10
+	if hasArmoredExterior {
+		switch {
+		case level >= 17:
+			base = 14
+		case level >= 9:
+			base = 13
+		default:
+			base = 12
+		}
+	}
+	ac := base + proficiencyBonus
 	if combatProgrammingPick == "Defensive" {
 		ac += proficiencyBonus / 3
 	}
 	return ac
+}
+
+// snbImprovedAccuracyBonus: "Your S.N.B gains a +1 to attack rolls. This
+// bonus increases to a +2 at 9th level and a +3 at 17th level." Zero when
+// Improved Accuracy isn't known — callers gate this themselves.
+func snbImprovedAccuracyBonus(level int) int {
+	switch {
+	case level >= 17:
+		return 3
+	case level >= 9:
+		return 2
+	default:
+		return 1
+	}
 }
 
 // snbMaxHP: Combat Programming's own bundled stat block states "Hit Points
@@ -232,8 +277,17 @@ func snbAC(proficiencyBonus int, combatProgrammingPick string) int {
 // contribute also reads as pointless to name as a formula term at all —
 // the same "the modifier should scale with the crafter's own progression"
 // reasoning titanAC's doc gives for reaching the identical conclusion.
-func snbMaxHP(level, playerIntMod int) int {
+// Sturdy adds a second, identical "5 times your Science-Nin level" term on
+// top of the base formula's own "level times 5" ("hit points increase by an
+// amount equal to 5 times your Science-Nin level, each Science-Nin level
+// thereafter your S.N.B gains an additional 5 hit points" — the same linear
+// "5 x level" shape as the base formula's own level term, added rather than
+// replacing it).
+func snbMaxHP(level, playerIntMod int, hasSturdy bool) int {
 	hp := playerIntMod + level*5
+	if hasSturdy {
+		hp += level * 5
+	}
 	if hp < 1 {
 		hp = 1
 	}
@@ -259,7 +313,9 @@ func snbBiteDieForLevel(level int) int {
 // "computed, not stored" treatment ninDogBiteAttack/titanBashAttack give
 // their own companion's built-in attack. "Your Intelligence modifier" is
 // read as the PLAYER's own, same reasoning as snbMaxHP's own doc.
-func snbBiteAttack(level, playerIntMod, ownerProfBonus int) companionAttackRow {
+// accuracyBonus is Improved Accuracy's own to-hit bonus (0 when not known;
+// see snbImprovedAccuracyBonus).
+func snbBiteAttack(level, playerIntMod, ownerProfBonus, accuracyBonus int) companionAttackRow {
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
 			Name:        "Bite",
@@ -268,7 +324,7 @@ func snbBiteAttack(level, playerIntMod, ownerProfBonus int) companionAttackRow {
 			DamageSides: snbBiteDieForLevel(level),
 			DamageType:  "piercing",
 		},
-		AttackTotal: playerIntMod + ownerProfBonus,
+		AttackTotal: playerIntMod + ownerProfBonus + accuracyBonus,
 		DamageTotal: playerIntMod,
 	}
 }
@@ -301,11 +357,30 @@ type snbReference struct {
 	CombatProgrammingOptions  []companionFeatureRef // Striker/Caster/Defensive/Lurker
 	CombatProgrammingPick     string
 
+	// KnownUpgrades: every known S.N.B Upgrade with its own full
+	// description text, shown on the companion sheet itself — most of these
+	// are resource-gated abilities (spend a CCD Drain to activate) rather
+	// than a flat stat modifier this app tracks as a number, so this is the
+	// only place on the sheet a player can see what they actually do (the
+	// same "always-visible full text" treatment titan.go's own Known Titan
+	// Upgrades block gives its own non-hardcoded upgrades). The handful
+	// folded into Expected* below (Armored Exterior/Improved Accuracy/
+	// Sturdy/Piston Legs/Enhanced Size) are still listed here too.
+	KnownUpgrades []scienceNinSubclassOption
+
+	// AccuracyBonus is Improved Accuracy's own to-hit bonus (0 when not
+	// known) — companions.go's own snbBiteAttack call sites read this
+	// directly, so the bonus can never drift out of sync with whichever
+	// upgrades this struct itself resolved as known.
+	AccuracyBonus int
+
 	// Expected*: the same "computed hint, never silently overwritten, Sync
 	// button available" treatment ninDogReference's own Expected* fields
 	// already give a Nin-Dog. ExpectedBiteDie is informational only (no
 	// stored field to sync it into — the rollable Bite row above already
-	// computes the current die size live every render).
+	// computes the current die size live every render). AC/MaxHP/Speed/Size
+	// already fold in whichever of Armored Exterior/Sturdy/Piston Legs/
+	// Enhanced Size are known — see loadSNBReference.
 	ExpectedAC      int
 	ExpectedMaxHP   int
 	ExpectedSpeed   int
@@ -357,10 +432,90 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 		features = append(features, companionFeatureRef{Name: fd.Name, Level: fd.Level, Description: desc, Locked: level < fd.Level})
 	}
 
+	// Known S.N.B Upgrades — see this file's own header doc and
+	// snbReference.KnownUpgrades' own doc for why every known upgrade is
+	// listed here (full text) while only a few are also folded into the
+	// Expected* numeric fields below.
+	upgradeCatalog, err := s.loadScienceNinEntryCatalog("S.N.B Upgrades", false)
+	if err != nil {
+		return nil, err
+	}
+	upgradeDescBySlug := scienceNinDescBySlug(upgradeCatalog)
+	upgradePicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSNBUpgrade)
+	if err != nil {
+		return nil, err
+	}
+	knownUpgradeNames := make(map[string]bool, len(upgradePicks))
+	var knownUpgrades []scienceNinSubclassOption
+	for _, p := range upgradePicks {
+		for _, o := range upgradeCatalog {
+			if o.Slug != p.OptionSlug {
+				continue
+			}
+			knownUpgradeNames[o.Name] = true
+			knownUpgrades = append(knownUpgrades, scienceNinSubclassOption{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Description: upgradeDescBySlug[o.Slug]})
+			break
+		}
+	}
+
+	hasArmoredExterior := knownUpgradeNames["Armored Exterior"]
+	hasSturdy := knownUpgradeNames["Sturdy"]
+	accuracyBonus := 0
+	if knownUpgradeNames["Improved Accuracy"] {
+		accuracyBonus = snbImprovedAccuracyBonus(level)
+	}
+	speed := snbBaseSpeed
+	if knownUpgradeNames["Piston Legs"] {
+		// "Your S.N.B's movement speed becomes 60 feet" — a flat override,
+		// not additive, and always higher than the base 30 ft. regardless.
+		speed = 60
+	}
+	size := "Medium"
+	if knownUpgradeNames["Enhanced Size"] {
+		size = "Large"
+	}
+
+	// overrides: this S.N.B's own manual pins (companionOverrideFields),
+	// consulted below ahead of SetSNBStatDefaultsLive writing whichever
+	// value (pinned or freshly computed) actually lands in the row — see
+	// migration 0079_companion_overrides.sql's own doc.
+	overrides, err := charstore.GetCompanionOverrides(s.charDB, companion.ID)
+	if err != nil {
+		return nil, err
+	}
+	finalAbilityScore := func(key string) int {
+		if v, ok := companionOverrideInt(overrides, key+"_score"); ok {
+			return int(v)
+		}
+		return snbBaseAbilityScores[key]
+	}
+	if v, ok := overrides["size"]; ok {
+		size = v
+	}
+	ac := snbAC(profBonus, level, pick, hasArmoredExterior)
+	if v, ok := companionOverrideInt(overrides, "ac"); ok {
+		ac = int(v)
+	}
+	hpMax := snbMaxHP(level, playerIntMod, hasSturdy)
+	if v, ok := companionOverrideInt(overrides, "hp_max"); ok {
+		hpMax = int(v)
+	}
+	if v, ok := companionOverrideInt(overrides, "speed"); ok {
+		speed = int(v)
+	}
+
+	if err := charstore.SetSNBStatDefaultsLive(s.charDB, characterID, companion.ID,
+		int64(ac), int64(hpMax), int64(speed),
+		int64(finalAbilityScore("str")), int64(finalAbilityScore("dex")), int64(finalAbilityScore("con")),
+		int64(finalAbilityScore("int")), int64(finalAbilityScore("wis")), int64(finalAbilityScore("cha")), size,
+	); err != nil {
+		return nil, err
+	}
+
 	return &snbReference{
 		Level:               level,
 		ProficiencyBonus:    profBonus,
-		Size:                "Medium",
+		Size:                size,
 		Senses:              snbSenses,
 		Immunities:          snbDamageImmunities,
 		Resistances:         snbDamageResistances,
@@ -376,17 +531,20 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 		CombatProgrammingOptions:  snbCombatProgrammingOptions,
 		CombatProgrammingPick:     pick,
 
-		ExpectedAC:      snbAC(profBonus, pick),
-		ExpectedMaxHP:   snbMaxHP(level, playerIntMod),
-		ExpectedSpeed:   snbBaseSpeed,
-		ExpectedSize:    "Medium",
+		KnownUpgrades: knownUpgrades,
+		AccuracyBonus: accuracyBonus,
+
+		ExpectedAC:      ac,
+		ExpectedMaxHP:   hpMax,
+		ExpectedSpeed:   speed,
+		ExpectedSize:    size,
 		ExpectedBiteDie: snbBiteDieForLevel(level),
-		ExpectedStr:     snbBaseAbilityScores["str"],
-		ExpectedDex:     snbBaseAbilityScores["dex"],
-		ExpectedCon:     snbBaseAbilityScores["con"],
-		ExpectedInt:     snbBaseAbilityScores["int"],
-		ExpectedWis:     snbBaseAbilityScores["wis"],
-		ExpectedCha:     snbBaseAbilityScores["cha"],
+		ExpectedStr:     finalAbilityScore("str"),
+		ExpectedDex:     finalAbilityScore("dex"),
+		ExpectedCon:     finalAbilityScore("con"),
+		ExpectedInt:     finalAbilityScore("int"),
+		ExpectedWis:     finalAbilityScore("wis"),
+		ExpectedCha:     finalAbilityScore("cha"),
 	}, nil
 }
 

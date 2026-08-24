@@ -44,7 +44,7 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Shinobi-Ware", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Shinobi-Ware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.ShinobiWare == nil {
 		popup.EmptyHint = "This character has no Shinobi-Ware Upgrades yet — Edge Runner grants this at 3rd-level Shinobi-Ware."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_shinobi_ware.html", popup, nil)

@@ -9,10 +9,14 @@
      shared Creation Points tile every subclass tracker popup opens with.
      Dict-free — call with a subclassTrackerPopupData value directly
      (CharacterID, CharacterName, Title, ShowCreationPoints,
-     CreationPointsUsed, CreationPointsCap). */}}
+     CreationPointsUsed, CreationPointsCap, RefreshOpenerBlocks). The <h1>
+     carries RefreshOpenerBlocks as a data attribute purely as a place for
+     subclass-tracker-popup.js to read it from on load — see that field's
+     own doc (subclass_tracker_popup.go) for why a page load is this
+     pattern's only hook for "a pick just changed". */}}
 {{define "subclass_tracker_popup_header"}}
 <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
-<h1>{{.Title}}</h1>
+<h1 data-refresh-opener-blocks="{{.RefreshOpenerBlocks}}">{{.Title}}</h1>
 {{if .ShowCreationPoints}}
 {{template "science_nin_creation_points_tile" (dict "Used" .CreationPointsUsed "Cap" .CreationPointsCap)}}
 {{end}}
@@ -48,7 +52,7 @@
       <li>
         <label class="puppet-upgrade-option tooltip">
           <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Epithet}}</span>
-          <span class="tooltip-content">{{formatDescription .Description}}</span>
+          <span class="tooltip-content">{{if .DescriptionHTML}}{{.DescriptionHTML}}{{else}}{{formatDescription .Description}}{{end}}</span>
         </label>
       </li>
       {{end}}

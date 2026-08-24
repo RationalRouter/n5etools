@@ -45,7 +45,7 @@ func (s *server) handleStormRiderPopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Storm Rider", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Storm Rider", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.StormRider == nil {
 		popup.EmptyHint = "This character has no A.T. Enhancements yet — Air Trecks grants this at 3rd-level Storm Rider."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_storm_rider.html", popup, nil)

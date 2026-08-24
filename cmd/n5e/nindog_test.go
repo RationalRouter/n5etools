@@ -324,11 +324,15 @@ func TestPrefillNinDogStatDefaultsOnCreation(t *testing.T) {
 		}
 	}
 
-	// The same COALESCE-based safety prefillPuppetStatDefaults already
-	// relies on: re-running the prefill (as a future per-render backfill
-	// would) must never clobber a field the player has since edited by
-	// hand.
-	if err := charstore.SetCompanionIntField(s.charDB, 1, c.ID, "ac", sql.NullInt64{Int64: 99, Valid: true}); err != nil {
+	// loadNinDogReference now recomputes and unconditionally overwrites AC
+	// (and every other formula field) on every render — so protecting a
+	// manually-set value across a re-render requires an actual pin in
+	// character_companion_overrides (migration 0079), not just a bare edit
+	// of the ac column, the same auto-then-pin contract Puppet's own
+	// SetCompanionStatDefaults already establishes. Re-running the prefill
+	// (as any later render already does, via loadNinDogReference) must
+	// still preserve a pinned field.
+	if err := charstore.SetCompanionOverride(s.charDB, c.ID, "ac", "99"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.prefillNinDogStatDefaults(1, c.ID); err != nil {
@@ -339,7 +343,7 @@ func TestPrefillNinDogStatDefaultsOnCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !after.AC.Valid || after.AC.Int64 != 99 {
-		t.Errorf("re-running the prefill overwrote a manually-set AC: got %+v, want 99 preserved", after.AC)
+		t.Errorf("re-running the prefill overwrote a pinned AC: got %+v, want 99 preserved", after.AC)
 	}
 }
 

@@ -489,7 +489,7 @@ func TestCompanionSheetEndToEnd(t *testing.T) {
 	acReq.SetPathValue("id", "1")
 	acReq.SetPathValue("cid", puppetID)
 	acW := httptest.NewRecorder()
-	s.handleCompanionIntField("ac")(acW, acReq)
+	s.handleCompanionIntField("ac", true)(acW, acReq)
 	if acW.Code != http.StatusOK || acW.Body.String() != "15" {
 		t.Fatalf("set AC: status %d, body %q", acW.Code, acW.Body.String())
 	}
@@ -731,6 +731,77 @@ func TestCompanionHPSurvivesWhileFormSaveDoesNotIncludeIt(t *testing.T) {
 	}
 	if !saved.HPCurrent.Valid || saved.HPCurrent.Int64 != 20 {
 		t.Errorf("HPCurrent after an unrelated whole-form save = %+v, want still 20", saved.HPCurrent)
+	}
+	if saved.Notes != "some note" {
+		t.Errorf("Notes = %q, want %q (whole-form save itself should still work)", saved.Notes, "some note")
+	}
+}
+
+// TestCompanionSpeedAbilityScoresAndSizeSurviveWhileFormSaveDoesNotIncludeThem
+// is the same regression shape as TestCompanionHPSurvivesWhileFormSaveDoesNotIncludeIt,
+// covering the other columns SetCompanionFields dropped when Speed, the six
+// ability scores, and Size each grew their own delta-editable/pin-capable
+// endpoint (companion_fields.html's $autoComputed rewrite) — a Summon (not
+// auto-computed, so nothing else recomputes these fields on render) proves
+// the whole-form save itself, not a formula recompute, is what's under test.
+func TestCompanionSpeedAbilityScoresAndSizeSurviveWhileFormSaveDoesNotIncludeThem(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.charDB.Exec(`INSERT INTO characters (name) VALUES ('Kankuro')`); err != nil {
+		t.Fatal(err)
+	}
+	companionID, err := charstore.AddCompanion(s.charDB, 1, "summon", "Crow Summon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cid := strconv.FormatInt(companionID, 10)
+
+	set := func(field, value string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/characters/1/companions/"+cid+"/"+field,
+			strings.NewReader(url.Values{"value": {value}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("id", "1")
+		req.SetPathValue("cid", cid)
+		w := httptest.NewRecorder()
+		if field == "size" {
+			s.handleCompanionSize(w, req)
+		} else {
+			s.handleCompanionIntField(field, true)(w, req)
+		}
+		if w.Code != http.StatusOK {
+			t.Fatalf("set %s: status %d, body %s", field, w.Code, w.Body.String())
+		}
+	}
+	set("speed", "40")
+	set("str_score", "18")
+	set("size", "Large")
+
+	// Simulate blurring an unrelated field (e.g. Notes), which resubmits
+	// the whole #companion-form — none of the fields set above are among
+	// its columns.
+	saveReq := httptest.NewRequest(http.MethodPost, "/characters/1/companions/"+cid,
+		strings.NewReader(url.Values{"name": {"Crow Summon"}, "notes": {"some note"}}.Encode()))
+	saveReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	saveReq.SetPathValue("id", "1")
+	saveReq.SetPathValue("cid", cid)
+	saveW := httptest.NewRecorder()
+	s.handleCompanionSave(saveW, saveReq)
+	if saveW.Code != http.StatusNoContent {
+		t.Fatalf("save companion: status %d, body %s", saveW.Code, saveW.Body.String())
+	}
+
+	saved, err := charstore.GetCompanion(s.charDB, 1, companionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.Speed.Valid || saved.Speed.Int64 != 40 {
+		t.Errorf("Speed after an unrelated whole-form save = %+v, want still 40", saved.Speed)
+	}
+	if !saved.Str.Valid || saved.Str.Int64 != 18 {
+		t.Errorf("Str after an unrelated whole-form save = %+v, want still 18", saved.Str)
+	}
+	if saved.Size != "Large" {
+		t.Errorf("Size after an unrelated whole-form save = %q, want still Large", saved.Size)
 	}
 	if saved.Notes != "some note" {
 		t.Errorf("Notes = %q, want %q (whole-form save itself should still work)", saved.Notes, "some note")

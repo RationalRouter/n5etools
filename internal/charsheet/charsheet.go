@@ -412,7 +412,30 @@ func resolveScienceNinPermaPerk(charDB *sql.DB, characterID int64, grantedFeatur
 	if len(picks) == 0 {
 		return "", nil
 	}
-	return picks[0].OptionSlug, nil
+	// Cross-checked against Known E.I.Ps rather than trusted outright: normal
+	// use routes every E.I.P removal through removeEIPPick (cmd/n5e), which
+	// clears a matching Perma Perk pick alongside a forgotten E.I.P, but this
+	// package can't call into cmd/n5e to enforce that — and live data written
+	// before that cascade existed can still hold a Perma Perk pick whose
+	// E.I.P is gone. picks[0] alone would silently pick whichever stale or
+	// current row the DB happens to return first if more than one ever
+	// exists; this guards the actual consumption site instead, the same
+	// "recheck at the point of use" discipline this function's own doc
+	// already applies to the level/subclass gate.
+	knownEIPs, err := charstore.ListScienceNinSubclassPicks(charDB, characterID, charstore.ScienceNinPickEIP)
+	if err != nil {
+		return "", err
+	}
+	known := make(map[string]bool, len(knownEIPs))
+	for _, k := range knownEIPs {
+		known[k.OptionSlug] = true
+	}
+	for _, p := range picks {
+		if known[p.OptionSlug] {
+			return p.OptionSlug, nil
+		}
+	}
+	return "", nil
 }
 
 // scienceNinMixedStudiesFeatureSlug is Mixed Studies, an 18th-level BASE

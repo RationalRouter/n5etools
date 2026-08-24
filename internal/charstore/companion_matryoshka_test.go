@@ -12,9 +12,12 @@ func TestSplitCompanionIntoBodiesDividesHPAndClonesStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := SetCompanionStatDefaults(db, 1, companionID,
-		14, 31, 31, 30, sql.NullInt64{},
+		14, 31, 30, sql.NullInt64{},
 		16, 12, 14, 10, 8, 6, "Medium",
 	); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetCompanionHP(db, 1, companionID, sql.NullInt64{Int64: 31, Valid: true}); err != nil {
 		t.Fatal(err)
 	}
 

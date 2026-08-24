@@ -3937,6 +3937,17 @@ type attackRow struct {
 	DamageAbility string
 	DamageFlat    int
 	Derived       bool
+
+	// SourceLabel, when set, marks this row as granted by a class feature
+	// rather than a weapon the player bought/found — the Weapons-table
+	// twin of jutsuSheetRow's own SourceLabel/.jutsu-source-badge. Currently
+	// only "Weapon of Wonder" (see wowCustomItemKind, wow_weapons.go) sets
+	// it; the delete control is hidden whenever it's set, same as Jutsu's
+	// own {{if not .SourceLabel}} gate — removing a granted weapon has to
+	// go through the feature that granted it (forgetting the W.o.W pick),
+	// not the generic "drop this weapon" inventory action, so the pick and
+	// the granted item can never drift out of sync.
+	SourceLabel string
 }
 
 // customAttackRow is a stored custom attack plus the totals its parts add up
@@ -4146,6 +4157,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 	if err != nil {
 		return nil, err
 	}
+	wowAscendedName, wowAscendedDice, wowAscendedType, err := s.wowAscendedOverride(characterID)
+	if err != nil {
+		return nil, err
+	}
 	var out []attackRow
 	for _, item := range inventory {
 		if !item.Equipped || item.Slug == "" {
@@ -4154,6 +4169,13 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		var kind string
 		var damageDice, damageType, properties sql.NullString
 		var saveDC sql.NullInt64
+		// customItemKind/customItemName carry a custom item's own Kind/Name
+		// past the if-block below — buildAttacks' own W.o.W handling (see
+		// wowCustomItemKind, wow_weapons.go) needs both to spot a granted
+		// W.o.W row and match it against wowWeaponSpecsByName/
+		// wowAscendedName, neither of which a rules.db equipment row (the
+		// else branch) can ever produce.
+		var customItemKind, customItemName string
 		if strings.HasPrefix(item.Slug, "custom/") {
 			// A custom item's rollable flag (custom_items.rollable_kind) is
 			// the gate here, not its free-text Kind/Type — see CustomItem's
@@ -4172,6 +4194,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			damageDice = sql.NullString{String: ci.DamageDice, Valid: ci.DamageDice != ""}
 			damageType = sql.NullString{String: ci.DamageType, Valid: ci.DamageType != ""}
 			properties = sql.NullString{String: ci.Properties, Valid: ci.Properties != ""}
+			customItemKind, customItemName = ci.Kind, ci.Name
 		} else {
 			err := s.rulesDB.QueryRow(
 				`SELECT kind, damage_dice, damage_type, properties, save_dc FROM equipment WHERE slug = ?`,
@@ -4250,6 +4273,18 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			ability = "int"
 		}
 
+		// A granted Weapon of Wonder (see wowCustomItemKind, wow_weapons.go)
+		// applies its own spec's AbilityOverride the same "always-on once
+		// equipped, still overridable below" way as Cooking Tool Infusion/
+		// S.E.N.Ts above — currently only Draconic Gauntlet's own
+		// unconditional "you may calculate your Unarmed attack and damage
+		// rolls with Intelligence instead of Strength" sets one.
+		isWoW := customItemKind == wowCustomItemKind
+		wowSpec, hasWoWSpec := wowWeaponSpecsByName[customItemName]
+		if isWoW && hasWoWSpec && wowSpec.AbilityOverride != "" {
+			ability = wowSpec.AbilityOverride
+		}
+
 		// Apply the character's override for this weapon, if any. Each part
 		// falls back independently to what the weapon itself implies.
 		opt, overridden := options[item.ID]
@@ -4293,6 +4328,30 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// DamageBonus total is correct either way.
 		damageAbilityBonus := sheet.Abilities[damageAbility].Modifier
 		effectiveDamageDice := damageDice.String
+		if isWoW && hasWoWSpec {
+			// Ray Gun's own unconditional "You do not add your ability
+			// modifier to the damage dealt" — same "still overridable"
+			// boundary as the AbilityOverride block above: a manual Adjust
+			// on this weapon (opt.DamageBonus/DamageAbility) still lands on
+			// top of this zeroed base, it just no longer starts from the
+			// character's own ability score.
+			if wowSpec.NoDamageAbilityMod && !overridden {
+				damageAbilityBonus = 0
+			}
+			// The designated Ascended W.o.W's own single, unconditional
+			// damage-die replacement (see wowAscendedOverride) — most
+			// W.o.W's Ascension branches into a player choice with nothing
+			// to auto-apply here, so this is usually a no-op even for the
+			// Ascended designee itself.
+			if wowAscendedName != "" && customItemName == wowAscendedName {
+				if wowAscendedDice != "" {
+					effectiveDamageDice = wowAscendedDice
+				}
+				if wowAscendedType != "" {
+					damageType.String = wowAscendedType
+				}
+			}
+		}
 		if wardenWeaponSlug != "" && item.Slug == wardenWeaponSlug {
 			if wardenAggressiveAttack {
 				damageAbilityBonus = sheet.Abilities["str"].Modifier + sheet.Abilities["dex"].Modifier
@@ -4360,6 +4419,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			effectiveDamageDice = stepWeaponDie("1d10")
 		}
 
+		sourceLabel := ""
+		if isWoW {
+			sourceLabel = "Weapon of Wonder"
+		}
 		row := attackRow{
 			Name:               item.Name,
 			Slug:               item.Slug,
@@ -4377,6 +4440,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			DamageAbility: damageAbility,
 			DamageFlat:    opt.DamageBonus + weaponFocusBonus + arsenalBonus,
 			Derived:       !overridden,
+			SourceLabel:   sourceLabel,
 		}
 		if m := damageDicePattern.FindStringSubmatch(strings.TrimSpace(effectiveDamageDice)); m != nil {
 			count := 1

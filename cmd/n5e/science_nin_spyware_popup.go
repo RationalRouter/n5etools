@@ -42,7 +42,7 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	popup := subclassTrackerPopupData{Title: "Spyware", CharacterID: id, CharacterName: sheet.Name}
+	popup := subclassTrackerPopupData{Title: "Spyware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Spyware == nil {
 		popup.EmptyHint = "This character has no Spyware Programs yet — Cruel Angel's Thesis grants this at 3rd-level Spyware."
 		s.renderSubclassTrackerPopup(w, "character_science_nin_spyware.html", popup, nil)

@@ -358,7 +358,10 @@ func (s *server) ensureAirTrecksGranted(characterID int64) error {
 
 // ensureScienceNinAutoGrants runs every one-time, side-effecting grant this
 // class hands out purely for having a feature (Storm Rider's Air Trecks
-// weapon), plus Ninjaneer's own weapon-designation overrides (which aren't
+// weapon), every Known W.o.W pick's own granted weapon (ensureWoWWeaponsGranted,
+// wow_weapons.go — normally already granted by addWoWPick itself, this is
+// the backfill path for a pick made before that mechanism existed), plus
+// Ninjaneer's own weapon-designation overrides (which aren't
 // one-time grants but ARE recomputed on the same schedule — see
 // recomputeNinjaneerWeaponOverrides' own doc), BEFORE a caller loads
 // inventory/builds the attack table for the same request.
@@ -374,6 +377,9 @@ func (s *server) ensureAirTrecksGranted(characterID int64) error {
 // that builds the attack table from a freshly loaded inventory should call
 // this first.
 func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.Sheet) error {
+	if err := s.ensureWoWWeaponsGranted(characterID); err != nil {
+		return err
+	}
 	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return err

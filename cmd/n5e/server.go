@@ -286,13 +286,23 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /characters/{id}/companions/{cid}", s.handleCompanionSheet)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}", s.handleCompanionSave)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/hp", s.handleCompanionHP)
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/ac", s.handleCompanionIntField("ac"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/hp_max", s.handleCompanionIntField("hp_max"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka_jutsu_slots", s.handleCompanionIntField("matryoshka_jutsu_slots"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_current", s.handleCompanionIntField("jutsu_slots_current"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_max", s.handleCompanionIntField("jutsu_slots_max"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_current", s.handleCompanionIntField("barrier_current"))
-	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_max", s.handleCompanionIntField("barrier_max"))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/temp_hp", s.handleCompanionIntField("temp_hp", false))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/ac", s.handleCompanionIntField("ac", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/hp_max", s.handleCompanionIntField("hp_max", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/speed", s.handleCompanionIntField("speed", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/fly_speed", s.handleCompanionIntField("fly_speed", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/str_score", s.handleCompanionIntField("str_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/dex_score", s.handleCompanionIntField("dex_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/con_score", s.handleCompanionIntField("con_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/int_score", s.handleCompanionIntField("int_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/wis_score", s.handleCompanionIntField("wis_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/cha_score", s.handleCompanionIntField("cha_score", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/size", s.handleCompanionSize)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/matryoshka_jutsu_slots", s.handleCompanionIntField("matryoshka_jutsu_slots", false))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_current", s.handleCompanionIntField("jutsu_slots_current", false))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/jutsu_slots_max", s.handleCompanionIntField("jutsu_slots_max", true))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_current", s.handleCompanionIntField("barrier_current", false))
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/barrier_max", s.handleCompanionIntField("barrier_max", true))
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-feature", s.handleNinDogFeaturePick)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-hijutsu-trait", s.handleNinDogHijutsuTraitPick)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/snb-combat-programming", s.handleSNBCombatProgrammingPick)
@@ -748,48 +758,23 @@ func (s *server) routes() http.Handler {
 	// alone), so handleScienceNinSubclassPickAdd's own nil check on data
 	// itself isn't enough to rule out a nil ElementalInnovationist/
 	// Grenadier/MadScientist/Ninjaneer underneath it.
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickEIP,
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.EIPUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.EIPCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.ElementalInnovationist == nil {
-				return nil
-			}
-			return d.ElementalInnovationist.AvailableEIPs
-		},
-		false))
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickEIP))
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickWOW,
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.WOWUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.WOWCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.ElementalInnovationist == nil {
-				return nil
-			}
-			return d.ElementalInnovationist.AvailableWOW
-		},
-		false))
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickWOW))
+	// E.I.P's own ADD route uses the dedicated handleScienceNinEIPAdd
+	// (science_nin_subclasses.go) rather than this generic factory — E.I.Ps
+	// spend from the shared Creation Points budget (see that file's header
+	// doc), which this factory's own used/cap closures can't check. Its
+	// DELETE route is dedicated too (handleScienceNinEIPDelete) — forgetting
+	// an E.I.P also needs to clear a dangling Perma Perk designation if that
+	// E.I.P was the one designated (see removeEIPPick's own doc); S.N.B
+	// Upgrades still uses the generic handleScienceNinSubclassPickDelete
+	// below, since it has no equivalent designation to clean up. W.O.W's own
+	// ADD and DELETE routes are both dedicated too (handleScienceNinWOWAdd/
+	// handleScienceNinWOWDelete, science_nin_elemental_innovationist_popup.go)
+	// — a W.o.W pick also grants (and, on delete, revokes) a real equipped
+	// weapon; see wow_weapons.go.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip", s.handleScienceNinEIPAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-eip/delete", s.handleScienceNinEIPDelete)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow", s.handleScienceNinWOWAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-wow/delete", s.handleScienceNinWOWDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ascended-wow", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickAscendedWoW,
 		func(d *scienceNinToolsTabData) int {
 			if d.ElementalInnovationist == nil || d.ElementalInnovationist.DesignatedWoW == nil {
@@ -1041,26 +1026,13 @@ func (s *server) routes() http.Handler {
 	// same reason Titan Upgrades' own routes below bypass that factory too.
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ever-evolving-seal", s.handleEverEvolvingSealAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-ever-evolving-seal/delete", s.handleEverEvolvingSealDelete)
-	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickSpywareProgram,
-		func(d *scienceNinToolsTabData) int {
-			if d.Spyware == nil {
-				return 0
-			}
-			return d.Spyware.ProgramUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.Spyware == nil {
-				return 0
-			}
-			return d.Spyware.ProgramCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.Spyware == nil {
-				return nil
-			}
-			return d.Spyware.AvailablePrograms
-		},
-		false))
+	// Spyware Program's own ADD route uses the dedicated
+	// handleScienceNinSpywareProgramAdd (science_nin_subclasses.go) rather
+	// than this generic factory — Programs spend from the shared Creation
+	// Points budget (see that file's header doc), which this factory's own
+	// used/cap closures can't check. Its DELETE route still uses the generic
+	// handleScienceNinSubclassPickDelete below, same as S.N.B Upgrades.
+	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program", s.handleScienceNinSpywareProgramAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-spyware-program/delete", s.handleScienceNinSubclassPickDelete(charstore.ScienceNinPickSpywareProgram))
 	mux.HandleFunc("POST /characters/{id}/sheet/science-nin-quick-hack", s.handleScienceNinSubclassPickAdd(charstore.ScienceNinPickQuickHack,
 		func(d *scienceNinToolsTabData) int {
@@ -1189,48 +1161,20 @@ func (s *server) routes() http.Handler {
 	// via the same used/cap/available closures the Core-sheet routes above
 	// use, not those routes themselves — see subclass_tracker_popup.go's
 	// header doc on why a popup needs its own routes.
-	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickEIP,
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.EIPUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.EIPCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.ElementalInnovationist == nil {
-				return nil
-			}
-			return d.ElementalInnovationist.AvailableEIPs
-		},
-		false, elementalInnovationistPopupPath))
-	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickEIP, elementalInnovationistPopupPath))
-	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickWOW,
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.WOWUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.ElementalInnovationist == nil {
-				return 0
-			}
-			return d.ElementalInnovationist.WOWCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.ElementalInnovationist == nil {
-				return nil
-			}
-			return d.ElementalInnovationist.AvailableWOW
-		},
-		false, elementalInnovationistPopupPath))
-	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickWOW, elementalInnovationistPopupPath))
+	// E.I.P's own popup ADD route uses the dedicated handleEIPPopupAdd
+	// (science_nin_subclasses.go) — see the Core-sheet route's own comment
+	// above for why this catalog can't use the generic factory. Its DELETE
+	// route is dedicated too (handleEIPPopupDelete) — forgetting an E.I.P
+	// also needs to clear a dangling Perma Perk designation if that E.I.P was
+	// the one designated (see removeEIPPick's own doc). W.O.W's own ADD and
+	// DELETE routes are both dedicated too (handleWoWPopupAdd/
+	// handleWoWPopupDelete, science_nin_elemental_innovationist_popup.go) —
+	// a W.o.W pick also grants (and, on delete, revokes) a real equipped
+	// weapon, see wow_weapons.go.
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/add", s.handleEIPPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/eip/delete", s.handleEIPPopupDelete)
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/add", s.handleWoWPopupAdd)
+	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/wow/delete", s.handleWoWPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/science-nin/elemental-innovationist/ascended-wow/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickAscendedWoW,
 		func(d *scienceNinToolsTabData) int {
 			if d.ElementalInnovationist == nil || d.ElementalInnovationist.DesignatedWoW == nil {
@@ -1478,27 +1422,11 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/ever-evolving-seal/add", s.handleEverEvolvingSealPopupAdd)
 	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/ever-evolving-seal/delete", s.handleEverEvolvingSealPopupDelete)
 	mux.HandleFunc("POST /characters/{id}/science-nin/shinobi-ware/fms-resistance/add", s.handleFullMetalShinobiResistancePopupAdd)
-	// Spyware popup (science_nin_spyware_popup.go).
-	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/program/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickSpywareProgram,
-		func(d *scienceNinToolsTabData) int {
-			if d.Spyware == nil {
-				return 0
-			}
-			return d.Spyware.ProgramUsed
-		},
-		func(d *scienceNinToolsTabData) int {
-			if d.Spyware == nil {
-				return 0
-			}
-			return d.Spyware.ProgramCap
-		},
-		func(d *scienceNinToolsTabData) []scienceNinSubclassOption {
-			if d.Spyware == nil {
-				return nil
-			}
-			return d.Spyware.AvailablePrograms
-		},
-		false, spywarePopupPath))
+	// Spyware popup (science_nin_spyware_popup.go). Program's own ADD route
+	// uses the dedicated handleSpywareProgramPopupAdd
+	// (science_nin_subclasses.go) — see the Core-sheet route's own comment
+	// above for why this catalog can't use the generic factory.
+	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/program/add", s.handleSpywareProgramPopupAdd)
 	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/program/delete", s.subclassTrackerPopupDelete(charstore.ScienceNinPickSpywareProgram, spywarePopupPath))
 	mux.HandleFunc("POST /characters/{id}/science-nin/spyware/quick-hack/add", s.scienceNinTrackerPopupAdd(charstore.ScienceNinPickQuickHack,
 		func(d *scienceNinToolsTabData) int {

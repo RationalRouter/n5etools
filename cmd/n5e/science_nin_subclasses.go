@@ -59,19 +59,26 @@ import (
 // (Prerequisite is informational-only whenever it can't resolve to a real
 // sibling entry).
 //
-// S.N.B Upgrades (S.N.B Specialist) is the one exception to "informational
-// only" among this file's own catalogs: its own Cost IS deducted from
-// data.CreationPointsUsed (see that block in loadScienceNinSubclassData,
-// below), because S.N.B Upgrades shares the SAME single Creation Points
-// budget the base Scientific Ninja Tools catalog spends from, rather than a
-// second, separate per-installation budget — the identical shared-pool
-// treatment Titan Upgrades already gets for Mech Crafter
-// (titanUpgradesCreationPointsSpend, titan.go) and Ever Evolving Seal
-// already gets for Shinobi-Ware (this file, below). Every entry's own Cost
-// here is a flat single number (never a RANGE the way some of the other
-// catalogs' entries are), which is what makes tracking it exact rather than
+// S.N.B Upgrades (S.N.B Specialist), Spyware Programs, and E.I.Ps (both
+// Elemental Innovationist) are this file's three exceptions to
+// "informational only": their own Cost IS deducted from
+// data.CreationPointsUsed (see each one's own block in
+// loadScienceNinSubclassData, below), because all three share the SAME
+// single Creation Points budget the base Scientific Ninja Tools catalog
+// spends from, rather than a second, separate per-installation budget — the
+// identical shared-pool treatment Titan Upgrades already gets for Mech
+// Crafter (titanUpgradesCreationPointsSpend, titan.go) and Ever Evolving
+// Seal already gets for Shinobi-Ware (this file, below). Every entry's own
+// Cost in these three catalogs is a flat single number (never a RANGE the
+// way some of the other catalogs' entries are, confirmed against every
+// entry in all three), which is what makes tracking it exact rather than
 // another instance of the "no separate upgrade level concept" problem the
-// rest of this paragraph describes.
+// rest of this paragraph describes. Cruel Angel's Thesis (Spyware) states
+// its own Creation-Points spend explicitly in the book text; E.I.P's own
+// granting feature doesn't name Creation Points directly, but every E.I.P
+// entry carries the identical "Cost: N Creation Points" stat line the other
+// two exceptions do, and this app's existing parser/display pipeline
+// already treats that line the same way across all three catalogs.
 //
 // Storage is internal/charstore/science_nin_subclass_picks.go's single
 // generic character_science_nin_subclass_picks table (migrations
@@ -220,8 +227,25 @@ func (s *server) scienceNinHasPermaPerk(characterID int64, wantSlug string) (boo
 	if err != nil {
 		return false, err
 	}
+	matched := false
 	for _, p := range picks {
 		if p.OptionSlug == wantSlug {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return false, nil
+	}
+	// Cross-checked against Known E.I.Ps rather than trusted outright — see
+	// resolveScienceNinPermaPerk's own doc (internal/charsheet/charsheet.go)
+	// for why a stored Perma Perk pick can outlive the E.I.P it designates.
+	knownEIPs, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEIP)
+	if err != nil {
+		return false, err
+	}
+	for _, k := range knownEIPs {
+		if k.OptionSlug == wantSlug {
 			return true, nil
 		}
 	}
@@ -342,12 +366,13 @@ type scienceNinSubclassOption struct {
 // zero value everywhere except B.I.M (splitScienceNinPicks never sets it;
 // the template only reads it in the B.I.M section) — see
 // splitScienceNinBIMPicks for the one catalog where a single Known entry
-// can represent more than one held copy. Cost is S.N.B Upgrades only, set in
-// a separate pass after splitScienceNinPicks runs (that function has no
-// Cost concept — every other catalog's own Cost badge stays purely
-// informational, see this file's own header doc) since S.N.B Upgrades is
-// the one catalog here that actually spends from the shared Creation Points
-// budget (loadScienceNinSubclassData's own S.N.B Upgrades block).
+// can represent more than one held copy. Cost is S.N.B Upgrades, Spyware
+// Programs, and E.I.Ps only, set in a separate pass after
+// splitScienceNinPicks runs (that function has no Cost concept — every
+// other catalog's own Cost badge stays purely informational, see this
+// file's own header doc) since those three are the catalogs here that
+// actually spend from the shared Creation Points budget
+// (loadScienceNinSubclassData's own S.N.B Upgrades/Spyware/E.I.P blocks).
 type knownScienceNinPick struct {
 	Slug     string
 	Name     string
@@ -951,6 +976,21 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			if err != nil {
 				return err
 			}
+			// E.I.Ps draw from the SAME shared Creation Points budget the base
+			// Scientific Ninja Tools catalog and S.N.B Upgrades both spend
+			// from — every E.I.P entry's own Cost is a flat single number
+			// (confirmed against every entry in this catalog, never a RANGE
+			// the way this file's own "informational only" catalogs are), the
+			// same criterion that makes S.N.B Upgrades this file's other
+			// exception (see this file's header doc). Perma Perk (below)
+			// selects an already-known, already-paid-for E.I.P rather than
+			// acquiring a new one, so it needs no exclusion here the way
+			// Spyware's Quick Hack or S.N.B's permanent picks do.
+			costBySlug := make(map[string]int, len(catalog))
+			for _, o := range catalog {
+				cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+				costBySlug[o.Slug] = cost
+			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEIP)
 			if err != nil {
 				return err
@@ -961,6 +1001,10 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			}
 			ei.EIPUsed = len(picks)
 			ei.KnownEIPs, ei.AvailableEIPs = splitScienceNinPicks(catalog, pickedSet)
+			for i := range ei.KnownEIPs {
+				ei.KnownEIPs[i].Cost = costBySlug[ei.KnownEIPs[i].Slug]
+				data.CreationPointsUsed += ei.KnownEIPs[i].Cost
+			}
 		}
 
 		if has[scienceNinWOWFeatureSlug] {
@@ -1332,12 +1376,25 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinCruelAngelsThesisFeatureSlug] || has[scienceNinNetrunnerFeatureSlug] {
 		sp := &scienceNinSpywareData{}
+		quickHackSet := map[string]bool{}
 
 		if has[scienceNinCruelAngelsThesisFeatureSlug] {
 			sp.ProgramCap = spywareProgramCap(proficiencyBonus)
 			catalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false)
 			if err != nil {
 				return err
+			}
+			// Spyware Programs draw from the SAME shared Creation Points
+			// budget S.N.B Upgrades and E.I.Ps both spend from — Cruel
+			// Angel's Thesis states this explicitly ("Over the course of a
+			// long rest, you can spend Creation Points to make Programs"),
+			// and every entry's own Cost is a flat single number (never a
+			// RANGE), the same criterion that makes S.N.B Upgrades this
+			// file's other exception (see this file's header doc).
+			costBySlug := make(map[string]int, len(catalog))
+			for _, o := range catalog {
+				cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+				costBySlug[o.Slug] = cost
 			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSpywareProgram)
 			if err != nil {
@@ -1347,8 +1404,10 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range picks {
 				pickedSet[p.OptionSlug] = true
 			}
-			sp.ProgramUsed = len(picks)
 			sp.KnownPrograms, sp.AvailablePrograms = splitScienceNinPicks(catalog, pickedSet)
+			for i := range sp.KnownPrograms {
+				sp.KnownPrograms[i].Cost = costBySlug[sp.KnownPrograms[i].Slug]
+			}
 		}
 
 		if has[scienceNinNetrunnerFeatureSlug] {
@@ -1356,7 +1415,6 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			if err != nil {
 				return err
 			}
-			quickHackSet := make(map[string]bool, len(quickHackPicks))
 			for _, p := range quickHackPicks {
 				quickHackSet[p.OptionSlug] = true
 			}
@@ -1373,6 +1431,20 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				}
 				sp.AvailableQuickHack = append(sp.AvailableQuickHack, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
 			}
+		}
+
+		// Program slot usage and Creation Points spend both exclude whichever
+		// Known Program has been designated the Netrunner's Quick Hack —
+		// Netrunner's own text: "You always have this program prepared, and
+		// it does not count against your slot limit or Creation points."
+		// Computed after both blocks above so quickHackSet is complete
+		// regardless of which feature(s) the character actually has.
+		for _, k := range sp.KnownPrograms {
+			if quickHackSet[k.Slug] {
+				continue
+			}
+			sp.ProgramUsed++
+			data.CreationPointsUsed += k.Cost
 		}
 
 		data.Spyware = sp
@@ -1632,6 +1704,282 @@ func (s *server) handleScienceNinSNBUpgradeAdd(w http.ResponseWriter, r *http.Re
 		return
 	}
 	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
+// addSpywareProgramPick validates and installs one Spyware Program, gated by
+// BOTH the flat Program hold cap (ProgramCap/Used) and the shared Creation
+// Points budget — same dual-check shape addSNBUpgradePick establishes above,
+// for the identical reason (Cruel Angel's Thesis explicitly spends Creation
+// Points to make Programs; see this file's header doc). Shared by the
+// Core-sheet's own AJAX route (handleScienceNinSpywareProgramAdd, just
+// below) and the Spyware popup's own redirect route
+// (handleSpywareProgramPopupAdd), matching addSNBUpgradePick/
+// addEIPPick's own split.
+func (s *server) addSpywareProgramPick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing program"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for spyware program add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadScienceNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load science-nin for spyware program add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.Spyware == nil {
+		return http.StatusBadRequest, "character has no Spyware Programs yet"
+	}
+	sp := data.Spyware
+	if sp.ProgramUsed >= sp.ProgramCap {
+		return http.StatusBadRequest, "no Program slots remaining"
+	}
+	var picked *scienceNinSubclassOption
+	for i, o := range sp.AvailablePrograms {
+		if o.Slug == slug {
+			picked = &sp.AvailablePrograms[i]
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid program"
+	}
+	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	if data.CreationPointsUsed+cost > data.CreationPointsCap {
+		return http.StatusBadRequest, "not enough Creation Points remaining"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickSpywareProgram, slug, ""); err != nil {
+		log.Println("add spyware program:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleScienceNinSpywareProgramAdd is addSpywareProgramPick's own
+// Core-sheet AJAX route — not built on the generic
+// handleScienceNinSubclassPickAdd factory below, for the same reason
+// handleScienceNinSNBUpgradeAdd isn't. handleScienceNinSubclassPickDelete
+// (below) is still used for Spyware Program removal — freeing a slot never
+// needs a budget check, and data.CreationPointsUsed is always recomputed
+// from scratch from whichever picks remain, so no separate refund step is
+// needed either.
+func (s *server) handleScienceNinSpywareProgramAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addSpywareProgramPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
+// handleSpywareProgramPopupAdd is addSpywareProgramPick's own redirect-based
+// wrapper for the Spyware popup, matching handleEverEvolvingSealPopupAdd's
+// own shape (ever_evolving.go).
+func (s *server) handleSpywareProgramPopupAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addSpywareProgramPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	http.Redirect(w, r, spywarePopupPath(id), http.StatusSeeOther)
+}
+
+// addEIPPick validates and installs one E.I.P, gated by BOTH the flat
+// Exoskeleton slot cap (EIPCap/Used) and the shared Creation Points budget —
+// same dual-check shape addSNBUpgradePick/addSpywareProgramPick establish
+// above, for the identical reason (see this file's header doc on why E.I.Ps
+// are this file's third exception to "informational only"). Shared by the
+// Core-sheet's own AJAX route (handleScienceNinEIPAdd, just below) and the
+// Elemental Innovationist popup's own redirect route (handleEIPPopupAdd).
+func (s *server) addEIPPick(id int64, slug string) (int, string) {
+	if slug == "" {
+		return http.StatusBadRequest, "missing perk"
+	}
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		log.Println("compute sheet for eip add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	data, err := s.loadScienceNinTabData(id, sheet)
+	if err != nil {
+		log.Println("load science-nin for eip add:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	if data == nil || data.ElementalInnovationist == nil {
+		return http.StatusBadRequest, "character has no E.I.Ps yet"
+	}
+	ei := data.ElementalInnovationist
+	if ei.EIPUsed >= ei.EIPCap {
+		return http.StatusBadRequest, "no Exoskeleton slots remaining"
+	}
+	var picked *scienceNinSubclassOption
+	for i, o := range ei.AvailableEIPs {
+		if o.Slug == slug {
+			picked = &ei.AvailableEIPs[i]
+			break
+		}
+	}
+	if picked == nil {
+		return http.StatusBadRequest, "not a valid perk"
+	}
+	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	if data.CreationPointsUsed+cost > data.CreationPointsCap {
+		return http.StatusBadRequest, "not enough Creation Points remaining"
+	}
+	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickEIP, slug, ""); err != nil {
+		log.Println("add eip:", err)
+		return http.StatusInternalServerError, "database error"
+	}
+	return http.StatusOK, ""
+}
+
+// handleScienceNinEIPAdd is addEIPPick's own Core-sheet AJAX route — not
+// built on the generic handleScienceNinSubclassPickAdd factory below, for
+// the same reason handleScienceNinSNBUpgradeAdd isn't.
+// handleScienceNinSubclassPickDelete (below) is still used for E.I.P
+// removal — freeing a slot never needs a budget check.
+func (s *server) handleScienceNinEIPAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addEIPPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
+// handleEIPPopupAdd is addEIPPick's own redirect-based wrapper for the
+// Elemental Innovationist popup, matching handleEverEvolvingSealPopupAdd's
+// own shape (ever_evolving.go).
+func (s *server) handleEIPPopupAdd(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if status, msg := s.addEIPPick(id, slug); status != http.StatusOK {
+		http.Error(w, msg, status)
+		return
+	}
+	http.Redirect(w, r, elementalInnovationistPopupPath(id), http.StatusSeeOther)
+}
+
+// removeEIPPick clears one known E.I.P — freely, at any time, same "trust
+// the player" boundary every other pick removal in this codebase draws. A
+// forgotten E.I.P can no longer be the character's designated Perma Perk
+// either, so a matching Perma Perk pick is cleared alongside it rather than
+// left dangling — same shape removeWoWPick (science_nin_elemental_
+// innovationist_popup.go) already draws for a forgotten W.o.W's Ascended
+// designation. Without this, the stale Perma Perk row survives (its own
+// slug no longer among Known EIPs), and while the popup's own display
+// already hides it (see loadScienceNinSubclassData's KnownEIPs-gated
+// PermaPerk lookup), that same gap lets scienceNinSubclassPickAddCore's cap
+// check see PermaPerk as empty and accept a second Perma Perk pick — leaving
+// two rows in the perma_perk category and making which one's stat effects
+// apply (resolveScienceNinPermaPerk, scienceNinHasPermaPerk) depend on
+// insertion order rather than the player's actual, current designation.
+func (s *server) removeEIPPick(id int64, slug string) error {
+	if err := charstore.RemoveScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickEIP, slug); err != nil {
+		return err
+	}
+	permaPicks, err := charstore.ListScienceNinSubclassPicks(s.charDB, id, charstore.ScienceNinPickPermaPerk)
+	if err != nil {
+		return err
+	}
+	for _, p := range permaPicks {
+		if p.OptionSlug == slug {
+			if err := charstore.RemoveScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickPermaPerk, slug); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// handleScienceNinEIPDelete is removeEIPPick's own Core-sheet AJAX wrapper,
+// matching handleScienceNinWOWDelete's shape (science_nin_elemental_
+// innovationist_popup.go) — not the generic handleScienceNinSubclassPickDelete
+// below, since forgetting an E.I.P also needs to clear a dangling Perma Perk
+// designation, unlike every other flat category that factory still covers.
+func (s *server) handleScienceNinEIPDelete(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if slug == "" {
+		http.Error(w, "missing pick", http.StatusBadRequest)
+		return
+	}
+	if err := s.removeEIPPick(id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("remove eip pick:", err)
+		return
+	}
+	s.respondSheet(w, r, id, "sheet_science_nin")
+}
+
+// handleEIPPopupDelete is removeEIPPick's own redirect-based wrapper for the
+// Elemental Innovationist popup, matching handleWoWPopupDelete's shape.
+func (s *server) handleEIPPopupDelete(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	slug := strings.TrimSpace(r.FormValue("option_slug"))
+	if slug == "" {
+		http.Error(w, "missing pick", http.StatusBadRequest)
+		return
+	}
+	if err := s.removeEIPPick(id, slug); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("remove eip pick:", err)
+		return
+	}
+	http.Redirect(w, r, elementalInnovationistPopupPath(id), http.StatusSeeOther)
 }
 
 // handleScienceNinSubclassPickAdd builds one category's "learn a pick"
@@ -1914,6 +2262,10 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 		log.Println("load science-nin subclass pick detail:", err)
 		return
 	}
+	if category == "wow" {
+		s.renderScienceNinSubclassPickDetailWoW(w, name, description)
+		return
+	}
 	s.renderScienceNinSubclassPickDetail(w, name, description)
 }
 
@@ -1930,5 +2282,25 @@ func (s *server) renderScienceNinSubclassPickDetail(w http.ResponseWriter, name,
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
 		log.Println("render science-nin subclass pick detail:", err)
+	}
+}
+
+// renderScienceNinSubclassPickDetailWoW is renderScienceNinSubclassPickDetail's
+// own W.O.W-specific twin — executes wow_pick_detail_card (formatWoWDescription)
+// instead of hunter_pick_detail_card (formatDescription), so a Known W.o.W's
+// detail popup gets the base/Ascension split. Both the plain "wow" category
+// and "ascended-wow" (an Ascended W.o.W's own DetailHref, set in
+// ascendedWowSection) route here — an Ascended designation is a pointer at
+// the same underlying class_options row, not a separate catalog.
+func (s *server) renderScienceNinSubclassPickDetailWoW(w http.ResponseWriter, name, description string) {
+	tmpl, ok := pageTemplates["character_sheet.html"]
+	if !ok {
+		http.Error(w, "template not found", http.StatusInternalServerError)
+		log.Println("render science-nin subclass pick detail (wow): no template registered")
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "wow_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
+		log.Println("render science-nin subclass pick detail (wow):", err)
 	}
 }

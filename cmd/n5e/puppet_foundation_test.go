@@ -119,34 +119,6 @@ func TestPuppetFoundationSubChoiceSpecSingleKind(t *testing.T) {
 	}
 }
 
-// TestPuppetFoundationExpectedAbilityScores reproduces the audit's live
-// scenario: Quadrupedal (Puppeteer Chassis) sets STR/CON to 16, floored
-// against the class baseline — an ability the pick doesn't touch (DEX) must
-// pass through the baseline untouched.
-func TestPuppetFoundationExpectedAbilityScores(t *testing.T) {
-	entry := puppetupgrades.FoundationEntries["class/puppet-master/option/puppeteer-chassis/quadrupedal"]
-	if entry.EntrySlug == "" {
-		t.Fatal("Quadrupedal entry not found in FoundationEntries")
-	}
-	baseline := &puppetToolStatBlock{Str: 8, Dex: 12, Con: 8, Int: 3, Wis: 8, Cha: 6}
-	picks := []puppetFoundationPick{{Entry: entry}}
-
-	got := puppetFoundationExpectedAbilityScores(baseline, picks)
-	if got["str"] != 16 {
-		t.Errorf("str = %d, want 16 (Quadrupedal's own Set, baseline 8 is lower)", got["str"])
-	}
-	if got["con"] != 16 {
-		t.Errorf("con = %d, want 16", got["con"])
-	}
-	if got["dex"] != 12 {
-		t.Errorf("dex = %d, want 12 (untouched, baseline passes through)", got["dex"])
-	}
-
-	if got := puppetFoundationExpectedAbilityScores(nil, picks); got != nil {
-		t.Errorf("nil baseline should yield a nil map, got %v", got)
-	}
-}
-
 // TestPuppetFoundationWeaponAttackUsesExpectedScore reproduces the audit's
 // core defect: the natural weapon's own attack/damage modifier must come
 // from the CORRECTED (Foundation-adjusted) ability score, not a stale value
