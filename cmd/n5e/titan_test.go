@@ -320,6 +320,8 @@ func TestTitanSpecializationCommitMarkup(t *testing.T) {
 	if err := charstore.SetCompanionFields(s.charDB, 1, companionID, "Iron Titan", "",
 		"", "", "", "", false, "",
 		"class/science-nin/group/scientific-inquiry/mech-crafter/option/titan/ronin-specialization",
+		"", "", "",
+		false,
 	); err != nil {
 		t.Fatal(err)
 	}

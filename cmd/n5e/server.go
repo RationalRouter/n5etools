@@ -163,6 +163,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/portrait", s.handleSheetPortrait)
 	mux.HandleFunc("POST /characters/{id}/sheet/portrait/delete", s.handleSheetPortraitDelete)
 	mux.HandleFunc("POST /characters/{id}/sheet/inspiration", s.handleSheetInspiration)
+	mux.HandleFunc("POST /characters/{id}/sheet/kujaku-mode", s.handleSheetKujakuMode)
 	mux.HandleFunc("POST /characters/{id}/sheet/ambitions", s.handleSheetAmbitions)
 	mux.HandleFunc("POST /characters/{id}/sheet/bio", s.handleSheetBio)
 	mux.HandleFunc("POST /characters/{id}/sheet/notes", s.handleSheetNotes)

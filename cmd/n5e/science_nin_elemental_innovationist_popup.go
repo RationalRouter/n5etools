@@ -45,16 +45,26 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	}
 
 	popup := subclassTrackerPopupData{
-		Title:               "Elemental Innovationist",
-		CharacterID:         id,
-		CharacterName:       sheet.Name,
+		Title:         "Elemental Innovationist",
+		CharacterID:   id,
+		CharacterName: sheet.Name,
 		// sheet-ac: Exoskeleton's Donned/Doffed toggle changes AC (it swaps
 		// the character's own armor-category AC formula), so the Core Sheet's
 		// AC box needs the same refresh every other AC-affecting popup action
 		// already gets — see the same "sheet-ac" name in the data-also-refresh
 		// lists throughout character_sheet.html (inventory equip/unequip,
 		// feat grant/remove).
-		RefreshOpenerBlocks: "sheet-science-nin sheet-weapon-attacks sheet-inventory sheet-inventory-full sheet-ac",
+		// sheet-squares/sheet-vitals/sheet-skills: individual E.I.P picks
+		// (Speed Demon, Stamina, etc.) change Speed, Max HP, and Passive
+		// Perception respectively — those live in these three blocks, not
+		// sheet-science-nin, and were missing here entirely, which is why
+		// picking/removing an E.I.P auto-calculated correctly server-side but
+		// never displayed the new value without a manual page refresh.
+		// sheet-companions/sheet-summon-tab: the Angel E.I.P auto-creates a
+		// Spectre companion on pick and auto-deletes it on removal — both the
+		// Core tab's condensed companion list and the full Companions tab
+		// card need to reflect that immediately, same reason.
+		RefreshOpenerBlocks: "sheet-science-nin sheet-weapon-attacks sheet-inventory sheet-inventory-full sheet-ac sheet-squares sheet-vitals sheet-skills sheet-companions sheet-summon-tab",
 	}
 	if data == nil || data.ElementalInnovationist == nil {
 		popup.EmptyHint = "This character has no Elemental Innovationist picks yet — E.I.Ps grants this at 3rd-level Elemental Innovationist."
@@ -66,7 +76,7 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, eipSection(id, ei))
+	popup.Sections = append(popup.Sections, eipSection(id, ei, data.CreationPointsUsed, data.CreationPointsCap))
 	if ei.WOWCap > 0 {
 		popup.Sections = append(popup.Sections, wowSection(id, ei))
 		if ei.DesignatedWoW != nil || len(ei.AvailableDesignatedWoW) > 0 {
@@ -81,7 +91,15 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	})
 }
 
-func eipSection(characterID int64, ei *scienceNinElementalInnovationistData) subclassTrackerSection {
+// eipSection builds the popup's own main E.I.Ps Known/Available section —
+// draws from the same shared Creation Points budget S.N.B Upgrades/Spyware
+// Programs do (this file's own header doc), so creationPointsUsed/Cap gate
+// each Available perk's own Disabled flag the identical way
+// snbUpgradesSection's own doc explains (snb_upgrades_popup.go), re-parsing
+// each option's raw Cost via parseScienceNinToolStatLine rather than
+// reading a dedicated field (scienceNinSubclassOption carries none — see
+// that struct's own doc, science_nin_subclasses.go).
+func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
 		Title:        "E.I.Ps (" + strconv.Itoa(ei.EIPUsed) + "/" + strconv.Itoa(ei.EIPCap) + " known)",
@@ -98,7 +116,11 @@ func eipSection(characterID int64, ei *scienceNinElementalInnovationistData) sub
 			if o.Epithet != "" {
 				epithet += " · " + o.Epithet
 			}
-			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description})
+			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			sec.Available = append(sec.Available, subclassTrackerOption{
+				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
+				Disabled: creationPointsUsed+cost > creationPointsCap,
+			})
 		}
 	}
 	return sec
@@ -274,6 +296,9 @@ func (s *server) removeWoWPick(id int64, slug string) error {
 				return err
 			}
 		}
+	}
+	if slug == scienceNinDraconicGauntletWoWSlug {
+		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
 	}
 	return nil
 }

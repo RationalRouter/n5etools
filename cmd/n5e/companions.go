@@ -476,6 +476,23 @@ type summonTribeReference struct {
 	Roles                []summonNamedText
 	Features             []companionFeatureRef
 	Progression          []summonProgressionRow
+
+	// Resistances/Immunities/ConditionImmunities: comma-joined free text,
+	// matching titanReference/snbReference/ninDogReference's own
+	// identically-named/-shaped fields exactly. Unlike Titan's own two
+	// hardcoded upgrade checks, the generic Summon Tribe catalog spans 17
+	// tribes with dozens of rank-gated features, so these are resolved via
+	// summonTribeResistanceCatalog — a hand-transcribed lookup table, not a
+	// live text parse of each feature's own prose — see that table's own
+	// header doc for exactly which rows across the whole catalog qualify
+	// and which don't. "" until this tribe has at least one currently-
+	// unlocked (see Features' own Locked flag) qualifying feature, which the
+	// "summon_tribe_reference" template's own {{if}} guards read as "no row
+	// at all" rather than an empty one — same convention titan_reference
+	// already uses.
+	Resistances         string
+	Immunities          string
+	ConditionImmunities string
 }
 
 func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) (*summonTribeReference, error) {
@@ -551,6 +568,7 @@ func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) 
 	if err := featRows.Err(); err != nil {
 		return nil, err
 	}
+	ref.Resistances, ref.Immunities, ref.ConditionImmunities = summonTribeResistancesImmunities(tribeSlug, ref.Features)
 
 	progRows, err := s.rulesDB.Query(
 		`SELECT rank, COALESCE(size_text, ''), stats_text FROM summon_tribe_progression WHERE tribe_slug = ?`, tribeSlug)
@@ -575,6 +593,161 @@ func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) 
 	})
 
 	return &ref, nil
+}
+
+// summonTribeResistanceGrant is one summon_tribe_features row's own
+// contribution to summonTribeReference's Resistances/Immunities/
+// ConditionImmunities fields (and ninDogReference's identically-shaped
+// fields — nindog.go's own ninDogResistanceCatalog reuses this same struct
+// for its own, currently-empty, Dog/Wolf-scoped table). Resistance/
+// Immunity/ConditionImmunity each hold the exact damage type(s) or
+// condition name(s) that ONE named feature grants the summon itself, ""
+// for whichever of the three that feature doesn't touch.
+type summonTribeResistanceGrant struct {
+	Resistance        string
+	Immunity          string
+	ConditionImmunity string
+}
+
+// summonTribeResistanceCatalog: tribe slug -> feature name -> what that
+// feature grants the summon itself, hand-transcribed (2026-08-25) from
+// every summon_tribe_features row across the FULL catalog (all 17 tribes,
+// every rank) whose own name or description mentions "resist"/"immun":
+//
+//	SELECT tribe_slug, name, rank, description FROM summon_tribe_features
+//	WHERE description LIKE '%resist%' OR description LIKE '%immun%'
+//	   OR name LIKE '%resist%' OR name LIKE '%immun%'
+//
+// That query returned 36 rows. Roughly half of them are deliberately NOT
+// in this table, because they don't grant a genuine personal, passive
+// damage resistance, damage immunity, or condition immunity to the summon
+// itself:
+//   - offensive "ignores the TARGET's own Resistance/Immunity/Damage
+//     Reduction" clauses grant the summon nothing defensive at all (Boar's
+//     Unstoppable Inoshishi, Dog/Wolf's own Iron Fangs — "cannot have its
+//     damage resisted", confirmed the same offensive shape ninDogReference's
+//     own investigation already excluded it for — Monkey/Primate's Power
+//     Stance, Rat's Viral Contagion and Extreme Poison, Shark/Predator
+//     Fish's Unstoppable Violence, Tiger/Lion's Presence of Power, Turtle's
+//     Long Standing Focus);
+//   - a couple grant immunity to something OTHER than the summon itself
+//     (Hare/Rabbit's Usagi Tribalism shields its ALLIES from its own
+//     Ninjutsu; Snake's Devils Glare makes a creature it just Stunned
+//     immune to that same feature for 24 hours, not the summon);
+//   - a few name a real passive defensive trait that still isn't a damage
+//     type or a named condition, so it doesn't fit any of the three tracked
+//     fields (Insect Swarm's The Swarm — immune to being targeted at all;
+//     Snake's Hiss — immune to penalties on its own attack rolls; Spider's
+//     Spider Climb — immune to difficult terrain; Turtle's Kame Shell
+//     Armor — immune to critical hits);
+//   - Toad's Gama Courage ("advantage on saving throws to resist the Fear
+//     condition") is the same shape as titanReference's own
+//     ResistanceAdvantageText, but building that whole side-channel
+//     mechanism for exactly one summon-tribe row isn't justified any more
+//     here than titan.go's own doc says it was for a second, wider Titan
+//     mechanic — see that field's own doc.
+//
+// Every entry that IS here reads verbatim off that feature's own
+// description. summonTribeResistancesImmunities below only folds in an
+// entry whose feature is currently UNLOCKED (loadSummonTribeReference's own
+// per-feature rank gate, already computed before this table is ever
+// consulted) — the same "cumulative once unlocked" model the rest of this
+// panel's own Features list already uses, so a tribe with more than one
+// qualifying feature unlocked at once (e.g. Slug's own Resistance at
+// C-Rank plus Immune at A-Rank) shows both simultaneously rather than only
+// the highest-rank one.
+var summonTribeResistanceCatalog = map[string]map[string]summonTribeResistanceGrant{
+	"summon/bear": {
+		"Kuma King":  {ConditionImmunity: "Physical Conditions"},
+		"Kuma Queen": {ConditionImmunity: "Sensory Conditions"},
+	},
+	"summon/boar": {
+		"Inoshishi Force": {ConditionImmunity: "Fear, Charm"},
+	},
+	"summon/deer": {
+		"Peace": {ConditionImmunity: "All conditions from hostile sources (cannot cast damaging jutsu while active)"},
+	},
+	"summon/hare-rabbit": {
+		"Usagi Flexibility": {ConditionImmunity: "Grappled, Restrained"},
+	},
+	"summon/insect-swarm": {
+		"The Plague": {ConditionImmunity: "All conditions (and penalties to its own attacks or damage)"},
+	},
+	"summon/lizard": {
+		"Tokage’s Venomous Flesh": {Immunity: "Poison, Acid"},
+		"Tokage’s Will":           {ConditionImmunity: "Mental, Sensory"},
+	},
+	"summon/monkey-primate": {
+		"Monkey Business": {ConditionImmunity: "Physical or Mental (chosen when it triggers)"},
+	},
+	"summon/ox-ram": {
+		"Ushi Calmness": {ConditionImmunity: "Mental"},
+	},
+	"summon/shark-predator-fish": {
+		// "immune to the fear condition and effects that would push it" —
+		// the forced-movement half is labeled "Movement Effects", the same
+		// label titanResistancesImmunities' own Hulking Strength entry
+		// already uses for the identical "immune to being forcibly moved"
+		// shape, so the two read consistently wherever a player sees them.
+		"Shaaku Violence": {ConditionImmunity: "Fear", Immunity: "Movement Effects (forced push)"},
+		"Shark Skin":      {Immunity: "Cold"},
+	},
+	"summon/slug": {
+		"Namekuji Slimy Body": {ConditionImmunity: "Grappled, Restrained"},
+		"Resistance":          {Resistance: "Slashing, Piercing"},
+		"Immune":              {Immunity: "Cold, Poison"},
+	},
+	"summon/spider": {
+		"Golden Web": {ConditionImmunity: "Blinded, Dazzled, Dazed"},
+	},
+	"summon/tiger-lion": {
+		"Tora Anger": {ConditionImmunity: "Fear, Charmed"},
+	},
+	"summon/toad": {
+		"Gama Slime": {ConditionImmunity: "Grappled, Restrained"},
+		"Gama Wart":  {ConditionImmunity: "Envenomed, Bleeding"},
+	},
+	"summon/turtle": {
+		"Impregnable":      {Resistance: "Bludgeoning, Slashing, Piercing"},
+		"Unbreakable":      {ConditionImmunity: "Physical, Elemental"},
+		"Unending Dignity": {ConditionImmunity: "Mental"},
+	},
+}
+
+// summonTribeResistancesImmunities folds summonTribeResistanceCatalog's
+// entries for tribeSlug into the same Resistances/Immunities/
+// ConditionImmunities shape titanReference/snbReference already give their
+// own companion kinds, respecting each feature's own Locked flag (already
+// computed by loadSummonTribeReference's rank-gate loop just above its own
+// call site) so a resistance/immunity from a not-yet-reached rank doesn't
+// show before the character's own summon rank actually reaches it. Returns
+// "" for a field neither this tribe nor its current rank grants anything
+// for yet.
+func summonTribeResistancesImmunities(tribeSlug string, features []companionFeatureRef) (resistances, immunities, conditionImmunities string) {
+	grants := summonTribeResistanceCatalog[tribeSlug]
+	if len(grants) == 0 {
+		return "", "", ""
+	}
+	var resistanceParts, immunityParts, conditionParts []string
+	for _, f := range features {
+		if f.Locked {
+			continue
+		}
+		g, ok := grants[f.Name]
+		if !ok {
+			continue
+		}
+		if g.Resistance != "" {
+			resistanceParts = append(resistanceParts, g.Resistance)
+		}
+		if g.Immunity != "" {
+			immunityParts = append(immunityParts, g.Immunity)
+		}
+		if g.ConditionImmunity != "" {
+			conditionParts = append(conditionParts, g.ConditionImmunity)
+		}
+	}
+	return strings.Join(resistanceParts, ", "), strings.Join(immunityParts, ", "), strings.Join(conditionParts, ", ")
 }
 
 // summonTribeOption is one entry in the companion popup's tribe picker.
@@ -718,8 +891,9 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 
 			// Re-read for the same reason as the nin-dog block above —
 			// loadTitanReference just wrote fresh effective values this
-			// render, and titanBashAttack/titanKnownWeaponUpgradeAttacks
-			// both read the Titan's own ability scores straight off c.
+			// render, and titanBashAttack/titanKnownWeaponUpgradeAttacks/
+			// titanSpecialWeaponUpgradeAttacks all read the Titan's own
+			// ability scores straight off c.
 			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
 			if err != nil {
 				return data, err
@@ -732,9 +906,18 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			if err != nil {
 				return data, err
 			}
-			view.Attacks = append(append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+			// titanSpecialWeaponUpgradeAttacks: Xo-16 Gatling/Greater
+			// Missile Racks' own single-target mode, the separate bespoke
+			// mechanism titanWeaponAttackClausePattern's own doc calls for
+			// alongside titanKnownWeaponUpgradeAttacks' regex-driven
+			// extraction — see titan.go's own header doc.
+			// titanSaveOnlyUpgradeAttacks: Shinobifall/Thermite Launcher/
+			// Critical Ejection's own NoAttackRoll damage-only rows.
+			view.Attacks = append(append(append(append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
 				titanBashAttack(c, ref, sheet.ProficiencyBonus)),
-				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus)...)
+				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus, c.IsDemonFoe)...),
+				titanSpecialWeaponUpgradeAttacks(ref, c, sheet, sheet.ProficiencyBonus, c.IsDemonFoe)...),
+				titanSaveOnlyUpgradeAttacks(ref, sheet, c.IsDemonFoe)...)
 		}
 		if c.Kind == "snb" {
 			ref, err := s.loadSNBReference(characterID, c, sheet)
@@ -1034,9 +1217,16 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			log.Println("load companion attacks for titan popup:", err)
 			return
 		}
-		data["Attacks"] = append(append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+		// titanSpecialWeaponUpgradeAttacks: see the identical call in
+		// loadSummonsTabData's own titan branch above for why this is a
+		// separate call from titanKnownWeaponUpgradeAttacks rather than
+		// folded into it. titanSaveOnlyUpgradeAttacks: Shinobifall/Thermite
+		// Launcher/Critical Ejection's own NoAttackRoll damage-only rows.
+		data["Attacks"] = append(append(append(append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
 			titanBashAttack(companion, ref, sheet.ProficiencyBonus)),
-			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus)...)
+			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
+			titanSpecialWeaponUpgradeAttacks(ref, companion, sheet, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
+			titanSaveOnlyUpgradeAttacks(ref, sheet, companion.IsDemonFoe)...)
 	}
 
 	s.render(w, "companion_sheet.html", data)
@@ -1096,11 +1286,21 @@ func (s *server) handleCompanionSave(w http.ResponseWriter, r *http.Request) {
 	// its own <form> in the template. See charstore.SetCompanionFields' doc
 	// for why folding any of them into this whole-form save would silently
 	// wipe it on every unrelated field's blur.
+	//
+	// resistances/immunities/condition_immunities: only ever rendered as
+	// real input fields for kind="custom" (companion_fields.html's own
+	// {{if eq .Companion.Kind "custom"}} guard around them) — reading them
+	// unconditionally here is harmless for every other kind, since their own
+	// form never includes these field names in the first place, so
+	// r.FormValue reads "" for them, matching SetCompanionFields' own doc on
+	// why that's a safe no-op.
 	err := charstore.SetCompanionFields(s.charDB, id, cid, name, summonTribeSlug,
 		r.FormValue("attacks"), r.FormValue("traits"), r.FormValue("notes"),
 		armorChassis, r.FormValue("is_armor_form") == "1",
 		strings.TrimSpace(r.FormValue("nin_dog_breed")),
 		strings.TrimSpace(r.FormValue("titan_specialization")),
+		r.FormValue("resistances"), r.FormValue("immunities"), r.FormValue("condition_immunities"),
+		r.FormValue("is_demon_foe") == "1",
 	)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)

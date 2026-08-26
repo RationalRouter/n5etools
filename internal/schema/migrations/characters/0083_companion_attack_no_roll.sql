@@ -1,0 +1,15 @@
+-- Marks a stored companion attack as damage/save-only, no attack roll of its
+-- own — the persisted-row equivalent of companionAttackRow.NoAttackRoll
+-- (cmd/n5e/puppets.go), which until now only ever applied to a computed
+-- Titan Upgrade row (Shinobifall/Thermite Grenade/Critical Ejection),
+-- constructed fresh on every render rather than stored. The Draconic
+-- Gauntlet W.o.W's own Whelp companion (ensureWhelpCompanion,
+-- cmd/n5e/wow_whelp.go) is the first CUSTOM-kind companion whose own rules
+-- text includes a save-based, no-attack-roll ability (Aether Breath, Aether
+-- Meteor) stored as an ordinary companion_attacks row rather than computed
+-- server-side math — this column lets composeCompanionAttacks carry that
+-- same NoAttackRoll flag through for a stored row instead of leaving it
+-- permanently false the way every other persisted attack already is.
+-- Default 0 (an attack roll button shows, as before) — the player's own
+-- freeform "Add an attack" form has no control for this and never sets it.
+ALTER TABLE character_companion_attacks ADD COLUMN no_attack_roll INTEGER NOT NULL DEFAULT 0;

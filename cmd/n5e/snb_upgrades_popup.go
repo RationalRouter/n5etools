@@ -115,7 +115,18 @@ func snbUpgradesSection(characterID int64, snb *scienceNinSNBSpecialistData, cre
 			if o.Epithet != "" {
 				epithet += " · " + o.Epithet
 			}
-			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description})
+			// Cost is re-derived from o.Description with the same
+			// parseScienceNinToolStatLine call addSNBUpgradePick itself
+			// uses at POST time (science_nin_subclasses.go) — Cost has no
+			// dedicated field on scienceNinSubclassOption (see that
+			// struct's own doc), only the pre-formatted Epithet text above,
+			// so the numeric comparison against the shared budget has to
+			// re-parse the same raw stat line rather than read a field.
+			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			sec.Available = append(sec.Available, subclassTrackerOption{
+				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
+				Disabled: creationPointsUsed+cost > creationPointsCap,
+			})
 		}
 	}
 	return sec

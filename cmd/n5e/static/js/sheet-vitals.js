@@ -129,6 +129,12 @@
             // fragment — the hit-dice squares after a rest. See
             // sheet-refresh.js.
             if (window.n5eRefreshBlocks) window.n5eRefreshBlocks(form.dataset.alsoRefresh);
+            // data-refresh-popups marks forms that can spend the shared
+            // Creation Points pool a subclass tracker popup (Titan Slots,
+            // SNB Upgrades, ...) also shows its own tally of — see
+            // reference-popup.js's own doc on why those need a nudge a
+            // same-tab data-also-refresh can't reach.
+            if (form.dataset.refreshPopups && window.n5eReloadReferencePopups) window.n5eReloadReferencePopups();
           })
           .catch((err) => console.warn("sheet update failed:", err));
       });

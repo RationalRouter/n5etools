@@ -73,6 +73,14 @@
        subclass-tracker-popup.js's own header doc for why a popup page load
        is this pattern's own hook for refreshing the opener window. */}}
   <script src="/static/js/subclass-tracker-popup.js?v={{assetVersion}}" defer></script>
+  {{/* Click-to-deselect for the same .puppet-upgrade-option-list radios the
+       subclass tracker popups render (subclass_tracker_popup.html's own
+       AddAction form) — layout.html (the main sheet) already includes this
+       for the Puppets tab's identical markup; bare-layout popups need it
+       too, or their own option lists stay "sticky" (no way to uncheck a
+       pick without choosing a different one first) since a native radio
+       ignores a second click on its own already-checked option. */}}
+  <script src="/static/js/sheet-option-tile-deselect.js?v={{assetVersion}}" defer></script>
 </body>
 </html>
 {{end}}

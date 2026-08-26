@@ -82,6 +82,12 @@ type Companion struct {
 	// own doc for why this is a separate pair of columns from HP).
 	BarrierCurrent sql.NullInt64
 	BarrierMax     sql.NullInt64
+	// IsDemonFoe is only meaningful (and player-editable) for kind =
+	// "titan" — Bijuu Slayer's own "+2 damage dice vs Demon type foes"
+	// clause, toggled by the player per encounter rather than computed
+	// (this app has no target/foe-type state to derive it from) — see
+	// migration 0082's own doc.
+	IsDemonFoe bool
 
 	// MatryoshkaGroupID/MatryoshkaJutsuSlots: Matryoshka Framework's own
 	// multi-body split (see migration 0034_matryoshka_bodies.sql).
@@ -98,6 +104,21 @@ type Companion struct {
 	// starting set, and why it's never read for kind="puppet".
 	SaveProficiencies string
 
+	// Resistances/Immunities/ConditionImmunities: only meaningful (and
+	// player-editable) for kind = "custom" — see migration 0081's own doc.
+	// Every other kind has this exact same information computed instead
+	// (titanReference/snbReference in cmd/n5e/titan.go/snb.go,
+	// ninDogReference in cmd/n5e/nindog.go, summonTribeReference in
+	// cmd/n5e/companions.go, puppetToolStatBlock's DamageResistance/
+	// DamageImmunity/ConditionImmunity in cmd/n5e/puppets.go), so these
+	// three columns are simply never read for any kind but "custom" — a
+	// "custom" companion has no upgrade catalog or tribe table behind it to
+	// compute them from at all, the same reasoning Attacks/Traits/Notes
+	// above are already plain player-entered text for every kind.
+	Resistances         string
+	Immunities          string
+	ConditionImmunities string
+
 	SortOrder int
 }
 
@@ -110,11 +131,12 @@ const companionSelectColumns = `id, kind, name, summon_tribe_slug,
 	attacks, traits, notes, armor_chassis, is_armor_form, size,
 	matryoshka_group_id, matryoshka_jutsu_slots, sort_order,
 	nin_dog_breed, jutsu_slots_current, jutsu_slots_max,
-	titan_specialization, barrier_current, barrier_max, save_proficiencies, temp_hp`
+	titan_specialization, barrier_current, barrier_max, save_proficiencies, temp_hp,
+	resistances, immunities, condition_immunities, is_demon_foe`
 
 func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 	var c Companion
-	var isArmorForm int
+	var isArmorForm, isDemonFoe int
 	err := row.Scan(
 		&c.ID, &c.Kind, &c.Name, &c.SummonTribeSlug,
 		&c.AC, &c.HPCurrent, &c.HPMax, &c.Speed, &c.FlySpeed, &c.Str, &c.Dex, &c.Con, &c.Int, &c.Wis, &c.Cha,
@@ -122,8 +144,10 @@ func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 		&c.MatryoshkaGroupID, &c.MatryoshkaJutsuSlots, &c.SortOrder,
 		&c.NinDogBreed, &c.JutsuSlotsCurrent, &c.JutsuSlotsMax,
 		&c.TitanSpecialization, &c.BarrierCurrent, &c.BarrierMax, &c.SaveProficiencies, &c.TempHP,
+		&c.Resistances, &c.Immunities, &c.ConditionImmunities, &isDemonFoe,
 	)
 	c.IsArmorForm = isArmorForm != 0
+	c.IsDemonFoe = isDemonFoe != 0
 	return c, err
 }
 
@@ -227,13 +251,28 @@ func GetCompanion(charDB *sql.DB, characterID, companionID int64) (Companion, er
 // toggle back. Enforced here, not just in the UI: once armor_chassis is
 // non-empty, this UPDATE can never change it again, regardless of what a
 // stale or hand-crafted form POST sends.
+// resistances/immunities/conditionImmunities are only ever meaningful for
+// kind = "custom" (see Companion's own field doc and migration 0081), but
+// are written unconditionally here for every kind, same as attacks/traits/
+// notes just above them — cmd/n5e/companions.go's handleCompanionSave only
+// ever sends real text for these three on a "custom" companion in the first
+// place (the template's own {{if eq .Companion.Kind "custom"}} guard is what
+// keeps the input fields from existing at all for any other kind), and an
+// UPDATE with three empty strings is a harmless no-op for a kind that never
+// populates them.
 func SetCompanionFields(charDB *sql.DB, characterID, companionID int64, name, summonTribeSlug string,
 	attacks, traits, notes, armorChassis string, isArmorForm bool, ninDogBreed string,
 	titanSpecialization string,
+	resistances, immunities, conditionImmunities string,
+	isDemonFoe bool,
 ) error {
 	armorFormValue := 0
 	if isArmorForm {
 		armorFormValue = 1
+	}
+	demonFoeValue := 0
+	if isDemonFoe {
+		demonFoeValue = 1
 	}
 	_, err := charDB.Exec(`
 		UPDATE character_companions SET
@@ -243,11 +282,15 @@ func SetCompanionFields(charDB *sql.DB, characterID, companionID int64, name, su
 			is_armor_form = ?,
 			nin_dog_breed = CASE WHEN nin_dog_breed = '' THEN ? ELSE nin_dog_breed END,
 			titan_specialization = CASE WHEN titan_specialization = '' THEN ? ELSE titan_specialization END,
+			resistances = ?, immunities = ?, condition_immunities = ?,
+			is_demon_foe = ?,
 			updated_at = datetime('now')
 		WHERE id = ? AND character_id = ?`,
 		name, summonTribeSlug,
 		attacks, traits, notes, armorChassis, armorFormValue, ninDogBreed,
 		titanSpecialization,
+		resistances, immunities, conditionImmunities,
+		demonFoeValue,
 		companionID, characterID,
 	)
 	return err
@@ -720,8 +763,8 @@ func SplitCompanionIntoBodies(charDB *sql.DB, characterID, companionID int64, co
 }
 
 // SetCompanionSize sets a companion's size category outright (or clears it
-// back to "" — the size column is NOT NULL DEFAULT '', see migration
-// 0032_companion_size.sql, so there is no separate NULL state to preserve
+// back to "" — the size column is NOT NULL with an empty-string default,
+// see migration 0032_companion_size.sql, so there is no separate NULL state to preserve
 // the way the numeric stat fields have). Called by handleCompanionSize for
 // every kind alike — a plain player-typed value for Summon/Custom (no Size
 // formula of their own), or the raw column a formula kind's own

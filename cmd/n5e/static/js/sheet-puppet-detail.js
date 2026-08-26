@@ -103,21 +103,29 @@
   // above) still holds the PREVIOUS selection at the moment this "click"
   // listener runs (click always fires before change), so a click that
   // matches it is provably a re-click of the same tile, not a fresh pick.
+  // Only reacts to a click whose event target IS the radio <input> itself
+  // — never the wrapping <label> (or any other descendant) it was clicked
+  // through. See sheet-option-tile-deselect.js's own (identical) listener
+  // for the full trace: clicking anywhere inside a <label> fires two real
+  // "click" events — one at whatever was actually clicked, then a second
+  // one the label's own native activation forwards straight at the
+  // <input> — and reacting to the first of those loses a real race
+  // (queueMicrotask's callback lands in the gap between the two, so the
+  // still-pending forwarded click sees a freshly-unchecked radio and
+  // re-checks it right back, undoing the deselect within the same
+  // physical click). Reacting only to the input-targeted click sidesteps
+  // this: that's the final step of the whole sequence, so nothing is left
+  // afterward to clobber the deferred assignment.
   document.addEventListener("click", (e) => {
-    const label = e.target.closest(".puppet-upgrade-option");
-    if (!label) return;
-    const input = label.querySelector('input[type="radio"][name="upgrade_entry_slug"]');
-    if (!input || !input.checked) return;
+    const input = e.target;
+    if (!(input instanceof Element) || input.tagName !== "INPUT") return;
+    if (input.type !== "radio" || input.name !== "upgrade_entry_slug" || !input.checked) return;
     const list = input.closest(".puppet-upgrade-option-list");
     if (!list || lastSelectedInList.get(list) !== input) return;
-    // Clicking a label's own default action forwards a second, synthetic
-    // click straight to its associated control — which for a radio that's
-    // (at that point) unchecked just checks it right back, silently
-    // undoing the deselect a moment later. preventDefault() here stops
-    // that forwarded click from ever being dispatched at all.
-    e.preventDefault();
-    input.checked = false;
-    lastSelectedInList.delete(list);
-    clear();
+    queueMicrotask(() => {
+      input.checked = false;
+      lastSelectedInList.delete(list);
+      clear();
+    });
   });
 })();

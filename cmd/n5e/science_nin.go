@@ -81,6 +81,13 @@ const scienceNinBeyondTheVeilFeatureSlug = "class/science-nin/group/scientific-i
 // entirely manual/narrated. Only the flat capacity number is modeled here,
 // the same scope puppetAlwaysPreparedBulkBonus (puppets.go) already draws
 // for Always Prepared's own bulk bonus.
+//
+// This runs independently of whether the Aether Connector is actually
+// present on the character's own Scientific Ninja Tools list (see
+// scienceNinAetherConnectorToolSlug below) — it is keyed on the granting
+// feature itself, same as before that entry existed. A player who deletes
+// the Known Tools row loses none of this capacity, matching every other
+// auto-granted (not purchased) SNT-adjacent effect in this file.
 func (s *server) beyondTheVeilBulkBonus(characterID int64) (float64, error) {
 	var clanSlug sql.NullString
 	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&clanSlug); err != nil {
@@ -94,6 +101,56 @@ func (s *server) beyondTheVeilBulkBonus(characterID int64) (float64, error) {
 		return 0, nil
 	}
 	return 100, nil
+}
+
+// scienceNinAetherConnectorToolSlug identifies Beyond the Veil's own Aether
+// Connector as a synthetic Scientific Ninja Tools catalog entry — unlike
+// every other entry in this catalog, it has no class_option_entries row at
+// all (it's granted by a class feature's own prose, not printed as part of
+// the Scientific Ninja Tools tables), so it can't be loaded the normal way
+// (loadScientificNinjaToolCatalog). It is instead appended directly onto
+// the loaded catalog by loadScienceNinTabData, gated on the character
+// actually holding scienceNinBeyondTheVeilFeatureSlug, and given Cost 0 per
+// the ruling that follows the book's own silence on a Creation Point price:
+// the feature's text never states one, unlike literally every real entry in
+// this catalog, all of which open "Cost: N Creation Points."
+const scienceNinAetherConnectorToolSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/tool/aether-connector"
+
+// scienceNinAetherConnectorDescription is Beyond the Veil's own body text
+// for the Aether Connector, minus the feature-grant framing ("Starting at
+// 6th level, you gain access to a new SNT known as the Aether Connector.")
+// — every other catalog entry's Description is pure item text with no
+// "you gain access to..." lead-in either (parseScienceNinToolStatLine
+// strips an equivalent stat line, not this kind of sentence, since this
+// entry has none to strip). Confirmed against rules.db's own
+// subclass_features row for
+// "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/beyond-the-veil".
+const scienceNinAetherConnectorDescription = "This device weighs 0 bulk, and is roughly 2 feet in diameter and 4 feet deep. This device allows you to store up to 100 bulk in contents in an alternate dimension, so long as the total volume does not exceed 64 cubic feet. If the Aether Connector is ever destroyed, its contents immediately spill out, and you may craft a new one on a full rest by spending 1 use of an Alchemist Kit."
+
+// ensureAetherConnectorGranted auto-adds the Aether Connector to a
+// character's known Scientific Ninja Tools the first time their sheet is
+// loaded after gaining Beyond the Veil — same "one-time, side-effecting
+// grant purely for having a feature" shape ensureAirTrecksGranted (above)
+// already establishes for Storm Rider's Air Trecks, called from the same
+// ensureScienceNinAutoGrants choke point for the same reason (a fresh
+// level-up should show the tool without needing a second reload).
+// charstore.AddScienceNinTool is itself idempotent (ON CONFLICT DO
+// NOTHING), so no existence check is needed here first.
+//
+// Deliberately NOT called from loadScienceNinTabData itself (unlike the
+// catalog-entry injection below, which IS): that would re-insert the row
+// on every single render of the sheet_science_nin fragment, including the
+// one immediately after handleScienceNinToolDelete's own DELETE — making
+// the Forget button silently do nothing for this one entry. Routing the
+// grant only through ensureScienceNinAutoGrants (full sheet loads and the
+// sheet_weapon_attacks fragment) instead gives a deleted Aether Connector
+// the same short-lived "gone until the next reload" window Air Trecks
+// already has, rather than making it un-removable outright.
+func (s *server) ensureAetherConnectorGranted(characterID int64, granted []grantedFeatureRow) error {
+	if !hasFeature(granted, scienceNinBeyondTheVeilFeatureSlug) {
+		return nil
+	}
+	return charstore.AddScienceNinTool(s.charDB, characterID, scienceNinAetherConnectorToolSlug)
 }
 
 // airTrecksWeaponSlug is the equipment row Storm Rider's own 3rd-level Air
@@ -358,7 +415,8 @@ func (s *server) ensureAirTrecksGranted(characterID int64) error {
 
 // ensureScienceNinAutoGrants runs every one-time, side-effecting grant this
 // class hands out purely for having a feature (Storm Rider's Air Trecks
-// weapon), every Known W.o.W pick's own granted weapon (ensureWoWWeaponsGranted,
+// weapon, Elemental Innovationist's Aether Connector SNT), every Known
+// W.o.W pick's own granted weapon (ensureWoWWeaponsGranted,
 // wow_weapons.go — normally already granted by addWoWPick itself, this is
 // the backfill path for a pick made before that mechanism existed), plus
 // Ninjaneer's own weapon-designation overrides (which aren't
@@ -393,6 +451,9 @@ func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.
 		if err := s.recomputeNinjaneerWeaponOverrides(characterID, sheet, granted); err != nil {
 			return err
 		}
+	}
+	if err := s.ensureAetherConnectorGranted(characterID, granted); err != nil {
+		return err
 	}
 	return nil
 }
@@ -549,6 +610,26 @@ type scienceNinToolOption struct {
 	Prereq      string // raw "Prerequisite:" text, "" if none — see this file's header doc on when this is enforced vs. informational-only
 	PrereqSlug  string // resolved sibling entry slug when Prereq exactly names one, "" otherwise
 	Description string // body text with the leading stat line already stripped
+	// Disabled marks an entry the character's own remaining Creation Points
+	// budget can no longer afford — set in a second pass over
+	// data.AvailableTools at the tail of loadScienceNinTabData, once
+	// data.CreationPointsUsed has finished accumulating every Known Tool's
+	// own Cost plus Titan/S.N.B/Spyware/E.I.P spend from the shared pool
+	// (see that function's own header doc on why the total is only
+	// complete after every one of those additions has run — computing this
+	// mid-loop, before every Known Tool's own cost is counted, would
+	// under-count the spent total for any entry visited before a
+	// later-in-catalog Known Tool). sheet_science_nin's own inline picker
+	// (character_sheet.html) renders this exactly like partials/
+	// subclass_tracker_popup.html's shared subclassTrackerOption.Disabled
+	// does — a disabled radio plus the same .puppet-upgrade-option-
+	// unaffordable dimming (app.css) — even though this catalog predates
+	// and isn't part of that shared popup pattern (Scientific Ninja Tools
+	// stayed inline rather than being carved into its own popup; see
+	// subclass_tracker_popup.go's header doc on which catalogs did move).
+	// handleScienceNinToolAdd's own budget check stays the real
+	// enforcement, unaffected by this field.
+	Disabled bool
 }
 
 // knownScienceNinTool is one entry on the Known Tools list.
@@ -812,6 +893,24 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 	if err != nil {
 		return nil, err
 	}
+	// Beyond the Veil's Aether Connector has no class_option_entries row to
+	// load above (see scienceNinAetherConnectorToolSlug's own doc) — appended
+	// here instead, gated on the same feature ensureAetherConnectorGranted
+	// gates the actual pick on, so it lines up in the KnownTools/Available
+	// split below exactly like a real catalog row would. Gating on the
+	// feature (not on the pick already existing) means a character who
+	// hasn't hit the next full-page-load/attack-table-refresh that runs
+	// ensureAetherConnectorGranted yet still sees it, just under Available
+	// instead of Known — Cost 0 keeps it unconditionally affordable there.
+	if hasFeature(granted, scienceNinBeyondTheVeilFeatureSlug) {
+		catalog = append(catalog, scienceNinToolOption{
+			Slug:        scienceNinAetherConnectorToolSlug,
+			Name:        "Aether Connector",
+			Tier:        "Innate",
+			Cost:        0,
+			Description: scienceNinAetherConnectorDescription,
+		})
+	}
 	picks, err := charstore.ListScienceNinTools(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -832,6 +931,19 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 			// own text states.
 		default:
 			data.AvailableTools = append(data.AvailableTools, o)
+		}
+	}
+
+	// A second pass over AvailableTools, rather than setting Disabled
+	// inline in the loop above, since data.CreationPointsUsed is only
+	// FINAL once every Known Tool's own Cost has been added — a Known Tool
+	// that sorts later in catalog order than a given Available entry would
+	// otherwise not yet have been counted at the point that entry was
+	// appended, under-counting the spent total for it specifically (see
+	// scienceNinToolOption.Disabled's own doc for the full reasoning).
+	for i := range data.AvailableTools {
+		if data.CreationPointsUsed+data.AvailableTools[i].Cost > data.CreationPointsCap {
+			data.AvailableTools[i].Disabled = true
 		}
 	}
 
@@ -1000,6 +1112,15 @@ func (s *server) handleScienceNinToolDelete(w http.ResponseWriter, r *http.Reque
 func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
+	// The Aether Connector has no class_option_entries row to query below
+	// (scienceNinAetherConnectorToolSlug's own doc) — served from its own
+	// hardcoded constants instead of 404ing the way every real tool's
+	// detail popup would for an unrecognized slug.
+	if slug == scienceNinAetherConnectorToolSlug {
+		s.renderScienceNinToolDetailCard(w, "Aether Connector", scienceNinAetherConnectorDescription)
+		return
+	}
+
 	var name, description string
 	err := s.rulesDB.QueryRow(`
 		SELECT e.name, e.description FROM class_option_entries e
@@ -1016,7 +1137,14 @@ func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Reque
 		log.Println("load science-nin tool detail:", err)
 		return
 	}
+	s.renderScienceNinToolDetailCard(w, name, description)
+}
 
+// renderScienceNinToolDetailCard is the shared tail of
+// handleScienceNinToolDetail, split out so the Aether Connector's hardcoded
+// text and a real catalog row's rules.db text render through the exact same
+// template call.
+func (s *server) renderScienceNinToolDetailCard(w http.ResponseWriter, name, description string) {
 	tmpl, ok := pageTemplates["character_sheet.html"]
 	if !ok {
 		http.Error(w, "template not found", http.StatusInternalServerError)

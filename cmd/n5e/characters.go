@@ -3751,6 +3751,17 @@ func (s *server) featBulkBonus(characterID int64) (float64, error) {
 	return total, nil
 }
 
+// bulkFeatureBonus is one named contributor to bulkSummary.FeatureBonus —
+// see inventoryFeatureBulkBonuses for the full list of sources. Split out
+// as {Label, Amount} pairs (rather than one opaque summed float) so the
+// Inventory tab's own hint text can name each source correctly instead of
+// crediting every one of them to whichever feature happened to be modeled
+// first — see FeatureBonuses' own doc below for why that used to be wrong.
+type bulkFeatureBonus struct {
+	Label  string
+	Amount float64
+}
+
 // bulkSummary is the inventory's carrying-capacity readout.
 //
 // Capacity is the core book's formula: 10 base inventory slots, plus 2 per
@@ -3764,24 +3775,84 @@ type bulkSummary struct {
 	Base     float64 // 10 + 2 * Strength modifier + FeatureBonus
 	Storage  float64 // sum of the carried storage tools' bonuses
 	StrBonus float64 // the "+2 per Strength modifier" part, shown in the hint
-	// FeatureBonus is extra max bulk from a class feature (currently just
-	// Puppet Master's Always Prepared) — shown in the hint the same way
-	// StrBonus is, so a raised number is never unexplained.
+	// FeatureBonus is the SUM of FeatureBonuses below — kept as its own
+	// field since Base's own arithmetic only needs the total, not each
+	// source's name.
 	FeatureBonus float64
-	Unknown      int // rows whose bulk the rules don't record, so aren't counted
-	Encumbered   bool
+	// FeatureBonuses is the named breakdown of FeatureBonus, one entry per
+	// nonzero source in inventoryFeatureBulkBonuses (Always Prepared,
+	// Powerful Build, feats, Backup Plan, Aether Connector — every one of
+	// them a Puppet Master or Science-Nin feature, never more than a couple
+	// present on the same character at once). The Inventory tab's hint
+	// used to hardcode every one of these under a single "Always Prepared"
+	// label (true only for the first of the five ever modeled) — a
+	// Science-Nin with Beyond the Veil's own +100 saw their bulk cap jump
+	// with a hint crediting a Puppet Master feature they don't even have,
+	// which is exactly the "it's tracked somewhere but I can't see where"
+	// gap a bug report against Beyond the Veil surfaced.
+	FeatureBonuses []bulkFeatureBonus
+	Unknown        int // rows whose bulk the rules don't record, so aren't counted
+	Encumbered     bool
+}
+
+// inventoryFeatureBulkBonuses gathers every named source of extra max bulk
+// this app models (puppetAlwaysPreparedBulkBonus, puppetChassisPropertyBulkBonus,
+// featBulkBonus, backupPlanBulkBonus, beyondTheVeilBulkBonus) into one
+// labeled list — the single choke point both computeInventoryBulk call
+// sites (the full sheet load and the sheet_inventory/sheet_inventory_full
+// fragment) share, so a sixth source added later only needs registering
+// here once rather than at both call sites in sync (the same
+// keep-two-places-in-sync risk sheetLiveFragments/renderSheetFragment's own
+// switch already carries, per that map's own doc). Zero-amount sources are
+// omitted so the Inventory tab's hint never prints a "+0 <Feature>" clause.
+func (s *server) inventoryFeatureBulkBonuses(characterID int64) ([]bulkFeatureBonus, error) {
+	var out []bulkFeatureBonus
+	add := func(label string, amount float64, err error) error {
+		if err != nil {
+			return err
+		}
+		if amount != 0 {
+			out = append(out, bulkFeatureBonus{Label: label, Amount: amount})
+		}
+		return nil
+	}
+	alwaysPrepared, err := s.puppetAlwaysPreparedBulkBonus(characterID)
+	if err := add("Always Prepared", alwaysPrepared, err); err != nil {
+		return nil, err
+	}
+	chassis, err := s.puppetChassisPropertyBulkBonus(characterID)
+	if err := add("Powerful Build", chassis, err); err != nil {
+		return nil, err
+	}
+	feats, err := s.featBulkBonus(characterID)
+	if err := add("feats", feats, err); err != nil {
+		return nil, err
+	}
+	backupPlan, err := s.backupPlanBulkBonus(characterID)
+	if err := add("Backup Plan", backupPlan, err); err != nil {
+		return nil, err
+	}
+	aetherConnector, err := s.beyondTheVeilBulkBonus(characterID)
+	if err := add("Aether Connector", aetherConnector, err); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // computeInventoryBulk fills in each row's bulk figures and returns the
 // whole-inventory summary. It mutates inv in place because the per-row and
 // whole-sheet numbers come from exactly the same pass over the same rows,
 // and splitting them into two functions means two places to keep the
-// storage-tool special case right. featureBulkBonus is extra max bulk from
-// a class feature (0 for a character with none) — computed by the caller
-// since it needs a characterID query this function has no access to.
-func computeInventoryBulk(inv []inventoryRow, sheet *charsheet.Sheet, featureBulkBonus float64) bulkSummary {
-	summary := bulkSummary{Base: 10, FeatureBonus: featureBulkBonus}
-	summary.Base += featureBulkBonus
+// storage-tool special case right. featureBonuses is the character's own
+// named extra-max-bulk sources (inventoryFeatureBulkBonuses; nil for a
+// character with none) — computed by the caller since it needs a
+// characterID query this function has no access to.
+func computeInventoryBulk(inv []inventoryRow, sheet *charsheet.Sheet, featureBonuses []bulkFeatureBonus) bulkSummary {
+	summary := bulkSummary{Base: 10, FeatureBonuses: featureBonuses}
+	for _, b := range featureBonuses {
+		summary.FeatureBonus += b.Amount
+	}
+	summary.Base += summary.FeatureBonus
 	if sheet != nil {
 		if str, ok := sheet.Abilities["str"]; ok {
 			summary.StrBonus = float64(2 * str.Modifier)
@@ -4045,12 +4116,15 @@ func (s *server) weaponSpecialistCritRangeThreshold(characterID int64) (int, err
 // weaponAttackCritRangeThreshold resolves every crit-range-widening source
 // that actually reaches a real weapon attack row (buildAttacks/
 // composeCustomAttacks for weapon-kind attacks) — Weapon Specialist's
-// Critical Focus, PLUS Elemental Innovationist's Razor E.I.P once it's the
-// character's designated Perma Perk (scienceNinHasPermaPerk,
-// science_nin_subclasses.go): "Increase your critical threat range with
-// your Unarmed Strike and Weapon Attacks by +1." Deliberately NOT used for
-// loadCharacterJutsuSheet's own Bukijutsu-classified rows — see
-// weaponSpecialistCritRangeThreshold's own doc comment for why Razor's
+// Critical Focus, PLUS Elemental Innovationist's Razor E.I.P once its own
+// numeric clause is active (scienceNinEIPActiveBenefit,
+// science_nin_subclasses.go — live either as the character's designated
+// Perma Perk, or as a merely-known E.I.P with Exoskeleton armor donned,
+// mirroring internal/charsheet/charsheet.go's own eipActiveBenefit for the
+// other four Perma-Perk-eligible E.I.Ps): "Increase your critical threat
+// range with your Unarmed Strike and Weapon Attacks by +1." Deliberately
+// NOT used for loadCharacterJutsuSheet's own Bukijutsu-classified rows —
+// see weaponSpecialistCritRangeThreshold's own doc comment for why Razor's
 // printed text doesn't extend there the way Critical Focus's does. Both
 // sources fold into the same rank (a widened crit RANGE, same underlying
 // concept either way) rather than being combined via a narrower-wins
@@ -4065,7 +4139,7 @@ func (s *server) weaponAttackCritRangeThreshold(characterID int64) (int, error) 
 	}
 	rank := weaponSpecialistCritFocusRank(level)
 
-	hasRazor, err := s.scienceNinHasPermaPerk(characterID, scienceNinRazorEIPSlug)
+	hasRazor, err := s.scienceNinEIPActiveBenefit(characterID, scienceNinRazorEIPSlug)
 	if err != nil {
 		return 0, err
 	}
@@ -4702,37 +4776,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load character inventory:", err)
 		return
 	}
-	featureBulkBonus, err := s.puppetAlwaysPreparedBulkBonus(id)
+	featureBulkBonuses, err := s.inventoryFeatureBulkBonuses(id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load always prepared bulk bonus:", err)
+		log.Println("load inventory feature bulk bonuses:", err)
 		return
 	}
-	chassisBulkBonus, err := s.puppetChassisPropertyBulkBonus(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load chassis property bulk bonus:", err)
-		return
-	}
-	featBulk, err := s.featBulkBonus(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load feat bulk bonus:", err)
-		return
-	}
-	backupPlanBonus, err := s.backupPlanBulkBonus(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load backup plan bulk bonus:", err)
-		return
-	}
-	aetherConnectorBonus, err := s.beyondTheVeilBulkBonus(id)
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		log.Println("load beyond the veil bulk bonus:", err)
-		return
-	}
-	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus+aetherConnectorBonus)
+	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonuses)
 	attacks, err := s.buildAttacks(id, inventory, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -4925,6 +4975,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load custom resources:", err)
 		return
 	}
+	kujakuMode := loadKujakuModeView(sheet, grantedFeatures, customResources)
 	martialDice, err := s.loadMartialDice(id, sheet)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -5222,6 +5273,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"UIState": uiState,
 		"Drive":   drive, "Goal": goal, "Fear": fear,
 		"PassiveTraits": passiveTraits, "CustomResources": customResources, "PuppetTactics": puppetTactics,
+		"Kujaku": kujakuMode,
 		"MartialDice": martialDice, "MartialTechniques": martialTechniques, "WeaponFocus": weaponFocus,
 		"WeaponForm":                    weaponForm,
 		"MartialDefense":                martialDefense,
@@ -6538,6 +6590,20 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["MartialDice"] = martialDice
+	case "sheet_kujaku_mode":
+		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load granted features for kujaku mode fragment:", err)
+			return
+		}
+		customResources, err := s.loadCustomResources(characterID, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load custom resources for kujaku mode fragment:", err)
+			return
+		}
+		data["Kujaku"] = loadKujakuModeView(sheet, grantedFeatures, customResources)
 	case "sheet_weapon_attacks":
 		if err := s.ensureScienceNinAutoGrants(characterID, sheet); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
@@ -6586,37 +6652,13 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		data["Inventory"] = inventory
-		featureBulkBonus, err := s.puppetAlwaysPreparedBulkBonus(characterID)
+		featureBulkBonuses, err := s.inventoryFeatureBulkBonuses(characterID)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load always prepared bulk bonus for "+name+" fragment:", err)
+			log.Println("load inventory feature bulk bonuses for "+name+" fragment:", err)
 			return
 		}
-		chassisBulkBonus, err := s.puppetChassisPropertyBulkBonus(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load chassis property bulk bonus for "+name+" fragment:", err)
-			return
-		}
-		featBulk, err := s.featBulkBonus(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load feat bulk bonus for "+name+" fragment:", err)
-			return
-		}
-		backupPlanBonus, err := s.backupPlanBulkBonus(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load backup plan bulk bonus for "+name+" fragment:", err)
-			return
-		}
-		aetherConnectorBonus, err := s.beyondTheVeilBulkBonus(characterID)
-		if err != nil {
-			http.Error(w, "database error", http.StatusInternalServerError)
-			log.Println("load beyond the veil bulk bonus for "+name+" fragment:", err)
-			return
-		}
-		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonus+chassisBulkBonus+featBulk+backupPlanBonus+aetherConnectorBonus)
+		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonuses)
 	case "sheet_elemental_affinities":
 		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 		if err != nil {
@@ -8652,6 +8694,7 @@ func (s *server) handleSheetInventoryAddCustom(w http.ResponseWriter, r *http.Re
 var sheetLiveFragments = map[string]bool{
 	"sheet_header_name":            true,
 	"sheet_vitals":                 true,
+	"sheet_kujaku_mode":            true,
 	"sheet_squares":                true,
 	"sheet_skills":                 true,
 	"sheet_ryo":                    true,

@@ -95,6 +95,20 @@ func SetInspiration(charDB *sql.DB, characterID int64, on bool) error {
 	return err
 }
 
+// SetKujakuModeActive sets Hoshi Clan's Kujaku Mode toggle — same shape as
+// SetInspiration/SetExoskeletonDonned (migration 0084_kujaku_mode_active.sql).
+func SetKujakuModeActive(charDB *sql.DB, characterID int64, on bool) error {
+	val := 0
+	if on {
+		val = 1
+	}
+	_, err := charDB.Exec(
+		`UPDATE characters SET kujaku_mode_active = ?, updated_at = datetime('now') WHERE id = ?`,
+		val, characterID,
+	)
+	return err
+}
+
 // SetExoskeletonDonned sets Elemental Innovationist's Exoskeleton
 // donned/doffed toggle — same shape as SetInspiration, since no equipment
 // row exists to hang an "equipped" flag off of (see migration
@@ -109,6 +123,31 @@ func SetExoskeletonDonned(charDB *sql.DB, characterID int64, on bool) error {
 		val, characterID,
 	)
 	return err
+}
+
+// ExoskeletonDonned reads back Elemental Innovationist's own Exoskeleton
+// donned/doffed toggle (see SetExoskeletonDonned's own doc just above).
+// internal/charsheet.Compute reads the identical characters.exoskeleton_
+// donned column directly as part of its own single combined characters-row
+// SELECT (into Sheet.ExoskeletonDonned) rather than calling this — this
+// reader exists for callers OUTSIDE that package that need just this one
+// toggle and have no Sheet already computed at their own call site, the
+// same "small standalone reader" shape NinjaneerLegendaryWeaponActive just
+// below already establishes for its own toggle. Its first caller is
+// cmd/n5e/science_nin_subclasses.go's scienceNinEIPActiveBenefit, which
+// resolves whether a merely-known (non-Perma-Perk) E.I.P's numeric/crit-
+// range clause is currently live for characters.go's weaponAttackCrit
+// RangeThreshold — a function called from several request handlers with
+// only a characterID in hand, none of which already has a Sheet built.
+func ExoskeletonDonned(charDB *sql.DB, characterID int64) (bool, error) {
+	var on int
+	err := charDB.QueryRow(
+		`SELECT exoskeleton_donned FROM characters WHERE id = ?`, characterID,
+	).Scan(&on)
+	if err != nil {
+		return false, err
+	}
+	return on != 0, nil
 }
 
 // SetNinjaneerLegendaryWeaponActive sets Warrior of Science's own Legendary

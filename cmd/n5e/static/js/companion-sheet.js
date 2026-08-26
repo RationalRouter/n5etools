@@ -34,6 +34,33 @@
       .catch((err) => console.warn("companion autosave failed:", err));
   });
 
+  // Demon Foe (is_demon_foe) changes each affected attack row's OWN
+  // displayed damage dice (titanApplyDemonFoeBonus, titan.go) — server-
+  // computed HTML, not something this page recomputes client-side — so,
+  // same reasoning as summon_tribe_slug just above, waiting on a checkbox's
+  // own "focusout" (companion-fields.js's generic whole-form autosave)
+  // isn't good enough: clicking a checkbox with a mouse checks it and
+  // leaves it focused, with no further blur ever coming unless the player
+  // happens to click something else afterward — which reads as "checking
+  // the box does nothing" the moment the player just looks at the Attacks
+  // list instead. Saves on "change" (which DOES fire the instant a
+  // checkbox is toggled, mouse or keyboard) and reloads the same way
+  // summon_tribe_slug does. companion-fields.js's own "change" listener has
+  // already mirrored this checkbox's new state onto every other
+  // is_demon_foe checkbox on the card by the time this fires, so the
+  // form's own FormData already reflects one consistent value.
+  document.addEventListener("change", (e) => {
+    const field = e.target;
+    if (!(field instanceof Element) || field.name !== "is_demon_foe") return;
+    if (!field.form || !window.n5eCompanionPostForm) return;
+    window.n5eCompanionPostForm(field.form)
+      .then((r) => {
+        if (!r.ok) throw new Error("server rejected the request (" + r.status + ")");
+        window.location.reload();
+      })
+      .catch((err) => console.warn("companion autosave failed:", err));
+  });
+
   // Nin-Dog Breed's explicit "Set Breed" commit button (companion_fields.
   // html's own doc comment, and companion-fields.js's .companion-commit-
   // select handling, cover the reasoning in full): selecting a breed only

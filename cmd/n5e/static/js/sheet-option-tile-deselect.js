@@ -33,20 +33,42 @@
     if (list) lastSelectedInList.set(list, el);
   });
 
+  // Only reacts to a click whose event target IS the radio <input> itself
+  // — never the wrapping <label> (or any other descendant) it was clicked
+  // through. Clicking anywhere inside a <label> fires TWO real "click"
+  // events in sequence: one at whatever was actually clicked (bubbling up
+  // through the label), then a second, separate one that the label's own
+  // native activation behavior forwards straight at the associated
+  // <input> — confirmed live by tracing DOM click order with an
+  // instrumented .checked setter, not guessed. Reacting to the FIRST of
+  // those two loses a real race: queueMicrotask's callback runs at the
+  // microtask checkpoint between those two dispatches — i.e. AFTER the
+  // first click finishes but BEFORE the label's forwarded click has even
+  // started — so this listener's checked=false lands, and then the still-
+  // pending forwarded click sees a (now) unchecked radio and re-checks it
+  // right back to true as part of ITS OWN native activation, silently
+  // undoing the deselect within the same physical click. This is exactly
+  // why a synthetic input.click() test (which skips the label entirely, so
+  // there's no second forwarded click to race against) passed while real
+  // mouse clicks on the label kept failing. Reacting only to the input-
+  // targeted click sidesteps the race entirely: that IS the final step of
+  // the whole sequence (a radio's own native click never forwards further),
+  // so nothing is left afterward to clobber the deferred assignment.
   document.addEventListener("click", (e) => {
-    const label = e.target.closest(".puppet-upgrade-option");
-    if (!label) return;
-    const input = label.querySelector('input[type="radio"][name="option_slug"]');
-    if (!input || !input.checked) return;
+    const input = e.target;
+    if (!(input instanceof Element) || input.tagName !== "INPUT") return;
+    if (input.type !== "radio" || input.name !== "option_slug" || !input.checked) return;
     const list = input.closest(".puppet-upgrade-option-list");
     if (!list || lastSelectedInList.get(list) !== input) return;
-    // Clicking a label's own default action forwards a second, synthetic
-    // click straight to its associated control — which for a radio that's
-    // (at that point) unchecked just checks it right back, silently
-    // undoing the deselect a moment later. preventDefault() here stops
-    // that forwarded click from ever being dispatched at all.
-    e.preventDefault();
-    input.checked = false;
-    lastSelectedInList.delete(list);
+    // preventDefault()+checked=false here doesn't stick either, for the
+    // same underlying reason: canceling reverts checked back to whatever
+    // it was before THIS click, which for an already-checked radio is
+    // checked. Deferring to a microtask sidesteps that revert; scoping to
+    // only the input-targeted click (above) sidesteps the label-forwarding
+    // race.
+    queueMicrotask(() => {
+      input.checked = false;
+      lastSelectedInList.delete(list);
+    });
   });
 })();

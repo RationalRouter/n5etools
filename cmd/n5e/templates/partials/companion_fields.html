@@ -490,6 +490,14 @@
   <button type="button" class="companion-commit-btn" disabled>Set Specialization</button>
   {{end}}
 </label>
+{{/* Demon Foe's own checkbox used to live here as a single toggle, easy to
+     miss above the whole Known Titan Upgrades list — moved to sit directly
+     beside each eligible attack row instead (.DemonFoeEligible, this
+     partial's own Attacks section below), since it's really a per-attack
+     decision ("deals an additional two die of damage... twice per turn")
+     rather than a standing character-wide setting. See companion-fields.js's
+     own cross-checkbox sync comment for why more than one checkbox can
+     safely share this same is_demon_foe field. */}}
 {{end}}
 
 {{/* Legion Specialization's own "increases its two ability scores by +2"
@@ -766,9 +774,28 @@
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
     <li class="companion-attack-row" data-detail-name="{{.Name}}">
+      {{/* Demon Foe: one checkbox per Weapon-keyword Titan Upgrade attack
+           (.DemonFoeEligible, set by titanApplyDemonFoeBonus) rather than a
+           single toggle elsewhere on the card — Bijuu Slayer's own text
+           ("twice per turn") makes this a per-attack decision, not a
+           standing character-wide setting, and a toggle sitting right next
+           to the roll button it affects is far harder to miss than one
+           above an unrelated list further up the popup. Every copy shares
+           the same is_demon_foe field — there is only one real flag, not
+           independent state per row — so companion-fields.js's own
+           document-level "change" listener keeps every checkbox on this
+           card in lockstep the instant any one of them is clicked. */}}
+      {{if .DemonFoeEligible}}
+      <label class="companion-demon-foe-toggle tooltip" title="Demon Foe">
+        <input type="checkbox" name="is_demon_foe" form="{{$.FormID}}" value="1" class="companion-field" {{if $.Companion.IsDemonFoe}}checked{{end}}>
+        <span class="tooltip-content">Bijuu Slayer: while checked, this attack's damage roll gets +2 damage dice of its own type against a Demon-type foe. Uncheck once the fight isn't against a Demon.</span>
+      </label>
+      {{end}}
+      {{if not .NoAttackRoll}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
               data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
+      {{end}}
       <span class="companion-attack-name">{{.Name}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
@@ -830,9 +857,26 @@
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
     <li class="companion-attack-row">
+      {{/* Demon Foe checkbox: kept even in this read-only-ATTACKS branch —
+           "read-only" here means no add/delete/detail-panel editing of the
+           attack list itself (this block's own doc above), not that every
+           control on the page is disabled. This popup is the character's
+           own combat quick-reference, exactly where toggling Demon Foe
+           mid-fight matters most, and the checkbox this replaces already
+           rendered on this same popup before this change (just elsewhere
+           on the page) — see the structured-attacks branch above for the
+           fuller comment on why this lives per-row now. */}}
+      {{if .DemonFoeEligible}}
+      <label class="companion-demon-foe-toggle tooltip" title="Demon Foe">
+        <input type="checkbox" name="is_demon_foe" form="{{$.FormID}}" value="1" class="companion-field" {{if $.Companion.IsDemonFoe}}checked{{end}}>
+        <span class="tooltip-content">Bijuu Slayer: while checked, this attack's damage roll gets +2 damage dice of its own type against a Demon-type foe. Uncheck once the fight isn't against a Demon.</span>
+      </label>
+      {{end}}
+      {{if not .NoAttackRoll}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
               data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
+      {{end}}
       <span class="companion-attack-name">{{.Name}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
@@ -859,6 +903,74 @@
 <label class="companion-block-label">Notes
   <textarea name="notes" form="{{.FormID}}" rows="4" class="companion-field" placeholder="Anything else.">{{.Companion.Notes}}</textarea>
 </label>
+
+{{/* Resistances/Immunities/ConditionImmunities: kind="custom" only — every
+     other kind has this exact information computed instead (see
+     titan_reference/snb_reference/nindog_reference/summon_tribe_reference's
+     own identical dt/dd rows just below this partial's other blocks, plus
+     Puppet Tool Traits' DamageResistance/DamageImmunity/ConditionImmunity
+     near the top of this file), so a manual override field here would just
+     conflict with an already-computed one for those kinds — "custom" has
+     no computed value of its own to conflict with (charstore.Companion's
+     own field doc). Real <dt>/<dd> markup, matching Titan/SNB/Nin-Dog/
+     Summon's own visual shape exactly, but — unlike those four, which hide
+     an empty row entirely — always rendered here rather than conditional
+     on being non-empty: a "custom" companion's own value lives ONLY in
+     these columns (there's no separate computed twin to fall back to
+     display-only once something's been entered), so the row itself has to
+     stay present and editable at all times or a player would have no way
+     to ever type a first value in. Bound to FormID like Attacks/Traits/
+     Notes above: part of the same whole-form, save-on-blur autosave
+     (SetCompanionFields), not a separate endpoint. */}}
+{{if eq .Companion.Kind "custom"}}
+<dl class="sheet-passive-trait-list companion-custom-resistances">
+  <dt>Damage Resistances</dt><dd><input type="text" name="resistances" form="{{.FormID}}" value="{{.Companion.Resistances}}" class="companion-field" placeholder="e.g. Fire, Cold"></dd>
+  <dt>Damage Immunities</dt><dd><input type="text" name="immunities" form="{{.FormID}}" value="{{.Companion.Immunities}}" class="companion-field" placeholder="e.g. Poison"></dd>
+  <dt>Condition Immunities</dt><dd><input type="text" name="condition_immunities" form="{{.FormID}}" value="{{.Companion.ConditionImmunities}}" class="companion-field" placeholder="e.g. Charmed, Frightened"></dd>
+</dl>
+{{/* Angel E.I.P's own Spectre reference: static prose, matching the
+     Titan/S.N.B/Nin-Dog/Summon Tribe reference panels' own read-only
+     "companion-reference" section shape just below this partial's other
+     blocks, rather than living in the freeform Notes box above (which
+     would otherwise get pre-filled with this same text and crowd out
+     anything the player actually wants to write there). Matched by exact
+     Name the same way ensureAngelEIPSpectreCompanion/
+     removeAngelEIPSpectreCompanion (science_nin_subclasses.go) identify
+     this specific auto-added companion, since kind="custom" carries no
+     other back-reference to what created it. */}}
+{{if eq .Companion.Name "Spectre (Angel E.I.P)"}}
+<section class="companion-reference">
+  <h2>Angel E.I.P Reference</h2>
+  <p>Once per long rest, when you would be reduced to 0 hit points, you may cause this Spectre to appear within 60 feet of you — a ghostly version of yourself, possessing your equipment, jutsu, and features (excluding other Perks besides the Revival E.I.P).</p>
+  <p>3d10 chakra points. Resistance to all damage. Acts at the end of initiative order; you control it.</p>
+  <p>For the first round it is active, it has the benefits of the Non-Detection and Invisibility Ninjutsu.</p>
+  <p>Lasts 3 rounds. When it goes to stabilize you, it automatically succeeds the check and you regain 5 times your Intelligence modifier in hit points. It disappears once it stabilizes you, or it reaches 0 hit points, whichever occurs first.</p>
+  <p>While it is active, you have advantage on Death Saving Throws and do not automatically fail Death Saving Throws as a result of taking damage.</p>
+</section>
+{{end}}
+{{/* Draconic Gauntlet W.o.W's own Whelp reference: same static-prose
+     "companion-reference" shape as Angel E.I.P's Spectre block just above,
+     matched by exact Name the same way ensureWhelpCompanion/
+     removeWhelpCompanion (cmd/n5e/wow_whelp.go) identify this specific
+     auto-added companion. DR 5 and the "treat negative modifiers as +0"
+     saving-throw clause have no dedicated mechanical field anywhere in this
+     app's companion model (every companion's AC is a single number with no
+     separate flat damage-reduction stat, and no companion save proficiency
+     ever floors a negative modifier), so both stay narrated here rather
+     than becoming new fields for a single stat only one companion in the
+     game needs. */}}
+{{if eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
+<section class="companion-reference">
+  <h2>Draconic Gauntlet Reference</h2>
+  <p>Armor Class 18 + your Ninjutsu ability modifier, DR 5. Saving throws proficient in all (treat negative modifiers as +0).</p>
+  <p>Elemental Existence. The Whelp rests perched on the Draconic Gauntlet. While perched on the Gauntlet, the Whelp cannot be targeted and is immune to area of effects. As a bonus action, you may use the Whelp's Aether Fireball or Aether Breath attacks.</p>
+  <p>As an action, you may allow the Whelp to detach from your Gauntlet, allowing it to immediately move up to its movement speed and take an Action. The Whelp retains access to its attacks (requiring an Action to use), and also gains access to its Aether Meteor attack and may make two attacks with its Aether Fireball. On subsequent turns, you may command the Whelp to move and take an action at the end of your turn (no action required). If the Whelp is not commanded to take an action while unperched, it takes the dodge action.</p>
+  <p>While unperched the Whelp can be targeted by attacks and area of effects as normal. If the Whelp is reduced to 0 hit points, it disappears until your next rest. The Whelp can be no more than 300 feet from you, teleporting back to you in a cloud of alchemical mist if moved beyond this range. Starting from your next turn you may allow the Whelp to reperch itself to your Gauntlet as an object interaction.</p>
+  <p>Immutable Form, Impenetrable Will. The Whelp's form and will is immune to being altered by any Jutsu and effect. The Whelp is loyal to you and those whom you allow.</p>
+  <p>Work of Science. The Whelp uses chakra from your CCD to pay for its chakra costs, and uses your Ninjutsu attack bonus and Save DC for all effects.</p>
+</section>
+{{end}}
+{{end}}
 {{end}}
 
 {{/* puppet_skills_box: a puppet's resolved 21-skill list, grouped by
@@ -914,6 +1026,15 @@
     {{if .SavingThrows}}<dt>Saving Throws</dt><dd>{{.SavingThrows}}</dd>{{end}}
     {{if .Skills}}<dt>Skills</dt><dd>{{.Skills}}</dd>{{end}}
     {{if .Senses}}<dt>Senses</dt><dd>{{.Senses}}</dd>{{end}}
+    {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
+         entirely, same conditional-dt/dd shape titan_reference/snb_reference
+         already use) until this tribe has a currently-unlocked feature that
+         actually grants one — see summonTribeResistancesImmunities/
+         summonTribeResistanceCatalog (companions.go) for exactly which
+         tribes/features qualify. */}}
+    {{if .Resistances}}<dt>Damage Resistances</dt><dd>{{.Resistances}}</dd>{{end}}
+    {{if .Immunities}}<dt>Immunities</dt><dd>{{.Immunities}}</dd>{{end}}
+    {{if .ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.ConditionImmunities}}</dd>{{end}}
     {{if .JutsuSaveDCText}}<dt>Jutsu Save DC</dt><dd>{{.JutsuSaveDCText}}</dd>{{end}}
     {{if .JutsuAttackBonusText}}<dt>Jutsu Attack Bonus</dt><dd>{{.JutsuAttackBonusText}}</dd>{{end}}
     {{if .JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{.JutsuSpecialtyText}}</dd>{{end}}
@@ -985,6 +1106,14 @@
     <dt>Rank</dt><dd>{{.Ref.Rank}}-Rank (Level {{.Ref.Level}})</dd>
     <dt>Size</dt><dd>{{.Ref.Size}}</dd>
     <dt>Saving Throws</dt><dd>Proficient in all</dd>
+    {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
+         entirely, same conditional-dt/dd shape titan_reference/snb_reference
+         already use) until a currently-unlocked Dog/Wolf special feature or
+         breed trait actually grants one — see ninDogResistancesImmunities
+         (nindog.go), which resolves to "" for all three today. */}}
+    {{if .Ref.Resistances}}<dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}</dd>{{end}}
+    {{if .Ref.Immunities}}<dt>Immunities</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
+    {{if .Ref.ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
     <dt>Jutsu Slots</dt><dd>{{.Ref.JutsuSlotsMax}} max; regains {{.Ref.JutsuSlotShortRegen}} on a Short Rest, all on a Long Rest</dd>
     {{if .Ref.BiteDescription}}<dt>Bite</dt><dd>{{formatDescription .Ref.BiteDescription}}</dd>{{end}}
     {{if .Ref.JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{formatDescription .Ref.JutsuSpecialtyText}}</dd>{{end}}
@@ -1111,6 +1240,17 @@
     <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}} (yours + this Titan's own Intelligence modifier)</dd>
     <dt>Steady Improvement</dt><dd>{{.Ref.SteadyImprovementASIPoints}} bonus ASI points — distributed when crafted, redistributable on a long rest</dd>
     <dt>Saving Throws</dt><dd>Makes Strength/Dexterity/Constitution saves in your place, using its own ability scores. Mental saves (Intelligence/Wisdom/Charisma) still use yours.</dd>
+    {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
+         entirely, same conditional-dt/dd shape the S.N.B block below
+         already uses) until a known Titan Upgrade actually grants one —
+         see titanResistancesImmunities (titan.go). ResistanceAdvantageText
+         rides along inside the Resistances row itself, since it's
+         Thermite Launcher's own accompanying clause rather than a
+         separately tracked mechanic (this app has no generic
+         advantage-on-saves flag for a companion to hold it in). */}}
+    {{if .Ref.Resistances}}<dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}{{if .Ref.ResistanceAdvantageText}} — {{.Ref.ResistanceAdvantageText}}{{end}}</dd>{{end}}
+    {{if .Ref.Immunities}}<dt>Immunities</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
+    {{if .Ref.ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
   </dl>
 
   <h3>Bash</h3>
@@ -1141,6 +1281,29 @@
     </li>
     {{end}}
   </ul>
+
+  {{/* Resolved Upgrade Abilities: Known Titan Upgrades whose raw
+       description text (shown verbatim, unresolved, in the Known Titan
+       Upgrades list just above this panel — companion_stat_fields.html)
+       names an "X" tied to proficiency bonus, or a Titan-size-dependent
+       die, that this app CAN resolve to a real number — Thermite
+       Launcher's grenade, Greater Missile Racks' own line-AoE mode,
+       Critical Ejection, Shinobifall, and Shinobi Fortress's own
+       temp-HP-on-summon formula (see titanResolvedUpgradeAbilities,
+       titan.go, for exactly which six upgrades this file's own fix
+       covers and why the other two — Xo-16 Gatling, Greater Missile
+       Racks' single-target mode — get a rollable Attacks row instead of
+       a reference-text entry here). Absent entirely (no heading shown)
+       until at least one of these five is actually known. */}}
+  {{if .Ref.UpgradeAbilities}}
+  <h3>Resolved Upgrade Abilities</h3>
+  <p class="section-hint">Known Titan Upgrades whose raw text names an unresolved proficiency-bonus-based number or size-dependent die — shown here with the real numbers already substituted in.</p>
+  <ul class="sheet-feature-list">
+    {{range .Ref.UpgradeAbilities}}
+    <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
+    {{end}}
+  </ul>
+  {{end}}
 
   {{/* Titan Slots, Exo-Suit, and Specialist Crafting: pulled out of this
        card into their own subclass tracker popup (subclass_tracker_popup.

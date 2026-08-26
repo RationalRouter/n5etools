@@ -94,6 +94,44 @@
     });
   });
 
+  // Demon Foe (is_demon_foe): companion_fields.html now renders one
+  // checkbox per Weapon-keyword Titan Upgrade attack row instead of a
+  // single toggle elsewhere on the card, so a Titan with two such upgrades
+  // shows two checkboxes — but there is only ONE real is_demon_foe flag on
+  // the companion, not independent state per row. Toggling any one of them
+  // immediately mirrors the same checked state onto every other
+  // is_demon_foe checkbox in the SAME form, so the player never sees two
+  // copies disagree and the whole-form save (below, and the popup/main-
+  // sheet-specific listeners in companion-sheet.js/sheet-puppets.js) always
+  // submits one consistent value. Registered ahead of those other listeners
+  // (this file loads first — see layout.html/layout_bare.html's own script
+  // order) so the mirrored state is already in the DOM by the time either
+  // one reads the form.
+  //
+  // Deliberately queries from `document`, not `box.form` — every one of
+  // these checkboxes is associated with its <form> via the HTML `form="..."`
+  // attribute rather than DOM nesting (companion_fields.html's own header
+  // comment), and Element.querySelectorAll only ever searches actual DOM
+  // descendants, never form-associated-but-external elements. Confirmed
+  // live: box.form.querySelectorAll('input[name="is_demon_foe"]') returned
+  // an empty NodeList for every checkbox on a real Titan card (none of them
+  // sit inside the <form> tag itself), so the mirror silently never ran at
+  // all — unchecking one box left the other copies checked, and since the
+  // server only sees whether ANY same-named checkbox posted "1" at all,
+  // the whole uncheck had no effect. Filtering by `other.form === box.form`
+  // (instead of scoping the query itself) keeps multiple companions on the
+  // same page — several Titan cards on the main sheet's Summons tab, each
+  // with its own <form> — from mirroring into each other.
+  document.addEventListener("change", (e) => {
+    const box = e.target;
+    if (!(box instanceof Element) || box.tagName !== "INPUT" || box.type !== "checkbox") return;
+    if (box.name !== "is_demon_foe" || !box.form) return;
+    const checked = box.checked;
+    document.querySelectorAll('input[name="is_demon_foe"]').forEach((other) => {
+      if (other !== box && other.form === box.form) other.checked = checked;
+    });
+  });
+
   // HP-current, AC, and Max HP are each deliberately NOT a .companion-field
   // — every one has its own tiny <form> and its own endpoint
   // (handleCompanionHP/handleCompanionIntField), because the typed text is

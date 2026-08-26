@@ -371,21 +371,36 @@ const elementalInnovationistExoskeletonFeatureSlug = "class/science-nin/group/sc
 // elementalInnovationistPermaPerkFeatureSlug is Elemental Innovationist's
 // 14th-level Perma Perk: "you may choose 1 E.I.P you know... gaining its
 // benefits without Exoskeleton armor and without needing to spend CCD
-// chakra to activate." Every other known E.I.P stays narrative-only (it
-// takes an as-initiative chakra spend each encounter to do anything — see
-// cmd/n5e/science_nin_subclasses.go's own header doc), but a Perma Perk's
-// flat numeric clause is always on, so the four Perma-Perk-eligible E.I.Ps
-// with such a clause (Speed/Stamina/Juggernaut/Vulture below) are resolved
-// here. Razor E.I.P (the fifth) widens weapon crit range instead, applied
-// in cmd/n5e/characters.go's weaponSpecialistCritRangeThreshold since
-// attack rows are built there, not in this package.
+// chakra to activate." Read literally, that carve-out implies every OTHER
+// known E.I.P's flat numeric clause DOES apply outside of Perma Perk, so
+// long as Exoskeleton armor is donned (sheet.ExoskeletonDonned) — the
+// "without needing to spend CCD chakra to activate" half of the same
+// sentence is deliberately NOT modeled as a further gate, since this app
+// tracks no other ability's moment-to-moment resource activation either
+// (a Jutsu attack is simply listed with its chakra cost noted, never
+// gated behind a "did you spend it yet" toggle — see cmd/n5e/
+// science_nin_subclasses.go's own header doc). So the four
+// Perma-Perk-eligible E.I.Ps with such a clause (Speed/Stamina/Juggernaut/
+// Vulture below) are resolved here as "Perma Perk pick OR (known AND
+// Exoskeleton donned)" via eipActiveBenefit, not "Perma Perk pick alone."
+// Razor E.I.P (the fifth) widens weapon crit range instead, applied the
+// same way in cmd/n5e/characters.go's weaponAttackCritRangeThreshold
+// (via scienceNinEIPActiveBenefit, that package's own mirror of
+// eipActiveBenefit) since attack rows are built there, not in this
+// package.
 const elementalInnovationistPermaPerkFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/perma-perk"
 
 // elementalInnovationistSpeedEIPSlug/StaminaEIPSlug/JuggernautEIPSlug/
 // VultureEIPSlug are the four Perma-Perk-eligible E.I.Ps' own
 // class_option_entries slugs (confirmed against dist/rules.db), each
-// consulted only when it equals the character's own designated Perma Perk
-// pick — see resolveScienceNinPermaPerk below.
+// consulted at its own application point below via eipActiveBenefit —
+// live either when it's the character's own designated Perma Perk pick, or
+// when it's merely a known E.I.P and sheet.ExoskeletonDonned is true (see
+// elementalInnovationistPermaPerkFeatureSlug's own doc immediately above
+// for why the latter also counts). resolveScienceNinPermaPerk below
+// resolves the Perma Perk half of that OR; the known-E.I.P half is
+// resolved once, into a knownEIPs set, at eipActiveBenefit's own call site
+// in Compute.
 const (
 	elementalInnovationistSpeedEIPSlug      = "class/science-nin/option/e-i-ps/minor/entry/speed-e-i-p"
 	elementalInnovationistStaminaEIPSlug    = "class/science-nin/option/e-i-ps/minor/entry/stamina-e-i-p"
@@ -436,6 +451,30 @@ func resolveScienceNinPermaPerk(charDB *sql.DB, characterID int64, grantedFeatur
 		}
 	}
 	return "", nil
+}
+
+// eipActiveBenefit reports whether one Perma-Perk-eligible E.I.P's flat
+// numeric clause is currently live for the character owning knownEIPs/
+// permaPerk/exoskeletonDonned: either slug IS the character's designated
+// Perma Perk (permaPerk, from resolveScienceNinPermaPerk — already gated
+// on the 14th-level feature and cross-checked against Known E.I.Ps), OR
+// slug is merely a Known E.I.P (knownEIPs[slug]) AND Exoskeleton armor is
+// currently donned (exoskeletonDonned, sheet.ExoskeletonDonned). See
+// elementalInnovationistPermaPerkFeatureSlug's own doc comment above for
+// the rules-text reasoning behind the second branch: Perma Perk's own text
+// only ever says it removes the NEED for Exoskeleton armor, which only
+// makes sense to write if every other known E.I.P still needs it donned to
+// do anything at all. Built once per Compute call as a small closure-free
+// value comparison (not a method, not a closure over Compute's own
+// locals) specifically so it can be called identically at all five
+// application sites below (Vulture/Speed/Stamina/Juggernaut here, plus
+// cmd/n5e/characters.go's own scienceNinEIPActiveBenefit mirroring the
+// same OR for Razor) without repeating the OR condition by hand at each
+// one — a repeated inline condition is exactly the shape of duplication
+// that let the four numeric sites here silently drift out of sync with
+// Razor's own site in a different file before this fix.
+func eipActiveBenefit(knownEIPs map[string]bool, permaPerk string, exoskeletonDonned bool, slug string) bool {
+	return slug == permaPerk || (knownEIPs[slug] && exoskeletonDonned)
 }
 
 // scienceNinMixedStudiesFeatureSlug is Mixed Studies, an 18th-level BASE
@@ -773,6 +812,22 @@ const blueTechniqueProficiencyFeatureSlug = "class/puppet-master/group/puppet-te
 // per-item cost-modifier concept to reduce, so both stay undocumented gaps
 // rather than half-wired.
 const scienceNinFutureOfShinobiAetherFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/the-future-of-shinobi-aether"
+
+// hoshiKujakuModeFeatureSlug identifies Hoshi Clan's Kujaku Mode
+// (clan_features), granted at 3rd level to every Hoshi Clan character —
+// used to gate KujakuModeActive's AC bonus on the feature actually being
+// present, not just the player's own stored toggle (see the AC block
+// below). hoshiCosmicKujakuFeatSlug identifies the 16th-level+ feat that
+// upgrades that bonus from +1 to +2 ("the increase to AC becomes +2").
+// Only the AC clause of either is modeled here — Kujaku Mode's temp HP,
+// Chakra Control bonus die, object-interaction reach, ignored HS
+// component, and reaction damage reduction, plus Kujaku Flourish's
+// resistance grants, have no derived-stat field on this sheet to hook into
+// and are narrated instead (cmd/n5e's own kujakuModeView), the same
+// "narrate what doesn't fit the model" boundary wow_whelp.go's own DR-5
+// clause already draws.
+const hoshiKujakuModeFeatureSlug = "clan/hoshi/feature/kujaku-mode"
+const hoshiCosmicKujakuFeatSlug = "feat/hoshi/cosmic-kujaku"
 
 // fastAndFuriousFeatureSlug identifies Entremetier Chef's 2nd-level feature
 // "you can use your intelligence or charisma instead of your dexterity for
@@ -1113,6 +1168,11 @@ type Sheet struct {
 	// equipment row backs the Exoskeleton, so this is a plain toggle rather
 	// than an equipped-item check.
 	ExoskeletonDonned bool
+	// KujakuModeActive is Hoshi Clan's Kujaku Mode on/off toggle (migration
+	// 0084_kujaku_mode_active.sql) — same shape as ExoskeletonDonned, a
+	// plain player-flipped toggle with no equipment/resource row of its own
+	// to hang an "active" flag off of.
+	KujakuModeActive bool
 	// CCDMendingPct is Mad Scientist's Biotic Mastery split ratio —
 	// Mending's percentage share of the base Chakra Containment Device
 	// total, Maiming getting the remainder (migration
@@ -1137,18 +1197,18 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	sheet := &Sheet{CharacterID: characterID}
 
 	var baseStr, baseDex, baseCon, baseInt, baseWis, baseCha int
-	var inspiration, exoskeletonDonned int
+	var inspiration, exoskeletonDonned, kujakuModeActive int
 	var clanSlug, appearance, backstory, alliesOrgs, additionalFeatures, treasure, notes, portrait sql.NullString
 	err := charDB.QueryRow(`
 		SELECT name, clan_slug, base_str, base_dex, base_con, base_int, base_wis, base_cha,
 		       current_hp, temp_hp, base_temp_hp, current_chakra, temp_chakra,
-		       hit_dice_spent, chakra_dice_spent, inspiration, exoskeleton_donned, ccd_mending_pct, ryo,
+		       hit_dice_spent, chakra_dice_spent, inspiration, exoskeleton_donned, kujaku_mode_active, ccd_mending_pct, ryo,
 		       appearance, backstory, allies_organizations, additional_features_text, treasure,
 		       notes, portrait
 		FROM characters WHERE id = ?`, characterID,
 	).Scan(&sheet.Name, &clanSlug, &baseStr, &baseDex, &baseCon, &baseInt, &baseWis, &baseCha,
 		&sheet.CurrentHP, &sheet.TempHP, &sheet.BaseTempHP, &sheet.CurrentChakra, &sheet.TempChakra,
-		&sheet.HitDiceSpent, &sheet.ChakraDiceSpent, &inspiration, &exoskeletonDonned, &sheet.CCDMendingPct, &sheet.Ryo,
+		&sheet.HitDiceSpent, &sheet.ChakraDiceSpent, &inspiration, &exoskeletonDonned, &kujakuModeActive, &sheet.CCDMendingPct, &sheet.Ryo,
 		&appearance, &backstory, &alliesOrgs, &additionalFeatures, &treasure,
 		&notes, &portrait)
 	if err == sql.ErrNoRows {
@@ -1160,6 +1220,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	sheet.ClanSlug = clanSlug.String
 	sheet.Inspiration = inspiration != 0
 	sheet.ExoskeletonDonned = exoskeletonDonned != 0
+	sheet.KujakuModeActive = kujakuModeActive != 0
 	sheet.Appearance = appearance.String
 	sheet.Backstory = backstory.String
 	sheet.AlliesOrganizations = alliesOrgs.String
@@ -1416,6 +1477,27 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load perma perk pick: %w", err)
 	}
+	// scienceNinKnownEIPs is every E.I.P slug the character currently has
+	// as a stored pick (charstore.ScienceNinPickEIP), regardless of
+	// whether one of them is also scienceNinPermaPerk above — resolved
+	// once here, the same "build the set once, consult it repeatedly"
+	// shape jackOfAllPicks/jackOfAllGate just above already uses, and fed
+	// into eipActiveBenefit alongside scienceNinPermaPerk and
+	// sheet.ExoskeletonDonned at each of the four Perma-Perk-eligible
+	// E.I.Ps' own application sites below. A second, independent query
+	// against the same eip picks resolveScienceNinPermaPerk already loads
+	// internally to cross-check its own Perma Perk pick — not reused from
+	// there since that function returns only the resolved slug, not its
+	// own internal known-set, and duplicating one small indexed SELECT is
+	// cheaper than reshaping that function's return signature for it.
+	knownEIPPicks, err := charstore.ListScienceNinSubclassPicks(charDB, characterID, charstore.ScienceNinPickEIP)
+	if err != nil {
+		return nil, fmt.Errorf("load known E.I.Ps: %w", err)
+	}
+	scienceNinKnownEIPs := make(map[string]bool, len(knownEIPPicks))
+	for _, p := range knownEIPPicks {
+		scienceNinKnownEIPs[p.OptionSlug] = true
+	}
 
 	// Yhprum's Law (Science-Nin, 7th level): "You can add half your
 	// Proficiency bonus, rounded down, to any Skill check you make that
@@ -1454,9 +1536,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		}
 	}
 	sheet.PassivePerception += features.ResolvePassivePerceptionBonus(grantedFeatures)
-	// Vulture E.I.P (Elemental Innovationist Perma Perk): "Increase your
-	// Passive Perception by your Intelligence modifier."
-	if scienceNinPermaPerk == elementalInnovationistVultureEIPSlug {
+	// Vulture E.I.P: "Increase your Passive Perception by your Intelligence
+	// modifier." Live either as the designated Perma Perk pick, or as a
+	// merely-known E.I.P with Exoskeleton armor donned — see
+	// eipActiveBenefit's own doc comment.
+	if eipActiveBenefit(scienceNinKnownEIPs, scienceNinPermaPerk, sheet.ExoskeletonDonned, elementalInnovationistVultureEIPSlug) {
 		sheet.PassivePerception += sheet.Abilities["int"].Modifier
 	}
 	sheet.ClashChecks = clashChecks(sheet, overrides)
@@ -1477,9 +1561,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if hasFeature(grantedFeatures, strategicTimingFeatureSlug) {
 		sheet.InitiativeAbility = "int"
 	}
-	// Speed E.I.P (Elemental Innovationist Perma Perk): "use Intelligence
-	// in place of Dexterity to calculate your initiative checks."
-	if scienceNinPermaPerk == elementalInnovationistSpeedEIPSlug {
+	// Speed E.I.P: "use Intelligence in place of Dexterity to calculate
+	// your initiative checks." Live either as the designated Perma Perk
+	// pick, or as a merely-known E.I.P with Exoskeleton armor donned — see
+	// eipActiveBenefit's own doc comment.
+	if eipActiveBenefit(scienceNinKnownEIPs, scienceNinPermaPerk, sheet.ExoskeletonDonned, elementalInnovationistSpeedEIPSlug) {
 		sheet.InitiativeAbility = "int"
 	}
 	// Fast and Furious (Entremetier Chef, 2nd level) offers a genuine choice
@@ -1727,9 +1813,10 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if puppetupgrades.ChassisHasMobile(wornChassisSlug) {
 		sheet.Speed += puppetupgrades.MobileSpeedBonus
 	}
-	// Stamina E.I.P (Elemental Innovationist Perma Perk): "increase your
-	// movement speed by +5 feet."
-	if scienceNinPermaPerk == elementalInnovationistStaminaEIPSlug {
+	// Stamina E.I.P: "increase your movement speed by +5 feet." Live either
+	// as the designated Perma Perk pick, or as a merely-known E.I.P with
+	// Exoskeleton armor donned — see eipActiveBenefit's own doc comment.
+	if eipActiveBenefit(scienceNinKnownEIPs, scienceNinPermaPerk, sheet.ExoskeletonDonned, elementalInnovationistStaminaEIPSlug) {
 		sheet.Speed += 5
 	}
 	// A player can pin their own Speed (part 10's "make Speed editable like
@@ -1777,13 +1864,15 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		}
 	}
 	featHPBonus, featChakraBonus := featMaxPoolBonus(grantedFeatures, sheet.Level)
-	// Juggernaut E.I.P (Elemental Innovationist Perma Perk): "Increase your
-	// maximum hit points by 10 + your Science-Nin level." The accompanying
-	// damage-resistance clause hits the same "no DR field exists anywhere on
-	// this sheet" gap scienceNinFutureOfShinobiAetherFeatureSlug's own doc
-	// comment already documents, so only the HP half is modeled.
+	// Juggernaut E.I.P: "Increase your maximum hit points by 10 + your
+	// Science-Nin level." The accompanying damage-resistance clause hits
+	// the same "no DR field exists anywhere on this sheet" gap
+	// scienceNinFutureOfShinobiAetherFeatureSlug's own doc comment already
+	// documents, so only the HP half is modeled. Live either as the
+	// designated Perma Perk pick, or as a merely-known E.I.P with
+	// Exoskeleton armor donned — see eipActiveBenefit's own doc comment.
 	juggernautEIPHPBonus := 0
-	if scienceNinPermaPerk == elementalInnovationistJuggernautEIPSlug {
+	if eipActiveBenefit(scienceNinKnownEIPs, scienceNinPermaPerk, sheet.ExoskeletonDonned, elementalInnovationistJuggernautEIPSlug) {
 		juggernautEIPHPBonus = 10 + classLevels[scienceNinClassSlug]
 	}
 	sheet.MaxHPAuto = hpSum + sheet.Level*sheet.Abilities["con"].Modifier + puppetTotals.MaxHP + ninjutsuStoneAdeptHPBonus(grantedFeatures, classLevels) + featHPBonus + juggernautEIPHPBonus
@@ -1880,6 +1969,26 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		// the DR/E.I.P clauses left out.
 		if sheet.AC != nil && hasFeature(grantedFeatures, scienceNinFutureOfShinobiAetherFeatureSlug) && exoskeletonGranted && sheet.ExoskeletonDonned {
 			v := *sheet.AC + 2
+			sheet.AC = &v
+		}
+		// Kujaku Mode (Hoshi Clan, clan/hoshi/feature/kujaku-mode, 3rd
+		// level): "Increase your AC by +1" for the mode's duration —
+		// additive on top of whatever formula/swap/bonus already ran above,
+		// same shape as Battle Ready Catalyst's own flat +1 above. Cosmic
+		// Kujaku (feat/hoshi/cosmic-kujaku, 16th level+) replaces that with
+		// "the increase to AC becomes +2" rather than stacking a second
+		// bonus on top. Gated on the feature actually being granted (not
+		// just the player's own stored toggle) for the same reason the
+		// Exoskeleton checks above gate on exoskeletonGranted: a stale
+		// kujaku_mode_active=1 left over from a re-clanned or de-leveled
+		// character should never silently keep granting a bonus its sheet
+		// no longer has the feature for.
+		if sheet.AC != nil && sheet.KujakuModeActive && hasFeature(grantedFeatures, hoshiKujakuModeFeatureSlug) {
+			bonus := 1
+			if hasFeature(grantedFeatures, hoshiCosmicKujakuFeatSlug) {
+				bonus = 2
+			}
+			v := *sheet.AC + bonus
 			sheet.AC = &v
 		}
 	}

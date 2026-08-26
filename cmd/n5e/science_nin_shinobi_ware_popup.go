@@ -63,7 +63,7 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 		popup.Sections = append(popup.Sections, inHisImageSection(id, sw))
 	}
 	if sw.EverEvolvingSeal != nil || len(sw.AvailableEverEvolvingSeal) > 0 {
-		popup.Sections = append(popup.Sections, everEvolvingSection(id, sw))
+		popup.Sections = append(popup.Sections, everEvolvingSection(id, sw, data.CreationPointsUsed, data.CreationPointsCap))
 	}
 	s.renderSubclassTrackerPopup(w, "character_science_nin_shinobi_ware.html", popup, map[string]any{
 		"ShinobiWare": sw,
@@ -139,7 +139,15 @@ func inHisImageSection(characterID int64, sw *scienceNinShinobiWareData) subclas
 	return sec
 }
 
-func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData) subclassTrackerSection {
+// everEvolvingSection builds the popup's own Ever Evolving Known/Available
+// section — creationPointsUsed/Cap (the same shared budget every other
+// Science-Nin CP-spending catalog draws from, threaded in from the caller's
+// own *scienceNinToolsTabData rather than read off sw, which doesn't carry
+// them) gate each Available seal's own Disabled flag below: a seal's Cost
+// equals its own rank (everEvolvingSealCost, ever_evolving.go), so a
+// character already close to their cap can find some ranks pickable and
+// higher ones not, all inside this single one-slot section.
+func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
 		Title:        "Ever Evolving",
@@ -157,6 +165,7 @@ func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData) subcl
 		for _, o := range sw.AvailableEverEvolvingSeal {
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name, Epithet: "Rank " + o.Rank + " · " + strconv.Itoa(o.Cost) + " CP", Description: o.Description,
+				Disabled: creationPointsUsed+o.Cost > creationPointsCap,
 			})
 		}
 	}

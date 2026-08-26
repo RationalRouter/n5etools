@@ -49,11 +49,23 @@
   <form method="post" action="{{.AddAction}}" class="sheet-panel-form">
     <ul class="puppet-upgrade-option-list">
       {{range .Available}}
-      <li>
+      {{/* Disabled (subclassTrackerOption's own doc, subclass_tracker_popup.
+           go) is a Creation-Points-budget-check-derived UI convenience —
+           the wrapping <li> gets the same dimmed, flex-column
+           .puppet-upgrade-option-unaffordable treatment (app.css)
+           character_sheet.html's own Puppet Upgrade picker already uses
+           for its unrelated PrereqMet/AlreadyTaken gate, with the radio
+           itself disabled so a normal click/keyboard select can't pick it;
+           the option's own Epithet badge (already visible on the tile,
+           not just in the tooltip) keeps showing the cost that made it
+           unaffordable, and the reason line below names the gate
+           explicitly rather than leaving the player to guess. */}}
+      <li{{if .Disabled}} class="puppet-upgrade-option-unaffordable"{{end}}>
         <label class="puppet-upgrade-option tooltip">
-          <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Epithet}}</span>
+          <input type="radio" name="option_slug" value="{{.Slug}}" required{{if .Disabled}} disabled{{end}}> {{.Name}} <span class="option-picker-epithet">{{.Epithet}}</span>
           <span class="tooltip-content">{{if .DescriptionHTML}}{{.DescriptionHTML}}{{else}}{{formatDescription .Description}}{{end}}</span>
         </label>
+        {{if .Disabled}}<span class="puppet-upgrade-option-prereq">Not enough Creation Points remaining</span>{{end}}
       </li>
       {{end}}
     </ul>

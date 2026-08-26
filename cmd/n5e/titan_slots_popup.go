@@ -117,10 +117,18 @@ func titanSlotsSection(characterID int64, data *titanUpgradesData) subclassTrack
 		sec.AddAction = "/characters/" + idStr + "/titan-slots/add"
 		sec.AddLabel = "Install Upgrade"
 		for _, o := range data.AvailableUpgrades {
+			// Cost is the SAME titanEffectiveUpgradeCost result addTitanSlotPick
+			// itself checks against the budget (titan.go) — Specialist
+			// Crafting's own per-keyword discount has to be folded in before
+			// comparing against CreationPointsUsed/Cap, not just before
+			// formatting the display Epithet, or a discounted upgrade would
+			// show disabled by its pre-discount cost alone.
+			cost := titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword)
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name,
-				Epithet:     titanUpgradeEpithet(o.Tier, o.Keyword, titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword), o.Drain),
+				Epithet:     titanUpgradeEpithet(o.Tier, o.Keyword, cost, o.Drain),
 				Description: o.Description,
+				Disabled:    data.CreationPointsUsed+cost > data.CreationPointsCap,
 			})
 		}
 	}
@@ -153,10 +161,15 @@ func titanExoSuitSection(characterID int64, data *titanUpgradesData) subclassTra
 		sec.AddAction = "/characters/" + idStr + "/titan-slots/exosuit/add"
 		sec.AddLabel = "Install Exo-Suit Upgrade"
 		for _, o := range exo.Available {
+			// See titanSlotsSection's own comment just above on why the
+			// Specialist-Crafting-discounted cost, not the raw catalog Cost,
+			// is what has to be compared against the shared budget here.
+			cost := titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword)
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name,
-				Epithet:     titanUpgradeEpithet(o.Tier, o.Keyword, titanEffectiveUpgradeCost(o, data.SpecialistCraftingKeyword), o.Drain),
+				Epithet:     titanUpgradeEpithet(o.Tier, o.Keyword, cost, o.Drain),
 				Description: o.Description,
+				Disabled:    data.CreationPointsUsed+cost > data.CreationPointsCap,
 			})
 		}
 	}

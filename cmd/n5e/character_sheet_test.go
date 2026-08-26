@@ -1797,7 +1797,7 @@ func TestComputeInventoryBulk(t *testing.T) {
 	}
 	sheet := &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{"str": {Score: 14, Modifier: 2}}}
 
-	got := computeInventoryBulk(inv, sheet, 0)
+	got := computeInventoryBulk(inv, sheet, nil)
 
 	if got.Carried != 8 {
 		t.Errorf("Carried = %v, want 8 (katana 2 + three kunai at 2)", got.Carried)
@@ -1830,17 +1830,23 @@ func TestComputeInventoryBulk(t *testing.T) {
 	// Over capacity: a character with no Strength bonus and no storage tool
 	// carrying 11 bulk is Encumbered against the flat base of 10.
 	over := []inventoryRow{{Slug: "weapon/great-axe", Bulk: bulk(3), Quantity: 4}}
-	if got := computeInventoryBulk(over, &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{"str": {Score: 10}}}, 0); !got.Encumbered {
+	if got := computeInventoryBulk(over, &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{"str": {Score: 10}}}, nil); !got.Encumbered {
 		t.Errorf("Encumbered = false for %v carried against %v capacity, want true", got.Carried, got.Capacity)
 	}
 
-	// Always Prepared (Puppet Master, L15): the caller-supplied
-	// featureBulkBonus folds into Base/Capacity the same way the Strength
-	// bonus does.
-	withFeature := computeInventoryBulk(nil, &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{"str": {Score: 10}}}, 10)
-	if withFeature.FeatureBonus != 10 || withFeature.Base != 20 || withFeature.Capacity != 20 {
-		t.Errorf("with featureBulkBonus=10: FeatureBonus=%v Base=%v Capacity=%v, want 10/20/20",
+	// Always Prepared (Puppet Master, L15) and Aether Connector (Science-Nin,
+	// Beyond the Veil) at once: the caller-supplied featureBonuses fold into
+	// Base/Capacity the same way the Strength bonus does, summed across every
+	// named source, and FeatureBonuses preserves each one's own label rather
+	// than collapsing them into a single opaque total.
+	withFeature := computeInventoryBulk(nil, &charsheet.Sheet{Abilities: map[string]charsheet.AbilityScore{"str": {Score: 10}}},
+		[]bulkFeatureBonus{{Label: "Always Prepared", Amount: 10}, {Label: "Aether Connector", Amount: 100}})
+	if withFeature.FeatureBonus != 110 || withFeature.Base != 120 || withFeature.Capacity != 120 {
+		t.Errorf("with featureBonuses totaling 110: FeatureBonus=%v Base=%v Capacity=%v, want 110/120/120",
 			withFeature.FeatureBonus, withFeature.Base, withFeature.Capacity)
+	}
+	if len(withFeature.FeatureBonuses) != 2 || withFeature.FeatureBonuses[0].Label != "Always Prepared" || withFeature.FeatureBonuses[1].Label != "Aether Connector" {
+		t.Errorf("FeatureBonuses = %+v, want [{Always Prepared 10} {Aether Connector 100}]", withFeature.FeatureBonuses)
 	}
 }
 

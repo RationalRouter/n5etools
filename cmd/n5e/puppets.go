@@ -2222,6 +2222,24 @@ type companionAttackRow struct {
 	// "Granted by a Puppet Upgrade — remove the upgrade to remove this
 	// attack" on a Titan, which has no Puppet Upgrades at all).
 	GrantedHint string
+	// NoAttackRoll hides the row's own d20 Attack button, leaving only the
+	// Damage roll — for an ability where a TARGET makes a saving throw
+	// (already resolved into a flat DC elsewhere) rather than the companion
+	// making an attack roll of its own, e.g. Shinobifall/Thermite Grenade/
+	// Critical Ejection (titan.go) — showing a to-hit button for those would
+	// be actively wrong, not just unused, since no such roll exists in the
+	// rules text they're drawn from.
+	NoAttackRoll bool
+	// DemonFoeEligible marks a row as one of a Titan's own Weapon-keyword
+	// Titan Upgrade attacks — the exact set titanApplyDemonFoeBonus (titan.go)
+	// applies Bijuu Slayer's own "+2 damage dice against Demons" bonus to.
+	// Set by that same function on every row it processes, regardless of
+	// whether the bonus is currently active, so companion_fields.html knows
+	// which rows get their own "Demon Foe" checkbox — one beside each
+	// eligible attack rather than a single easy-to-miss toggle elsewhere on
+	// the card. false (the default) for every other row (Bash, Shinobifall,
+	// a player's own freeform attacks), which never receive this bonus.
+	DemonFoeEligible bool
 }
 
 // composeCompanionAttacks resolves each row's ability/proficiency/flat
@@ -2237,7 +2255,8 @@ func composeCompanionAttacks(list []charstore.CompanionAttack, companion charsto
 			CompanionAttack: a,
 			AttackTotal: charsheet.ComposeModifier(
 				companionAbilityModifier(companion, a.AttackAbility), ownerProfBonus, a.AttackProf, a.AttackBonus),
-			DamageTotal: companionAbilityModifier(companion, a.DamageAbility) + a.DamageBonus,
+			DamageTotal:  companionAbilityModifier(companion, a.DamageAbility) + a.DamageBonus,
+			NoAttackRoll: a.NoAttackRoll,
 		})
 	}
 	return out

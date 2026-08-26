@@ -26,6 +26,14 @@ type CompanionAttack struct {
 	DamageType    string
 
 	SortOrder int
+
+	// NoAttackRoll marks a stored row as damage/save-only, no attack roll of
+	// its own — see migration 0083_companion_attack_no_roll.sql. False for
+	// every row a player adds by hand through the ordinary "Add an attack"
+	// form, which has no control for this; only ensureWhelpCompanion
+	// (cmd/n5e/wow_whelp.go) sets it true today, for Aether Breath/Aether
+	// Meteor.
+	NoAttackRoll bool
 }
 
 // DamageDice renders the stored parts back as dice notation ("2d6") for
@@ -48,15 +56,19 @@ func AddCompanionAttack(charDB *sql.DB, characterID, companionID int64, a Compan
 	).Scan(&nextOrder); err != nil {
 		return 0, fmt.Errorf("compute sort_order: %w", err)
 	}
+	noAttackRoll := 0
+	if a.NoAttackRoll {
+		noAttackRoll = 1
+	}
 	res, err := charDB.Exec(`
 		INSERT INTO character_companion_attacks
 			(companion_id, name, description, attack_ability, attack_prof, attack_bonus,
-			 damage_count, damage_sides, damage_ability, damage_bonus, damage_type, sort_order)
-		SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			 damage_count, damage_sides, damage_ability, damage_bonus, damage_type, sort_order, no_attack_roll)
+		SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		FROM character_companions WHERE id = ? AND character_id = ?`,
 		a.Name, a.Description, a.AttackAbility, a.AttackProf, a.AttackBonus,
 		nullableCount(a.DamageCount), nullableCount(a.DamageSides),
-		a.DamageAbility, a.DamageBonus, a.DamageType, nextOrder,
+		a.DamageAbility, a.DamageBonus, a.DamageType, nextOrder, noAttackRoll,
 		companionID, characterID,
 	)
 	if err != nil {
@@ -88,7 +100,8 @@ func DeleteCompanionAttack(charDB *sql.DB, characterID, companionID, attackID in
 func ListCompanionAttacks(charDB *sql.DB, characterID, companionID int64) ([]CompanionAttack, error) {
 	rows, err := charDB.Query(`
 		SELECT a.id, a.companion_id, a.name, a.description, a.attack_ability, a.attack_prof, a.attack_bonus,
-		       a.damage_count, a.damage_sides, a.damage_ability, a.damage_bonus, a.damage_type, a.sort_order
+		       a.damage_count, a.damage_sides, a.damage_ability, a.damage_bonus, a.damage_type, a.sort_order,
+		       a.no_attack_roll
 		FROM character_companion_attacks a
 		JOIN character_companions c ON c.id = a.companion_id
 		WHERE a.companion_id = ? AND c.character_id = ?
@@ -103,12 +116,15 @@ func ListCompanionAttacks(charDB *sql.DB, characterID, companionID int64) ([]Com
 	for rows.Next() {
 		var a CompanionAttack
 		var count, sides sql.NullInt64
+		var noAttackRoll int
 		if err := rows.Scan(&a.ID, &a.CompanionID, &a.Name, &a.Description, &a.AttackAbility, &a.AttackProf, &a.AttackBonus,
-			&count, &sides, &a.DamageAbility, &a.DamageBonus, &a.DamageType, &a.SortOrder); err != nil {
+			&count, &sides, &a.DamageAbility, &a.DamageBonus, &a.DamageType, &a.SortOrder,
+			&noAttackRoll); err != nil {
 			return nil, err
 		}
 		a.DamageCount = int(count.Int64)
 		a.DamageSides = int(sides.Int64)
+		a.NoAttackRoll = noAttackRoll != 0
 		out = append(out, a)
 	}
 	return out, rows.Err()

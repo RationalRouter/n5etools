@@ -90,6 +90,36 @@ type subclassTrackerOption struct {
 	// (W.O.W's own base/Ascension split — see formatWoWDescription — is the
 	// first and, so far, only user).
 	DescriptionHTML template.HTML
+	// Disabled marks an option the character cannot currently afford —
+	// evaluated by whichever section builder populates a Creation-Points-
+	// spending catalog's own Available list (everEvolvingSection,
+	// snbUpgradesSection, spywareProgramSection, eipSection,
+	// titanSlotsSection, titanExoSuitSection — the six catalogs that
+	// actually draw from the shared Creation Points pool; see
+	// science_nin_subclasses.go's own header doc on why every OTHER
+	// Science-Nin catalog in that file stays Cost-informational-only) as
+	// CreationPointsUsed + this option's own effective cost exceeding
+	// CreationPointsCap (subclassTrackerPopupData's own two fields, already
+	// in scope wherever a section builder runs). Deliberately named so its
+	// zero value (false) means "pickable": a catalog with no Cost concept
+	// at all (Hunter Creed traps, Scout-Nin maneuvers, every flat-slot-only
+	// Puppet-style pick this pattern also serves) never touches this field
+	// and stays fully selectable exactly as before it existed. partials/
+	// subclass_tracker_popup.html's own subclass_tracker_section renders
+	// this as a disabled radio input plus a dimming
+	// .puppet-upgrade-option-unaffordable wrapper (app.css) — a UI
+	// convenience only, the same "a disabled control isn't the real
+	// enforcement" boundary character_sheet.html's own Puppet Upgrade
+	// picker already draws for its PrereqMet/AlreadyTaken gate (see that
+	// template's own comment). Each add*Pick validator this option
+	// ultimately POSTs to (addEverEvolvingSealPick, addSNBUpgradePick,
+	// addSpywareProgramPick, addEIPPick, addTitanSlotPick,
+	// addTitanExoSuitPick) re-runs the identical budget check server-side
+	// and stays the actual enforcement — Disabled only prevents a normal
+	// player from submitting a pick their own sheet already shows they
+	// can't afford, it doesn't (and isn't meant to) stop a hand-crafted
+	// POST.
+	Disabled bool
 }
 
 // subclassTrackerKnownPick is one already-installed pick's display row.
@@ -224,6 +254,9 @@ func (s *server) subclassTrackerPopupDelete(category charstore.ScienceNinSubclas
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("remove subclass tracker pick:", err)
 			return
+		}
+		if category == charstore.ScienceNinPickAscendedWoW {
+			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
 		}
 		http.Redirect(w, r, popupPath(id), http.StatusSeeOther)
 	}

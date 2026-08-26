@@ -536,6 +536,20 @@ type ninDogReference struct {
 	JutsuSpecialtyText  string
 	BiteDescription     string
 
+	// Resistances/Immunities/ConditionImmunities: comma-joined free text,
+	// matching snbReference/titanReference/summonTribeReference's own
+	// identically-named/-shaped fields exactly — see
+	// ninDogResistancesImmunities for how these are computed and why every
+	// branch there currently resolves to "". Kept as real, always-run
+	// infrastructure (not simply omitted) so the "nindog_reference"
+	// template's own conditional dt/dd rows already exist and are ready the
+	// moment a future Dog/Wolf special feature or breed trait actually
+	// grants one — the exact same reasoning titanReference's own doc gives
+	// for its own two upgrade-gated fields.
+	Resistances         string
+	Immunities          string
+	ConditionImmunities string
+
 	// Expected*: the same "computed hint, never silently overwritten, Sync
 	// button available" treatment puppetCompanionView's own Expected*
 	// fields already give a puppet — see companion_stat_fields.html's own
@@ -691,7 +705,68 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 		ExpectedWis:         finalAbilityScore("wis"),
 		ExpectedCha:         finalAbilityScore("cha"),
 	}
+	ref.Resistances, ref.Immunities, ref.ConditionImmunities = ninDogResistancesImmunities(ref)
 	return ref, nil
+}
+
+// ninDogResistanceCatalog: Dog/Wolf summon_tribe_features row name -> what
+// it grants the Nin-Dog itself, the Nin-Dog-scoped twin of
+// summonTribeResistanceCatalog (companions.go) — reusing that same
+// summonTribeResistanceGrant shape rather than a parallel type, since the
+// underlying data (a summon_tribe_features row's own name -> granted
+// resistance/immunity/condition-immunity) is identical in shape here, just
+// scoped to one tribe (summon/dog-wolf) instead of the whole catalog.
+//
+// Empty today: the investigation summonTribeResistanceCatalog's own header
+// doc already ran across the FULL summon catalog (all ranks, every tribe,
+// including summon/dog-wolf) found no qualifying row for Dog/Wolf — its
+// only "resist"/"immun" hit, A-Rank's "Iron Fangs" ("This summon cannot
+// have its damage resisted"), is the same offensive shape excluded there
+// (a TARGET being unable to resist the Nin-Dog's own damage, not a trait of
+// the Nin-Dog itself) — and re-confirmed directly against ninDogBreeds'
+// own three hand-curated Traits lists (Young Inuit/Young Kugsha/Young
+// Tamaskan), none of which mention a resistance, immunity, or condition
+// immunity either. Kept as a real lookup table rather than a bare
+// early-return specifically so a future Dog/Wolf feature or breed trait
+// that does grant one is a one-line addition here instead of new plumbing.
+var ninDogResistanceCatalog = map[string]summonTribeResistanceGrant{}
+
+// ninDogResistancesImmunities resolves the Damage Resistances/Damage
+// Immunities/Condition Immunities a Nin-Dog's own base stat block never
+// states, checking ref's own currently-unlocked Dog/Wolf special features
+// (ref.Features, already rank-gated by loadNinDogReference) against
+// ninDogResistanceCatalog — the Nin-Dog equivalent of
+// summonTribeResistancesImmunities, gated the exact same way (a Locked
+// feature never contributes, so a resistance from a not-yet-reached rank
+// doesn't show early). Breed traits (ninDogBreeds) are plain prose strings
+// rather than a table row with a stable name to key a catalog by, so they
+// aren't checked here at all; ninDogResistanceCatalog's own header doc
+// records that none of the three currently grant anything either way.
+// Every return value is "" today (see that table's own doc for why), which
+// the "nindog_reference" template's own {{if}} guards read as "no row at
+// all" rather than an empty one, the same convention titan_reference/
+// summon_tribe_reference already use.
+func ninDogResistancesImmunities(ref *ninDogReference) (resistances, immunities, conditionImmunities string) {
+	var resistanceParts, immunityParts, conditionParts []string
+	for _, f := range ref.Features {
+		if f.Locked {
+			continue
+		}
+		g, ok := ninDogResistanceCatalog[f.Name]
+		if !ok {
+			continue
+		}
+		if g.Resistance != "" {
+			resistanceParts = append(resistanceParts, g.Resistance)
+		}
+		if g.Immunity != "" {
+			immunityParts = append(immunityParts, g.Immunity)
+		}
+		if g.ConditionImmunity != "" {
+			conditionParts = append(conditionParts, g.ConditionImmunity)
+		}
+	}
+	return strings.Join(resistanceParts, ", "), strings.Join(immunityParts, ", "), strings.Join(conditionParts, ", ")
 }
 
 // prefillNinDogStatDefaults populates a freshly-created Nin-Dog's AC/HP-max/

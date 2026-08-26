@@ -178,12 +178,16 @@ const (
 	// (Greater tier): "Increase your critical threat range with your
 	// Unarmed Strike and Weapon Attacks by +1." Like the four Perma-Perk-
 	// eligible E.I.Ps applied in internal/charsheet/charsheet.go, this
-	// clause is only live once Razor is the character's designated Perma
+	// clause is live either once Razor is the character's designated Perma
 	// Perk (14th level: "gaining its benefits... without needing to spend
-	// CCD chakra to activate") — a merely-known Razor E.I.P grants nothing,
-	// same as every other E.I.P (see this file's own header doc). Applied
-	// in weaponSpecialistCritRangeThreshold (characters.go) since attack
-	// rows are built there rather than in internal/charsheet.
+	// CCD chakra to activate"), OR once Razor is merely a known E.I.P with
+	// Exoskeleton armor donned (see scienceNinEIPActiveBenefit below, and
+	// internal/charsheet/charsheet.go's own eipActiveBenefit for the
+	// shared rules-text reasoning: Perma Perk's own text only ever removes
+	// the NEED for Exoskeleton armor, implying every other known E.I.P
+	// still needs it donned to do anything). Applied in
+	// weaponAttackCritRangeThreshold (characters.go) since attack rows are
+	// built there rather than in internal/charsheet.
 	scienceNinRazorEIPSlug = "class/science-nin/option/e-i-ps/greater/entry/razor-e-i-p"
 )
 
@@ -240,6 +244,62 @@ func (s *server) scienceNinHasPermaPerk(characterID int64, wantSlug string) (boo
 	// Cross-checked against Known E.I.Ps rather than trusted outright — see
 	// resolveScienceNinPermaPerk's own doc (internal/charsheet/charsheet.go)
 	// for why a stored Perma Perk pick can outlive the E.I.P it designates.
+	knownEIPs, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEIP)
+	if err != nil {
+		return false, err
+	}
+	for _, k := range knownEIPs {
+		if k.OptionSlug == wantSlug {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// scienceNinEIPActiveBenefit reports whether wantSlug's own flat numeric
+// (or, for Razor E.I.P, crit-range) clause should currently apply to
+// characterID: either wantSlug IS the character's designated Perma Perk
+// (scienceNinHasPermaPerk, already gated on the 14th-level feature/subclass
+// and cross-checked against Known E.I.Ps above), OR wantSlug is merely a
+// Known E.I.P (charstore.ScienceNinPickEIP) while Exoskeleton armor is
+// currently donned (charstore.ExoskeletonDonned). This is
+// weaponAttackCritRangeThreshold's own (characters.go) entry point for
+// Razor E.I.P, and is the cmd/n5e-side counterpart of internal/charsheet/
+// charsheet.go's own eipActiveBenefit, which resolves the identical OR for
+// the other four Perma-Perk-eligible E.I.Ps (Speed/Stamina/Juggernaut/
+// Vulture) against a Sheet already in hand. Kept as a separate,
+// differently-shaped function here rather than sharing eipActiveBenefit's
+// own signature directly: that function takes a pre-built knownEIPs set
+// and a pre-resolved permaPerk slug (both already computed once per
+// internal/charsheet.Compute call and threaded through five call sites),
+// whereas weaponAttackCritRangeThreshold has no Sheet or pre-built set of
+// its own at hand and is called from several distinct request handlers
+// (buildAttacks, loadCharacterJutsuSheet's own caller, the "sheet_weapon_
+// attacks" fragment branch) — re-deriving both the Perma Perk gate (via
+// scienceNinHasPermaPerk, unchanged) and the known/donned pair locally here
+// keeps every one of those call sites at the simple one-characterID-in
+// shape they already have, rather than requiring each to first build and
+// pass down a Sheet/knownEIPs pair of its own. See
+// elementalInnovationistPermaPerkFeatureSlug's own doc comment
+// (internal/charsheet/charsheet.go) for the shared rules-text reasoning
+// behind the second branch, and that same doc for why the printed "without
+// needing to spend CCD chakra to activate" half of Perma Perk's text is
+// deliberately NOT modeled as a further gate on top.
+func (s *server) scienceNinEIPActiveBenefit(characterID int64, wantSlug string) (bool, error) {
+	hasPermaPerk, err := s.scienceNinHasPermaPerk(characterID, wantSlug)
+	if err != nil {
+		return false, err
+	}
+	if hasPermaPerk {
+		return true, nil
+	}
+	donned, err := charstore.ExoskeletonDonned(s.charDB, characterID)
+	if err != nil {
+		return false, err
+	}
+	if !donned {
+		return false, nil
+	}
 	knownEIPs, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEIP)
 	if err != nil {
 		return false, err
@@ -1804,13 +1864,126 @@ func (s *server) handleSpywareProgramPopupAdd(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, spywarePopupPath(id), http.StatusSeeOther)
 }
 
+// scienceNinAngelEIPSlug is Angel E.I.P's own class_option_entries slug
+// (Superior tier, 20 Creation Points, CCD Drain 16 Chakra): "you fit your
+// medallion with a gray fluid that reeks of a smell akin to sour milk.
+// Once per long rest, when you would be reduced to 0 hit points, you may
+// cause a Spectre to appear within 60 feet of you..." Unlike every other
+// E.I.P in this file, Angel's own printed text describes a mechanical
+// entity the character actually fields in combat rather than a passive or
+// self-targeted clause — the same shape a Puppet Tool, Nin-Dog, or Titan
+// already gets its own companion row for — so addEIPPick below auto-adds
+// one the moment this slug is picked, via ensureAngelEIPSpectreCompanion.
+const scienceNinAngelEIPSlug = "class/science-nin/option/e-i-ps/superior/entry/angel-e-i-p"
+
+// scienceNinAngelEIPCompanionName is the exact display name given to the
+// companion ensureAngelEIPSpectreCompanion auto-adds for Angel E.I.P. The
+// book's own text never gives this entity a stat-block name distinct from
+// the perk itself — it calls it "Spectre" throughout ("your Spectre has 10
+// hit points...", "Your Spectre disappears once it stabilizes you...") —
+// so "Spectre" is what's added, not "Angel"; the "(Angel E.I.P)" suffix
+// both tells the player at a glance which pick produced this entry (a
+// kind="custom" companion otherwise carries no back-reference to whatever
+// created it) and doubles as ensureAngelEIPSpectreCompanion's own
+// duplicate-prevention marker — see that function's own doc.
+const scienceNinAngelEIPCompanionName = "Spectre (Angel E.I.P)"
+
+// ensureAngelEIPSpectreCompanion auto-adds Angel E.I.P's own Spectre as a
+// kind="custom" companion the first time the perk is picked — called from
+// addEIPPick below immediately after the pick itself is stored, so both of
+// addEIPPick's own callers (the Core-sheet AJAX route and the Elemental
+// Innovationist popup route) get it automatically. Reuses kind="custom"
+// (cmd/n5e/companions.go:199's kind whitelist) rather than inventing a new
+// companion kind with its own migration/prefill/template plumbing — a
+// Spectre has no ongoing, level-scaling stat block the way a Puppet Tool/
+// Nin-Dog/Titan does (its whole card is a fixed 10 HP plus the fixed prose
+// rendered by companion_fields.html's own "Spectre (Angel E.I.P)"
+// name-matched reference section), which is exactly the "one-off, no
+// formula behind it" shape kind="custom" already exists for. HP/Max HP are
+// set with charstore.SetCompanionIntField("hp_max", ...) followed by
+// charstore.SetCompanionHP, the same two-call "max, then current" shape
+// prefillPuppetStatDefaults (cmd/n5e/companions.go) uses right after
+// charstore.AddCompanion — SetCompanionIntField rather than
+// charstore.SetCompanionStatDefaults specifically because that function
+// would also force AC/Speed/all six ability scores to explicit values,
+// and Angel E.I.P's own text specifies none of those for a Spectre; a
+// kind="custom" companion is documented to start every field blank until
+// the player fills it in, and this only overrides the two fields the book
+// text actually pins a number to.
+//
+// Guarded by scienceNinAngelEIPCompanionName's own exact-name match against
+// the character's existing companions (charstore.ListCompanions) rather
+// than an unconditional add: addEIPPick can run again for the same
+// character if Angel E.I.P is forgotten (removeEIPPick) and re-picked
+// later, and a second "Spectre (Angel E.I.P)" row would just be dead
+// clutter, not a second usable entity — Angel E.I.P's own text describes
+// one Spectre, not one per pick.
+//
+// Mirrored by removeAngelEIPSpectreCompanion (called from removeEIPPick),
+// which deletes the same exact-name-matched companion when Angel E.I.P is
+// forgotten — the auto-create/auto-delete pair the Draconic Gauntlet W.o.W's
+// own Whelp companion (ensureWhelpCompanion/removeWhelpCompanion) is built
+// to match exactly.
+func (s *server) ensureAngelEIPSpectreCompanion(characterID int64) error {
+	existing, err := charstore.ListCompanions(s.charDB, characterID)
+	if err != nil {
+		return err
+	}
+	for _, c := range existing {
+		if c.Name == scienceNinAngelEIPCompanionName {
+			return nil
+		}
+	}
+	companionID, err := charstore.AddCompanion(s.charDB, characterID, "custom", scienceNinAngelEIPCompanionName)
+	if err != nil {
+		return err
+	}
+	if err := charstore.SetCompanionIntField(s.charDB, characterID, companionID, "hp_max", sql.NullInt64{Int64: 10, Valid: true}); err != nil {
+		return err
+	}
+	if err := charstore.SetCompanionHP(s.charDB, characterID, companionID, sql.NullInt64{Int64: 10, Valid: true}); err != nil {
+		return err
+	}
+	return charstore.SetCompanionFields(s.charDB, characterID, companionID,
+		scienceNinAngelEIPCompanionName, "",
+		"", "", "",
+		"", false, "", "",
+		"All", "", "",
+		false,
+	)
+}
+
+// removeAngelEIPSpectreCompanion deletes the Spectre ensureAngelEIPSpectre
+// Companion auto-added, called from removeEIPPick when Angel E.I.P is
+// forgotten so the companion disappears from the Core/Companion sheets the
+// same moment the perk does, instead of being left behind for the player to
+// delete by hand. Matched by scienceNinAngelEIPCompanionName's exact name,
+// same lookup ensureAngelEIPSpectreCompanion itself uses to avoid a
+// duplicate add; a no-op if no such companion exists (already deleted by
+// the player, or Angel E.I.P was never actually picked).
+func (s *server) removeAngelEIPSpectreCompanion(characterID int64) error {
+	existing, err := charstore.ListCompanions(s.charDB, characterID)
+	if err != nil {
+		return err
+	}
+	for _, c := range existing {
+		if c.Name == scienceNinAngelEIPCompanionName {
+			return charstore.DeleteCompanion(s.charDB, characterID, c.ID)
+		}
+	}
+	return nil
+}
+
 // addEIPPick validates and installs one E.I.P, gated by BOTH the flat
 // Exoskeleton slot cap (EIPCap/Used) and the shared Creation Points budget —
 // same dual-check shape addSNBUpgradePick/addSpywareProgramPick establish
 // above, for the identical reason (see this file's header doc on why E.I.Ps
 // are this file's third exception to "informational only"). Shared by the
 // Core-sheet's own AJAX route (handleScienceNinEIPAdd, just below) and the
-// Elemental Innovationist popup's own redirect route (handleEIPPopupAdd).
+// Elemental Innovationist popup's own redirect route (handleEIPPopupAdd) —
+// hooking Angel E.I.P's own companion auto-add (ensureAngelEIPSpectreCompanion)
+// in here, rather than in each route handler separately, covers both entry
+// points for free.
 func (s *server) addEIPPick(id int64, slug string) (int, string) {
 	if slug == "" {
 		return http.StatusBadRequest, "missing perk"
@@ -1849,6 +2022,19 @@ func (s *server) addEIPPick(id int64, slug string) (int, string) {
 	if err := charstore.AddScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickEIP, slug, ""); err != nil {
 		log.Println("add eip:", err)
 		return http.StatusInternalServerError, "database error"
+	}
+	if slug == scienceNinAngelEIPSlug {
+		if err := s.ensureAngelEIPSpectreCompanion(id); err != nil {
+			// The E.I.P pick itself is already stored successfully at this
+			// point; a failure to also add the Spectre companion (a database
+			// error on the follow-up INSERT/UPDATEs) just leaves the player
+			// to add it by hand via the ordinary Add Companion action rather
+			// than failing the whole pick and leaving Angel E.I.P un-added —
+			// same "don't fail the primary action over a secondary prefill"
+			// judgment call handleSheetCompanionAdd's own kind-specific
+			// prefill calls already make for puppet/nin-dog/titan/snb.
+			log.Println("add angel eip spectre companion:", err)
+		}
 	}
 	return http.StatusOK, ""
 }
@@ -1924,6 +2110,15 @@ func (s *server) removeEIPPick(id int64, slug string) error {
 			if err := charstore.RemoveScienceNinSubclassPick(s.charDB, id, charstore.ScienceNinPickPermaPerk, slug); err != nil {
 				return err
 			}
+		}
+	}
+	if slug == scienceNinAngelEIPSlug {
+		if err := s.removeAngelEIPSpectreCompanion(id); err != nil {
+			// Same "don't fail the primary action over a secondary cleanup"
+			// judgment call addEIPPick's own ensureAngelEIPSpectreCompanion
+			// error handling makes — the E.I.P is already forgotten at this
+			// point either way.
+			log.Println("remove angel eip spectre companion:", err)
 		}
 	}
 	return nil
@@ -2117,6 +2312,9 @@ func (s *server) scienceNinSubclassPickAddCore(
 		log.Println("add science-nin subclass pick:", err)
 		return http.StatusInternalServerError, "database error"
 	}
+	if category == charstore.ScienceNinPickAscendedWoW {
+		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
+	}
 	return http.StatusOK, ""
 }
 
@@ -2143,6 +2341,9 @@ func (s *server) handleScienceNinSubclassPickDelete(category charstore.ScienceNi
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("remove science-nin subclass pick:", err)
 			return
+		}
+		if category == charstore.ScienceNinPickAscendedWoW {
+			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
 		}
 		s.respondSheet(w, r, id, "sheet_science_nin")
 	}

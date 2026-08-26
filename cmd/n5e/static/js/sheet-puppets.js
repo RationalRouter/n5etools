@@ -34,6 +34,27 @@
       .catch((err) => console.warn("summon tribe save failed:", err));
   });
 
+  // Demon Foe (is_demon_foe) — this tab's own half of the identical fix as
+  // companion-sheet.js's listener for the popup (see that file's own
+  // comment for why a checkbox's "change" event, not "focusout", is what
+  // has to trigger the save): a Titan's own Attacks cards live only on the
+  // Companions tab (#sheet-summon-tab), so a fragment refresh there is
+  // enough to show every affected row's new dice count immediately, the
+  // same "no full reload" reasoning summon_tribe_slug's own listener above
+  // already uses for this tab.
+  document.addEventListener("change", (e) => {
+    const field = e.target;
+    if (!(field instanceof Element) || field.name !== "is_demon_foe") return;
+    if (!field.closest("#sheet-summon-tab")) return; // only this tab's own checkbox, not the popup's
+    if (!field.form || !window.n5eCompanionPostForm) return;
+    window.n5eCompanionPostForm(field.form)
+      .then((r) => {
+        if (!r.ok) throw new Error("server rejected the request (" + r.status + ")");
+        if (window.n5eRefreshBlocks) window.n5eRefreshBlocks("sheet-summon-tab");
+      })
+      .catch((err) => console.warn("demon foe save failed:", err));
+  });
+
   // Every locked-once-chosen picker's explicit "Set ..." commit button
   // (Nin-Dog Breed and Titan Specialization on the Summons tab, Armor
   // Chassis on the Puppets tab), this tab's own half of the same fix as

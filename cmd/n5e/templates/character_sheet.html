@@ -31,6 +31,7 @@
         <input type="hidden" name="on" value="{{if .Sheet.Inspiration}}0{{else}}1{{end}}">
         <button type="submit" class="sheet-inspiration-toggle{{if .Sheet.Inspiration}} sheet-inspiration-on{{end}}" data-toggle-class="sheet-inspiration-on"><span class="sheet-inspiration-star">✦</span> Inspiration</button>
       </form>
+      {{template "sheet_kujaku_mode" (dict "ID" .ID "Sheet" .Sheet "Kujaku" .Kujaku)}}
     </div>
     {{template "sheet_portrait" (dict "ID" .ID "Sheet" .Sheet)}}
   </div>
@@ -2929,7 +2930,7 @@
     <p class="section-hint">Scientific Ninja Tools can be created, upgraded and replaced during a Long Rest. The Creation Points budget above is shared with Titan Upgrades (Mech Crafter) or S.N.B Upgrades (S.N.B Specialist), where applicable.</p>
     {{range .ScienceNin.KnownTools}}
     <div class="puppet-upgrade-pick">
-      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
         <input type="hidden" name="option_slug" value="{{.Slug}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
       </form>
@@ -2938,14 +2939,23 @@
     </div>
     {{end}}
     {{if lt .ScienceNin.CreationPointsUsed .ScienceNin.CreationPointsCap}}
-    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-tools" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
       <ul class="puppet-upgrade-option-list">
         {{range .ScienceNin.AvailableTools}}
-        <li>
+        {{/* Disabled (scienceNinToolOption's own doc, science_nin.go) is a
+             remaining-Creation-Points-budget check, rendered with the same
+             dimmed .puppet-upgrade-option-unaffordable wrapper + disabled
+             radio + reason line partials/subclass_tracker_popup.html's
+             shared subclass_tracker_section uses for every OTHER
+             Creation-Points-gated catalog this app has — kept in sync by
+             hand here since Scientific Ninja Tools stayed an inline picker
+             rather than moving into that shared popup pattern. */}}
+        <li{{if .Disabled}} class="puppet-upgrade-option-unaffordable"{{end}}>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}</span>
+            <input type="radio" name="option_slug" value="{{.Slug}}" required{{if .Disabled}} disabled{{end}}> {{.Name}} <span class="option-picker-epithet">{{.Tier}} · Cost {{.Cost}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
+          {{if .Disabled}}<span class="puppet-upgrade-option-prereq">Not enough Creation Points remaining</span>{{end}}
         </li>
         {{end}}
       </ul>
@@ -2957,10 +2967,10 @@
   {{$ig := .ScienceNin.InfusedGenius}}
   <div class="sheet-subclass-detail">
     <h3>Infused Tools <span class="option-picker-epithet">{{$ig.Used}}/{{$ig.Cap}} infused</span></h3>
-    <p class="section-hint">Restricted to already-known tools of Cost 8 or lower. Twice per long rest (Special Resources above), the holder or wearer of the attached weapon/armor can use one at no chakra cost — which item each is attached to isn't tracked here.</p>
+    <p class="section-hint">Restricted to already-known tools of Cost 8 or lower. Twice per long rest (Special Resources above), the holder or wearer of the attached weapon/armor can use one at no chakra cost — SNTs must be selected for this feature to work.</p>
     {{range $ig.Known}}
     <div class="puppet-upgrade-pick">
-      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
         <input type="hidden" name="option_slug" value="{{.Slug}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
       </form>
@@ -2969,7 +2979,7 @@
     </div>
     {{end}}
     {{if lt $ig.Used $ig.Cap}}
-    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-infused-tool" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
       <ul class="puppet-upgrade-option-list">
         {{range $ig.Available}}
         <li>
@@ -2992,14 +3002,14 @@
     <p class="section-hint">Grants the 3rd Level features of one other Scientific Inquiry (never the one chosen at 3rd Level). Only this pick is tracked — whatever the borrowed Inquiry's own 3rd Level mechanics unlock elsewhere on this sheet follows automatically.</p>
     {{if $mixed.Picked}}
     <div class="puppet-upgrade-pick">
-      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin">
+      <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
         <input type="hidden" name="option_slug" value="{{$mixed.Picked.Slug}}">
         <button type="submit" class="sheet-delete-btn" aria-label="Drop Mixed Studies pick" title="Drop">&times;</button>
       </form>
       <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-picks/mixed-studies/{{$mixed.Picked.Slug}}">{{$mixed.Picked.Name}}</a>
     </div>
     {{else}}
-    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin">
+    <form method="post" action="/characters/{{$.ID}}/sheet/science-nin-mixed-studies" class="sheet-panel-form sheet-fetch-form" data-target="sheet-science-nin" data-refresh-popups="1">
       <ul class="puppet-upgrade-option-list">
         {{range $mixed.Available}}
         <li>
@@ -4224,6 +4234,36 @@
 </h1>
 {{end}}
 
+{{/* Hoshi Clan's Kujaku Mode toggle (clan/hoshi/feature/kujaku-mode) —
+     shown only for a Hoshi character 3rd level or higher (.Kujaku.Granted);
+     invisible (renders nothing) for everyone else. Sits directly under
+     Inspiration in sheet-header-meta, same star/highlight visual pattern
+     (see .sheet-kujaku-toggle in app.css, cloned from
+     .sheet-inspiration-toggle). Unlike Inspiration, turning this on changes
+     AC and the info panel's own narrated numbers below, so its form carries
+     data-target (resync this fragment's own hidden "on" field) and
+     data-also-refresh="sheet-ac" (the AC box elsewhere on the page) rather
+     than Inspiration's fire-and-forget shape. */}}
+{{define "sheet_kujaku_mode"}}
+{{if .Kujaku.Granted}}
+<div id="sheet-kujaku-mode" data-fragment="sheet_kujaku_mode" class="sheet-kujaku-mode">
+  <form method="post" action="/characters/{{.ID}}/sheet/kujaku-mode" class="sheet-inline-form sheet-toggle-form"
+        data-target="sheet-kujaku-mode" data-also-refresh="sheet-ac">
+    <input type="hidden" name="on" value="{{if .Kujaku.Active}}0{{else}}1{{end}}">
+    <button type="submit" class="sheet-kujaku-toggle{{if .Kujaku.Active}} sheet-kujaku-on{{end}}" data-toggle-class="sheet-kujaku-on"><span class="sheet-kujaku-star">✦</span> Kujaku Mode</button>
+  </form>
+  {{if .Kujaku.Active}}
+  <div class="sheet-kujaku-info">
+    <p>+{{.Kujaku.ACBonus}} AC &middot; {{.Kujaku.TempHP}} Temp HP &middot; Chakra Control +{{.Kujaku.ChakraControlDie}} &middot; +10ft object reach &middot; ignores Hoshi Hijutsu's HS component</p>
+    <p>Reaction: reduce damage taken by 3d6 (spend Star Chakra to reduce it further by 2 + Con modifier each)</p>
+    {{if .Kujaku.FlourishKnown}}<p>Kujaku Flourish: resistance to bludgeoning/piercing/slashing while this Temp HP lasts, and to your nature release (or Force) for the mode's duration</p>{{end}}
+    {{if .Kujaku.CosmicKnown}}<p>Cosmic Kujaku: activate as part of initiative; remove condition ranks up to your Con modifier on activation; add half your Con modifier to saves against hostile Ninjutsu</p>{{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+
 {{define "sheet_level_row"}}
 <div class="sheet-level-row" id="sheet-level-row" data-fragment="sheet_level_row">
   <span class="sheet-vitals-label sheet-character-level">Character Level {{.Sheet.Level}}</span>
@@ -4722,7 +4762,7 @@
   <span class="sheet-bulk-label">Bulk</span>
   <span class="sheet-bulk-value">{{.Bulk.Carried}}<span class="sheet-bulk-of">/{{.Bulk.Capacity}}</span></span>
   <p class="section-hint sheet-bulk-hint">
-    10 base{{if .Bulk.StrBonus}} {{signedFloat .Bulk.StrBonus}} Strength{{end}}{{if .Bulk.FeatureBonus}} {{signedFloat .Bulk.FeatureBonus}} Always Prepared{{end}}{{if .Bulk.Storage}} +{{.Bulk.Storage}} storage tools{{end}}.
+    10 base{{if .Bulk.StrBonus}} {{signedFloat .Bulk.StrBonus}} Strength{{end}}{{range .Bulk.FeatureBonuses}} {{signedFloat .Amount}} {{.Label}}{{end}}{{if .Bulk.Storage}} +{{.Bulk.Storage}} storage tools{{end}}.
     {{if .Bulk.Encumbered}}<strong class="sheet-bulk-warning">Encumbered: speed halved, disadvantage on all Strength, Dexterity and Constitution checks, attacks and saves.</strong>{{end}}
     {{if .Bulk.Unknown}}{{.Bulk.Unknown}} item{{if ne .Bulk.Unknown 1}}s{{end}} with no recorded bulk {{if eq .Bulk.Unknown 1}}is{{else}}are{{end}} not counted.{{end}}
   </p>

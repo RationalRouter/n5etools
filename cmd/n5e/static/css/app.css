@@ -1128,6 +1128,60 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
 }
 #dice-fab:hover { background: var(--accent-hover); }
 
+/* Popup UI cleanup, scoped to body.bare-window only (layout_bare.html —
+   the companion/Class Reference/Clan Reference/subclass tracker popups),
+   deliberately NOT touching the main sheet's own always-visible dice FAB
+   and scroll buttons: the main sheet is a spacious, actively-rolled-from
+   page where hiding these behind a hover gate would be a usability
+   regression, but a 520-560px popup window (see companion-popup.js's own
+   window.open dimensions) is cramped enough that three permanently-visible
+   floating circles in its corners reads as clutter, and the popup's own
+   list rows put a real control directly under the dice FAB's default
+   position (see the #dice-roller override below).
+   All three share one hover/focus-reveal mechanism: opacity 0 at rest,
+   opacity 1 on hover or keyboard focus. Never visibility:hidden for this —
+   that removes an element from hit-testing entirely, and a never-hit-
+   tested button could never receive the hover meant to reveal it.
+   #back-to-top/#back-to-bottom additionally keep their own scroll-based
+   .back-to-top-visible/.back-to-bottom-visible gate (unchanged JS) so a
+   popup that's short enough to need no scrolling still shows nothing at
+   all, hover or not. */
+body.bare-window #back-to-top,
+body.bare-window #back-to-bottom {
+  opacity: 0;
+}
+body.bare-window #back-to-top.back-to-top-visible,
+body.bare-window #back-to-bottom.back-to-bottom-visible {
+  opacity: 0;
+  visibility: visible;
+}
+body.bare-window #back-to-top.back-to-top-visible:hover,
+body.bare-window #back-to-top.back-to-top-visible:focus-visible,
+body.bare-window #back-to-bottom.back-to-bottom-visible:hover,
+body.bare-window #back-to-bottom.back-to-bottom-visible:focus-visible {
+  opacity: 1;
+}
+/* right: 4.5rem rather than the main sheet's 1.25rem — a popup row's own
+   .sheet-delete-btn (right: 0.5rem against the row) lands well inside the
+   footprint of a 1.25rem-inset, 52px FAB at these widths, silently
+   blocking that row's own remove button underneath it. :has(#dice-panel:
+   not([hidden])) keeps the FAB+panel visible while the panel is open even
+   after the pointer leaves it — dice-roller.js's own doc comment is
+   explicit that the tray "stays open while you browse the rest of the
+   page for what to roll next", which a pure :hover gate would silently
+   defeat (the open panel would turn invisible, not close, the moment the
+   mouse moved away to click something else in the popup). */
+body.bare-window #dice-roller {
+  right: 4.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+body.bare-window #dice-roller:hover,
+body.bare-window #dice-roller:focus-within,
+body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
+  opacity: 1;
+}
+
 .dice-panel {
   position: absolute;
   right: 0;
@@ -2422,6 +2476,68 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
    up against the button instead of giving it breathing room. */
 .sheet-exoskeleton-hint {
   margin-top: 0.75rem;
+}
+
+/* Hoshi Clan's Kujaku Mode toggle — same specificity fix and gold-on-dark
+   "on" state as .sheet-inspiration-toggle/.sheet-exoskeleton-toggle above,
+   cloned rather than shared since each toggle needs its own class pairing
+   for data-toggle-class to target. */
+.sheet-inline-form button.sheet-kujaku-toggle {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.sheet-inline-form button.sheet-kujaku-toggle.sheet-kujaku-on {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+  box-shadow: 0 0 0.5rem rgba(212, 175, 55, 0.35);
+}
+.sheet-inline-form button.sheet-kujaku-toggle.sheet-kujaku-on .sheet-kujaku-star {
+  color: var(--gold);
+  text-shadow: 0 0 0.4rem rgba(212, 175, 55, 0.8);
+}
+.sheet-inline-form button.sheet-kujaku-toggle.sheet-kujaku-on:hover {
+  color: var(--gold-hover);
+  border-color: var(--gold-hover);
+}
+
+/* Wrapper for the toggle + its narrated bonus panel — its own
+   flex/column/gap (rather than a margin-top on .sheet-kujaku-info) so
+   spacing between the two stays correct regardless of which one is
+   currently showing, the same reasoning .sheet-header-meta's own gap
+   already uses one level up. align-items:flex-end matches the parent
+   column so this toggle lines up with Inspiration above it instead of
+   drifting left the moment the (wider) info panel appears below. */
+.sheet-kujaku-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+/* Left-aligned text inside a right-aligned box: right-aligning multi-line
+   prose itself reads as ragged and harder to follow, so only the block as a
+   whole hugs the column's edge (via the flex parent above) while its own
+   lines stay conventionally left-aligned. */
+.sheet-kujaku-info {
+  max-width: 260px;
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.sheet-kujaku-info p {
+  margin: 0;
+}
+.sheet-kujaku-info p + p {
+  margin-top: 0.4rem;
 }
 
 /* 1.5rem, not the 0.6rem the Level form's own controls use: this is the gap
@@ -4226,6 +4342,27 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 .companion-trait-list dd { margin: 0; color: var(--text); }
 .companion-base-traits-text { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-dim); }
 
+/* kind="custom" companion's own editable Resistances/Immunities/Condition
+   Immunities row (companion_fields.html's own companion-custom-resistances
+   dt/dd block) — same box look as .companion-block-label's own
+   select/textarea/input[type="text"] rule above, duplicated rather than
+   shared because these inputs sit inside a .sheet-passive-trait-list dt/dd
+   grid cell (dd is the grid's 1fr column) instead of a .companion-block-label
+   flex column, so that rule's ancestor selector never reaches them. Explicit
+   width: 100% replaces the flex column's own align-items: stretch default,
+   which isn't in play here — a bare <input> defaults to its own intrinsic
+   (~20ch) width inside a grid cell, not the full cell width. */
+.companion-custom-resistances input[type="text"] {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
 /* Known Titan Upgrades/Exo-Suit Upgrades — same visual separator
    .puppet-tactic-detail uses for a short, always-visible detail list. */
 .companion-titan-upgrades-known { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--panel-border); }
@@ -4656,6 +4793,27 @@ summary.companion-card-header::before {
 }
 .puppet-upgrade-option-locked .puppet-upgrade-option:hover { border-color: var(--panel-border); }
 .puppet-upgrade-option-prereq { font-size: 0.72rem; color: var(--text-dim); font-style: italic; }
+/* subclass_tracker_section's (partials/subclass_tracker_popup.html) own
+   "can't afford this on the current Creation Points budget" gate —
+   visually identical to .puppet-upgrade-option-locked's own prereq-gated
+   dimming just above (character_sheet.html's separate Puppet Upgrade
+   picker) but kept as its own class since the reason differs (a live
+   CreationPointsUsed/Cap comparison re-evaluated on every popup GET load,
+   see subclassTrackerOption.Disabled's own doc) and the two pickers are
+   otherwise unrelated markup with no shared Go-side struct. Mirrors that
+   class's flex-column + dimmed-tile shape so the "Not enough Creation
+   Points remaining" reason line (.puppet-upgrade-option-prereq, reused
+   as-is) sits directly under its own tile instead of wrapping awkwardly
+   inside the option-list's shared flex-wrap row. No layout width change
+   either way (opacity/cursor only), so this introduces no new
+   .sheet-box scroll-at-rest risk (see this file's own .tooltip doc on
+   that class of bug). */
+.puppet-upgrade-option-unaffordable { display: flex; flex-direction: column; gap: 0.2rem; max-width: 14rem; }
+.puppet-upgrade-option-unaffordable .puppet-upgrade-option {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.puppet-upgrade-option-unaffordable .puppet-upgrade-option:hover { border-color: var(--panel-border); }
 .puppet-upgrade-option:has(input:checked) {
   background: var(--accent);
   border-color: var(--accent);
@@ -4752,6 +4910,14 @@ summary.companion-card-header::before {
 .companion-attack-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; cursor: pointer; }
 .companion-attack-row:hover .companion-attack-name { color: var(--accent); }
 .companion-attack-name { flex: 1 1 auto; }
+/* Demon Foe's own per-row checkbox (companion_fields.html) — sits first in
+   the row, ahead of the Attack roll button, so it reads as "this attack,
+   against a Demon" rather than an unrelated trailing control. cursor:
+   default overrides .companion-attack-row's own pointer cursor for just
+   this child, matching how the roll buttons already read as their own
+   clickable targets rather than part of the row's whole-row detail-popup
+   click target. */
+.companion-demon-foe-toggle { display: flex; align-items: center; cursor: default; }
 .companion-attack-granted-hint { color: var(--text-dim); font-size: 0.75rem; font-style: italic; }
 .companion-add-attack { margin-top: 0.5rem; }
 .companion-add-attack form { display: flex; flex-direction: column; gap: 0.6rem; }

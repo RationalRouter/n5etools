@@ -19,6 +19,8 @@ func TestSetCompanionFieldsLocksArmorChassis(t *testing.T) {
 		t.Helper()
 		if err := SetCompanionFields(db, 1, companionID, "Test Puppet", "",
 			"", "", "", chassis, false, "", "",
+			"", "", "",
+			false,
 		); err != nil {
 			t.Fatal(err)
 		}

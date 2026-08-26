@@ -53,14 +53,22 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, spywareProgramSection(id, sp))
+	popup.Sections = append(popup.Sections, spywareProgramSection(id, sp, data.CreationPointsUsed, data.CreationPointsCap))
 	if sp.QuickHack != nil || len(sp.AvailableQuickHack) > 0 {
 		popup.Sections = append(popup.Sections, quickHackSection(id, sp))
 	}
 	s.renderSubclassTrackerPopup(w, "character_science_nin_spyware.html", popup, nil)
 }
 
-func spywareProgramSection(characterID int64, sp *scienceNinSpywareData) subclassTrackerSection {
+// spywareProgramSection builds the popup's own main Spyware Programs
+// Known/Available section — Cruel Angel's Thesis' own Programs draw from
+// the same shared Creation Points budget S.N.B Upgrades/E.I.Ps do, so
+// creationPointsUsed/Cap gate each Available program's own Disabled flag
+// the identical way snbUpgradesSection's own doc explains (snb_upgrades_
+// popup.go), re-parsing each option's raw Cost via parseScienceNinToolStatLine
+// rather than reading a dedicated field (scienceNinSubclassOption carries
+// none — see that struct's own doc, science_nin_subclasses.go).
+func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
 		Title:        "Spyware Programs (" + strconv.Itoa(sp.ProgramUsed) + "/" + strconv.Itoa(sp.ProgramCap) + " held)",
@@ -77,7 +85,11 @@ func spywareProgramSection(characterID int64, sp *scienceNinSpywareData) subclas
 			if o.Epithet != "" {
 				epithet += " · " + o.Epithet
 			}
-			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description})
+			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			sec.Available = append(sec.Available, subclassTrackerOption{
+				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
+				Disabled: creationPointsUsed+cost > creationPointsCap,
+			})
 		}
 	}
 	return sec

@@ -98,6 +98,20 @@ const (
 	titanSpecializationsListName = "Titan"
 )
 
+// titanGrantedUpgradeHint is the companionAttackRow.GrantedHint text shown
+// under every rollable attack row this file computes from a Known Titan
+// Upgrade pick rather than a player-added row (titanWeaponAttacksFromDescription's
+// own baseline-weapon extraction AND titanXo16GatlingAttack/
+// titanGreaterMissileRacksAttacks's own bespoke extraction below) — hoisted
+// to a package-level constant, rather than each site declaring its own
+// identical local const, specifically so the wording can never drift
+// between the regex-driven path and the hand-written one for a named
+// upgrade with no baseline-weapon clause of its own (see
+// titanWeaponAttackClausePattern's own doc for why Thermite Launcher/Xo-16
+// Gatling/Greater Missile Racks/Critical Ejection never match that pattern
+// and need a separate mechanism here instead).
+const titanGrantedUpgradeHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
+
 // titanBaseAbilityScores: titan_unit_card raw_text's own six numbers, "15
 // (+2) 13 (+1) 13 (+1) 5 (-3) 5 (-3) 5 (-3)" immediately following "Speed
 // 30 ft." with zero column labels in the source — read in the standard
@@ -393,7 +407,6 @@ func titanWeaponAttacksFromDescription(name, description string, companion chars
 	if matches == nil {
 		return nil
 	}
-	const grantedHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
 	var out []companionAttackRow
 	for _, m := range matches {
 		isMelee := strings.EqualFold(m[1], "Melee")
@@ -428,16 +441,43 @@ func titanWeaponAttacksFromDescription(name, description string, companion chars
 			},
 			AttackTotal: abilityMod + ownerProfBonus,
 			DamageTotal: abilityMod,
-			GrantedHint: grantedHint,
+			GrantedHint: titanGrantedUpgradeHint,
 		})
 	}
 	return out
 }
 
+// titanApplyDemonFoeBonus adds Bijuu Slayer's own "+2 damage dice against
+// Demon type foes" to every row in rows, in place — callers pass only rows
+// already confirmed to come from a Weapon-keyword Titan Upgrade (see each
+// caller's own doc), matching the source text's own "all weapons" (i.e.
+// every Weapon-keyword upgrade), not literally every companionAttackRow a
+// Titan has (Bash is the base stat block's own attack, not a Titan Upgrade,
+// and is deliberately never passed through this).
+//
+// Always tags every row DemonFoeEligible, regardless of isDemonFoe's own
+// value — companion_fields.html needs to know WHERE to put each row's own
+// checkbox even while it's unchecked, not just once it's already on. Only
+// the +2-damage-dice bonus itself is conditional on isDemonFoe; every
+// caller can call this unconditionally rather than branching itself.
+func titanApplyDemonFoeBonus(rows []companionAttackRow, isDemonFoe bool) []companionAttackRow {
+	for i := range rows {
+		rows[i].DemonFoeEligible = true
+		if isDemonFoe {
+			rows[i].DamageCount += 2
+		}
+	}
+	return rows
+}
+
 // titanKnownWeaponUpgradeAttacks flattens every Known Titan Upgrade with the
 // Weapon keyword into its own standing attack row(s) — nil-safe against a
 // character with no Ordnance Training (loadTitanReference's own nil case).
-func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
+// isDemonFoe applies Bijuu Slayer's own "+2 damage dice against Demon type
+// foes" bonus (titanApplyDemonFoeBonus) — every row here already comes from
+// a Weapon-keyword upgrade (the k.Keyword != "weapon" guard below), matching
+// the source text's own "all weapons" scope exactly.
+func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, ownerProfBonus int, isDemonFoe bool) []companionAttackRow {
 	if ref == nil {
 		return nil
 	}
@@ -448,7 +488,488 @@ func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Com
 		}
 		out = append(out, titanWeaponAttacksFromDescription(k.Name, k.Description, companion, ownerProfBonus)...)
 	}
+	return titanApplyDemonFoeBonus(out, isDemonFoe)
+}
+
+// titanNinjutsuAttackStats resolves the PLAYER's own Ninjutsu attack
+// modifier and save DC (sheet.JutsuAttacks, the entry with Kind=="Ninjutsu"
+// — see JutsuAttack's own doc comment, internal/charsheet/charsheet.go) for
+// the handful of Titan Upgrades below whose activation is explicitly
+// player-triggered ("you can spend the CCD Drain...") rather than something
+// the Titan itself rolls: Thermite Launcher's grenade, Greater Missile
+// Racks' own Ninjutsu attacks and line-AoE save, Critical Ejection's
+// explosion, and Shinobifall's fall damage. This is the same "the player's
+// own numbers, not the Titan's" precedent titanAC/titanPassivePerception/
+// applyTitanSturdyFrameSaves already set for every other Titan formula that
+// keys off something the PLAYER controls rather than the Titan's own stat
+// block. Mirrors the exact loop shape puppetResourcefulTacticsGenjutsuBoost/
+// genjutsuVisceralLanguagePool (custom_resources.go) and Symphony of
+// Puppetry's own arm-blades/axe-tail fallback (puppets.go) already use to
+// read a resolved JutsuAttacks entry rather than re-deriving the ability-
+// override priority chain (Expertise feats, Control's Save DC bonus, a
+// player's own ability override, ...) by hand — trusting charsheet.Compute's
+// own already-resolved answer instead of risking drift from it. Returns
+// (0, 0) for a sheet with no Ninjutsu discipline at all; in practice every
+// character with Ordnance Training is a Science-Nin, and Science-Nin always
+// has Ninjutsu, so this should never actually miss for a real Titan owner.
+func titanNinjutsuAttackStats(sheet *charsheet.Sheet) (modifier, saveDC int) {
+	if sheet == nil {
+		return 0, 0
+	}
+	for _, a := range sheet.JutsuAttacks {
+		if a.Kind == "Ninjutsu" {
+			return a.Modifier, a.SaveDC
+		}
+	}
+	return 0, 0
+}
+
+// titanProfBonusHalfRoundedUp resolves Thermite Launcher's own "X equals
+// half your proficiency bonus, rounded up" — Go's integer division already
+// truncates toward zero, so adding 1 before halving is the standard
+// round-half-up trick for a non-negative operand (a proficiency bonus is
+// never negative). Confirmed against the book's own worked values: 2->1
+// ((2+1)/2=1), 3->2 (4/2=2), 4->2 (5/2=2), 5->3 (6/2=3).
+func titanProfBonusHalfRoundedUp(profBonus int) int {
+	return (profBonus + 1) / 2
+}
+
+// titanXo16GatlingAttack computes Xo-16 Gatling's (Refined, Weapon) own
+// rollable attack row — a SEPARATE, hand-written extractor alongside
+// titanWeaponAttacksFromDescription, not a change to it: Xo-16 Gatling's own
+// raw text has no baseline "Weapon with a Reach/Range of X ... deals NdM ...
+// damage" clause (every hit is instead gated behind spending the CCD Drain
+// per shot — see titanWeaponAttackClausePattern's own doc for why this and
+// its four siblings below are deliberately excluded from that regex), so it
+// needs its own bespoke path, following the same titanHasKnownUpgrade idiom
+// titanBashDamageSteps/applyTitanSturdyFrameSaves already use for a named
+// upgrade's bespoke effect (see titanSpecialWeaponUpgradeAttacks, this
+// file's own caller for this function).
+//
+// AttackTotal uses the TITAN's own Dexterity modifier, not the player's —
+// "you can make a ranged weapon attack" names no different ability term
+// than titanBashAttack's own "Hit: 1d6 + Str + Dex" does for the Titan's
+// other built-in weapon, so this keeps the same "Titan's own ability score"
+// precedent, plus the owning character's proficiency bonus. DamageTotal is
+// the flat +1 the text actually states ("dealing 1d6+1 force damage on each
+// hit") — no ability modifier is named for damage at all, unlike Bash's own
+// formula. The stacking +1-per-hit escalation and the "up to 5 attacks, 5
+// CCD Drain each" activation economy are both left as reference text in
+// Description rather than computed live — nothing on this sheet models a
+// transient in-combat stacking buff (this app has no turn-tracking state to
+// hang it on), so the player applies both by hand once triggered.
+func titanXo16GatlingAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+	dexMod := titanEffectiveAbilityModifier(companion, "dex")
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name: "Xo-16 Gatling",
+			Description: "Ranged Weapon Attack: range 60 ft., one target. Action: spend the CCD Drain " +
+				"(5 CCD Chakra per attack, up to 5 attacks against the same target as part of the same " +
+				"action). Each hit after the first this activation adds a stacking +1 bonus to attack and " +
+				"damage rolls made with the Xo-16 Gatling until the start of your next turn — not reflected " +
+				"in the totals above, apply it by hand on a second or later hit.",
+			DamageCount: 1, DamageSides: 6, DamageType: "force",
+		},
+		AttackTotal: dexMod + ownerProfBonus,
+		DamageTotal: 1,
+		GrantedHint: titanGrantedUpgradeHint,
+	}
+}
+
+// titanGreaterMissileRacksAttacks computes Greater Missile Racks' (Greater,
+// folded into the merged Refined tier bucket — see this file's header doc,
+// Weapon) own single-target mode as two rollable rows, one per damage type:
+// companionAttackRow can only carry a single DamageType, so "1d6 fire and
+// 1d6 force damage on hit" needs the same one-row-per-clause split
+// titanWeaponAttacksFromDescription already gives Leadwall's own two attack
+// MODES ("(Melee)"/"(Ranged)") — reused here to split by damage type
+// instead, since a single Greater Missile Racks attack roll deals both
+// damage types on the same hit rather than offering a choice between modes.
+//
+// AttackTotal uses the PLAYER's own Ninjutsu attack modifier
+// (titanNinjutsuAttackStats), not the Titan's Dexterity — the raw text
+// explicitly says "make 3 ranged NINJUTSU attacks", the only one of these
+// six upgrades that names a jutsu discipline rather than a generic weapon
+// attack. DamageTotal is left at 0 for both rows: the text states only the
+// flat dice ("1d6 fire and 1d6 force damage on hit"), no ability-modifier
+// term the way Xo-16 Gatling's own "+1" is stated. The "make 3 [ranged
+// Ninjutsu] attacks" per-activation economy is left as reference text in
+// each row's Description, the same "no per-turn attack-count tracking on
+// this sheet" boundary titanXo16GatlingAttack's own doc draws. The OTHER
+// mode this upgrade offers (a flat-damage line AoE, no attack roll at all)
+// is a separate companionFeatureRef — see titanGreaterMissileRacksLineNote.
+//
+// Takes no ownerProfBonus parameter, unlike titanXo16GatlingAttack — the
+// Ninjutsu attack modifier this reads off already includes the full
+// proficiency bonus (see JutsuAttack's own doc comment), so adding one in
+// again here would double-count it.
+func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet) []companionAttackRow {
+	modifier, _ := titanNinjutsuAttackStats(sheet)
+	const desc = "Bonus Action: spend the CCD Drain (10 CCD Chakra) and pick a single target within 60 " +
+		"feet — make 3 ranged Ninjutsu attacks against it. Each hit deals both this row's damage type AND " +
+		"the matching Greater Missile Racks row's (shown as two rows since one row can only track one " +
+		"damage type)."
+	return []companionAttackRow{
+		{
+			CompanionAttack: charstore.CompanionAttack{
+				Name: "Greater Missile Racks (Fire)", Description: desc,
+				DamageCount: 1, DamageSides: 6, DamageType: "fire",
+			},
+			AttackTotal: modifier,
+			GrantedHint: titanGrantedUpgradeHint,
+		},
+		{
+			CompanionAttack: charstore.CompanionAttack{
+				Name: "Greater Missile Racks (Force)", Description: desc,
+				DamageCount: 1, DamageSides: 6, DamageType: "force",
+			},
+			AttackTotal: modifier,
+			GrantedHint: titanGrantedUpgradeHint,
+		},
+	}
+}
+
+// titanSpecialWeaponUpgradeAttacks flattens Xo-16 Gatling's and Greater
+// Missile Racks' own single-target modes into standing rollable attack rows
+// — the SEPARATE, additional mechanism alongside titanKnownWeaponUpgradeAttacks
+// this file's header doc on titanWeaponAttackClausePattern calls for, rather
+// than a change to that pattern or its exclusion of these entries. Called
+// from companions.go right alongside titanKnownWeaponUpgradeAttacks, same
+// nil-safety against a character with no Ordnance Training (ref == nil).
+// isDemonFoe applies Bijuu Slayer's own +2-damage-dice bonus
+// (titanApplyDemonFoeBonus) — both upgrades here carry the Weapon keyword.
+func titanSpecialWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, sheet *charsheet.Sheet, ownerProfBonus int, isDemonFoe bool) []companionAttackRow {
+	if ref == nil {
+		return nil
+	}
+	var out []companionAttackRow
+	if titanHasKnownUpgrade(ref, "Xo-16 Gatling") {
+		out = append(out, titanXo16GatlingAttack(companion, ownerProfBonus))
+	}
+	if titanHasKnownUpgrade(ref, "Greater Missile Racks") {
+		out = append(out, titanGreaterMissileRacksAttacks(sheet)...)
+	}
+	return titanApplyDemonFoeBonus(out, isDemonFoe)
+}
+
+// titanSaveOnlyUpgradeAttacks flattens Shinobifall/Thermite Launcher/Critical
+// Ejection's own rollable damage-only rows (NoAttackRoll — a target's own
+// saving throw, not the Titan's attack roll) for every Known Titan Upgrade
+// that grants one, nil-safe against a character with no Ordnance Training —
+// the same shape titanKnownWeaponUpgradeAttacks/titanSpecialWeaponUpgradeAttacks
+// already use for the Attack-roll-shaped upgrades. isDemonFoe is forwarded to
+// Thermite Grenade/Critical Ejection only (both Weapon keyword) — Shinobifall
+// is Mech keyword and never receives it, per titanShinobifallAttack's own doc.
+func titanSaveOnlyUpgradeAttacks(ref *titanReference, sheet *charsheet.Sheet, isDemonFoe bool) []companionAttackRow {
+	if ref == nil {
+		return nil
+	}
+	var out []companionAttackRow
+	if titanHasKnownUpgrade(ref, "Shinobifall") {
+		out = append(out, titanShinobifallAttack(sheet, ref))
+	}
+	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
+		out = append(out, titanThermiteGrenadeAttack(sheet, isDemonFoe))
+	}
+	if titanHasKnownUpgrade(ref, "Critical Ejection") {
+		out = append(out, titanCriticalEjectionAttack(sheet, ref, isDemonFoe))
+	}
 	return out
+}
+
+// titanThermiteLauncherGrenadeAbility resolves Thermite Launcher's (Refined,
+// Weapon) own CCD-Drain-gated grenade action into a companionFeatureRef with
+// both X and the save DC substituted for real numbers, rather than leaving
+// the raw "Xd8 fire damage ... where X equals half your proficiency bonus,
+// rounded up" prose for the player to resolve by hand at the table every
+// time it's used. X comes from titanProfBonusHalfRoundedUp; the save DC
+// comes from the player's own Ninjutsu save DC (titanNinjutsuAttackStats).
+// Thermite Launcher's OTHER two effects (Fire/Acid resistance, advantage on
+// saves vs. Burned/Corroded) are surfaced separately, on the base stat
+// block's own Resistances row — see titanResistancesImmunities.
+//
+// The "Xd8" left in Description is picked up automatically by
+// formatDescription's own diceAvg pass when this renders
+// (companion_fields.html's "Resolved Upgrade Abilities" list, same
+// {{formatDescription .Description}} call every other companionFeatureRef
+// list on this sheet already uses) — manually appending "(avg N)" here too
+// would double the annotation once that same pass runs over already-
+// annotated text, so this deliberately leaves the averaging to that shared
+// mechanism rather than calling diceAverageText a second time.
+func titanThermiteLauncherGrenadeAbility(sheet *charsheet.Sheet) companionFeatureRef {
+	x := titanProfBonusHalfRoundedUp(sheet.ProficiencyBonus)
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	return companionFeatureRef{
+		Name: "Thermite Grenade (Thermite Launcher)",
+		Description: fmt.Sprintf(
+			"As an action, you can spend the CCD Drain and shoot a Thermite Grenade at a space within 60 "+
+				"feet. Each creature within 15 feet of the grenade must make a DC %d Dexterity saving throw, "+
+				"taking %dd8 fire damage and becoming Burned on a failed save, or half as much on a success.",
+			saveDC, x),
+	}
+}
+
+// titanThermiteGrenadeAttack is Thermite Launcher's own rollable damage-only
+// row (NoAttackRoll — a flat save, no attack roll) for the same Xd8 fire
+// damage titanThermiteLauncherGrenadeAbility's own reference text resolves.
+// Weapon keyword, so isDemonFoe adds Bijuu Slayer's own +2 damage dice —
+// see titanDemonFoeWeaponUpgrades' own doc.
+func titanThermiteGrenadeAttack(sheet *charsheet.Sheet, isDemonFoe bool) companionAttackRow {
+	x := titanProfBonusHalfRoundedUp(sheet.ProficiencyBonus)
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	if isDemonFoe {
+		x += 2
+	}
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name: "Thermite Grenade",
+			Description: fmt.Sprintf(
+				"Action: spend the CCD Drain and shoot a grenade at a space within 60 feet. Each creature "+
+					"within 15 feet makes a DC %d Dexterity saving throw, taking this damage and becoming "+
+					"Burned on a failure, or half as much on a success.", saveDC),
+			DamageCount: x, DamageSides: 8, DamageType: "fire",
+		},
+		NoAttackRoll: true,
+		GrantedHint:  titanGrantedUpgradeHint,
+		// DemonFoeEligible set directly here, not via
+		// titanApplyDemonFoeBonus — this row bakes its own +2 into x above
+		// rather than going through that shared helper (its caller,
+		// titanSaveOnlyUpgradeAttacks, never passes its output through it),
+		// so the eligibility tag has to be set by hand to match. See
+		// companion_fields.html's own per-row checkbox.
+		DemonFoeEligible: true,
+	}
+}
+
+// titanGreaterMissileRacksLineNote resolves Greater Missile Racks' own
+// alternate line-AoE mode ("creatures within a 60-foot-long, 5-foot wide
+// line") as companionFeatureRef reference text — a flat save (no attack
+// roll of any kind, so it has no rollable-row shape the way the
+// single-target mode does, see titanGreaterMissileRacksAttacks) against
+// already-concrete dice ("3d6+3 fire and 3d6+3 force damage" — unlike
+// Thermite Launcher/Critical Ejection/Shinobifall, this mode states no
+// unresolved "X" at all, so there is nothing to substitute besides the save
+// DC). DC is the player's own Ninjutsu save DC, same reasoning as
+// titanThermiteLauncherGrenadeAbility.
+func titanGreaterMissileRacksLineNote(sheet *charsheet.Sheet) companionFeatureRef {
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	return companionFeatureRef{
+		Name: "Missile Barrage — Line (Greater Missile Racks)",
+		Description: fmt.Sprintf(
+			"As a bonus action, you can spend the CCD Drain and target creatures within a 60-foot-long, "+
+				"5-foot-wide line. Each creature in the line must make a DC %d Dexterity saving throw, taking "+
+				"3d6+3 fire damage and 3d6+3 force damage on a failed save, or half as much damage on a success.",
+			saveDC),
+	}
+}
+
+// titanCriticalEjectionAbility resolves Critical Ejection's (Greater,
+// folded into the merged Refined tier bucket, Weapon) own reactive death-
+// trigger into companionFeatureRef reference text, substituting both X (the
+// Titan owner's own proficiency bonus, ref.ProficiencyBonus) and the save DC
+// (the player's own Ninjutsu save DC) for real numbers. Unlike the other
+// five upgrades this file resolves, Critical Ejection triggers off "your
+// Titan reaches 0 hit points" — a reaction to an external event, not an
+// on-demand action the player spends an action on — so there is no rollable
+// attack-roll shape for it at all (only the targets' own saving throws,
+// which this app never rolls on a creature's behalf); reference text is
+// therefore the correct final shape here, not a stepping stone toward a
+// rollable row.
+func titanCriticalEjectionAbility(sheet *charsheet.Sheet, ref *titanReference) companionFeatureRef {
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	return companionFeatureRef{
+		Name: "Critical Ejection",
+		Description: fmt.Sprintf(
+			"When your Titan reaches 0 hit points and you would eject from it, you can spend the CCD Drain "+
+				"to cause the Titan to explode instead — you are ejected 90 feet away from it rather than "+
+				"appearing where it stood. All creatures within a 30-foot radius of the Titan must make a "+
+				"DC %d Dexterity saving throw, taking %dd10 fire damage on a failed save, or half as much on "+
+				"a success.",
+			saveDC, ref.ProficiencyBonus),
+	}
+}
+
+// titanCriticalEjectionAttack is Critical Ejection's own rollable damage-only
+// row (NoAttackRoll — a flat save, no attack roll) for the same Xd10 fire
+// damage titanCriticalEjectionAbility's own reference text resolves. Weapon
+// keyword, so isDemonFoe adds Bijuu Slayer's own +2 damage dice — see
+// titanDemonFoeWeaponUpgrades' own doc.
+func titanCriticalEjectionAttack(sheet *charsheet.Sheet, ref *titanReference, isDemonFoe bool) companionAttackRow {
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	count := ref.ProficiencyBonus
+	if isDemonFoe {
+		count += 2
+	}
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name: "Critical Ejection",
+			Description: fmt.Sprintf(
+				"Reaction, when your Titan hits 0 hit points: spend the CCD Drain to explode instead of "+
+					"ejecting normally. Creatures within 30 feet make a DC %d Dexterity saving throw, taking "+
+					"this damage, or half as much on a success.", saveDC),
+			DamageCount: count, DamageSides: 10, DamageType: "fire",
+		},
+		NoAttackRoll: true,
+		GrantedHint:  titanGrantedUpgradeHint,
+		// DemonFoeEligible set directly here — see titanThermiteGrenadeAttack's
+		// identical comment just above for why.
+		DemonFoeEligible: true,
+	}
+}
+
+// titanShinobifallDamageSides resolves Shinobifall's own fall-damage die:
+// base d4, stepped to d8 once the Titan's own Size reads exactly "Huge"
+// (the raw text's own "If the Titan is Huge, it instead deals xd8" clause),
+// and further to d12 once Bijuu Slayer is ALSO known — a player-confirmed
+// combo rule (Bijuu Slayer's own Gargantuan-size override left the source
+// text's literal "Huge" wording ambiguous for a bigger Titan; the d12 step
+// here is that ambiguity resolved, not a guess). Checked by upgrade name
+// rather than by ref.Size == "Gargantuan" alone, since that's the more
+// direct reading of the confirmed rule ("Shinobifall + Bijuu Slayer") and
+// stays correct even if Bijuu Slayer's own size override is ever changed.
+func titanShinobifallDamageSides(ref *titanReference) int {
+	if titanHasKnownUpgrade(ref, "Bijuu Slayer") {
+		return 12
+	}
+	if ref.Size == "Huge" {
+		return 8
+	}
+	return 4
+}
+
+// titanShinobifallAbility resolves Shinobifall's (Minor, Mech) own
+// alternate-summon fall-damage clause into companionFeatureRef reference
+// text, substituting X (the Titan owner's own proficiency bonus, same field
+// Critical Ejection's own fix above reads) and the save DC (the player's own
+// Ninjutsu save DC) for real numbers — see titanShinobifallDamageSides for
+// the die-size resolution. A rollable damage-only row for the same numbers
+// is also shown in Attacks — see titanShinobifallAttack.
+func titanShinobifallAbility(sheet *charsheet.Sheet, ref *titanReference) companionFeatureRef {
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	sides := titanShinobifallDamageSides(ref)
+	return companionFeatureRef{
+		Name: "Shinobifall",
+		Description: fmt.Sprintf(
+			"When you would summon your Titan, you can spend 5 CCD chakra to instead have it appear 30 "+
+				"feet above you, in a space up to 30 feet away, and fall to earth at speed. Each creature "+
+				"underneath the Titan must make a DC %d Dexterity saving throw, taking %dd%d bludgeoning "+
+				"damage and falling prone on a failure, or half as much damage on a success. The Titan "+
+				"itself takes no fall damage.",
+			saveDC, ref.ProficiencyBonus, sides),
+	}
+}
+
+// titanShinobifallAttack is Shinobifall's own rollable damage-only row
+// (NoAttackRoll — the creature underneath the Titan makes the saving throw,
+// not the Titan an attack roll) — the same resolved Xd4/Xd8/Xd12 bludgeoning
+// damage as titanShinobifallAbility's own reference text, as a one-click
+// roll instead of hand math. Mech keyword (not Weapon), so this deliberately
+// does NOT receive the Demon Foe bonus — see titanDemonFoeWeaponUpgrades'
+// own doc for why that bonus is scoped to Weapon-keyword upgrades only.
+func titanShinobifallAttack(sheet *charsheet.Sheet, ref *titanReference) companionAttackRow {
+	_, saveDC := titanNinjutsuAttackStats(sheet)
+	sides := titanShinobifallDamageSides(ref)
+	return companionAttackRow{
+		CompanionAttack: charstore.CompanionAttack{
+			Name: "Shinobifall",
+			Description: fmt.Sprintf(
+				"Spend 5 CCD chakra to summon your Titan falling from 30 feet up. Each creature underneath "+
+					"it makes a DC %d Dexterity saving throw, taking this damage and falling prone on a "+
+					"failure, or half as much on a success.", saveDC),
+			DamageCount: ref.ProficiencyBonus, DamageSides: sides, DamageType: "bludgeoning",
+		},
+		NoAttackRoll: true,
+		GrantedHint:  titanGrantedUpgradeHint,
+	}
+}
+
+// titanShinobiFortressNote resolves Shinobi Fortress's (Supreme, Mech) own
+// "gains Xd4 temporary hit points [on summon], where X is equal to its
+// proficiency bonus" into companionFeatureRef reference text, substituting
+// X for ref.ProficiencyBonus. This is deliberately reference text only, NOT
+// an automatic write into charstore.Companion.TempHP: that field is a
+// purely manual player-entered pool (internal/charstore/companions.go) with
+// no "on summon" trigger anywhere in this codebase to hang an automatic set
+// on — a Titan companion row is created once and persists indefinitely (see
+// this file's own header doc; there is no combat/session lifecycle that
+// creates or destroys it), so there is no single moment "summoned" actually
+// corresponds to in this app's data model the way, say, a Long Rest handler
+// corresponds to a rest. If a real summon/encounter-start hook is ever added
+// for companions, wiring an automatic TempHP set at that hook would be
+// preferable to this reference-text-only fix — see this file's own callers
+// for where that hook would need to live.
+func titanShinobiFortressNote(ref *titanReference) companionFeatureRef {
+	return companionFeatureRef{
+		Name: "Temp HP on Summon (Shinobi Fortress)",
+		Description: fmt.Sprintf(
+			"When your Titan is summoned, it gains %dd4 temporary hit points (not set automatically — "+
+				"this app has no on-summon trigger for a companion to hang that write on, see this field's "+
+				"own doc comment; enter it into Temp HP above by hand). If you also have the Battle Tower "+
+				"upgrade, you can choose to have your Titan take damage your mounted allies would've taken "+
+				"instead, while they're mounted on it.",
+			ref.ProficiencyBonus),
+	}
+}
+
+// titanResolvedUpgradeAbilities collects the companionFeatureRef entries
+// above for every Known Titan Upgrade (in either an ordinary Titan Slot or
+// Endless Work's own Exo-Suit slot — titanHasKnownUpgrade already checks
+// both) whose activation resolves to reference text rather than a rollable
+// attack row: Thermite Launcher's grenade, Greater Missile Racks' own line-
+// AoE mode (its single-target mode is a rollable row instead — see
+// titanGreaterMissileRacksAttacks), Critical Ejection, Shinobifall, and
+// Shinobi Fortress. Xo-16 Gatling and Greater Missile Racks' single-target
+// mode are deliberately absent from this list — they resolve to rollable
+// companionAttackRow entries instead (titanSpecialWeaponUpgradeAttacks),
+// shown in the sheet's own Attacks section rather than here.
+func titanResolvedUpgradeAbilities(ref *titanReference, sheet *charsheet.Sheet) []companionFeatureRef {
+	var out []companionFeatureRef
+	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
+		out = append(out, titanThermiteLauncherGrenadeAbility(sheet))
+	}
+	if titanHasKnownUpgrade(ref, "Greater Missile Racks") {
+		out = append(out, titanGreaterMissileRacksLineNote(sheet))
+	}
+	if titanHasKnownUpgrade(ref, "Critical Ejection") {
+		out = append(out, titanCriticalEjectionAbility(sheet, ref))
+	}
+	if titanHasKnownUpgrade(ref, "Shinobifall") {
+		out = append(out, titanShinobifallAbility(sheet, ref))
+	}
+	if titanHasKnownUpgrade(ref, "Shinobi Fortress") {
+		out = append(out, titanShinobiFortressNote(ref))
+	}
+	return out
+}
+
+// titanResistancesImmunities resolves the Damage Resistances/Damage
+// Immunities/Condition Immunities the base stat block itself never states
+// (titan_unit_card.raw_text has no such line at all — unlike S.N.B's own
+// fixed snbDamageImmunities/snbDamageResistances/snbConditionImmunities,
+// hand-transcribed straight off that companion's own base stat block) but
+// two Titan UPGRADES grant once known: Thermite Launcher's own "resistant to
+// Fire and Acid damage" (plus its "advantage on saving throws to resist the
+// Burned and Corroded conditions" clause, returned separately as
+// resistanceAdvantage since this app tracks no generic advantage-on-saves
+// mechanism for a companion to fold that into — see this field's own doc on
+// titanReference), and Hulking Strength's own "immune to the Grappled and
+// Restrained conditions... immune to effects that would cause it to move
+// against its will" (Hulking Strength's third clause, multiplying carry
+// weight by 50, is out of scope — nothing in this app tracks carry weight
+// for a companion). Every return value is "" when neither upgrade is known,
+// which the "titan_reference" template reads as "don't show this row at
+// all" (see its own {{if}} guards) rather than an empty dt/dd pair.
+func titanResistancesImmunities(ref *titanReference) (resistances, immunities, conditionImmunities, resistanceAdvantage string) {
+	var resistanceParts, immunityParts, conditionParts []string
+	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
+		resistanceParts = append(resistanceParts, "Fire", "Acid")
+		resistanceAdvantage = "Advantage on saving throws to resist the Burned and Corroded conditions (Thermite Launcher)."
+	}
+	if titanHasKnownUpgrade(ref, "Hulking Strength") {
+		conditionParts = append(conditionParts, "Grappled", "Restrained")
+		immunityParts = append(immunityParts, "Movement Effects")
+	}
+	return strings.Join(resistanceParts, ", "), strings.Join(immunityParts, ", "), strings.Join(conditionParts, ", "), resistanceAdvantage
 }
 
 // titanSturdyFrameSaveAbilities is Sturdy Frame's own "Physical saving
@@ -522,8 +1043,22 @@ func (s *server) loadTitanSpecializationOptions() ([]titanSpecializationOption, 
 // text before writing this pattern — Sturdy Frame is the one entry with no
 // Drain line at all (a passive upgrade with no CCD activation cost), which
 // is why that whole group is optional.
+//
+// Every run of literal spaces here is \s+, not a single space: the
+// Mastercraft tier's own bundled Bijuu Slayer text has a genuine
+// PDF-extraction double space ("Cost: 32  Creation Points") between the
+// number and "Creation" that the other 19 entries don't — confirmed via
+// sqlite3 directly against rules.db's class_options row. A single literal
+// space there silently failed to match this ONE entry, falling through to
+// parseTitanUpgradeStatLine's own idx<0 fallback (cost=0, keyword="",
+// rest=the full raw text unstripped) — which meant Bijuu Slayer displayed
+// with a blank Keyword and, far worse, was installable for 0 Creation
+// Points instead of its real cost of 32 (titanEffectiveUpgradeCost/
+// addTitanSlotPick both trust this catalog Cost unconditionally), and was
+// never disabled by the picker's own affordability check regardless of the
+// character's remaining budget.
 var titanUpgradeStatLinePattern = regexp.MustCompile(
-	`^Cost: (\d+) Creation Points? Keyword: (Mech|Weapon)(?: Drain: (\d+) CCD Chakra)?\s*`)
+	`^Cost:\s+(\d+)\s+Creation Points?\s+Keyword:\s+(Mech|Weapon)(?:\s+Drain:\s+(\d+)\s+CCD Chakra)?\s*`)
 
 // parseTitanUpgradeStatLine locates the "Cost:" stat line within raw (which
 // for the Mastercraft tier's own bundled text is preceded by "BIJUU SLAYER
@@ -879,6 +1414,49 @@ type titanReference struct {
 	BaseTraits     []companionFeatureRef
 	BashAttackText string
 
+	// Immunities/Resistances/ConditionImmunities: comma-joined free text,
+	// matching snbReference's own identically-named/-shaped fields (snb.go)
+	// exactly, for a base stat block that (unlike S.N.B's own fixed
+	// baseline) states none of these on its own — titan_unit_card.raw_text
+	// has no such line at all. Computed here from titanHasKnownUpgrade
+	// checks against two specific Titan Upgrades instead (Thermite
+	// Launcher's own Fire/Acid resistance, Hulking Strength's own
+	// Grappled/Restrained condition immunity and forced-movement immunity —
+	// see titanResistancesImmunities), so these read "" until the relevant
+	// upgrade is actually known, which the "titan_reference" template's own
+	// {{if}} guards read as "no row at all" rather than an empty one.
+	Resistances         string
+	Immunities          string
+	ConditionImmunities string
+	// ResistanceAdvantageText: Thermite Launcher's own "advantage on saving
+	// throws to resist the Burned and Corroded conditions" clause, shown as
+	// plain accompanying text next to the Resistances row rather than a real
+	// tracked flag — this app has no generic advantage-on-saves mechanism
+	// for a companion anywhere (a Titan's own saves are already just the
+	// PLAYER's numbers, per the "Saving Throws" line just below in the
+	// template, and even that line carries no advantage/disadvantage state),
+	// so building one purely to cover this single clause would be new
+	// infrastructure with exactly one caller. "" until Thermite Launcher is
+	// known.
+	ResistanceAdvantageText string
+
+	// UpgradeAbilities: every Known Titan Upgrade (titanResolvedUpgradeAbilities)
+	// whose CCD-Drain-gated ability names an unresolved "X" (half or full
+	// proficiency bonus) or a Titan-size-dependent die in its raw
+	// description text, resolved into real numbers here instead of left for
+	// the player to work out by hand from the raw prose shown in the Known
+	// Titan Upgrades list (companion_stat_fields.html) every time it's used.
+	// Xo-16 Gatling and Greater Missile Racks' own single-target mode are
+	// NOT here — those resolve to rollable companionAttackRow entries
+	// instead (titanSpecialWeaponUpgradeAttacks), shown in Attacks.
+	UpgradeAbilities []companionFeatureRef
+
+	// HasBijuuSlayer gates the Demon Foe checkbox (companion_fields.html) —
+	// showing that control before Bijuu Slayer is even known would offer a
+	// toggle with no effect, since the +2-damage-dice bonus it controls IS
+	// Bijuu Slayer's own effect.
+	HasBijuuSlayer bool
+
 	Specializations []titanSpecializationOption
 	Specialization  *titanSpecializationOption // nil until chosen (locked once set — see charstore.SetCompanionFields)
 	// IsLegionSpecialization: true once Legion Specialization is chosen —
@@ -1027,9 +1605,11 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 	playerIntMod := sheet.Abilities["int"].Modifier
 
 	size := titanSizeForLevel(scienceNinLevel)
+	hasBijuuSlayer := false
 	for _, k := range upgrades.KnownUpgrades {
 		if strings.EqualFold(k.Name, "Bijuu Slayer") {
 			size = "Gargantuan" // Mastercraft: "Your Titan's size becomes Gargantuan"
+			hasBijuuSlayer = true
 		}
 	}
 	if v, ok := overrides["size"]; ok {
@@ -1061,7 +1641,7 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		return nil, err
 	}
 
-	return &titanReference{
+	ref := &titanReference{
 		titanUpgradesData: upgrades,
 
 		Level:                      sheet.Level,
@@ -1073,6 +1653,8 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 
 		BaseTraits:     titanBaseTraits,
 		BashAttackText: titanBashAttackText,
+
+		HasBijuuSlayer: hasBijuuSlayer,
 
 		Specializations:        specOptions,
 		Specialization:         chosenSpec,
@@ -1093,7 +1675,21 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		ExpectedInt:        finalAbilityScore("int"),
 		ExpectedWis:        finalAbilityScore("wis"),
 		ExpectedCha:        finalAbilityScore("cha"),
-	}, nil
+	}
+
+	// Resistances/Immunities/ConditionImmunities/UpgradeAbilities: computed
+	// against ref itself (titanHasKnownUpgrade takes a *titanReference, and
+	// ref.titanUpgradesData — carrying KnownUpgrades/ExoSuit — is already
+	// fully populated by the struct literal just above, even though the
+	// REST of ref isn't filled in until this point) rather than upgrades
+	// directly, following the same titanHasKnownUpgrade idiom every other
+	// named-upgrade effect in this file already uses (titanBashDamageSteps/
+	// applyTitanSturdyFrameSaves/the Bijuu Slayer size check above), instead
+	// of a fourth hand-rolled KnownUpgrades/ExoSuit.Known loop.
+	ref.Resistances, ref.Immunities, ref.ConditionImmunities, ref.ResistanceAdvantageText = titanResistancesImmunities(ref)
+	ref.UpgradeAbilities = titanResolvedUpgradeAbilities(ref, sheet)
+
+	return ref, nil
 }
 
 // prefillTitanStatDefaults populates a freshly-created Titan's AC/HP-max/
