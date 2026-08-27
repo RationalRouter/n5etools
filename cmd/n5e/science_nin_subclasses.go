@@ -943,21 +943,29 @@ type scienceNinStormRiderData struct {
 	// only once the character has the 14th-level King's Road feature.
 	// RegaliaCap is 1, or 2 once the 20th-level Future of Shinobi: Sky
 	// Keeper capstone is also granted ("Choose another Regalia... can be
-	// used in conjunction with the other"). AvailableRegalia is the "Air
-	// Treck Enhancements" list's own Regalia row (8 named entries, unlike
-	// every other tier not gated by a Cost stat line — see this file's own
-	// header doc), never restricted to already-known Enhancements since
-	// Regalia is an entirely independent 8-option catalog of its own. Sky
-	// Keeper's own flat +60ft Speed bonus is a speedGrants entry
-	// (internal/features/grants.go), not tracked here; its flying-
-	// speed/hover and difficult-terrain clauses have no field anywhere in
-	// this app to land in (no flying-speed or hover field exists) and stay
-	// Group 3, same restraint already applied to the Air Trecks weapon-stat
-	// bump clauses of this same capstone.
+	// used in conjunction with the other" — both worn Regalia apply at
+	// once, since nothing in this catalog's own add/delete flow treats
+	// "known" as anything other than "currently worn," so raising the cap
+	// to 2 already satisfies that clause without a separate active/equipped
+	// concept). AvailableRegalia is the "Air Treck Enhancements" list's own
+	// Regalia row (8 named entries, unlike every other tier not gated by a
+	// Cost stat line — see this file's own header doc), never restricted to
+	// already-known Enhancements since Regalia is an entirely independent
+	// 8-option catalog of its own. Sky Keeper's own flat +60ft Speed bonus
+	// is a speedGrants entry (internal/features/grants.go), not tracked
+	// here; its difficult-terrain-ignoring clause and the Air Trecks
+	// weapon-stat bump clauses of this same capstone have no field anywhere
+	// in this app to land in and stay Group 3.
 	RegaliaCap       int
 	RegaliaUsed      int
 	Regalia          []knownScienceNinPick
 	AvailableRegalia []scienceNinSubclassOption
+	// FlySpeed is 0 unless Sky Keeper is granted, in which case it mirrors
+	// sheet.FlySpeed (internal/charsheet) — "you gain a flying speed equal
+	// to your walking speed and you can hover." Read back from the sheet
+	// rather than recomputed here so this box and the Speed square always
+	// agree.
+	FlySpeed int
 }
 
 // scienceNinTechnobiData backs Technobi Mechanizations. The Shinobi
@@ -1512,6 +1520,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinAirTrecksFeatureSlug] || has[scienceNinKingsRoadFeatureSlug] {
 		sr := &scienceNinStormRiderData{}
+		if has[scienceNinSkyKeeperFeatureSlug] {
+			// "You gain a flying speed equal to your walking speed and you
+			// can hover." sheet.FlySpeed (internal/charsheet) already
+			// mirrors sheet.Speed 1:1 once this same slug is granted —
+			// read back here rather than re-deriving it so this box shows
+			// the exact number the Speed square itself uses.
+			sr.FlySpeed = sheet.FlySpeed
+		}
 
 		if has[scienceNinAirTrecksFeatureSlug] {
 			if err := s.ensureAirTrecksGranted(characterID); err != nil {

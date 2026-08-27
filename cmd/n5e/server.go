@@ -167,6 +167,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/ambitions", s.handleSheetAmbitions)
 	mux.HandleFunc("POST /characters/{id}/sheet/bio", s.handleSheetBio)
 	mux.HandleFunc("POST /characters/{id}/sheet/notes", s.handleSheetNotes)
+	mux.HandleFunc("POST /characters/{id}/sheet/hunter-primary-target", s.handleSheetHunterPrimaryTarget)
 	mux.HandleFunc("POST /characters/{id}/sheet/level", s.handleSheetLevel)
 	mux.HandleFunc("POST /characters/{id}/sheet/subclass", s.handleSheetSubclass)
 	mux.HandleFunc("GET /characters/{id}/sheet/class", s.handleSheetClass)
@@ -208,6 +209,13 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/sheet/asi", s.handleSheetASI)
 	mux.HandleFunc("POST /characters/{id}/sheet/companions", s.handleSheetCompanionAdd)
 	mux.HandleFunc("POST /characters/{id}/sheet/companions/{cid}/delete", s.handleSheetCompanionDelete)
+	// Void Soul Awakening's own companion-scoped known-jutsu pick
+	// (cmd/n5e/void_soul.go) — character-scoped, not companion-scoped (the
+	// pick lives in character_scout_nin_picks, keyed by character_id alone),
+	// so grouped with the other /sheet/... routes rather than under
+	// /companions/{cid}/....
+	mux.HandleFunc("POST /characters/{id}/sheet/void-soul-jutsu", s.handleVoidSoulJutsuAdd)
+	mux.HandleFunc("POST /characters/{id}/sheet/void-soul-jutsu/delete", s.handleVoidSoulJutsuDelete)
 	mux.HandleFunc("GET /characters/{id}/reference", s.handleCharacterReference)
 	mux.HandleFunc("GET /characters/{id}/clan-reference", s.handleCharacterClanReference)
 	// S.N.B Upgrades / Titan Slots: the first two "subclass tracker popup"
@@ -308,6 +316,12 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/nin-dog-hijutsu-trait", s.handleNinDogHijutsuTraitPick)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/snb-combat-programming", s.handleSNBCombatProgrammingPick)
 	mux.HandleFunc("POST /characters/{id}/companions/{cid}/saving-throw", s.handleCompanionSavingThrowToggle)
+	// Void Soul Awakening (cmd/n5e/void_soul.go): the summon/dismiss toggle,
+	// the Charisma-Modifier-x3 ability-point-buy allocator, and the "one
+	// keyword you don't have access to" pick.
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/void-soul-summon", s.handleVoidSoulSummonToggle)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/void-soul-ability-point", s.handleVoidSoulAbilityPoint)
+	mux.HandleFunc("POST /characters/{id}/companions/{cid}/void-soul-bonus-keyword", s.handleVoidSoulBonusKeyword)
 	// Titan (Science-Nin Mech Crafter's Ordnance Training) upgrade picks are
 	// character-scoped, not companion-scoped (see titan.go's own doc on why
 	// — "You can only have 1 Titan created at a time" means the Creation

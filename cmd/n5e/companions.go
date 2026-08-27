@@ -80,6 +80,7 @@ var companionKindLabels = []struct{ kind, label string }{
 	{"nin-dog", "Nin-Dog"},
 	{"titan", "Titan"},
 	{"snb", "S.N.B"},
+	{"void-soul", "Void Soul"},
 	{"custom", "Other"},
 }
 
@@ -115,12 +116,13 @@ func companionKindLabel(kind string) string {
 // (rather than just checking kind != "" or similar) so a brand-new future
 // kind still starts on the textarea fallback until deliberately added here.
 var companionStructuredAttackKinds = map[string]bool{
-	"puppet":  true,
-	"nin-dog": true,
-	"titan":   true,
-	"summon":  true,
-	"custom":  true,
-	"snb":     true,
+	"puppet":    true,
+	"nin-dog":   true,
+	"titan":     true,
+	"summon":    true,
+	"custom":    true,
+	"snb":       true,
+	"void-soul": true,
 }
 
 // companionSupportsStructuredAttacks reports whether kind has reached the
@@ -196,7 +198,7 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	kind := r.FormValue("kind")
-	if kind != "puppet" && kind != "summon" && kind != "custom" && kind != "nin-dog" && kind != "titan" && kind != "snb" {
+	if kind != "puppet" && kind != "summon" && kind != "custom" && kind != "nin-dog" && kind != "titan" && kind != "snb" && kind != "void-soul" {
 		http.Error(w, "bad kind", http.StatusBadRequest)
 		return
 	}
@@ -781,10 +783,11 @@ func (s *server) loadSummonTribeOptions() ([]summonTribeOption, error) {
 // resolved per companion.
 type summonCompanionView struct {
 	charstore.Companion
-	Reference       *summonTribeReference
-	NinDogReference *ninDogReference
-	TitanReference  *titanReference
-	SNBReference    *snbReference
+	Reference         *summonTribeReference
+	NinDogReference   *ninDogReference
+	TitanReference    *titanReference
+	SNBReference      *snbReference
+	VoidSoulReference *voidSoulReference
 	// Attacks: only populated for a kind companionSupportsStructuredAttacks
 	// reports true for (nin-dog, titan, summon, custom — puppet has its own
 	// richer card on the Puppets tab instead, see sheet_puppet_tab's own
@@ -847,7 +850,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 		return data, err
 	}
 	for _, c := range all {
-		view := summonCompanionView{Companion: c, Saves: companionSaves(c, sheet.ProficiencyBonus, sheet.Level)}
+		view := summonCompanionView{Companion: c, Saves: companionSaves(c, sheet)}
 		if c.Kind == "summon" && c.SummonTribeSlug != "" {
 			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, sheet.Level)
 			if err != nil {
@@ -873,7 +876,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 				return data, err
 			}
 			view.Companion = c
-			view.Saves = companionSaves(c, sheet.ProficiencyBonus, sheet.Level)
+			view.Saves = companionSaves(c, sheet)
 
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
@@ -900,7 +903,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			view.Companion = c
 			view.Saves = applyTitanSturdyFrameSaves(
-				companionSaves(c, sheet.ProficiencyBonus, sheet.Level), ref, sheet.Abilities["int"].Modifier)
+				companionSaves(c, sheet), ref, sheet.Abilities["int"].Modifier)
 
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
@@ -932,7 +935,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 				return data, err
 			}
 			view.Companion = c
-			view.Saves = companionSaves(c, sheet.ProficiencyBonus, sheet.Level)
+			view.Saves = companionSaves(c, sheet)
 
 			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
 			if err != nil {
@@ -941,6 +944,37 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			playerIntMod := sheet.Abilities["int"].Modifier
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
 				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus))
+		}
+		if c.Kind == "void-soul" {
+			ref, err := s.loadVoidSoulReference(characterID, sheet, c)
+			if err != nil {
+				return data, err
+			}
+			view.VoidSoulReference = ref
+
+			// Re-read: loadVoidSoulReference just wrote this render's live
+			// Speed (auto-then-pin resolved) to this companion's own row —
+			// c and view.Saves must reflect that same write, the same
+			// re-read-after-write pattern the nin-dog/titan/snb blocks above
+			// already use.
+			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Companion = c
+			view.Saves = companionSaves(c, sheet)
+
+			// Same "no computed baseline attack" treatment as summon/custom
+			// just below — the Void Soul has no rules-defined natural
+			// weapon of its own (this file's own header doc on the missing
+			// base stat card), just whatever the player has added, plus a
+			// rollable row per known jutsu (voidSoulJutsuAttackRows).
+			attacks, err := charstore.ListCompanionAttacks(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
+				voidSoulJutsuAttackRows(ref.KnownJutsu, sheet)...)
 		}
 		if c.Kind == "summon" || c.Kind == "custom" {
 			// Neither of these two kinds has a computed baseline attack the
@@ -1029,7 +1063,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		// layout (layout_bare.html) doesn't load sheet-toggles.js at all, so
 		// a toggle form rendered here would silently fall through to a real,
 		// unhandled page navigation on click instead of doing nothing.
-		"Saves": companionSaves(companion, sheet.ProficiencyBonus, sheet.Level),
+		"Saves": companionSaves(companion, sheet),
 	}
 
 	switch companion.Kind {
@@ -1144,7 +1178,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Companion"] = companion
-		data["Saves"] = companionSaves(companion, sheet.ProficiencyBonus, sheet.Level)
+		data["Saves"] = companionSaves(companion, sheet)
 
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment nin-dog's own popup case gives structured Attacks above.
@@ -1175,7 +1209,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Companion"] = companion
-		data["Saves"] = companionSaves(companion, sheet.ProficiencyBonus, sheet.Level)
+		data["Saves"] = companionSaves(companion, sheet)
 
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment puppet's own popup case gives structured Attacks above.
@@ -1206,7 +1240,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["Companion"] = companion
 		data["Saves"] = applyTitanSturdyFrameSaves(
-			companionSaves(companion, sheet.ProficiencyBonus, sheet.Level), ref, sheet.Abilities["int"].Modifier)
+			companionSaves(companion, sheet), ref, sheet.Abilities["int"].Modifier)
 
 		// Same "read-only quick reference, editing happens on the tab"
 		// treatment nin-dog's own popup case gives structured Attacks above.
@@ -1227,6 +1261,42 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
 			titanSpecialWeaponUpgradeAttacks(ref, companion, sheet, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
 			titanSaveOnlyUpgradeAttacks(ref, sheet, companion.IsDemonFoe)...)
+	case "void-soul":
+		ref, err := s.loadVoidSoulReference(id, sheet, companion)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load void soul reference:", err)
+			return
+		}
+		data["VoidSoulReference"] = ref
+
+		// Re-read: loadVoidSoulReference just wrote this render's live Speed
+		// (same auto-then-pin write the snb case above re-reads after) —
+		// companion/data["Companion"]/data["Saves"] must reflect that same
+		// write.
+		companion, err = charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("reload companion after void soul reference:", err)
+			return
+		}
+		data["Companion"] = companion
+		data["Saves"] = companionSaves(companion, sheet)
+
+		// Same "read-only quick reference, editing happens on the tab"
+		// treatment every other kind's own popup case gives structured
+		// Attacks above — see void_soul.go's own header doc on why editing
+		// (the ability-point buttons, the summon toggle, the jutsu picker)
+		// is Companions-tab-only.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for void soul popup:", err)
+			return
+		}
+		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
+			voidSoulJutsuAttackRows(ref.KnownJutsu, sheet)...)
 	}
 
 	s.render(w, "companion_sheet.html", data)

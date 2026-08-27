@@ -41,8 +41,9 @@ package main
 // puppetUpgradeEffectiveCap's tier-funds-lower-tiers rule covers any tier the
 // slots actually get spent on. The same sentence's "double the specified
 // ranges of any White Technique Feature, as well as your Chakra Threads"
-// clause stays Group 3: no range field exists anywhere in this app for
-// Chakra Threads or White Technique features to double.
+// clause has no range field anywhere in this app to literally double, so it
+// is instead surfaced as a computed reminder note — see passive_traits.go's
+// passiveNoteGrants entry for this same slug.
 var puppetUpgradeFeatureBonusTierSlots = map[string]map[string]int{
 	"class/puppet-master/group/puppet-techniques/purple-technique-juggernaut/feature/nearly-perfected-architecture": {"Silver Tier": 2},
 	"class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/elevated-design":                 {"Bronze Tier": 1, "Silver Tier": 1, "Gold Tier": 1},

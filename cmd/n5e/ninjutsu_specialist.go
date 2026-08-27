@@ -30,13 +30,23 @@ import (
 // character's own known jutsu rather than a static class_options/
 // class_features table.
 //
+// Ninjutsu Master's own "always deal maximum damage with the chosen Jutsu"
+// payload is now a display-only annotation, not a damage-roll override: no
+// such override mechanism exists anywhere in this app (jutsu damage dice are
+// pinned per row, never computed) — ninjutsuMasterAlwaysMaxDamageSlug below
+// resolves the already-tracked pick to a jutsu_slug, and characters.go's
+// loadCharacterJutsuSheet/jutsuSheetRow.AlwaysMaxDamage renders it as a
+// "Max Damage" badge next to that jutsu wherever jutsu are listed (Known
+// Jutsu, Attacks & Jutsu) — the player still applies the rule by hand when
+// rolling.
+//
 // Everything else (the per-subclass "motes/marks/vials/gems/shards" combat
-// resources, Refined Ninjutsu's own which-benefit-this-casting choice,
-// Ninjutsu Master's always-max-damage payload) is documented, not modeled —
-// see CLASS_AUDIT.md's Ninjutsu Specialist detail entry for the full
-// breakdown. The 22 bespoke per-subclass Efficient Molding auto-grants
-// (ninjutsuMoldingAutoGrants below) ARE modeled: each subclass's 6th- and
-// 18th-level feature grants one free, uncapped Efficient Molding pick.
+// resources, Refined Ninjutsu's own which-benefit-this-casting choice) is
+// documented, not modeled — see CLASS_AUDIT.md's Ninjutsu Specialist detail
+// entry for the full breakdown. The 22 bespoke per-subclass Efficient
+// Molding auto-grants (ninjutsuMoldingAutoGrants below) ARE modeled: each
+// subclass's 6th- and 18th-level feature grants one free, uncapped Efficient
+// Molding pick.
 const ninjutsuSpecialistSlug = "class/ninjutsu-specialist"
 
 // ninjutsuSpecialistClassLevel returns the character's own Ninjutsu
@@ -252,6 +262,43 @@ func ninjutsuMasterCap(level int) int {
 		return 1
 	}
 	return 0
+}
+
+// ninjutsuMasterAlwaysMaxDamageSlug resolves Ninjutsu Master's own chosen
+// jutsu (character_ninjutsu_jutsu_picks, category "ninjutsu_master") to the
+// v_jutsu slug jutsuSheetRow's AlwaysMaxDamage badge annotates (characters.go's
+// loadCharacterJutsuSheet) — "" when the character has no pick, or has
+// dropped below 20th level since making one (ninjutsuMasterCap gates the
+// pick itself the same way KnownMaster is hidden below 20th in
+// loadNinjutsuSpecialistTabData). The pick is stored as a character_jutsu
+// row id rather than a slug directly (see knownJutsuOption's own doc
+// comment), so a custom-jutsu pick (jutsu_slug NULL) resolves to "" too —
+// custom jutsu never surface in jutsuSheetRow at all, so there is no row
+// left to annotate.
+func (s *server) ninjutsuMasterAlwaysMaxDamageSlug(characterID int64) (string, error) {
+	level, err := s.ninjutsuSpecialistClassLevel(characterID)
+	if err != nil {
+		return "", err
+	}
+	if ninjutsuMasterCap(level) == 0 {
+		return "", nil
+	}
+	picks, err := charstore.ListNinjutsuJutsuPicks(s.charDB, characterID, charstore.NinjutsuPickMaster)
+	if err != nil {
+		return "", err
+	}
+	if len(picks) == 0 {
+		return "", nil
+	}
+	var slug sql.NullString
+	err = s.charDB.QueryRow(`SELECT jutsu_slug FROM character_jutsu WHERE id = ?`, picks[0]).Scan(&slug)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return slug.String, nil
 }
 
 // awakenedScrollFeatureSlug identifies Scribe Master's own subclass feature

@@ -1099,6 +1099,18 @@ func splitHunterPicks(catalog []hunterPickOption, picked map[string]bool) (known
 type hunterTechniquesTabData struct {
 	LethalAttackDice string
 
+	// PrimaryTargetShown gates the Primary Target box (2nd level, base
+	// class — class/hunter-nin/feature/primary-target). Set whenever the
+	// character has real Hunter-Nin levels of 2 or higher; the archetype
+	// training feats (huntersArchetypeGrants) never grant this feature, so
+	// unlike LethalAttackDice above there's no feat-only fallback to check.
+	// PrimaryTarget is the player-typed name of whoever is currently
+	// marked, "" when nobody is (charstore.SetHunterPrimaryTarget,
+	// migration 0087) — the app has no NPC/monster records to reference
+	// structurally, so free text is the only way to record who was marked.
+	PrimaryTargetShown bool
+	PrimaryTarget      string
+
 	LethalPrecisionCap       int
 	LethalPrecisionUsed      int
 	KnownLethalPrecision     []knownHunterPick
@@ -1243,6 +1255,11 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 	}
 
 	data := &hunterTechniquesTabData{LethalAttackDice: lethalDice, CreedName: subclassName}
+
+	data.PrimaryTargetShown = hunterLevel >= 2
+	if data.PrimaryTargetShown {
+		data.PrimaryTarget = sheet.HunterPrimaryTarget
+	}
 
 	data.LethalPrecisionCap = lethalPrecisionCap(hunterLevel)
 	if data.LethalPrecisionCap > 0 {

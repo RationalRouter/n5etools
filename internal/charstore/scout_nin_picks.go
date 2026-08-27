@@ -39,6 +39,13 @@ const (
 	// ScoutNinPickManeuvers picks, but with no keyword restriction and no
 	// escalating cap (always exactly 1 slot).
 	ScoutNinPickSupremeClones ScoutNinPickCategory = "supreme_clones"
+	// ScoutNinPickVoidSoulJutsu is Trickster Scout's own 3rd-level Void Soul
+	// Awakening companion-scoped known-jutsu pick (cmd/n5e/void_soul.go) —
+	// option_slugs are jutsu slugs, like ScoutNinPickMobileSavant, but these
+	// are jutsu the Void Soul itself knows and casts, not the player, so
+	// they are deliberately never written into character_jutsu (see
+	// void_soul.go's own header doc).
+	ScoutNinPickVoidSoulJutsu ScoutNinPickCategory = "void_soul_jutsu"
 )
 
 // AddScoutNinPick records one catalog pick within its own category. A

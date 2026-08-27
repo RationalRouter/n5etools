@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 )
 
@@ -29,7 +30,7 @@ func TestCompanionSaves(t *testing.T) {
 		// Con/Int/Wis/Cha left NULL — must read as modifier 0, not error or
 		// worst-case.
 	}
-	view := companionSaves(c, 4, 5)
+	view := companionSaves(c, &charsheet.Sheet{ProficiencyBonus: 4, Level: 5})
 	byAbility := map[string]companionSaveRow{}
 	for _, row := range view.Rows {
 		byAbility[row.Ability] = row
@@ -63,7 +64,7 @@ func TestCompanionSaves(t *testing.T) {
 		Str:               sql.NullInt64{Int64: 8, Valid: true}, // -1, floored to 0
 		SaveProficiencies: "dex",
 	}
-	snbView := companionSaves(snb, 3, 6)
+	snbView := companionSaves(snb, &charsheet.Sheet{ProficiencyBonus: 3, Level: 6})
 	snbByAbility := map[string]companionSaveRow{}
 	for _, row := range snbView.Rows {
 		snbByAbility[row.Ability] = row
@@ -283,6 +284,92 @@ func TestHandleCompanionSavingThrowToggleSNBCap(t *testing.T) {
 	}
 	if c.SaveProficiencies != "str,dex,con" {
 		t.Errorf("SaveProficiencies at 14th level = %q, want \"str,dex,con\"", c.SaveProficiencies)
+	}
+}
+
+// TestCompanionSavesVoidSoulMirrorsPlayerProficiencies covers companionSaves'
+// third shape (companionSaveCap's own doc): a void-soul companion's stored
+// save_proficiencies column is ignored outright, even when it holds a
+// deliberately stale/wrong value, in favor of sheet.Saves — "Uses your
+// saving throw proficiencies" is not a player choice for this kind, unlike
+// Nin-Dog/Titan's own fixed-but-trusted columns.
+func TestCompanionSavesVoidSoulMirrorsPlayerProficiencies(t *testing.T) {
+	c := charstore.Companion{
+		Kind:              "void-soul",
+		SaveProficiencies: "dex", // deliberately stale/wrong — must be ignored
+		Str:               sql.NullInt64{Int64: 16, Valid: true}, // +3
+		Dex:               sql.NullInt64{Int64: 16, Valid: true}, // +3
+		Con:               sql.NullInt64{Int64: 16, Valid: true}, // +3
+	}
+	sheet := &charsheet.Sheet{
+		ProficiencyBonus: 4,
+		Level:            5,
+		Saves: []charsheet.SaveEntry{
+			{Ability: "str", Proficient: true},
+			{Ability: "dex", Proficient: false},
+			{Ability: "con", Proficient: true},
+		},
+	}
+	view := companionSaves(c, sheet)
+	byAbility := map[string]companionSaveRow{}
+	for _, row := range view.Rows {
+		byAbility[row.Ability] = row
+	}
+
+	if got := byAbility["str"]; !got.Proficient || got.Modifier != 3+4 {
+		t.Errorf("str = %+v, want proficient (mirrors sheet.Saves), modifier 7", got)
+	}
+	if got := byAbility["dex"]; got.Proficient || got.Modifier != 3 {
+		t.Errorf("dex = %+v, want NOT proficient (sheet.Saves wins over the stale stored \"dex\" column), modifier 3", got)
+	}
+	if got := byAbility["con"]; !got.Proficient || got.Modifier != 3+4 {
+		t.Errorf("con = %+v, want proficient (mirrors sheet.Saves), modifier 7", got)
+	}
+	if view.Cap != 0 {
+		t.Errorf("Cap = %d, want 0 (no cap for void-soul)", view.Cap)
+	}
+}
+
+// TestHandleCompanionSavingThrowToggleVoidSoulRejected covers the server-side
+// half of "a disabled control is a convenience, not the real enforcement"
+// for void-soul companions: a direct POST to the saving-throw toggle
+// endpoint must be rejected (companion_fields.html's own template never
+// renders the toggle form for this kind in the first place, but that's a UI
+// nicety, not the actual guard).
+func TestHandleCompanionSavingThrowToggleVoidSoulRejected(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Void', 10, 10, 10, 10, 10, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	companionID, err := charstore.AddCompanion(s.charDB, 1, "void-soul", "Void Soul")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := charstore.SetCompanionSaveProficiencies(s.charDB, 1, companionID, "dex"); err != nil {
+		t.Fatal(err)
+	}
+	cid := strconv.FormatInt(companionID, 10)
+
+	req := httptest.NewRequest(http.MethodPost, "/characters/1/companions/"+cid+"/saving-throw",
+		strings.NewReader(url.Values{"ability": {"str"}, "on": {"1"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Requested-With", "fetch")
+	req.SetPathValue("id", "1")
+	req.SetPathValue("cid", cid)
+	w := httptest.NewRecorder()
+	s.handleCompanionSavingThrowToggle(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("toggle a void-soul companion's saving throw: status %d, want 400, body %s", w.Code, w.Body.String())
+	}
+
+	c, err := charstore.GetCompanion(s.charDB, 1, companionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.SaveProficiencies != "dex" {
+		t.Errorf("SaveProficiencies after the rejected toggle = %q, want unchanged \"dex\"", c.SaveProficiencies)
 	}
 }
 

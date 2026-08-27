@@ -335,7 +335,7 @@
          granted-features list itself could change: the Level row and both
          feat add/delete forms. */}}
     <details class="sheet-feature-panel sheet-box" open data-box-id="passive-traits">
-      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Resistances &amp; Senses</h2></summary>
+      <summary><button type="button" class="sheet-box-handle" aria-label="Drag to reorder this box" title="Drag to reorder">⠿</button><h2>Resistances, Senses &amp; Advantages</h2></summary>
       {{template "sheet_passive_traits" (dict "PassiveTraits" .PassiveTraits)}}
     </details>
 
@@ -1316,6 +1316,11 @@
         <span class="option-picker-epithet">—</span>
         {{end}}
         {{if .DamageType}}<span class="option-picker-epithet">{{.DamageType}}</span>{{end}}
+        {{if .BonusDamageDice}}
+        <button type="button" class="sheet-attack-roll sheet-attack-bonus-roll rollable" data-sides="{{.BonusDamageSides}}" data-count="{{.BonusDamageCount}}"
+                data-modifier="0" data-label="{{.Name}} {{.BonusDamageLabel}}"
+                title="{{.BonusDamageLabel}}: extra damage on a hit with this Weapon Focus weapon">+{{.BonusDamageDice}} {{.BonusDamageLabel}}</button>
+        {{end}}
       </td>
       <td class="sheet-custom-attack-actions">
         {{/* Same disclosure pattern as the custom rows' edit pencil: the
@@ -1628,6 +1633,7 @@
     <option value="nin-dog" data-description="The Inuzuka clan's Beast Master companion. Pick its breed on the Companions tab to compute AC/HP/Speed baselines and unlock its rank-gated Special Feature picks.">Nin-Dog</option>
     <option value="titan" data-description="Science-Nin's Mech Crafter companion. Pick its Titan Specialization on the Companions tab to compute HP/Speed/ability-score baselines and unlock its Titan Upgrades cap+catalog picker.">Titan</option>
     <option value="snb" data-description="Science-Nin's S.N.B Specialist companion, the Scientific Ninja Beast. Computes AC/HP/Speed/ability-score baselines and unlocks its level-gated feature list and Combat Programming pick on the Companions tab.">S.N.B</option>
+    <option value="void-soul" data-description="Trickster Scout's Void Soul Awakening companion, a Chakra Construct with Ability Modifiers instead of scores. Summon/dismiss it and spend its ability-modifier points on the Companions tab.">Void Soul</option>
     <option value="custom" data-description="Any other companion or ally that doesn't fit the categories above. A blank sheet with no class-specific reference panel.">Other</option>
   </select>
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
@@ -2118,7 +2124,7 @@
     </form>
   </summary>
   {{template "companion_stat_fields" (dict "Companion" .Companion "CharacterID" $.ID "FormID" (printf "companion-form-%d" .ID) "SummonTribes" $.SummonsTab.Tribes
-              "NinDogReference" .NinDogReference "TitanReference" .TitanReference "SNBReference" .SNBReference
+              "NinDogReference" .NinDogReference "TitanReference" .TitanReference "SNBReference" .SNBReference "VoidSoulReference" .VoidSoulReference "ShowVoidSoulEditing" true
               "ShowStructuredAttacks" (companionSupportsStructuredAttacks .Kind) "AttacksTarget" "sheet-summon-tab" "Attacks" .Attacks
               "Saves" .Saves "ShowSaveToggles" true "SavesTarget" "sheet-summon-tab"
               "ExpectedAC" (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC) (snbReferenceOrZero .SNBReference).ExpectedAC)
@@ -2137,6 +2143,7 @@
   {{if eq .Kind "nin-dog"}}{{template "nindog_reference" (dict "Ref" .NinDogReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
   {{if eq .Kind "titan"}}{{template "titan_reference" (dict "Ref" .TitanReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
   {{if eq .Kind "snb"}}{{template "snb_reference" (dict "Ref" .SNBReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
+  {{if eq .Kind "void-soul"}}{{template "void_soul_reference" (dict "Ref" .VoidSoulReference "CharacterID" $.ID "CompanionID" .ID)}}{{end}}
 </details>
 {{end}}
 {{if not .SummonsTab.Companions}}
@@ -2145,14 +2152,28 @@
 </div>
 {{end}}
 
-{{/* sheet_passive_traits: the Resistances & Senses box. Expects
+{{/* sheet_passive_traits: the Resistances, Senses & Advantages box. Expects
      {PassiveTraits}. Read-only, entirely computed (see computePassiveTraits)
      — there is no add/remove form because there is nothing to store; a
-     resistance shown here always traces back to a specific class, subclass,
-     clan feature, or feat, listed in the title tooltip. */}}
+     resistance/advantage/disadvantage shown here always traces back to a
+     specific class, subclass, clan feature, or feat, listed in the title
+     tooltip.
+
+     Advantage/Disadvantage entries (PassiveTraitSummary.Advantages/
+     .Disadvantages, from passive_traits.go's advantageGrants table) are a
+     visible reminder only — this app has no dice-roll-resolution code that
+     could apply them to a roll on its own, so the player sets
+     dice-roller.js's own Normal/Advantage/Disadvantage toggle by hand when
+     rolling the named roll type.
+
+     Notes (PassiveTraitSummary.Notes, from passive_traits.go's
+     passiveNoteGrants table) are the same kind of visible reminder, for a
+     rules clause that isn't a resistance/immunity/sense/advantage shape at
+     all — e.g. a range-doubling effect with no range field anywhere in this
+     app to literally double. */}}
 {{define "sheet_passive_traits"}}
 <div id="sheet-passive-traits" data-fragment="sheet_passive_traits">
-{{if or .PassiveTraits.Immunities .PassiveTraits.Resistances .PassiveTraits.Senses}}
+{{if or .PassiveTraits.Immunities .PassiveTraits.Resistances .PassiveTraits.Senses .PassiveTraits.Advantages .PassiveTraits.Disadvantages .PassiveTraits.Notes}}
 <dl class="sheet-passive-trait-list">
   {{if .PassiveTraits.Immunities}}
   <dt>Immune to</dt>
@@ -2166,9 +2187,21 @@
   <dt>Senses</dt>
   <dd>{{range $i, $e := .PassiveTraits.Senses}}{{if $i}}, {{end}}<span class="tooltip passive-trait-tooltip" tabindex="0"><span class="tooltip-trigger">{{$e.Sense}} {{$e.Feet}}ft</span><span class="tooltip-content">{{range $j, $s := $e.Sources}}{{if $j}}, {{end}}{{$s}}{{end}}</span></span>{{end}}</dd>
   {{end}}
+  {{if .PassiveTraits.Advantages}}
+  <dt>Advantage on</dt>
+  <dd>{{range $i, $e := .PassiveTraits.Advantages}}{{if $i}}, {{end}}<span class="tooltip passive-trait-tooltip" tabindex="0"><span class="tooltip-trigger">{{$e.RollType}}</span><span class="tooltip-content">{{range $j, $s := $e.Sources}}{{if $j}}, {{end}}{{$s}}{{end}}</span></span>{{end}}</dd>
+  {{end}}
+  {{if .PassiveTraits.Disadvantages}}
+  <dt>Disadvantage on</dt>
+  <dd>{{range $i, $e := .PassiveTraits.Disadvantages}}{{if $i}}, {{end}}<span class="tooltip passive-trait-tooltip" tabindex="0"><span class="tooltip-trigger">{{$e.RollType}}</span><span class="tooltip-content">{{range $j, $s := $e.Sources}}{{if $j}}, {{end}}{{$s}}{{end}}</span></span>{{end}}</dd>
+  {{end}}
+  {{if .PassiveTraits.Notes}}
+  <dt>Notes</dt>
+  <dd>{{range $i, $e := .PassiveTraits.Notes}}{{if $i}}, {{end}}<span class="tooltip passive-trait-tooltip" tabindex="0"><span class="tooltip-trigger">{{$e.Text}}</span><span class="tooltip-content">{{range $j, $s := $e.Sources}}{{if $j}}, {{end}}{{$s}}{{end}}</span></span>{{end}}</dd>
+  {{end}}
 </dl>
 {{else}}
-<p class="section-hint">No resistances, immunities, or special senses yet.</p>
+<p class="section-hint">No resistances, immunities, special senses, or advantage/disadvantage effects yet.</p>
 {{end}}
 </div>
 {{end}}
@@ -2538,6 +2571,25 @@
 <div id="sheet-hunter-techniques" data-fragment="sheet_hunter_techniques">
   {{if .HunterTechniques.LethalAttackDice}}
   <p class="section-hint">Lethal Attack: {{.HunterTechniques.LethalAttackDice}} extra damage, once per turn against a foe that fits the trigger.</p>
+  {{end}}
+
+  {{/* Primary Target (2nd level, base class): free text, not a computed
+       value — the app has no representation of NPCs/monsters to reference,
+       so it cannot know WHICH creature the player marked, only let them
+       record it. Autosaves on blur through the shared .sheet-bio-field
+       path (sheet-bio.js), delegated from document so it survives this
+       box's own fragment swaps from every other picker below without any
+       extra rewiring. */}}
+  {{if .HunterTechniques.PrimaryTargetShown}}
+  <div class="sheet-subclass-detail">
+    <h3>Primary Target</h3>
+    <p class="section-hint">Mark one creature you can see within 120 feet — no action cost for your first mark after rolling Initiative, a Bonus Action to re-mark another. While marked, you have Advantage on Wisdom checks to track or search for them within the same country's borders, and learn one of their damage immunities, damage resistances, or their Damage Reduction value (reapply Primary Target to learn another).</p>
+    <form method="post" action="/characters/{{$.ID}}/sheet/hunter-primary-target" class="sheet-inline-form">
+      <label class="sheet-vitals-label">Marked creature
+        <input type="text" name="hunter_primary_target" class="sheet-bio-field" value="{{.HunterTechniques.PrimaryTarget}}" placeholder="Not currently marked" maxlength="200">
+      </label>
+    </form>
+  </div>
   {{end}}
 
   {{if gt .HunterTechniques.LethalPrecisionCap 0}}
@@ -3088,6 +3140,21 @@
   {{if .ScienceNin.StormRider}}
   <div class="sheet-subclass-detail subclass-scope">
     <p class="section-hint">A.T. Enhancements and Regalia are tracked in the "Storm Rider" popup — see the sidebar.</p>
+    {{/* Future of Shinobi: Sky Keeper (20th level): FlySpeed is 0 (and this
+         line hidden) for every Storm Rider short of that capstone — see
+         charsheet.Sheet.FlySpeed's own doc comment for why it always
+         mirrors the Speed square rather than being a fixed number. Stacking
+         a second .section-hint under the first is already covered by
+         app.css's `.sheet-subclass-detail > .section-hint` override (its
+         own comment explains why the bare class's negative top margin,
+         tuned for sitting under an <h1>, doesn't apply here) — no extra
+         CSS needed for this one. */}}
+    {{if .ScienceNin.StormRider.FlySpeed}}
+    <p class="section-hint tooltip" tabindex="0">
+      <span class="tooltip-trigger">Fly Speed {{.ScienceNin.StormRider.FlySpeed}} ft.</span>
+      <span class="tooltip-content">Future of Shinobi: Sky Keeper grants a flying speed equal to your walking speed, and you can hover. It doesn't replace your walking speed — both movement modes are usable on the same turn.</span>
+    </p>
+    {{end}}
   </div>
   {{end}}
   {{/* Technobi Mechanizations / S.E.N.T: pulled out of this box into their
@@ -4426,6 +4493,34 @@
     <span class="sheet-square-label">Hit<br>Dice</span>
     <span class="sheet-square-value">{{sub .Sheet.Level .Sheet.HitDiceSpent}}<span class="sheet-square-of">/{{.Sheet.Level}}</span></span>
   </div>
+  {{/* Bonus Reactions (Ironclad's Iron Will, 9th level) — absent entirely
+       for a character with no such grant, same "no empty state" convention
+       every other conditional tile on this sheet already follows (Martial
+       Dice, Concentration in sheet_vitals). Not a spendable pool: this app
+       tracks no reaction economy at all (a character normally gets one
+       Reaction per round, untracked anywhere), so this is a permanent,
+       informational readout of the extra amount and what it's restricted
+       to, the same computed-line role Unarmed Damage plays in the Martial
+       Techniques box, just placed beside Initiative/Speed here since it's a
+       combat stat rather than a Martial-Technique-specific one. A plain
+       `title` attribute rather than the .tooltip/.tooltip-content chip
+       mechanism (contrast the Resistances/Advantages box): that chip's
+       default .tooltip-trigger styling is its own bordered/padded box,
+       tuned for wrapping a short piece of comma-joined text inside a <dd> —
+       wrapping it around this tile's stacked label+value would nest one
+       box inside another and look wrong, and .sheet-passive-trait-list's
+       own override that flattens it back down is scoped to that list, not
+       this row. A native title is the same "supplemental context on
+       hover/focus, not full description" role Martial Dice's and
+       Concentration's own title attributes already play elsewhere on this
+       sheet. */}}
+  {{if .Sheet.BonusReactions}}
+  <div class="sheet-square-stat" data-subitem="bonusreactions" title="{{.Sheet.BonusReactionsSource}}">
+    <button type="button" class="sheet-subitem-handle" aria-label="Drag to reorder Bonus Reactions" title="Drag to reorder">⠿</button>
+    <span class="sheet-square-label">Bonus<br>Reactions</span>
+    <span class="sheet-square-value">{{signed .Sheet.BonusReactions}}</span>
+  </div>
+  {{end}}
   <button type="button" class="sheet-subgrid-orient-toggle" aria-label="Switch this row between horizontal and vertical layout" title="Switch between horizontal and vertical layout">⇅</button>
 </div>
 {{end}}
@@ -5191,7 +5286,7 @@
     {{range .Jutsu}}
     <li>
       <a class="sheet-popup-trigger" href="/jutsu/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-      <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}
+      <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}{{if .AlwaysMaxDamage}} <span class="jutsu-max-damage-badge" title="Ninjutsu Master: you always deal maximum damage with this Jutsu instead of rolling it.">Max Damage</span>{{end}}
       {{if not .SourceLabel}}
       <form method="post" action="/characters/{{$.ID}}/sheet/jutsu/delete" class="sheet-inventory-form sheet-jutsu-fetch-form"
             data-target="sheet-jutsu-known" data-also-refresh="sheet-attack-jutsu-table" data-confirm="Forget {{.Name}}?">
@@ -5242,7 +5337,7 @@
     {{$rowID := printf "jutsu-opts-%s" (slugID .Slug)}}
     <tr>
       <th scope="row"><a class="sheet-popup-trigger" href="/jutsu/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-        <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}{{if not .Derived}} · adjusted{{end}}{{if .IsConcentration}} · Concentration{{end}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}</th>
+        <span class="option-picker-epithet">{{.Rank}}-Rank, {{.CostText}}{{if not .Derived}} · adjusted{{end}}{{if .IsConcentration}} · Concentration{{end}}</span>{{if .SourceLabel}} <span class="jutsu-source-badge">{{.SourceLabel}}</span>{{end}}{{if .AlwaysMaxDamage}} <span class="jutsu-max-damage-badge" title="Ninjutsu Master: you always deal maximum damage with this Jutsu instead of rolling it.">Max Damage</span>{{end}}</th>
       <td>
         {{if .AttackKind}}
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"

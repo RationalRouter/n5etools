@@ -1,0 +1,11 @@
+-- Primary Target (class/hunter-nin/feature/primary-target, 2nd level): "you
+-- can select any creature you can see within 120 feet and mark it as your
+-- Primary Target at no action cost... You can only have one creature marked
+-- as your Primary Target at a time." The app has no representation of NPCs/
+-- monsters at all, so it cannot know WHICH creature the player marked —
+-- this column just records whatever free-text name the player types in
+-- (e.g. "Rogue Chunin", "the masked jonin from the bridge"), the same
+-- "one TEXT column on characters, saved whole on blur" shape migration
+-- 0008's own notes column already established, not a structured/foreign-
+-- keyed reference to anything.
+ALTER TABLE characters ADD COLUMN hunter_primary_target TEXT NOT NULL DEFAULT '';

@@ -2766,6 +2766,15 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    missing the bonus. */
 .sheet-attack-roll:disabled { opacity: 0.5; cursor: not-allowed; }
 .sheet-attack-roll:disabled:hover { border-color: var(--panel-border); color: var(--gold); }
+/* Enhanced Strikes' own bonus-damage-die button sits in the same Damage
+   cell as the weapon's own Damage button (and, often, a DamageType
+   epithet between them) — an explicit left margin keeps it from reading
+   as one continuous strip with whichever of those two it lands next to,
+   the same "two distinct actions need visible breathing room" rule every
+   other new button row in this project follows. font-size is a notch
+   smaller than the main Damage button so the pair doesn't read as two
+   equally-weighted rolls. */
+.sheet-attack-bonus-roll { margin-left: 0.5rem; font-size: 0.8rem; }
 
 /* Pocket calculator. Given a real bottom margin so its keypad never ends
    up shoulder-to-shoulder with the panel beside it. No max-width: it used
@@ -3037,6 +3046,26 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   padding: 0;
   font-size: inherit;
   color: inherit;
+}
+/* .tooltip's shared overflow:hidden rule (this file, ~line 934) only
+   actually clips its absolutely-positioned .tooltip-content child when
+   .tooltip itself is blockified — every OTHER .tooltip usage in this app
+   incidentally gets that for free by living inside a flex/grid container
+   of its own (a flex item is always blockified) or by carrying a display:
+   inline-flex/block class alongside .tooltip (.puppet-upgrade-option).
+   .passive-trait-tooltip sits as a bare inline <span> directly inside a
+   plain (non-flex) <dd>, so it never got blockified, and overflow:hidden
+   on it was a no-op: the hidden .tooltip-content still inflated this
+   whole box's scrollWidth at rest, live-confirmed by hiding every
+   .tooltip-content on the Resistances/Senses/Advantages box and watching
+   its scrollWidth drop back to clientWidth. Long enough trigger text (the
+   first hit: Shinobi's Karma: Will's ~90-character Genjutsu roll type)
+   is what actually exposed it — shorter existing entries never pushed the
+   hidden content wide enough to notice. inline-block keeps the same
+   flattened comma-joined text flow (still wraps normally at the dd's own
+   width) while actually giving overflow:hidden something to clip. */
+.sheet-passive-trait-list .tooltip {
+  display: inline-block;
 }
 
 .sheet-bio-layout { display: flex; flex-direction: column; }
@@ -3356,6 +3385,27 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Marks the single jutsu a Ninjutsu Specialist chose for Ninjutsu Master
+   (L20: "You always deal maximum damage with the chosen Jutsu") — display
+   only, since no damage-roll-override mechanism exists anywhere in this app
+   (jutsu damage dice are pinned per row, never computed); the badge just
+   reminds the player to apply the rule by hand when they roll. Gold rather
+   than the clan badge's blue or the free-cast tag's orange, matching this
+   app's existing "gold = maximum/critical" association elsewhere on the
+   sheet. Native `title` tooltip, same reasoning as .sheet-jutsu-freecast-tag
+   just above: the badge text alone doesn't need the app's own .tooltip
+   machinery (and its narrow-box clipping considerations) for one short
+   sentence of detail.  */
+.jutsu-max-damage-badge {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -4387,6 +4437,62 @@ body.n5e-resizing { cursor: nwse-resize; user-select: none; }
 .companion-matryoshka-hint { margin-top: 0; }
 .companion-matryoshka-status { color: var(--text-dim); font-style: italic; }
 .companion-matryoshka select { font-size: 0.85rem; padding: 0.3rem 0.4rem; }
+
+/* Void Soul Awakening (companion_fields.html) — a Kujaku-Mode-style
+   on/off toggle button (same visual shape, its own class pairing for
+   data-toggle-class since each toggle needs one), a compact per-ability
+   +/- row distinct from the generic six-ability-SCORE row every other
+   companion kind renders (that row holds real ability SCORES; this one
+   holds bare +N ability MODIFIERS — see companion_fields.html's own doc on
+   why they can't share markup), and a Known Titan Upgrades-style separator
+   for the Known Jutsu list. margin-bottom on the summon/abilities blocks
+   keeps each of these three sections from crowding the next rather than
+   reading as one continuous strip. */
+.companion-void-soul-summon { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; }
+.companion-void-soul-toggle {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.companion-void-soul-toggle.companion-void-soul-summoned {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+  box-shadow: 0 0 0.5rem rgba(212, 175, 55, 0.35);
+}
+.companion-void-soul-abilities { margin-bottom: 1rem; }
+.companion-void-soul-abilities h4,
+.companion-void-soul-jutsu h4 { margin: 0 0 0.4rem; color: var(--accent); font-size: 0.9rem; }
+.companion-void-soul-ability-row { gap: 1.1rem; }
+.companion-void-soul-ability { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; min-width: 2.75rem; }
+.companion-void-soul-ability-label { font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.03em; }
+.companion-void-soul-ability-mod { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+/* The +/- pair itself IS one control (a stepper) — sitting flush together
+   is correct here, unlike two buttons that do different things elsewhere
+   on this card (Summon/Dismiss vs. this row, kept apart by the
+   margin-bottom above instead). */
+.companion-void-soul-ability-buttons { display: flex; gap: 0.35rem; margin-top: 0.15rem; }
+.companion-void-soul-ability-btn {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.companion-void-soul-ability-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.companion-void-soul-jutsu { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--panel-border); }
 
 .companion-reference { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--panel-border); }
 .companion-reference h3 { margin-top: 1.25rem; }

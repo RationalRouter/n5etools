@@ -421,6 +421,51 @@ func (s *server) weaponFocusBonusSet(characterID int64, sheet *charsheet.Sheet) 
 	return set, weaponFocusTotalBonus(totalSlots), nil
 }
 
+// enhancedStrikesFeatureSlug identifies Samurai Form's Enhanced Strikes
+// (subclass_features, 13th level, confirmed verbatim against rules.db
+// 2026-08-26): "Starting at 13th Level, your weapon is constantly being
+// fed your chakra, enhancing its offensive potential. Whenever you hit a
+// creature with a weapon attack using a weapon you have as your Weapon
+// Focus, the creature takes extra damage equal [to] 1 flurry die."
+//
+// Master of Focus (20th level, same subclass) separately states "Enhanced
+// Strikes now counts for Bukijutsu that use chosen weapon" — extending
+// this same bonus die to Bukijutsu jutsu casts using the Weapon Focus
+// weapon. That extension is NOT modeled here: loadCharacterJutsuSheet's
+// jutsu rows have no equivalent of buildAttacks' per-item Weapon-Focus-slug
+// match to gate it against, and Master of Focus's own capstone payload
+// (customResourceGrants' master_of_the_primal_uses-shaped pool, resistance,
+// and the rest of its many clauses) is already documented as manual/Group 3
+// elsewhere in this class's audit — left as a follow-up rather than folded
+// into this pass.
+const enhancedStrikesFeatureSlug = "class/weapon-specialist/group/weapon-forms/samurai-form/feature/enhanced-strikes"
+
+// weaponSpecialistEnhancedStrikesDice returns the dice-notation bonus damage
+// ("1d10") buildAttacks should add on top of a Weapon-Focus-weapon attack's
+// own damage roll once the character has Enhanced Strikes — "" for a
+// character without it (no Weapon Specialist levels, or Weapon Specialist
+// levels but not this Samurai Form feature). The die itself is Weapon
+// Flurry's own die-size progression (flurryDieSize) at the character's own
+// Weapon Specialist class level, matching the feature's "equal [to] 1
+// flurry die" text — the same die-size chart weaponFocusTabData.DieSize
+// already surfaces for display. sheet is the caller's own already-computed
+// sheet, consulted only for ClanSlug/Level to resolve the merged granted-
+// features list, the same role it plays in weaponFocusBonusSet above.
+func (s *server) weaponSpecialistEnhancedStrikesDice(characterID int64, sheet *charsheet.Sheet) (string, error) {
+	level, err := s.weaponSpecialistClassLevel(characterID)
+	if err != nil || level == 0 {
+		return "", err
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	if err != nil {
+		return "", err
+	}
+	if !hasGrantedFeature(grantedFeatures, enhancedStrikesFeatureSlug) {
+		return "", nil
+	}
+	return "1" + flurryDieSize(level), nil
+}
+
 // handleWeaponFocusAdd learns one Weapon Focus type, gated by the
 // character's own current slot cap — server-side, defense in depth
 // regardless of what the UI already disables.

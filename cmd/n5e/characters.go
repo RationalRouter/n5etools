@@ -4019,6 +4019,24 @@ type attackRow struct {
 	// not the generic "drop this weapon" inventory action, so the pick and
 	// the granted item can never drift out of sync.
 	SourceLabel string
+
+	// BonusDamageDice/BonusDamageCount/BonusDamageSides/BonusDamageLabel: a
+	// SEPARATE dice-notation damage bonus rolled alongside (not folded into)
+	// this row's own Damage roll — distinct from DamageBonus/DamageFlat,
+	// which are flat integers added to the SAME roll. Weapon Specialist's
+	// Enhanced Strikes (Samurai Form, 13th level — see
+	// weaponSpecialistEnhancedStrikesDice) is the first and, as of this
+	// writing, only source: "the creature takes extra damage equal [to] 1
+	// flurry die" is a second die, not a bigger single die or a bigger flat
+	// modifier, so it needs its own roll button rather than reusing
+	// DamageDice/DamageBonus. BonusDamageDice == "" means no bonus damage
+	// die applies to this attack; BonusDamageCount/Sides are the parsed
+	// halves of BonusDamageDice (0 if it didn't parse), mirroring how
+	// DamageCount/DamageSides are parsed from DamageDice above.
+	BonusDamageDice  string
+	BonusDamageCount int
+	BonusDamageSides int
+	BonusDamageLabel string
 }
 
 // customAttackRow is a stored custom attack plus the totals its parts add up
@@ -4204,6 +4222,10 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		return nil, err
 	}
 	focusSlugs, focusBonus, err := s.weaponFocusBonusSet(characterID, sheet)
+	if err != nil {
+		return nil, err
+	}
+	enhancedStrikesDice, err := s.weaponSpecialistEnhancedStrikesDice(characterID, sheet)
 	if err != nil {
 		return nil, err
 	}
@@ -4524,6 +4546,25 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 			sides, _ := strconv.Atoi(m[2])
 			row.DamageCount, row.DamageSides = count, sides
 		}
+
+		// Weapon Specialist's Enhanced Strikes (Samurai Form, 13th level):
+		// "the creature takes extra damage equal [to] 1 flurry die" on a hit
+		// with a weapon held as the character's own Weapon Focus — gated on
+		// the exact same focusSlugs match weaponFocusBonus itself uses above,
+		// since both read "a weapon you have as your Weapon Focus" off the
+		// identical pick.
+		if enhancedStrikesDice != "" && focusSlugs[item.Slug] {
+			row.BonusDamageDice = enhancedStrikesDice
+			row.BonusDamageLabel = "Enhanced Strikes"
+			if m := damageDicePattern.FindStringSubmatch(enhancedStrikesDice); m != nil {
+				count := 1
+				if m[1] != "" {
+					count, _ = strconv.Atoi(m[1])
+				}
+				sides, _ := strconv.Atoi(m[2])
+				row.BonusDamageCount, row.BonusDamageSides = count, sides
+			}
+		}
 		out = append(out, row)
 	}
 	return out, nil
@@ -4574,6 +4615,18 @@ type jutsuSheetRow struct {
 	// player chose — it has no character_jutsu row of its own, doesn't
 	// count against JutsuKnownCap, and can't be forgotten from the sheet.
 	SourceLabel string
+
+	// AlwaysMaxDamage is true for the single jutsu a Ninjutsu Specialist
+	// chose for Ninjutsu Master (L20, base class: "select one Ninjutsu of
+	// C-Rank or lower. You always deal maximum damage with the chosen
+	// Jutsu.") — resolved from character_ninjutsu_jutsu_picks' own
+	// "ninjutsu_master" category (cmd/n5e/ninjutsu_specialist.go's
+	// ninjutsuMasterAlwaysMaxDamageSlug) rather than stored on this row
+	// directly. This is a display-only annotation: no damage-roll-override
+	// mechanism exists anywhere in this app (jutsu damage dice are entered
+	// per row, never computed), so the badge documents the always-max-
+	// damage rule for the player to apply by hand when they roll.
+	AlwaysMaxDamage bool
 
 	// CostOverride is the player's own manual override of this jutsu's
 	// Chakra cost (feats, clan, or class features that cast it for less —
@@ -5182,6 +5235,17 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	// Knowledge pick, only known once elementalAffinityPicks is loaded.
 	passiveTraits = mergePassiveResistance(passiveTraits,
 		scoutNinElementalResistanceEntry(grantedFeatures, elementalAffinityPicks["elemental-knowledge"]))
+	// Food For the Soul (Cooking-Nin, 2nd level) — same "player-picked
+	// target, not in the static table" shape as Elemental Resistance above,
+	// just for an Advantage grant instead of a Resistance one.
+	foodForTheSoulChoices, err := features.LoadFeatureChoices(s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load feature choices for food for the soul advantage:", err)
+		return
+	}
+	passiveTraits = mergePassiveAdvantage(passiveTraits,
+		cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}]))
 	affinitySet := map[string]bool{}
 	for _, a := range elementalAffinities {
 		affinitySet[a.Element] = true
@@ -5661,11 +5725,21 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 		}
 	}
 
+	// Ninjutsu Master (L20, base class): "You always deal maximum damage
+	// with the chosen Jutsu" — resolves to at most one slug (the pick's own
+	// cap is 1), annotated below with AlwaysMaxDamage rather than gating
+	// anything about the row itself.
+	alwaysMaxDamageSlug, err := s.ninjutsuMasterAlwaysMaxDamageSlug(characterID)
+	if err != nil {
+		return nil, err
+	}
+
 	var out []jutsuSheetRow
 	for _, slug := range slugs {
 		var j jutsuSheetRow
 		j.Slug = slug
 		j.SourceLabel = grantLabels[slug]
+		j.AlwaysMaxDamage = alwaysMaxDamageSlug != "" && slug == alwaysMaxDamageSlug
 		var rank sql.NullString
 		var description, duration, classification string
 		var costChakra, chakraPerRank sql.NullInt64
@@ -6914,6 +6988,16 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			return
 		}
 		traits = mergePassiveResistance(traits, scoutNinElementalResistanceEntry(grantedFeatures, elementalPicks["elemental-knowledge"]))
+		// Food For the Soul (Cooking-Nin, 2nd level) — same reason as
+		// Elemental Resistance above, for an Advantage grant instead.
+		foodForTheSoulChoices, err := features.LoadFeatureChoices(s.charDB, characterID)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load feature choices for food for the soul advantage fragment:", err)
+			return
+		}
+		traits = mergePassiveAdvantage(traits,
+			cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}]))
 		data["PassiveTraits"] = traits
 	case "sheet_feats":
 		characterFeats, err := s.loadCharacterFeats(characterID)
@@ -8119,6 +8203,28 @@ func (s *server) handleSheetNotes(w http.ResponseWriter, r *http.Request) {
 	if err := charstore.SetNotes(s.charDB, id, r.FormValue("notes")); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set notes:", err)
+		return
+	}
+	redirectToSheet(w, r, id)
+}
+
+// handleSheetHunterPrimaryTarget replaces the free-text name of the
+// creature marked by Hunter-Nin's Primary Target — the same blur-autosave
+// path as the Notes box (sheet-bio.js's shared .sheet-bio-field listener),
+// on its own route so this save never touches anything else on the sheet.
+func (s *server) handleSheetHunterPrimaryTarget(w http.ResponseWriter, r *http.Request) {
+	id, err := parseCharacterID(r)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if err := charstore.SetHunterPrimaryTarget(s.charDB, id, strings.TrimSpace(r.FormValue("hunter_primary_target"))); err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("set hunter primary target:", err)
 		return
 	}
 	redirectToSheet(w, r, id)

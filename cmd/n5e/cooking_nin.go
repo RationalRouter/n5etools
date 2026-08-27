@@ -115,10 +115,14 @@ func (a cookingArchetypeFeats) dieSize() string {
 // foodForTheSoulOptions: freely re-editable any time (RAW re-picks on every
 // short or Long Rest; this app doesn't enforce rest timing, same "trust the
 // player" boundary Hand Wraps of Passion/Mastery already draw). The applied
-// effect itself (Advantage on allies' first check/save with the chosen
-// score) stays a manual/Group 2-3 boundary — no advantage-flag tracking
-// exists anywhere in this app — so this only records WHICH score is
-// currently selected.
+// effect (Advantage on allies' first check/save with the chosen score) is
+// surfaced via cookingNinFoodForTheSoulAdvantageEntry below and
+// passive_traits.go's mergePassiveAdvantage — it can't live in the static
+// advantageGrants table since that table's RollType is a fixed string per
+// feature slug, and this feature's roll type varies with the player's own
+// re-pickable ability score (the same "dynamic, not static" shape
+// scoutNinElementalResistanceEntry/mergePassiveResistance already handle for
+// Elemental Resistance's Target).
 var foodForTheSoulOptions = []featureChoiceOption{
 	{Value: "str", Label: "Strength", Description: "Allied creatures gain Advantage on their first Strength Ability Check and Strength saving throw before your next rest."},
 	{Value: "dex", Label: "Dexterity", Description: "Allied creatures gain Advantage on their first Dexterity Ability Check and Dexterity saving throw before your next rest."},
@@ -126,6 +130,39 @@ var foodForTheSoulOptions = []featureChoiceOption{
 	{Value: "int", Label: "Intelligence", Description: "Allied creatures gain Advantage on their first Intelligence Ability Check and Intelligence saving throw before your next rest."},
 	{Value: "wis", Label: "Wisdom", Description: "Allied creatures gain Advantage on their first Wisdom Ability Check and Wisdom saving throw before your next rest."},
 	{Value: "cha", Label: "Charisma", Description: "Allied creatures gain Advantage on their first Charisma Ability Check and Charisma saving throw before your next rest."},
+}
+
+// cookingNinFoodForTheSoulAdvantageEntry resolves Food For the Soul's own
+// Advantage grant (rules.db class_features, slug foodForTheSoulFeatureSlug,
+// confirmed verbatim 2026-08-26): "Starting at 2nd level, you have learned
+// to nourish both the body and soul. Whenever you would complete a short or
+// Long Rest, select one ability score of your choice. All willing allied
+// creatures gain Advantage on their first Ability Check and saving throw
+// that uses the chosen ability score." Returns nil if the character hasn't
+// reached the feature yet or hasn't made a pick (an empty currentPick, e.g.
+// a freshly-leveled character who hasn't opened the Cooking-Nin box yet).
+//
+// Not modeled via the static advantageGrants table (passive_traits.go)
+// since that table's RollType is a fixed string per feature slug, and this
+// feature's roll type varies with the ability score currently selected —
+// the same reason scoutNinElementalResistanceEntry exists outside the
+// static passiveTraitGrants table for Elemental Resistance's own
+// player-picked Target.
+func cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures []grantedFeatureRow, currentPick string) *AdvantageEntry {
+	if currentPick == "" {
+		return nil
+	}
+	if !hasGrantedFeature(grantedFeatures, foodForTheSoulFeatureSlug) {
+		return nil
+	}
+	label := abilityLabels[currentPick]
+	if label == "" {
+		label = currentPick
+	}
+	return &AdvantageEntry{
+		RollType: label + " Ability Checks and saving throws made by willing allied creatures (until your next rest)",
+		Sources:  []string{"Food For the Soul"},
+	}
 }
 
 // fastAndFuriousFeatureSlug is Entremetier Chef's 2nd-level feature slug —

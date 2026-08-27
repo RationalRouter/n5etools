@@ -240,6 +240,20 @@ func SetNotes(charDB *sql.DB, characterID int64, notes string) error {
 	return err
 }
 
+// SetHunterPrimaryTarget replaces the free-text name of the creature marked
+// by Hunter-Nin's Primary Target (class/hunter-nin/feature/primary-target,
+// 2nd level; migration 0087_hunter_nin_primary_target.sql). The app has no
+// structured representation of NPCs/monsters to reference instead, so this
+// is plain player-typed text, same "whole field, on blur" shape SetNotes
+// above already uses.
+func SetHunterPrimaryTarget(charDB *sql.DB, characterID int64, target string) error {
+	_, err := charDB.Exec(
+		`UPDATE characters SET hunter_primary_target = ?, updated_at = datetime('now') WHERE id = ?`,
+		target, characterID,
+	)
+	return err
+}
+
 // CustomFeature is one player-added row alongside the Core tab's auto-seeded
 // class/clan features.
 type CustomFeature struct {

@@ -368,6 +368,18 @@ const shinobiWareFullMetalShinobiFeatureSlug = "class/science-nin/group/scientif
 // site in Compute below.
 const elementalInnovationistExoskeletonFeatureSlug = "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/exoskeleton"
 
+// scienceNinSkyKeeperFeatureSlug is Storm Rider's 20th-level capstone, "The
+// Future of Shinobi: Sky Keeper": "Your Air Trecks gain the following
+// benefits: ... You gain a flying speed equal to your walking speed and you
+// can hover." The +60ft walking-Speed half of the same feature is already
+// applied via features.ResolveSpeedBonus below (internal/features/grants.go's
+// speedGrants list) and Falling immunity is a passive_traits.go entry
+// (cmd/n5e) — this slug's only job here is gating sheet.FlySpeed, which
+// tracks sheet.Speed 1:1 (including the +60ft bonus and any manual pin)
+// since the book ties it explicitly to "your walking speed," not a fixed
+// number of its own.
+const scienceNinSkyKeeperFeatureSlug = "class/science-nin/group/scientific-inquiry/storm-rider/feature/the-future-of-shinobi-sky-keeper"
+
 // elementalInnovationistPermaPerkFeatureSlug is Elemental Innovationist's
 // 14th-level Perma Perk: "you may choose 1 E.I.P you know... gaining its
 // benefits without Exoskeleton armor and without needing to spend CCD
@@ -862,6 +874,15 @@ const trickPathsFeatureSlug = "class/science-nin/group/scientific-inquiry/storm-
 // the Read the Enemy action) has no computed field to land in.
 const strategicTimingFeatureSlug = "class/intelligence-operative/feature/strategic-timing"
 
+// ironWillFeatureSlug identifies Ironclad's 9th-level subclass feature Iron
+// Will — "Additionally, you gain a 2 additional Reactions per round, that
+// can only be used to use your Iron Heart feature" (rules.db
+// subclass_features, confirmed verbatim 2026-08-26) drives BonusReactions/
+// BonusReactionsSource below. This feature's other clause (permanent
+// immunity to the Berserk and Dazed conditions) is modeled separately, in
+// cmd/n5e/passive_traits.go's passiveTraitGrants.
+const ironWillFeatureSlug = "class/taijutsu-specialist/group/taijutsu-style/ironclad/feature/iron-will"
+
 // hasFeature reports whether granted contains a feature or feat with the
 // given slug.
 func hasFeature(granted []features.GrantedFeatureRow, slug string) bool {
@@ -1135,6 +1156,15 @@ type Sheet struct {
 	ChakraDie            int  // sides of the primary class's chakra die
 	AC                   *int // nil when no equipped armor is found and no override is set
 	Speed                int  // feet; 30 default, overridden by the character's clan (v_clans.speed_feet) once one is chosen
+	// FlySpeed is 0 unless the character has Storm Rider's 20th-level "The
+	// Future of Shinobi: Sky Keeper" (scienceNinSkyKeeperFeatureSlug), which
+	// grants "a flying speed equal to your walking speed" via Air Trecks —
+	// kept equal to the final Speed above (clan/bonuses/manual pin already
+	// applied) rather than a separately tracked number, matching that
+	// wording. The book also grants hovering and terrain-ignoring while
+	// flying; neither has a numeric value to track, so only the speed
+	// itself is modeled here.
+	FlySpeed int
 	// PuppetUpgradeSources names any Puppet Upgrade that raised this
 	// character's own Speed or Max HP (see internal/puppetupgrades), so a
 	// number that differs from the clan/class default can say why.
@@ -1146,6 +1176,14 @@ type Sheet struct {
 	InitiativeAbility string // three-letter code, "dex" unless overridden
 	InitiativeProf    string // one of ProfModes, "half" unless overridden
 	InitiativeBonus   int    // flat extra, 0 unless overridden
+	// BonusReactions is extra Reactions per round granted on top of the
+	// normal one-per-round baseline this app otherwise never tracks — 0 for
+	// a character with no such grant (ironWillFeatureSlug is the only
+	// source so far). BonusReactionsSource names the granting feature and
+	// any restriction on how the extra reactions may be spent, for the
+	// sheet's own display; "" whenever BonusReactions is 0.
+	BonusReactions       int
+	BonusReactionsSource string
 	// AC's own Initiative-style adjustment (part 9): stacked ON TOP of the
 	// armor-derived (or manually pinned) AC above, not a replacement for it —
 	// unlike Initiative, AC already has a real computed base, so these three
@@ -1188,6 +1226,13 @@ type Sheet struct {
 	Treasure               string
 	Notes                  string // the Core tab's scratchpad (migration 0008)
 	Portrait               string // data: URL, "" when the player hasn't uploaded one
+	// HunterPrimaryTarget is Hunter-Nin's Primary Target free-text name
+	// (migration 0087_hunter_nin_primary_target.sql) — the app has no
+	// representation of NPCs/monsters to reference structurally, so this is
+	// just whatever the player types to record who they marked. Meaningless
+	// (but harmless) for a non-Hunter-Nin; cmd/n5e/hunter_nin.go only shows
+	// it when the character has real Hunter-Nin levels.
+	HunterPrimaryTarget string
 }
 
 // Compute assembles a character's full derived-stat sheet from rules.db
@@ -1198,19 +1243,19 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 
 	var baseStr, baseDex, baseCon, baseInt, baseWis, baseCha int
 	var inspiration, exoskeletonDonned, kujakuModeActive int
-	var clanSlug, appearance, backstory, alliesOrgs, additionalFeatures, treasure, notes, portrait sql.NullString
+	var clanSlug, appearance, backstory, alliesOrgs, additionalFeatures, treasure, notes, portrait, hunterPrimaryTarget sql.NullString
 	err := charDB.QueryRow(`
 		SELECT name, clan_slug, base_str, base_dex, base_con, base_int, base_wis, base_cha,
 		       current_hp, temp_hp, base_temp_hp, current_chakra, temp_chakra,
 		       hit_dice_spent, chakra_dice_spent, inspiration, exoskeleton_donned, kujaku_mode_active, ccd_mending_pct, ryo,
 		       appearance, backstory, allies_organizations, additional_features_text, treasure,
-		       notes, portrait
+		       notes, portrait, hunter_primary_target
 		FROM characters WHERE id = ?`, characterID,
 	).Scan(&sheet.Name, &clanSlug, &baseStr, &baseDex, &baseCon, &baseInt, &baseWis, &baseCha,
 		&sheet.CurrentHP, &sheet.TempHP, &sheet.BaseTempHP, &sheet.CurrentChakra, &sheet.TempChakra,
 		&sheet.HitDiceSpent, &sheet.ChakraDiceSpent, &inspiration, &exoskeletonDonned, &kujakuModeActive, &sheet.CCDMendingPct, &sheet.Ryo,
 		&appearance, &backstory, &alliesOrgs, &additionalFeatures, &treasure,
-		&notes, &portrait)
+		&notes, &portrait, &hunterPrimaryTarget)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("character %d not found", characterID)
 	}
@@ -1228,6 +1273,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	sheet.Treasure = treasure.String
 	sheet.Notes = notes.String
 	sheet.Portrait = portrait.String
+	sheet.HunterPrimaryTarget = hunterPrimaryTarget.String
 	base := map[string]int{
 		"str": baseStr, "dex": baseDex, "con": baseCon,
 		"int": baseInt, "wis": baseWis, "cha": baseCha,
@@ -1599,6 +1645,15 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		sheet.Abilities[sheet.InitiativeAbility].Modifier,
 		sheet.ProficiencyBonus, sheet.InitiativeProf, sheet.InitiativeBonus)
 
+	// Iron Will (Ironclad, 9th level): 2 bonus Reactions per round, usable
+	// only to activate Iron Heart — see ironWillFeatureSlug's own doc
+	// comment. No other source of bonus reactions exists yet, so this is a
+	// flat grant rather than a summed total.
+	if hasFeature(grantedFeatures, ironWillFeatureSlug) {
+		sheet.BonusReactions = 2
+		sheet.BonusReactionsSource = "Iron Will — usable only to activate Iron Heart"
+	}
+
 	// Feature-granted saving-throw Mastery (Intelligent Design's "Mastery
 	// on Strength saves") — clamped through the same level gate stored
 	// skill Mastery gets, and folded into the modifier the same way
@@ -1800,13 +1855,37 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// implies the character actually has 3+ levels of Shinobi-Ware.
 	shinobiWare := false
 	exoskeletonGranted := false
+	voidSoulAwakeningGranted := false
+	skyKeeperGranted := false
 	for _, f := range grantedFeatures {
 		switch f.Slug {
 		case shinobiWareFullMetalShinobiFeatureSlug:
 			shinobiWare = true
 		case elementalInnovationistExoskeletonFeatureSlug:
 			exoskeletonGranted = true
+		case voidSoulAwakeningFeatureSlug:
+			voidSoulAwakeningGranted = true
+		case scienceNinSkyKeeperFeatureSlug:
+			skyKeeperGranted = true
 		}
+	}
+	// Void Soul Awakening (Trickster Scout, 3rd level): "While summoned, you
+	// can calculate your AC using your Charisma in place of your Dexterity
+	// for the duration." Only queried when the feature is actually granted —
+	// a plain COUNT against character_companions, the same direct-query
+	// treatment puppetWornAsArmorAC below already gives a different
+	// companion-row flag this package has no other reason to load. The rest
+	// of the Void Soul companion (ability-modifier point-buy, the
+	// companion-scoped known-jutsu picker, the summon/dismiss toggle itself)
+	// lives in cmd/n5e/void_soul.go — this is the one clause with a formula
+	// slot on this sheet to land in.
+	voidSoulActive := false
+	if voidSoulAwakeningGranted {
+		active, err := voidSoulSummoned(charDB, characterID)
+		if err != nil {
+			return nil, fmt.Errorf("check void soul summoned state: %w", err)
+		}
+		voidSoulActive = active
 	}
 	sheet.Speed += puppetTotals.Speed
 	sheet.PuppetUpgradeSources = puppetTotals.Sources
@@ -1825,6 +1904,13 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// above, same as MaxHP/MaxChakra's own auto-then-pin shape.
 	if v, ok := overrideInt(overrides, "speed"); ok {
 		sheet.Speed = v
+	}
+	// Sky Keeper's flying speed is read AFTER the manual Speed pin above,
+	// not computed from the same inputs a second time — the book ties it to
+	// "your walking speed" as a live equality, not a snapshot taken once,
+	// so a player who later pins Speed sees FlySpeed follow it too.
+	if skyKeeperGranted {
+		sheet.FlySpeed = sheet.Speed
 	}
 
 	// character_level_gains.hp_gain/chakra_gain store the RAW hit-die/
@@ -1929,6 +2015,16 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		// stacking two ability-substitution sources at once.
 		if swapAbility == "" && exoskeletonGranted && sheet.ExoskeletonDonned && (armorCategory == "light" || armorCategory == "medium") {
 			swapAbility = "int"
+		}
+		// Void Soul Awakening: same swap-and-keep-the-better shape as
+		// Exoskeleton just above, gated on the companion's own summon/
+		// dismiss toggle (voidSoulActive) rather than a characters-table
+		// column, since the toggle lives on the Void Soul's own companion
+		// row (character_companions.void_soul_is_summoned) — there is no
+		// armor-category restriction in the book's own text, unlike
+		// Exoskeleton/Konjiki.
+		if swapAbility == "" && voidSoulActive {
+			swapAbility = "cha"
 		}
 		if swapAbility != "" && sheet.AC != nil {
 			altScores := make(map[string]int, len(scores))
@@ -2294,6 +2390,42 @@ func puppetWornAsArmorAC(charDB *sql.DB, characterID int64) (*int, error) {
 	}
 	v := int(ac.Int64)
 	return &v, nil
+}
+
+// voidSoulAwakeningFeatureSlug identifies Trickster Scout's 3rd-level
+// subclass feature ("Starting at 3rd level, you learn a special Fuinjutsu
+// technique to create a Chakra Construct known as a Void Soul... While
+// summoned, you can calculate your AC using your Charisma in place of your
+// Dexterity for the duration.") — see cmd/n5e/void_soul.go for the rest of
+// the Void Soul companion this file's own AC-swap clause is only one small
+// piece of.
+const voidSoulAwakeningFeatureSlug = "class/scout-nin/group/scouting-technique/trickster-scout/feature/void-soul-awakening"
+
+// voidSoulSummoned reports whether the character currently has a
+// kind="void-soul" companion (character_companions) with its own
+// void_soul_is_summoned flag set — the AC formula's only real gate, since
+// unlike Exoskeleton's donned/doffed toggle (a plain characters-table
+// column) the Void Soul's own summon/dismiss state lives on its companion
+// row instead (cmd/n5e/void_soul.go owns writing that column; this package
+// only reads it). Raw SQL against charDB rather than internal/charstore's
+// Companion type, same reasoning puppetWornAsArmorAC's own doc gives —
+// charstore already imports this package for Sheet, so importing it back
+// here would be a cycle. A character could in theory have more than one
+// void-soul companion row (nothing stops adding a second); ANY of them
+// being summoned is enough, the same "don't require exactly one" leniency
+// puppetWornAsArmorAC's own doc explains for a player bookkeeping edge case
+// this app doesn't otherwise police.
+func voidSoulSummoned(charDB *sql.DB, characterID int64) (bool, error) {
+	var n int
+	err := charDB.QueryRow(`
+		SELECT COUNT(*) FROM character_companions
+		WHERE character_id = ? AND kind = 'void-soul' AND void_soul_is_summoned = 1`,
+		characterID,
+	).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // PuppetWornArmorChassisSlug returns the rules.db slug of the Armor Chassis

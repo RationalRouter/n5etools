@@ -121,6 +121,12 @@ func joinSaveProficiencies(set map[string]bool) string {
 // check to gate; the player is trusted to toggle them to match, the same way
 // a fresh companion's ability scores start blank and are trusted to be
 // filled in to match the book instead of every field being force-computed.
+// Void Soul is a THIRD shape ("Uses your saving throw proficiencies" — no
+// choice or fixed set at all, a strict mirror of the player's own list) and
+// gets neither treatment: companionSaves below computes its proficiencies
+// directly from sheet.Saves rather than trusting a manual toggle to match,
+// since unlike the other two there's nothing here for a player to
+// legitimately choose differently from the mirrored source.
 func companionSaveCap(kind string, level int) int {
 	if kind != "snb" {
 		return 0
@@ -142,8 +148,28 @@ func companionSaveCap(kind string, level int) int {
 // with a below-10 score still gets the full proficiency bonus rather than
 // proficiency "wasted" topping up a modifier that's already been floored to
 // match a total of 0.
-func companionSaves(c charstore.Companion, profBonus, level int) companionSavesView {
-	profs := parseSaveProficiencies(c.SaveProficiencies)
+//
+// Takes the whole sheet (every call site already had sheet.ProficiencyBonus/
+// sheet.Level in hand) rather than those two ints separately, so a
+// kind="void-soul" companion can mirror "Uses your saving throw
+// proficiencies" directly off sheet.Saves instead of its own stored
+// save_proficiencies column — not a player choice, so there is nothing
+// legitimate for a manual toggle to diverge to (see companionSaveCap's own
+// doc for how this differs from Nin-Dog/Titan's own fixed-but-unenforced
+// shapes).
+func companionSaves(c charstore.Companion, sheet *charsheet.Sheet) companionSavesView {
+	profBonus, level := sheet.ProficiencyBonus, sheet.Level
+	var profs map[string]bool
+	if c.Kind == "void-soul" {
+		profs = make(map[string]bool, len(sheet.Saves))
+		for _, s := range sheet.Saves {
+			if s.Proficient {
+				profs[s.Ability] = true
+			}
+		}
+	} else {
+		profs = parseSaveProficiencies(c.SaveProficiencies)
+	}
 	scores := map[string]sql.NullInt64{
 		"str": c.Str, "dex": c.Dex, "con": c.Con,
 		"int": c.Int, "wis": c.Wis, "cha": c.Cha,
@@ -195,6 +221,17 @@ func (s *server) handleCompanionSavingThrowToggle(w http.ResponseWriter, r *http
 	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	// "Uses your saving throw proficiencies" is not a player choice —
+	// companionSaves already ignores this companion's own save_proficiencies
+	// column for kind="void-soul" and mirrors sheet.Saves instead
+	// (companion_fields.html's own template hides the toggle button for the
+	// same reason), so a direct POST here must be rejected server-side too,
+	// the same "a disabled control is a convenience, not the real
+	// enforcement" rule this handler's own S.N.B cap check already follows.
+	if companion.Kind == "void-soul" {
+		http.Error(w, "void soul saving throw proficiencies always match yours", http.StatusBadRequest)
 		return
 	}
 	ability := strings.TrimSpace(r.FormValue("ability"))

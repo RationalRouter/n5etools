@@ -33,7 +33,7 @@
               "ReadOnlyAttacks" .ReadOnlyAttacks "Attacks" .Attacks "AttacksTarget" "" "AttacksTabName" .AttacksTabName
               "SymphonyEnhancement" .SymphonyEnhancement
               "FoundationTraits" .FoundationTraits "FoundationCatalogLabel" .FoundationCatalogLabel "FoundationEntryName" .FoundationEntryName
-              "NinDogReference" .NinDogReference "TitanReference" .TitanReference "SNBReference" .SNBReference
+              "NinDogReference" .NinDogReference "TitanReference" .TitanReference "SNBReference" .SNBReference "VoidSoulReference" .VoidSoulReference
               "Saves" .Saves
               "ExpectedAC" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedAC (titanReferenceOrZero .TitanReference).ExpectedAC) (snbReferenceOrZero .SNBReference).ExpectedAC) (puppetCompanionViewOrZero .PuppetView).ExpectedAC)
               "ExpectedMaxHP" (add (add (add (ninDogReferenceOrZero .NinDogReference).ExpectedMaxHP (titanReferenceOrZero .TitanReference).ExpectedMaxHP) (snbReferenceOrZero .SNBReference).ExpectedMaxHP) (puppetCompanionViewOrZero .PuppetView).ExpectedMaxHP)
@@ -61,6 +61,7 @@
   {{if eq .Companion.Kind "nin-dog"}}{{template "nindog_reference" (dict "Ref" .NinDogReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
   {{if eq .Companion.Kind "titan"}}{{template "titan_reference" (dict "Ref" .TitanReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
   {{if eq .Companion.Kind "snb"}}{{template "snb_reference" (dict "Ref" .SNBReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
+  {{if eq .Companion.Kind "void-soul"}}{{template "void_soul_reference" (dict "Ref" .VoidSoulReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
 
   <form method="post" action="/characters/{{.CharacterID}}/sheet/companions/{{.Companion.ID}}/delete"
         data-confirm="Delete {{.Companion.Name}}? This cannot be undone.">

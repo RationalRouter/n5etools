@@ -2,6 +2,7 @@ package charsheet
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -478,6 +479,104 @@ func saveModifier(sheet *Sheet, ability string) int {
 		}
 	}
 	return 0
+}
+
+// TestComputeAppliesSkyKeeperFlySpeed guards Storm Rider's 20th-level
+// capstone, "The Future of Shinobi: Sky Keeper": "You gain a flying speed
+// equal to your walking speed and you can hover." FlySpeed must track the
+// FINAL Speed value (clan/class bonuses and any manual pin all applied),
+// not a fixed number of its own, and must stay 0 before the capstone is
+// reached even though Air Trecks/King's Road (the earlier Storm Rider
+// features this capstone builds on) are otherwise unrelated to Speed.
+func TestComputeAppliesSkyKeeperFlySpeed(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/science-nin', 'Science-Nin', 8, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/science-nin/group/scientific-inquiry', 'class/science-nin', 'Scientific Inquiry')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/science-nin/group/scientific-inquiry/storm-rider', 'class/science-nin/group/scientific-inquiry', 'Storm Rider')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		('class/science-nin/group/scientific-inquiry/storm-rider/feature/the-future-of-shinobi-sky-keeper',
+		 'class/science-nin/group/scientific-inquiry/storm-rider', 'The Future of Shinobi: Sky Keeper', 20,
+		 'Choose another Regalia. This Regalia can be used in conjunction with the other and Regalia can now be swapped on a full rest. Addtionally, your Air Trecks gain the following benefits: Your movement speed is increased by +60 feet. You gain a flying speed equal to your walking speed and you can hover.')`); err != nil {
+		t.Fatal(err)
+	}
+
+	newCharacter := func(name string, level int) int64 {
+		t.Helper()
+		res, err := charDB.Exec(`
+			INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+			VALUES (?, 10, 10, 10, 10, 10, 10)`, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := charDB.Exec(
+			`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/science-nin', ?, 0)`, id, level,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := charDB.Exec(
+			`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/science-nin/group/scientific-inquiry/storm-rider', 3)`, id,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	belowCap := newCharacter("Pre-Capstone Storm Rider", 19)
+	sheet, err := Compute(rulesDB, charDB, belowCap)
+	if err != nil {
+		t.Fatalf("Compute (19th level): %v", err)
+	}
+	if sheet.Speed != 30 {
+		t.Errorf("Speed at 19th level = %d, want 30 (no Sky Keeper yet, so no +60ft bonus either)", sheet.Speed)
+	}
+	if sheet.FlySpeed != 0 {
+		t.Errorf("FlySpeed at 19th level = %d, want 0 (Sky Keeper not yet granted)", sheet.FlySpeed)
+	}
+
+	skyKeeper := newCharacter("Sky Keeper", 20)
+	sheet, err = Compute(rulesDB, charDB, skyKeeper)
+	if err != nil {
+		t.Fatalf("Compute (20th level): %v", err)
+	}
+	if sheet.Speed != 90 {
+		t.Errorf("Speed at 20th level = %d, want 90 (book default 30 + Sky Keeper's own +60ft)", sheet.Speed)
+	}
+	if sheet.FlySpeed != sheet.Speed {
+		t.Errorf("FlySpeed = %d, want %d (equal to walking Speed, per the book's own wording)", sheet.FlySpeed, sheet.Speed)
+	}
+
+	// A manual Speed pin (character_overrides) must carry through to
+	// FlySpeed too — the book ties flying speed to "your walking speed" as
+	// a live equality, not a value snapshotted once at Sky Keeper's grant.
+	if _, err := charDB.Exec(
+		`INSERT INTO character_overrides (character_id, field, value, note) VALUES (?, 'speed', '150', 'test pin')`, skyKeeper,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, skyKeeper)
+	if err != nil {
+		t.Fatalf("Compute after Speed pin: %v", err)
+	}
+	if sheet.Speed != 150 {
+		t.Errorf("Speed after manual pin = %d, want 150", sheet.Speed)
+	}
+	if sheet.FlySpeed != 150 {
+		t.Errorf("FlySpeed after manual Speed pin = %d, want 150 (should follow the pin)", sheet.FlySpeed)
+	}
 }
 
 // TestComputeGatesCombatSkillMobilitySaveBonusesOnPick guards against the
@@ -1441,6 +1540,85 @@ func TestComputeInitiativeJunkOverrides(t *testing.T) {
 	}
 }
 
+// TestComputeIronWillBonusReactions pins Ironclad's 9th-level Iron Will:
+// "Additionally, you gain a 2 additional Reactions per round, that can only
+// be used to use your Iron Heart feature" (rules.db subclass_features,
+// confirmed verbatim 2026-08-26). Iron Will's other clause (Berserk/Dazed
+// condition immunity) is covered separately by cmd/n5e/passive_traits.go's
+// own tests, not here.
+func TestComputeIronWillBonusReactions(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES
+		('class/taijutsu-specialist', 'Taijutsu Specialist', 10, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/taijutsu-specialist/group/taijutsu-style', 'class/taijutsu-specialist', 'Taijutsu Style')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/taijutsu-specialist/group/taijutsu-style/ironclad', 'class/taijutsu-specialist/group/taijutsu-style', 'Ironclad')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		('class/taijutsu-specialist/group/taijutsu-style/ironclad/feature/iron-will',
+		 'class/taijutsu-specialist/group/taijutsu-style/ironclad', 'Iron Will', 9,
+		 'You become immune to the Berserk and Dazed conditions. Additionally, you gain a 2 additional Reactions per round, that can only be used to use your Iron Heart feature.')`); err != nil {
+		t.Fatal(err)
+	}
+
+	newIroncladCharacter := func(name string, level int) int64 {
+		t.Helper()
+		res, err := charDB.Exec(`
+			INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+			VALUES (?, 10, 10, 10, 10, 10, 10)`, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := charDB.Exec(
+			`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/taijutsu-specialist', ?, 0)`, id, level,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := charDB.Exec(
+			`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/taijutsu-specialist/group/taijutsu-style/ironclad', 3)`, id,
+		); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	// Below 9th level: Iron Will isn't granted yet, so no bonus reactions.
+	below := newIroncladCharacter("Ironclad Pre-Iron-Will", 8)
+	sheet, err := Compute(rulesDB, charDB, below)
+	if err != nil {
+		t.Fatalf("Compute (8th level): %v", err)
+	}
+	if sheet.BonusReactions != 0 || sheet.BonusReactionsSource != "" {
+		t.Errorf("BonusReactions/Source (8th level) = %d/%q, want 0/\"\"", sheet.BonusReactions, sheet.BonusReactionsSource)
+	}
+
+	// At 9th level: Iron Will grants exactly 2 bonus reactions, restricted
+	// (per the source text) to Iron Heart, which the tooltip must mention.
+	granted := newIroncladCharacter("Ironclad Iron Will", 9)
+	sheet, err = Compute(rulesDB, charDB, granted)
+	if err != nil {
+		t.Fatalf("Compute (9th level): %v", err)
+	}
+	if sheet.BonusReactions != 2 {
+		t.Errorf("BonusReactions (9th level) = %d, want 2", sheet.BonusReactions)
+	}
+	if !strings.Contains(sheet.BonusReactionsSource, "Iron Heart") {
+		t.Errorf("BonusReactionsSource = %q, want it to mention Iron Heart's own restriction", sheet.BonusReactionsSource)
+	}
+}
+
 func TestInitiativeModifier(t *testing.T) {
 	// Half is the N5E default and rounds down; full and none exist because
 	// features move it. The flat bonus is added on top of whichever.
@@ -2162,5 +2340,97 @@ func TestComputeAppliesElementalInnovationistPermaPerkBonuses(t *testing.T) {
 	}
 	if got := initiativeAbilityOf(sheet); got != "dex" {
 		t.Errorf("13th-level InitiativeAbility = %s, want the dex default (Perma Perk not yet active)", got)
+	}
+}
+
+// TestComputeVoidSoulSummonSwapsChaForDexAC covers Trickster Scout's
+// 3rd-level Void Soul Awakening: "While summoned, you can calculate your AC
+// using your Charisma in place of your Dexterity" — the one clause of that
+// feature with a formula slot on the main sheet (cmd/n5e/void_soul.go's own
+// header doc covers the rest: ability-point buy, the companion-scoped known
+// jutsu picker, and the summon/dismiss toggle itself). Mirrors
+// TestComputeAppliesGrantedFeatureProficiencyAndACSwap's own "swap-and-keep-
+// the-better, prove it doesn't apply unconditionally" shape, but exercises
+// the void-soul-specific gates that test doesn't touch: the swap must be
+// off with no void-soul companion at all, off with one that exists but
+// isn't currently summoned, and on (and still keep-the-better) once
+// void_soul_is_summoned flips — voidSoulSummoned's own three states.
+func TestComputeVoidSoulSummonSwapsChaForDexAC(t *testing.T) {
+	rulesDB, charDB := testDBs(t)
+
+	if _, err := rulesDB.Exec(`
+		INSERT INTO classes (slug, name, hit_die, chakra_die) VALUES ('class/scout-nin', 'Scout-Nin', 10, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_groups (slug, class_slug, display_name) VALUES
+		('class/scout-nin/group/scouting-technique', 'class/scout-nin', 'Scouting Technique')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclasses (slug, group_slug, name) VALUES
+		('class/scout-nin/group/scouting-technique/trickster-scout', 'class/scout-nin/group/scouting-technique', 'Trickster Scout')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rulesDB.Exec(`
+		INSERT INTO subclass_features (slug, subclass_slug, name, level, description) VALUES
+		('class/scout-nin/group/scouting-technique/trickster-scout/feature/void-soul-awakening',
+		 'class/scout-nin/group/scouting-technique/trickster-scout', 'Void Soul Awakening', 3,
+		 'Summon a Void Soul as a Bonus Action. While summoned, you can calculate your AC using your Charisma in place of your Dexterity.')`); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dex 10 (+0), Cha 16 (+3) — unarmored AC is 10 unswapped, 13 swapped;
+	// the swap must only win once it actually applies.
+	res, err := charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Void Soul Test', 10, 10, 10, 10, 10, 16)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+	if _, err := charDB.Exec(
+		`INSERT INTO character_classes (character_id, class_slug, levels, order_index) VALUES (?, 'class/scout-nin', 3, 0)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := charDB.Exec(
+		`INSERT INTO character_subclasses (character_id, subclass_slug, chosen_at_level) VALUES (?, 'class/scout-nin/group/scouting-technique/trickster-scout', 3)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute (no void-soul companion yet): %v", err)
+	}
+	if sheet.AC == nil || *sheet.AC != 10 {
+		t.Fatalf("AC with no companion = %v, want 10 (unarmored Dex, no swap without a Void Soul row at all)", sheet.AC)
+	}
+
+	if _, err := charDB.Exec(
+		`INSERT INTO character_companions (character_id, kind, name, void_soul_is_summoned) VALUES (?, 'void-soul', 'Dismissed Void Soul', 0)`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute (void-soul companion exists, dismissed): %v", err)
+	}
+	if sheet.AC == nil || *sheet.AC != 10 {
+		t.Fatalf("AC with dismissed Void Soul = %v, want 10 (swap must not apply while dismissed)", sheet.AC)
+	}
+
+	if _, err := charDB.Exec(
+		`UPDATE character_companions SET void_soul_is_summoned = 1 WHERE character_id = ?`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+	sheet, err = Compute(rulesDB, charDB, id)
+	if err != nil {
+		t.Fatalf("Compute (void-soul companion summoned): %v", err)
+	}
+	if sheet.AC == nil || *sheet.AC != 13 {
+		t.Errorf("AC with summoned Void Soul = %v, want 13 (unarmored, Charisma +3 substituted for Dexterity +0)", sheet.AC)
 	}
 }

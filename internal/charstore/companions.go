@@ -119,6 +119,18 @@ type Companion struct {
 	Immunities          string
 	ConditionImmunities string
 
+	// VoidSoulIsSummoned is only meaningful (and player-editable) for kind =
+	// "void-soul" — Trickster Scout's Void Soul Awakening (see migration
+	// 0085): "This chakra construct can be summoned as a Bonus Action...
+	// You can dismiss your Void Soul as a Bonus Action." A plain player-
+	// toggled boolean, no action-economy enforcement of its own (this app
+	// has no turn/round tracking), the same shape IsDemonFoe/IsArmorForm
+	// already use for a per-companion on/off flag. internal/charsheet.
+	// Compute reads this column directly (voidSoulSummoned) to gate the
+	// Charisma-for-Dexterity AC swap the feature's own text grants while
+	// summoned — see that function's own doc.
+	VoidSoulIsSummoned bool
+
 	SortOrder int
 }
 
@@ -132,11 +144,11 @@ const companionSelectColumns = `id, kind, name, summon_tribe_slug,
 	matryoshka_group_id, matryoshka_jutsu_slots, sort_order,
 	nin_dog_breed, jutsu_slots_current, jutsu_slots_max,
 	titan_specialization, barrier_current, barrier_max, save_proficiencies, temp_hp,
-	resistances, immunities, condition_immunities, is_demon_foe`
+	resistances, immunities, condition_immunities, is_demon_foe, void_soul_is_summoned`
 
 func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 	var c Companion
-	var isArmorForm, isDemonFoe int
+	var isArmorForm, isDemonFoe, voidSoulIsSummoned int
 	err := row.Scan(
 		&c.ID, &c.Kind, &c.Name, &c.SummonTribeSlug,
 		&c.AC, &c.HPCurrent, &c.HPMax, &c.Speed, &c.FlySpeed, &c.Str, &c.Dex, &c.Con, &c.Int, &c.Wis, &c.Cha,
@@ -144,10 +156,11 @@ func scanCompanion(row interface{ Scan(...any) error }) (Companion, error) {
 		&c.MatryoshkaGroupID, &c.MatryoshkaJutsuSlots, &c.SortOrder,
 		&c.NinDogBreed, &c.JutsuSlotsCurrent, &c.JutsuSlotsMax,
 		&c.TitanSpecialization, &c.BarrierCurrent, &c.BarrierMax, &c.SaveProficiencies, &c.TempHP,
-		&c.Resistances, &c.Immunities, &c.ConditionImmunities, &isDemonFoe,
+		&c.Resistances, &c.Immunities, &c.ConditionImmunities, &isDemonFoe, &voidSoulIsSummoned,
 	)
 	c.IsArmorForm = isArmorForm != 0
 	c.IsDemonFoe = isDemonFoe != 0
+	c.VoidSoulIsSummoned = voidSoulIsSummoned != 0
 	return c, err
 }
 
@@ -544,6 +557,28 @@ func SetSNBStatDefaultsLive(charDB *sql.DB, characterID, companionID int64,
 	return err
 }
 
+// SetVoidSoulSpeedLive unconditionally overwrites a void-soul companion's
+// own speed column on every render — the one Void Soul stat with an actual
+// formula behind it ("Movement speed is equal to yours," i.e. the player's
+// own computed Speed), unlike AC/HP-max/ability scores, which have no base
+// stat card to derive from at all (cmd/n5e/void_soul.go's own header doc)
+// and so stay plain player-entered fields with no live writer of their own.
+// Mirrors SetTitanStatDefaultsLive/SetSNBStatDefaultsLive's shape, just for
+// this one field — the caller (cmd/n5e/void_soul.go's loadVoidSoulReference)
+// resolves any manual pin (character_companion_overrides, "speed") ahead of
+// calling this, the same override-already-resolved-by-the-caller contract
+// every other *StatDefaultsLive writer already follows.
+func SetVoidSoulSpeedLive(charDB *sql.DB, characterID, companionID, speed int64) error {
+	_, err := charDB.Exec(`
+		UPDATE character_companions SET
+			speed = ?,
+			updated_at = datetime('now')
+		WHERE id = ? AND character_id = ?`,
+		speed, companionID, characterID,
+	)
+	return err
+}
+
 // SetCompanionSaveProficiencies overwrites one companion's whole saving-
 // throw proficiency list outright (proficiencies is the already-joined
 // comma-separated string — see cmd/n5e/companion_saves.go's own join/parse
@@ -776,6 +811,28 @@ func SplitCompanionIntoBodies(charDB *sql.DB, characterID, companionID int64, co
 func SetCompanionSize(charDB *sql.DB, characterID, companionID int64, value string) error {
 	_, err := charDB.Exec(
 		`UPDATE character_companions SET size = ?, updated_at = datetime('now') WHERE id = ? AND character_id = ?`,
+		value, companionID, characterID,
+	)
+	return err
+}
+
+// SetVoidSoulSummoned sets or clears a "void-soul" companion's own summon/
+// dismiss toggle (migration 0085_companion_kind_void_soul.sql) — a
+// dedicated single-purpose endpoint, same reasoning SetCompanionSize just
+// above already gives its own dedicated form, so a "Summon"/"Dismiss"
+// button pair can flip this one flag without resending every other field
+// on the companion's popup (SetCompanionFields' own whole-form autosave).
+// No action-economy enforcement of any kind — same "player toggles it,
+// player times it" trust boundary charstore.SetKujakuModeActive already
+// applies to an identical bonus-action-to-activate/bonus-action-to-drop
+// mechanic.
+func SetVoidSoulSummoned(charDB *sql.DB, characterID, companionID int64, summoned bool) error {
+	value := 0
+	if summoned {
+		value = 1
+	}
+	_, err := charDB.Exec(
+		`UPDATE character_companions SET void_soul_is_summoned = ?, updated_at = datetime('now') WHERE id = ? AND character_id = ?`,
 		value, companionID, characterID,
 	)
 	return err

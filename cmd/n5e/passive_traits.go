@@ -172,9 +172,11 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 		{Category: traitDamage, Target: "Poison", Level: levelImmunity},
 		{Category: traitCondition, Target: "Poisoned", Level: levelImmunity},
 	},
-	// The advantage-on-envenomed-saves half of this feature's text has no
-	// field anywhere in this app to land in (no advantage/disadvantage-flag
-	// tracking exists) — only the flat Poison resistance is modeled here.
+	// The advantage-on-envenomed-saves half of this feature's text ("...you
+	// gain resistance to poison damage and have advantage on saving throws
+	// that would inflict the envenomed condition" — rules.db subclass_features,
+	// confirmed verbatim 2026-08-26) is wired below in advantageGrants, keyed
+	// to this same slug.
 	"class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/noxious-handiwork": {
 		{Category: traitDamage, Target: "Poison", Level: levelResistance},
 	},
@@ -221,6 +223,132 @@ var passiveTraitGrants = map[string][]passiveTraitGrant{
 	},
 }
 
+// advantageDirection distinguishes an Advantage grant from a Disadvantage
+// grant on the same roll type — Untouchable's Disadvantage on reaction
+// attacks made against the character and Battle Readiness's Advantage on
+// Initiative checks are both handled by the identical registration/render
+// path below, just filed into different PassiveTraitSummary slices.
+type advantageDirection string
+
+const (
+	directionAdvantage    advantageDirection = "advantage"
+	directionDisadvantage advantageDirection = "disadvantage"
+)
+
+// advantageGrant is one hand-verified, always-on Advantage or Disadvantage
+// a class feature, subclass feature, clan feature, or feat grants the
+// character on a named roll type — the Advantage/Disadvantage counterpart
+// to passiveTraitGrant. This app has no generic advantage/disadvantage-flag
+// tracking mechanism prior to this table (see e.g. this file's own
+// black-technique-puppeteer/feature/noxious-handiwork comment and
+// titan.go's ResistanceAdvantageText, both landmarks of the gap this closes)
+// — every entry below is the FULL integration surface a class file needs:
+// register one row here, keyed by the feature's own rules-database slug
+// (the same grantedFeatureRow.Slug loadGrantedFeatures already resolves by
+// character level, exactly like passiveTraitGrants), and
+// computePassiveTraits resolves it into PassiveTraitSummary.Advantages /
+// .Disadvantages automatically. No other file needs to change, and no
+// second call site needs wiring — both sheet-render call sites already
+// funnel their granted-features list through computePassiveTraits for the
+// resistance/immunity/sense table above, and PassiveTraitSummary is what
+// the template already renders.
+//
+// RollType is free-form display text naming exactly which roll this
+// applies to, in the form the sheet should show it ("Initiative checks",
+// "saving throws against being Envenomed or Poisoned", "reaction attacks
+// made against you", ...). There is no fixed enum of roll types: the
+// features this table exists for don't share one vocabulary — some name a
+// whole roll (Initiative), some a family of conditions, some a specific
+// kind of incoming attack.
+//
+// This app has no dice-roll-resolution code that could mechanically apply
+// Advantage/Disadvantage to a roll — dice-roller.js's rollMode is a manual
+// Normal/Advantage/Disadvantage toggle the player sets before clicking
+// Roll (the same one Elemental Advantage combines with), not something any
+// server-side roll result flows through. A grant registered here renders
+// as a visible, permanent reminder for the player to set that toggle
+// themselves for the named roll type — it does not and cannot flip a die
+// roll on its own, matching how every other rollable stat on this sheet
+// (skills, saves, attacks) already works.
+type advantageGrant struct {
+	RollType  string
+	Direction advantageDirection
+	// MinLevel mirrors passiveTraitGrant.MinLevel — an extra character-level
+	// gate beyond the feature's own row-level, for a feature whose text
+	// grants the Advantage/Disadvantage partway through its own
+	// progression. Zero means the feature's own row-level (already enforced
+	// by loadGrantedFeatures before this table is ever consulted) is the
+	// only gate.
+	MinLevel int
+}
+
+// advantageGrants is the curated table itself. See advantageGrant's own doc
+// comment for exactly how a new class file registers into this mechanism.
+var advantageGrants = map[string][]advantageGrant{
+	// Weapon Specialist, base class, 7th level (rules.db class_features,
+	// slug below, confirmed verbatim 2026-08-26): "Starting at 7th level,
+	// you have fully learned how to instantly switch from a neutral stance
+	// to that of a combat one. You have advantage on Initiative Checks."
+	"class/weapon-specialist/feature/battle-readiness": {
+		{RollType: "Initiative checks", Direction: directionAdvantage},
+	},
+	// Noxious Handiwork, Puppet Master/Black Technique, 14th level (rules.db
+	// subclass_features, confirmed verbatim 2026-08-26): "...you gain
+	// resistance to poison damage and have advantage on saving throws that
+	// would inflict the envenomed condition." The flat Poison resistance
+	// half is the passiveTraitGrants entry for this same slug, above.
+	"class/puppet-master/group/puppet-techniques/black-technique-puppeteer/feature/noxious-handiwork": {
+		{RollType: "saving throws against becoming Envenomed", Direction: directionAdvantage},
+	},
+	// Disturbance, Taijutsu Specialist, 6th level (rules.db
+	// subclass_features, slug below, confirmed verbatim 2026-08-26):
+	// "creatures who would spend their Reaction to make an attack of any
+	// type targeting you, is made at disadvantage." Untouchable's other
+	// clause ("creatures cannot take attacks of opportunities against you,
+	// by any means") stays unmodeled — no mechanism on this sheet
+	// represents immunity to a specific triggered attack type, only
+	// advantage/disadvantage on a named roll and flat resistance/immunity
+	// to a damage type or condition.
+	"class/taijutsu-specialist/group/taijutsu-style/disturbance/feature/untouchable": {
+		{RollType: "reaction attacks made against you", Direction: directionDisadvantage},
+	},
+	// Shinobi's Karma: Body, Hunter-Nin/Wolves Legacy, 3rd level (rules.db
+	// subclass_features, confirmed verbatim 2026-08-26): "Increase the
+	// number of failed death saves you need by 2, before you die, and you
+	// gain advantage on death saves." The death-save-count increase itself
+	// has no death-save-tracking mechanism to hook into — see this same
+	// slug's entry in passiveNoteGrants below. The exclusive Deflection
+	// Exploit grant this feature also confers is wired via
+	// hunterNinShinobisKarmaBodyExploitGrant (hunter_nin.go); its
+	// disadvantage-on-grapple/trip/push-attempts-against-you clause stays
+	// unmodeled — that's Disadvantage imposed on the OTHER creature's
+	// check/save, not a roll the character themselves makes, so it doesn't
+	// fit this table's "advantage/disadvantage on a roll YOU make" shape.
+	// The exclusive Deflection Exploit grant this feature also confers is
+	// wired via hunter_nin.go's own huntersExploitAutoGrants table.
+	"class/hunter-nin/group/hunters-creeds/wolves-legacy/feature/shinobis-karma-body": {
+		{RollType: "Death saving throws", Direction: directionAdvantage},
+	},
+	// Shinobi's Karma: Will, Hunter-Nin/Wolves Legacy, 14th level (rules.db
+	// subclass_features, confirmed verbatim 2026-08-26): "Additionally,
+	// saving throws you make against a Genjutsu that would Restrain,
+	// incapacitate, slow or stun you are made at advantage." The
+	// unconditional Charisma save proficiency this same feature also grants
+	// is already wired via internal/features/grants.go's
+	// fixedProficiencyGrants.
+	"class/hunter-nin/group/hunters-creeds/wolves-legacy/feature/shinobis-karma-will": {
+		{RollType: "saving throws against a Genjutsu that would Restrain, Incapacitate, Slow, or Stun you", Direction: directionAdvantage},
+	},
+}
+
+// AdvantageEntry is one resolved Advantage or Disadvantage grant, with the
+// feature name(s) that grant it for the sheet's tooltip — the
+// Advantage/Disadvantage counterpart to PassiveTraitEntry.
+type AdvantageEntry struct {
+	RollType string
+	Sources  []string
+}
+
 // senseGrant is a curated always-on darkvision/tremorsense/blindsight grant,
 // the sense-adjacent counterpart to passiveTraitGrant.
 type senseGrant struct {
@@ -253,6 +381,12 @@ var senseGrants = map[string][]senseGrant{
 	"feat/aburame/symbiotic-insects": {
 		{Sense: "Darkvision", Feet: 60},
 	},
+	// Only the 60ft-stacking-Darkvision half of this feature's text is
+	// modeled here. The rest of the same sentence ("...and doubles your
+	// normal sight range... You can accurately make out the details of
+	// things within 1 mile of you.") is wired below in passiveNoteGrants,
+	// keyed to this same slug — no sight-range field exists anywhere in
+	// this app to literally double.
 	"class/puppet-master/group/puppet-techniques/purple-technique-juggernaut/feature/enhanced-vision": {
 		{Sense: "Darkvision", Feet: 60, Stacks: true},
 	},
@@ -298,6 +432,70 @@ type SenseEntry struct {
 	Sources []string
 }
 
+// passiveNoteGrant is one hand-verified, always-on rules effect that is
+// neither a resistance/immunity/vulnerability, a special sense, nor an
+// Advantage/Disadvantage grant — a free-form reminder for a clause this app
+// has no numeric field to compute against (a range-doubling effect with no
+// range field, an extra-perception-detail clause with no perception-detail
+// field, ...), the passiveTraitGrant/advantageGrant sibling for prose that
+// fits neither of those shapes. Keyed by the granting feature's own
+// rules-database slug, exactly like passiveTraitGrants/advantageGrants.
+type passiveNoteGrant struct {
+	Text string
+	// MinLevel mirrors passiveTraitGrant.MinLevel — an extra character-level
+	// gate beyond the feature's own row-level. Zero means the feature's own
+	// row-level (already enforced by loadGrantedFeatures before this table
+	// is ever consulted) is the only gate.
+	MinLevel int
+}
+
+// passiveNoteGrants is the curated table itself. See passiveNoteGrant's own
+// doc comment for what belongs here versus in passiveTraitGrants/
+// advantageGrants/senseGrants.
+var passiveNoteGrants = map[string][]passiveNoteGrant{
+	// Enhanced Vision, Puppet Master/Purple Technique, 6th level (rules.db
+	// subclass_features, confirmed verbatim 2026-08-26): "...doubles your
+	// normal sight range... You can accurately make out the details of
+	// things within 1 mile of you." The same sentence's 60ft-stacking-
+	// Darkvision half is senseGrants' entry for this same slug, above.
+	"class/puppet-master/group/puppet-techniques/purple-technique-juggernaut/feature/enhanced-vision": {
+		{Text: "Sight range doubled; 1-mile detail"},
+	},
+	// Master of the White Technique, Puppet Master/White Technique, 20th
+	// level (rules.db subclass_features, confirmed verbatim 2026-08-26):
+	// "...double the specified ranges of any White Technique Feature, as
+	// well as your Chakra Threads." No range field exists anywhere in this
+	// app for Chakra Threads (Chakra Hands' 30ft range, already doubled once
+	// by White Technique Proficiency and again by Doubled Thread) or any
+	// other White Technique feature to literally double.
+	"class/puppet-master/group/puppet-techniques/white-technique-weaver/feature/master-of-the-white-technique": {
+		{Text: "Chakra Threads & Feature ranges doubled"},
+	},
+	// Shinobi's Karma: Body, Hunter-Nin/Wolves Legacy, 3rd level (rules.db
+	// subclass_features, confirmed verbatim 2026-08-26): "Increase the
+	// number of failed death saves you need by 2, before you die..." — the
+	// base rule's 3 failed death saves before dying becomes 5. No death-
+	// save-count field or UI exists anywhere in this app (confirmed via a
+	// full grep of cmd/n5e and internal/ for death-save handling — the only
+	// hits are unrelated custom-resource pools that interact with a death
+	// save, e.g. Channeled Healing's "remove one failed death save" spend,
+	// never a save/fail counter itself), so this renders as a plain
+	// reminder rather than a tracked value. See this same slug's entry in
+	// advantageGrants above for the same feature's "advantage on death
+	// saves" half.
+	"class/hunter-nin/group/hunters-creeds/wolves-legacy/feature/shinobis-karma-body": {
+		{Text: "You need 5 failed death saving throws (instead of 3) before you die"},
+	},
+}
+
+// PassiveNoteEntry is one resolved passiveNoteGrant, with the feature
+// name(s) that grant it for the sheet's tooltip — the free-form-text
+// counterpart to PassiveTraitEntry/AdvantageEntry.
+type PassiveNoteEntry struct {
+	Text    string
+	Sources []string
+}
+
 // PassiveTraitSummary is the sheet's full resistances/immunities/senses
 // panel, computed fresh on every render from the character's granted
 // features — never stored, consistent with this project's "derive, don't
@@ -307,6 +505,13 @@ type PassiveTraitSummary struct {
 	Resistances []PassiveTraitEntry
 	Immunities  []PassiveTraitEntry
 	Senses      []SenseEntry
+	// Advantages/Disadvantages resolve advantageGrants the same way
+	// Resistances/Immunities resolve passiveTraitGrants — grouped by
+	// RollType, sorted, each entry's Sources naming every granting feature.
+	Advantages    []AdvantageEntry
+	Disadvantages []AdvantageEntry
+	// Notes resolves passiveNoteGrants the same way, grouped by Text.
+	Notes []PassiveNoteEntry
 }
 
 // computePassiveTraits resolves passiveTraitGrants and senseGrants against a
@@ -391,7 +596,54 @@ func computePassiveTraits(features []grantedFeatureRow, characterLevel int) Pass
 		senseSources[s.sense] = append(senseSources[s.sense], s.feature.Name)
 	}
 
+	// Advantage/Disadvantage grants: same "group by key, dedupe/collect
+	// sources, sort for stable render order" shape as the resistance/
+	// immunity loop above, just keyed by RollType instead of
+	// (Category, Target) and split into two output slices instead of
+	// leveled into one.
+	advSources := map[string][]string{}
+	disadvSources := map[string][]string{}
+	for _, f := range features {
+		for _, g := range advantageGrants[f.Slug] {
+			if g.MinLevel > 0 && characterLevel < g.MinLevel {
+				continue
+			}
+			switch g.Direction {
+			case directionAdvantage:
+				advSources[g.RollType] = append(advSources[g.RollType], f.Name)
+			case directionDisadvantage:
+				disadvSources[g.RollType] = append(disadvSources[g.RollType], f.Name)
+			}
+		}
+	}
+
+	// Notes: same "group by key, dedupe/collect sources" shape as the
+	// Advantage/Disadvantage loop above, keyed by Text instead of RollType,
+	// into a single output slice instead of two.
+	noteSources := map[string][]string{}
+	for _, f := range features {
+		for _, g := range passiveNoteGrants[f.Slug] {
+			if g.MinLevel > 0 && characterLevel < g.MinLevel {
+				continue
+			}
+			noteSources[g.Text] = append(noteSources[g.Text], f.Name)
+		}
+	}
+
 	var out PassiveTraitSummary
+	for rollType, srcs := range advSources {
+		out.Advantages = append(out.Advantages, AdvantageEntry{RollType: rollType, Sources: srcs})
+	}
+	for rollType, srcs := range disadvSources {
+		out.Disadvantages = append(out.Disadvantages, AdvantageEntry{RollType: rollType, Sources: srcs})
+	}
+	for text, srcs := range noteSources {
+		out.Notes = append(out.Notes, PassiveNoteEntry{Text: text, Sources: srcs})
+	}
+	sort.Slice(out.Advantages, func(i, k int) bool { return out.Advantages[i].RollType < out.Advantages[k].RollType })
+	sort.Slice(out.Disadvantages, func(i, k int) bool { return out.Disadvantages[i].RollType < out.Disadvantages[k].RollType })
+	sort.Slice(out.Notes, func(i, k int) bool { return out.Notes[i].Text < out.Notes[k].Text })
+
 	for k, lvl := range levels {
 		entry := PassiveTraitEntry{Target: k.Target, Sources: sources[k]}
 		switch lvl {
@@ -433,5 +685,30 @@ func mergePassiveResistance(summary PassiveTraitSummary, entry *PassiveTraitEntr
 	}
 	summary.Resistances = append(summary.Resistances, *entry)
 	sort.Slice(summary.Resistances, func(i, k int) bool { return summary.Resistances[i].Target < summary.Resistances[k].Target })
+	return summary
+}
+
+// mergePassiveAdvantage folds one dynamically-resolved Advantage entry (e.g.
+// Food For the Soul's grant, keyed to the player's own re-pickable ability
+// score rather than a fixed value — see cooking_nin.go's
+// cookingNinFoodForTheSoulAdvantageEntry) into an already-computed
+// PassiveTraitSummary. The Advantage/Disadvantage counterpart to
+// mergePassiveResistance, for the identical reason: advantageGrants' Target
+// (RollType) is always a fixed string, so a grant whose roll type varies
+// per-character can't live in that static table. A no-op if entry is nil.
+// Merges into an existing same-RollType entry's Sources rather than
+// creating a duplicate row if some other grant already names the same roll.
+func mergePassiveAdvantage(summary PassiveTraitSummary, entry *AdvantageEntry) PassiveTraitSummary {
+	if entry == nil {
+		return summary
+	}
+	for i, a := range summary.Advantages {
+		if a.RollType == entry.RollType {
+			summary.Advantages[i].Sources = append(summary.Advantages[i].Sources, entry.Sources...)
+			return summary
+		}
+	}
+	summary.Advantages = append(summary.Advantages, *entry)
+	sort.Slice(summary.Advantages, func(i, k int) bool { return summary.Advantages[i].RollType < summary.Advantages[k].RollType })
 	return summary
 }

@@ -148,6 +148,12 @@ func TestLoadHunterTechniquesTabData(t *testing.T) {
 	if data.DefensiveTacticsCap != 1 {
 		t.Errorf("DefensiveTacticsCap = %d, want 1 (level 10)", data.DefensiveTacticsCap)
 	}
+	if !data.PrimaryTargetShown {
+		t.Error("PrimaryTargetShown = false, want true for a level 10 Hunter-Nin (2nd-level base feature)")
+	}
+	if data.PrimaryTarget != "" {
+		t.Errorf("PrimaryTarget = %q, want empty before the player marks anyone", data.PrimaryTarget)
+	}
 	if len(data.AvailableDefensiveTactics) != 4 {
 		t.Errorf("AvailableDefensiveTactics = %+v, want all 4 hand-curated options before any pick", data.AvailableDefensiveTactics)
 	}
@@ -310,6 +316,86 @@ func TestLoadHunterTechniquesTabDataNoLevelNoFeat(t *testing.T) {
 	}
 	if data != nil {
 		t.Errorf("loadHunterTechniquesTabData = %+v, want nil for a character with no Hunter-Nin levels and no archetype feat", data)
+	}
+}
+
+// TestLoadHunterTechniquesTabDataPrimaryTargetLevelGate confirms Primary
+// Target (class/hunter-nin/feature/primary-target, 2nd level) stays hidden
+// for a 1st-level Hunter-Nin, who has Lethal Attack but hasn't reached
+// Primary Target yet — the same "don't show a feature before its own level"
+// treatment PatternsCap/ExploitsCap/DefensiveTacticsCap already get.
+func TestLoadHunterTechniquesTabDataPrimaryTargetLevelGate(t *testing.T) {
+	s := testServer(t)
+	seedHunterNinLevelResources(t, s)
+
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Konohamaru', 8, 14, 12, 10, 12, 8)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+		VALUES (1, 'class/hunter-nin', 1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data == nil {
+		t.Fatal("loadHunterTechniquesTabData returned nil for a real 1st-level Hunter-Nin")
+	}
+	if data.PrimaryTargetShown {
+		t.Error("PrimaryTargetShown = true, want false at 1st level (Primary Target is a 2nd-level feature)")
+	}
+}
+
+// TestLoadHunterTechniquesTabDataPrimaryTargetPersists confirms
+// charstore.SetHunterPrimaryTarget's saved name survives a fresh
+// charsheet.Compute + loadHunterTechniquesTabData round trip — the same
+// "player-typed free text, no NPC record to reference" persistence
+// migration 0087 adds.
+func TestLoadHunterTechniquesTabDataPrimaryTargetPersists(t *testing.T) {
+	s := testServer(t)
+	seedHunterNinLevelResources(t, s)
+
+	if _, err := s.charDB.Exec(`
+		INSERT INTO characters (name, base_str, base_dex, base_con, base_int, base_wis, base_cha)
+		VALUES ('Sakura', 8, 14, 12, 10, 15, 13)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.charDB.Exec(`
+		INSERT INTO character_classes (character_id, class_slug, levels, order_index)
+		VALUES (1, 'class/hunter-nin', 10, 0)`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := charstore.SetHunterPrimaryTarget(s.charDB, 1, "Rogue Chunin"); err != nil {
+		t.Fatal(err)
+	}
+
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sheet.HunterPrimaryTarget != "Rogue Chunin" {
+		t.Errorf("sheet.HunterPrimaryTarget = %q, want %q", sheet.HunterPrimaryTarget, "Rogue Chunin")
+	}
+
+	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data == nil {
+		t.Fatal("loadHunterTechniquesTabData returned nil for a real Hunter-Nin")
+	}
+	if data.PrimaryTarget != "Rogue Chunin" {
+		t.Errorf("PrimaryTarget = %q, want %q", data.PrimaryTarget, "Rogue Chunin")
 	}
 }
 

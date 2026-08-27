@@ -567,3 +567,56 @@ func TestBuildAttacksCookingToolInfusionPipeOverrides(t *testing.T) {
 		t.Errorf("pipe DamageType = %q, want Piercing (must not pick up the base tool's own Bludgeoning pick)", pipe.DamageType)
 	}
 }
+
+// TestCookingNinFoodForTheSoulAdvantageEntry pins Food For the Soul's own
+// Advantage grant (rules.db class_features, confirmed verbatim 2026-08-26):
+// "select one ability score of your choice. All willing allied creatures
+// gain Advantage on their first Ability Check and saving throw that uses
+// the chosen ability score."
+func TestCookingNinFoodForTheSoulAdvantageEntry(t *testing.T) {
+	granted := []grantedFeatureRow{
+		{Slug: foodForTheSoulFeatureSlug, Name: "Food For the Soul"},
+	}
+
+	t.Run("no pick yet yields nil", func(t *testing.T) {
+		if entry := cookingNinFoodForTheSoulAdvantageEntry(granted, ""); entry != nil {
+			t.Errorf("entry = %+v, want nil for an unmade pick", entry)
+		}
+	})
+
+	t.Run("feature not granted yields nil even with a stale pick", func(t *testing.T) {
+		if entry := cookingNinFoodForTheSoulAdvantageEntry(nil, "str"); entry != nil {
+			t.Errorf("entry = %+v, want nil when the character hasn't reached the feature", entry)
+		}
+	})
+
+	t.Run("a made pick resolves to the full ability label", func(t *testing.T) {
+		entry := cookingNinFoodForTheSoulAdvantageEntry(granted, "wis")
+		if entry == nil {
+			t.Fatalf("entry = nil, want a resolved Advantage entry")
+		}
+		if !strings.Contains(entry.RollType, "Wisdom") {
+			t.Errorf("RollType = %q, want it to name Wisdom", entry.RollType)
+		}
+		if !strings.Contains(entry.RollType, "allied") {
+			t.Errorf("RollType = %q, want it to scope the grant to allied creatures, not the caster", entry.RollType)
+		}
+		if len(entry.Sources) != 1 || entry.Sources[0] != "Food For the Soul" {
+			t.Errorf("Sources = %+v, want just Food For the Soul", entry.Sources)
+		}
+	})
+
+	t.Run("merges into computePassiveTraits output via mergePassiveAdvantage", func(t *testing.T) {
+		traits := computePassiveTraits(granted, 2)
+		if len(traits.Advantages) != 0 {
+			t.Fatalf("Advantages before merge = %+v, want none (not a static advantageGrants entry)", traits.Advantages)
+		}
+		traits = mergePassiveAdvantage(traits, cookingNinFoodForTheSoulAdvantageEntry(granted, "str"))
+		if len(traits.Advantages) != 1 {
+			t.Fatalf("Advantages after merge = %+v, want exactly 1 entry", traits.Advantages)
+		}
+		if !strings.Contains(traits.Advantages[0].RollType, "Strength") {
+			t.Errorf("RollType = %q, want it to name Strength", traits.Advantages[0].RollType)
+		}
+	})
+}

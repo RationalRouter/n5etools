@@ -49,8 +49,16 @@
      total. Summon and Custom (no formula of their own) get the identical
      input with no auto-recompute behind it — there's nothing to override.
      HP-current (and Barrier-current/Jutsu-Slots-current) stay editable for
-     every kind regardless — real fluctuating state, not a formula target. */}}
-{{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom")}}
+     every kind regardless — real fluctuating state, not a formula target.
+     void-soul joins summon/custom in the no-formula group: no base stat
+     card was ever ingested for it (void_soul.go's own header doc), so
+     AC/HP have nothing to auto-compute from either. Speed is the one
+     exception ($autoComputedSpeed below) — "Movement speed is equal to
+     yours" needs no stat card at all, just the player's own sheet.Speed,
+     so loadVoidSoulReference writes it live every render the same way the
+     four formula kinds do for every field in this group. */}}
+{{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom") (ne .Companion.Kind "void-soul")}}
+{{$autoComputedSpeed := or $autoComputed (eq .Companion.Kind "void-soul")}}
 <div class="companion-stat-row">
   {{/* AC/HP-current/HP-max share the same delta-editable shape: a leading
        +/- adjusts, a bare number sets outright (and, for an auto-computed
@@ -92,7 +100,7 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/speed" class="companion-delta-form">
     <label>Speed <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}"
                       class="companion-delta-field" data-field="speed" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Speed, or +5 / -5 to adjust it{{end}}"></label>
+                      title="{{if $autoComputedSpeed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Speed, or +5 / -5 to adjust it{{end}}"></label>
   </form>
   {{/* Flying speed is shown once this companion already has one (an
        auto-computed kind's own formula granted it, or a Summon/Custom's
@@ -214,7 +222,14 @@
      that ability going forward (character_companion_overrides); for
      Summon/Custom (no formula of their own), it's just a plain set. Its
      own form/endpoint per ability, same "forms cannot nest" reason this
-     partial's own header doc gives for AC/Max HP. */}}
+     partial's own header doc gives for AC/Max HP.
+
+     void-soul is excluded: those same six columns hold its own ABILITY
+     MODIFIERS, encoded as score = 10 + 2*modifier (void_soul.go's own
+     header doc) — showing "14" here where the book only ever prints "+2"
+     would be a confusing semantic mismatch with what this row means for
+     every other kind, so it gets its own dedicated block below instead. */}}
+{{if ne .Companion.Kind "void-soul"}}
 <div class="companion-ability-row">
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/str_score" class="companion-delta-form">
     <label>STR <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}"
@@ -247,6 +262,149 @@
                       title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Charisma{{end}}"></label>
   </form>
 </div>
+{{end}}
+
+{{/* Void Soul Awakening's own summon/dismiss toggle, Ability Modifiers
+     point-buy, and Bonus Keyword pick — see void_soul.go's own header doc
+     for the full design. .VoidSoulReference is nil whenever the character
+     doesn't currently have Void Soul Awakening granted (a kind="void-soul"
+     companion can still exist without it, same nil-when-unqualified
+     contract as .TitanReference just above), so this whole block must not
+     field-access it without checking first, same reasoning that guard
+     gives for html/template panicking mid-render.
+
+     ShowVoidSoulEditing (tab card only, never the read-only popup — see
+     handleCompanionSheet's own doc) gates the three actual EDITING
+     controls (ability-point +/- buttons, Summon/Dismiss button, Bonus
+     Keyword picker) — matching the same "quick reference for combat,
+     editing happens on the tab" boundary Titan Specialization/Legion
+     ability bonus/Nin-Dog Breed already draw above. The popup still shows
+     the CURRENT values of all three, just without the controls to change
+     them. */}}
+{{if eq .Companion.Kind "void-soul"}}
+{{if not .VoidSoulReference}}
+<p class="section-hint">Void Soul stats need Trickster Scout's Void Soul Awakening to compute — this character doesn't currently qualify.</p>
+{{else}}
+<div class="companion-void-soul-summon">
+  {{if .ShowVoidSoulEditing}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/void-soul-summon"
+        class="sheet-inline-form sheet-toggle-form" data-target="sheet-summon-tab" data-also-refresh="sheet-ac">
+    {{/* respond_fragment: handleVoidSoulSummonToggle answers via
+         companionRespondFragment(r), which defaults to "sheet_companions"
+         (the Core tab's own card) when this field is absent — every other
+         companion form on THIS tab sets it explicitly to "sheet_summon_tab"
+         for the same reason (see the delete form's own identical comment
+         above), so the response actually matches this form's own
+         data-target instead of swapping the wrong fragment's HTML in. */}}
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <input type="hidden" name="on" value="{{if .Companion.VoidSoulIsSummoned}}0{{else}}1{{end}}">
+    <button type="submit" class="companion-void-soul-toggle{{if .Companion.VoidSoulIsSummoned}} companion-void-soul-summoned{{end}}"
+            data-toggle-class="companion-void-soul-summoned">{{if .Companion.VoidSoulIsSummoned}}Dismiss{{else}}Summon{{end}} Void Soul</button>
+  </form>
+  {{else}}
+  <span class="option-picker-epithet">{{if .Companion.VoidSoulIsSummoned}}Currently summoned{{else}}Currently dismissed{{end}}</span>
+  {{end}}
+  {{if .Companion.VoidSoulIsSummoned}}
+  <p class="section-hint">While summoned: your own AC uses Charisma in place of Dexterity if that's better (already applied to your AC), it's visible to creatures who can mold chakra, and occupies your space. It's resummoned into your space if you end your turn more than 120ft away from it.</p>
+  {{end}}
+</div>
+
+<div class="companion-void-soul-abilities">
+  <h4>Ability Modifiers <span class="option-picker-epithet">{{.VoidSoulReference.PointsAvailable}}/{{.VoidSoulReference.PointsTotal}} points available</span></h4>
+  <p class="section-hint">Your Charisma modifier &times; 3 points, each raising one Ability Modifier by +1 (max +6).</p>
+  <div class="companion-ability-row companion-void-soul-ability-row">
+    {{$ref := .VoidSoulReference}}
+    {{range .VoidSoulReference.Abilities}}
+    <div class="companion-void-soul-ability">
+      <span class="companion-void-soul-ability-label">{{upper .Ability}}</span>
+      <span class="companion-void-soul-ability-mod">{{signed .Modifier}}</span>
+      {{if $.ShowVoidSoulEditing}}
+      <span class="companion-void-soul-ability-buttons">
+        <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/void-soul-ability-point"
+              class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+          <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+          <input type="hidden" name="ability" value="{{.Ability}}">
+          <input type="hidden" name="delta" value="-1">
+          <button type="submit" class="companion-void-soul-ability-btn" aria-label="Decrease {{upper .Ability}} modifier" title="Decrease {{upper .Ability}} modifier" {{if le .Modifier 0}}disabled{{end}}>&minus;</button>
+        </form>
+        <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/void-soul-ability-point"
+              class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+          <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+          <input type="hidden" name="ability" value="{{.Ability}}">
+          <input type="hidden" name="delta" value="1">
+          <button type="submit" class="companion-void-soul-ability-btn" aria-label="Increase {{upper .Ability}} modifier" title="Increase {{upper .Ability}} modifier" {{if or (ge .Modifier 6) (le $ref.PointsAvailable 0)}}disabled{{end}}>+</button>
+        </form>
+      </span>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{$bonusKeywordTooltipID := printf "void-soul-bonus-keyword-tooltip-%d" .Companion.ID}}
+<label class="companion-block-label">Bonus Keyword
+  {{if .ShowVoidSoulEditing}}
+  <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/void-soul-bonus-keyword"
+        class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+    <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
+    <select name="keyword" class="sheet-option-tooltip-select" data-tooltip-for="{{$bonusKeywordTooltipID}}">
+      <option value="">&mdash; none &mdash;</option>
+      {{range .VoidSoulReference.BonusKeywordOptions}}
+      <option value="{{.}}" data-description="Grants your Void Soul jutsu access to the {{.}} keyword, on top of everything you yourself qualify for." {{if eq . $.VoidSoulReference.BonusKeyword}}selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+    <button type="submit">Set Keyword</button>
+  </form>
+  {{else}}
+  <span class="option-picker-epithet">{{if .VoidSoulReference.BonusKeyword}}{{.VoidSoulReference.BonusKeyword}}{{else}}None chosen{{end}}</span>
+  {{end}}
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{$bonusKeywordTooltipID}}">{{if .VoidSoulReference.BonusKeyword}}Currently grants jutsu access to the {{.VoidSoulReference.BonusKeyword}} keyword.{{else}}One Nature Release or Medical keyword your Void Soul can access beyond your own normal jutsu access.{{end}}</span>
+  </span>
+</label>
+
+{{/* Known Jutsu: character-scoped (charstore.ScoutNinPickVoidSoulJutsu),
+     not companion-scoped — handleVoidSoulJutsuAdd/Delete read the
+     character id straight off the URL, no {cid} involved, so these two
+     forms post to /sheet/void-soul-jutsu, not /companions/{cid}/... like
+     every other form on this card. */}}
+<div class="companion-void-soul-jutsu">
+  <h4>Known Jutsu <span class="option-picker-epithet">{{len .VoidSoulReference.KnownJutsu}}/{{.VoidSoulReference.JutsuCap}} known</span></h4>
+  <p class="section-hint">Cast only by your Void Soul, using your own Chakra — never by you. Freely re-pickable whenever you gain a level.</p>
+  {{if .VoidSoulReference.KnownJutsu}}
+  <ul class="sheet-feature-list">
+    {{range .VoidSoulReference.KnownJutsu}}
+    <li>
+      {{if $.ShowVoidSoulEditing}}
+      <form method="post" action="/characters/{{$.CharacterID}}/sheet/void-soul-jutsu/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+        <input type="hidden" name="jutsu_slug" value="{{.Slug}}">
+        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+      </form>
+      {{end}}
+      <strong>{{.Name}}</strong>{{if .Rank}} <span class="option-picker-epithet">{{.Rank}}-Rank</span>{{end}} {{formatDescription .Description}}
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+  {{if and .ShowVoidSoulEditing (lt (len .VoidSoulReference.KnownJutsu) .VoidSoulReference.JutsuCap)}}
+  <form method="post" action="/characters/{{.CharacterID}}/sheet/void-soul-jutsu" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
+    <select name="jutsu_slug" class="sheet-option-tooltip-select" required>
+      <option value="">&mdash; choose a jutsu &mdash;</option>
+      {{range .VoidSoulReference.JutsuOptions}}
+      <option value="{{.Slug}}" data-description="{{.Description}}">{{.Name}}{{if .Rank}} ({{.Rank}}-Rank){{end}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">Choose a jutsu to see what it does.</span>
+    </span>
+    <button type="submit">+ Add</button>
+  </form>
+  {{end}}
+</div>
+{{end}}
+{{end}}
 
 {{/* Saving Throws: every kind except "puppet" — a Puppet Tool's own
      Saving Throws are a fixed class-text readout (companion-base-traits
@@ -268,7 +426,14 @@
      convenience only, the real enforcement is server-side
      (handleCompanionSavingThrowToggle). */}}
 {{if ne .Companion.Kind "puppet"}}
-{{$showToggles := .ShowSaveToggles}}
+{{/* void-soul: "Uses your saving throw proficiencies" is not a player
+     choice — companionSaves already mirrors sheet.Saves directly for this
+     kind rather than reading its own save_proficiencies column, so a
+     toggle button here would falsely imply there's something to pick.
+     Real enforcement is server-side (handleCompanionSavingThrowToggle
+     rejects a void-soul POST outright); this is just the UI matching
+     that. */}}
+{{$showToggles := and .ShowSaveToggles (ne .Companion.Kind "void-soul")}}
 {{$target := .SavesTarget}}
 {{$charID := .CharacterID}}
 {{$companionID := .Companion.ID}}
@@ -1425,5 +1590,28 @@
     {{end}}
   </div>
   {{end}}
+</section>
+{{end}}
+
+{{/* void_soul_reference: the Void Soul equivalent of titan_reference/
+     nindog_reference/snb_reference — static reference text for the clauses
+     void_soul.go's own header doc explains have no automation surface in
+     this app (visible to CM-users, occupies your space, re-summons within
+     120ft, the shared-saving-throw and no-concentration-check rulings),
+     since the interactive pieces (Ability Modifiers, Summon/Dismiss,
+     Bonus Keyword, Known Jutsu) already live on the shared
+     companion_stat_fields card above, not here. Expects a dict: Ref
+     (*voidSoulReference — nil handled by companion_stat_fields' own guard,
+     not repeated here since this block never field-accesses .Ref itself),
+     CharacterID, CompanionID. */}}
+{{define "void_soul_reference"}}
+<section class="companion-reference">
+  <h2>Void Soul Awakening Reference</h2>
+  <p>A Chakra Construct manifestation of your true self, summoned as a Bonus Action into your own space and dismissed as a Bonus Action (or when you fall unconscious). Visible to creatures who can mold chakra. Once summoned, you command it by spending your own Actions, Bonus Actions, and Reactions.</p>
+  <dl class="sheet-passive-trait-list">
+    <dt>Movement Speed</dt><dd>Equal to yours. Resummoned into your space if you end your turn more than 120ft from it.</dd>
+    <dt>Chakra</dt><dd>Casts its known jutsu from your own Chakra pool, not a separate reserve.</dd>
+    <dt>Saving Throws</dt><dd>Uses your saving throw proficiencies. If you and it would make a save against the same effect, only one save is made — the effect applies once, not twice. If it takes damage, you don't need a concentration check.</dd>
+  </dl>
 </section>
 {{end}}

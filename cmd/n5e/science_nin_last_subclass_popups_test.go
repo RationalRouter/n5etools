@@ -485,3 +485,35 @@ func TestLastSubclassTrackerSidebarButtons(t *testing.T) {
 		})
 	}
 }
+
+// TestStormRiderSkyKeeperFlySpeedOnCoreSheet covers the Core sheet's own
+// Fly Speed line for Storm Rider's 20th-level capstone, "The Future of
+// Shinobi: Sky Keeper" — added on top of seedStormRiderCatalog's existing
+// Air Trecks/King's Road rows, since Sky Keeper (scienceNinSkyKeeperFeature
+// Slug, charsheet.go) only affects sheet.FlySpeed once the character
+// actually reaches 20th level, unlike the two features that catalog
+// already covers.
+func TestStormRiderSkyKeeperFlySpeedOnCoreSheet(t *testing.T) {
+	s := testServer(t)
+	seedStormRiderCatalog(t, s, 20)
+	if _, err := s.rulesDB.Exec(`INSERT INTO subclass_features (slug, subclass_slug, name, level, description, sort_order) VALUES
+		(?, 'class/science-nin/group/scientific-inquiry/storm-rider', 'The Future of Shinobi: Sky Keeper', 20, 'Test.', 3)`,
+		scienceNinSkyKeeperFeatureSlug); err != nil {
+		t.Fatalf("seed Sky Keeper feature: %v", err)
+	}
+
+	belowCapID := seedStormRiderCharacter(t, s, "Pre-Capstone", 19)
+	belowCapBody := getPopup(t, s, "/characters/"+strconv.FormatInt(belowCapID, 10)).Body.String()
+	if strings.Contains(belowCapBody, "Fly Speed") {
+		t.Errorf("Core sheet shows Fly Speed before Sky Keeper is granted (19th level):\n%s", belowCapBody)
+	}
+
+	skyKeeperID := seedStormRiderCharacter(t, s, "Karin", 20)
+	body := getPopup(t, s, "/characters/"+strconv.FormatInt(skyKeeperID, 10)).Body.String()
+	if !strings.Contains(body, "Fly Speed 90 ft.") {
+		t.Errorf("Core sheet missing Fly Speed 90 ft. (book default 30 + Sky Keeper's +60ft) once Sky Keeper is granted:\n%s", body)
+	}
+	if !strings.Contains(body, "both movement modes are usable on the same turn") {
+		t.Errorf("Core sheet's Fly Speed tooltip missing its note that walking and flying speed are both usable:\n%s", body)
+	}
+}
