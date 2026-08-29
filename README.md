@@ -1,4 +1,4 @@
-# !!!Download Disclaimer!!!
+# Download Disclaimer
 
 Your antivirus software may show a message about unrecognized apps or files when you attempt to download it. 
 This is expected behavior for small, free, indie software without a paid code-signing certificate. Click More info, then Run anyway to launch it.
