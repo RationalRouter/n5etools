@@ -1,3 +1,8 @@
+# Download Disclaimer
+
+Windows users: Windows Defender SmartScreen may show a "Windows protected your PC" when you download the files. 
+This is expected behavior for small, free, indie software without a paid code-signing certificate. Click More info, then Run anyway to launch it.
+
 # N5Etools
 
 A portable, offline desktop app for the **Naruto 5e** homebrew TTRPG: character
