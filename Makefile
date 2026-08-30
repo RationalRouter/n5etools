@@ -1,4 +1,4 @@
-.PHONY: build build-windows embed-rules icon run release-windows release-linux release-macos clean
+.PHONY: build build-windows embed-rules icon run release-windows release-linux release-macos release-all clean
 
 # Copies the maintainer-built rules database into the app's embed source.
 # Run after any n5e-ingest step that touches out/rules.db.
@@ -81,6 +81,16 @@ release-macos: embed-rules
 	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/n5e-macos-amd64 ./cmd/n5e
 	chmod +x dist/n5e-macos-arm64 dist/n5e-macos-amd64
 	go run ./tools/zipdist "dist-release/$(ZIPNAME)" dist/n5e-macos-arm64 dist/n5e-macos-amd64 assets/n5e.ico
+
+# Builds every shipped OS's release zip in one shot, named
+# n5e-<os>-<name>.zip (see tools/release/release-all.rb, which this just
+# forwards to). Requires NAME=, not -n: -n is GNU Make's own dry-run flag
+# and can't be forwarded through from here — run the script directly
+# instead if you want that:
+#   ruby tools/release/release-all.rb -n v0.2.1
+release-all:
+	@if [ -z "$(NAME)" ]; then echo "usage: make release-all NAME=v0.2.1"; exit 1; fi
+	ruby tools/release/release-all.rb -n "$(NAME)"
 
 clean:
 	rm -rf dist dist-release internal/embedded/rules.db cmd/n5e/resource_windows.syso
