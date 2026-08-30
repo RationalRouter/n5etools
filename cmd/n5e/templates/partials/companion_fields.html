@@ -972,7 +972,13 @@
               data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
       {{end}}
-      <span class="companion-attack-name">{{.Name}}</span>
+      {{/* Hover preview (sheet-attack-detail.js's .tooltip CSS, same
+           convention as the Demon Foe toggle just above) plus click-to-card
+           (sheet-attack-detail.js's own delegated listener, reading the
+           <template class="detail-body"> below) — see that file's header
+           comment for why this coexists with the Puppets tab's own
+           sheet-puppet-detail.js side panel instead of duplicating it. */}}
+      <span class="companion-attack-name{{if .Description}} tooltip{{end}}">{{.Name}}{{if .Description}}<span class="tooltip-content">{{.Description}}</span>{{end}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
               data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
@@ -1020,19 +1026,21 @@
 </section>
 {{else if .ReadOnlyAttacks}}
 {{/* Same rollable attack rows as the tab's own structured Attacks, minus
-     the add/delete forms and detail-panel wiring (sheet-puppet-detail.js
-     isn't loaded here) — the popup is a quick reference for combat, not
+     the add/delete forms (this popup is a quick reference for combat, not
      an editing surface; add/remove a companion's attacks from its own tab
-     on the main sheet instead (AttacksTabName — "Puppets" for kind="puppet",
+     on the main sheet instead — AttacksTabName, "Puppets" for kind="puppet",
      "Companions" for every other kind, see companionAttacksTabLabel). Same
      <h3> header as the structured-attacks branch above, for the same gold/
-     bold panel-header look. */}}
+     bold panel-header look. Still carries data-detail-name/detail-body and
+     the hover tooltip, same as the structured branch — sheet-puppet-detail.js
+     isn't loaded on this standalone page, but sheet-attack-detail.js is, so
+     the click-to-card behavior works here too. */}}
 <section class="companion-block-label companion-attacks">
   <h3>Attacks</h3>
   {{if .Attacks}}
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
-    <li class="companion-attack-row">
+    <li class="companion-attack-row" data-detail-name="{{.Name}}">
       {{/* Demon Foe checkbox: kept even in this read-only-ATTACKS branch —
            "read-only" here means no add/delete/detail-panel editing of the
            attack list itself (this block's own doc above), not that every
@@ -1053,12 +1061,13 @@
               data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
       {{end}}
-      <span class="companion-attack-name">{{.Name}}</span>
+      <span class="companion-attack-name{{if .Description}} tooltip{{end}}">{{.Name}}{{if .Description}}<span class="tooltip-content">{{.Description}}</span>{{end}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
               data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
               data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
       {{end}}
+      <template class="detail-body">{{if .Description}}<p>{{.Description}}</p>{{end}}</template>
     </li>
     {{end}}
   </ul>

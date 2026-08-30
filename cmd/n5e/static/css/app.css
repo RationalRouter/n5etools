@@ -3188,6 +3188,29 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 }
 .sheet-popup-close:hover { border-color: var(--accent); color: var(--accent); }
 
+.companion-attack-detail-dialog {
+  max-width: min(500px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+.companion-attack-detail-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.companion-attack-detail-dialog h3 { margin-top: 0; }
+.companion-attack-detail-close {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+.companion-attack-detail-close:hover { border-color: var(--accent); color: var(--accent); }
+
 @media (max-width: 1200px) {
   .sheet-body { flex-direction: column; }
   .sheet-sidebar { flex: 1 1 auto; width: 100%; position: static; }
