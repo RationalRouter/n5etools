@@ -33,13 +33,6 @@ import (
 	"github.com/sergio/n5e/internal/extract"
 )
 
-// titanUnitCardMarker is the fixed literal start of Science-Nin's Titan base
-// unit card, glued verbatim onto the end of "Ronin Specialization"'s own
-// bullet list by the flat PDF text extractor — same class of bug as
-// PuppetToolStatBlock (classes.go), just for a different sidebar box.
-// Confirmed against the real book text; a fixed literal marker, not a
-// generic stat-block detector, same reasoning as puppetToolUnitCardRe.
-const titanUnitCardMarker = "X Construct, Proficiency bonus = your proficiency bonus"
 
 // ClassOption is one purchasable/selectable entry of an option list
 // (a maneuver, mirage, upgrade, …).
@@ -48,6 +41,12 @@ type ClassOption struct {
 	Prerequisites string // "Prerequisite: …" prefix line, when present
 	Description   string
 	SourcePage    int
+
+	// StatBlock is set whenever buildOptionOn's call to SplitStatBlock finds
+	// a companion/summon stat card glued into this option's raw text — see
+	// statblock.go. Found is false for the overwhelming majority of
+	// options, which never had anything split out.
+	StatBlock StatBlockMatch
 }
 
 // OptionList is a named list of options, either class-wide ("Malleable
@@ -510,6 +509,17 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 	buildFeature := func(n *node, subclassName string) ClassFeature {
 		f := ClassFeature{Name: n.title, SourcePage: n.page,
 			Description: stripArtistCredit(fixKnownExtractionSquish(strings.TrimSpace(strings.Join(n.content, " "))))}
+		// Same bug class as buildOptionOn above (a companion/summon stat card
+		// glued into a subclass feature's prose, e.g. the S.N.B Specialist's
+		// own base creature glued onto "Combat Programming") — split it out
+		// here too. subclass_features has no stat_block_* columns (migration
+		// 0067 only covers class_features/class_options, the two tables with
+		// proven instances at the time), so f.StatBlock is discarded at the
+		// store layer for this table; only the cleaned Description persists.
+		if sbm := SplitStatBlock(f.Description); sbm.Found {
+			f.StatBlock = sbm
+			f.Description = sbm.Prose
+		}
 		if m := ordinalLevelRe.FindStringSubmatch(f.Description); m != nil {
 			lvl := atoiSafe(m[1])
 			if lvl >= 1 && lvl <= 20 {
@@ -537,17 +547,21 @@ func ParseSubclasses(c *Class, sections []extract.OutlineNode) []Anomaly {
 		o.Description = desc
 		return o
 	}
-	// buildOptionOn calls buildOption then, only for Science-Nin, splits off
-	// the Titan base unit card if this option's description happens to carry
-	// it (confirmed: only "Ronin Specialization" does, in reading order —
-	// see Class.TitanBaseText's doc comment). c is captured from
-	// ParseSubclasses' own parameter.
+	// buildOptionOn calls buildOption then runs the generic stat-block
+	// splitter (statblock.go) on the result — catches a companion/summon
+	// stat card glued into an option's description by the flat PDF
+	// extractor, same bug class as Puppet Tool (classes.go's flushFeature).
+	// For Science-Nin specifically, a match also populates the legacy
+	// Class.TitanBaseText field (confirmed: only "Ronin Specialization"
+	// carries the Titan base unit card, in reading order — see that field's
+	// own doc comment). c is captured from ParseSubclasses' own parameter.
 	buildOptionOn := func(n *node) ClassOption {
 		o := buildOption(n)
-		if c.Name == "Science-Nin" {
-			if idx := strings.Index(o.Description, titanUnitCardMarker); idx >= 0 {
-				c.TitanBaseText = strings.TrimSpace(o.Description[idx:])
-				o.Description = strings.TrimSpace(o.Description[:idx])
+		if sbm := SplitStatBlock(o.Description); sbm.Found {
+			o.StatBlock = sbm
+			o.Description = sbm.Prose
+			if c.Name == "Science-Nin" {
+				c.TitanBaseText = sbm.RawStatBlock
 			}
 		}
 		return o

@@ -92,15 +92,8 @@ func (s *server) ensureWhelpCompanion(characterID int64) error {
 	if err != nil {
 		return err
 	}
-	ninjutsuAbilityMod := 0
-	for _, a := range sheet.JutsuAttacks {
-		if a.Kind == "Ninjutsu" {
-			ninjutsuAbilityMod = sheet.Abilities[a.Ability].Modifier
-			break
-		}
-	}
 	intMod := sheet.Abilities["int"].Modifier
-	ac := int64(18 + ninjutsuAbilityMod)
+	ac := int64(18 + ninjutsuAbilityModifier(sheet))
 	hpMax := int64(intMod * scienceNinLevel)
 
 	companionID, err := charstore.AddCompanion(s.charDB, characterID, "custom", scienceNinWhelpCompanionName)
@@ -167,6 +160,78 @@ func ninjutsuAttackBonus(sheet *charsheet.Sheet) int {
 	for _, a := range sheet.JutsuAttacks {
 		if a.Kind == "Ninjutsu" {
 			return a.Modifier
+		}
+	}
+	return 0
+}
+
+// whelpReference is the read-only/interactive panel for the Draconic
+// Gauntlet's own Whelp companion (kind="custom", matched by exact Name —
+// see scienceNinWhelpCompanionName) — brings AC/Max HP onto the same
+// "computed hint, never silently overwritten, Sync-pinnable" treatment
+// every other formula-backed companion kind already gets (titanReference/
+// ninDogReference/snbReference), replacing the one-time creation-only
+// prefill ensureWhelpCompanion used to leave this companion stuck with (see
+// that function's own doc, now partially superseded by this). Ability
+// scores and Speed are NOT included: the book gives the Whelp no formula
+// for those (18/20/16/20/5/5, 60ft flying are flat constants set once at
+// creation), unlike AC and Max HP, so they stay ordinary player-editable
+// fields, same as any other kind="custom" companion.
+type whelpReference struct {
+	ExpectedAC    int
+	ExpectedMaxHP int
+}
+
+// loadWhelpReference recomputes AC ("18 + your Ninjutsu ability modifier")
+// and Max HP ("your Intelligence modifier x your Science-Nin Level") fresh
+// from the owner's CURRENT stats every render, honoring any manual pin
+// (character_companion_overrides) the same way loadSNBReference/
+// loadTitanReference/loadNinDogReference already do for their own
+// formula-backed fields, and writes the resolved values straight to the
+// companion row via charstore.SetWhelpStatDefaultsLive — the identical
+// "auto-then-pin, re-read after write" contract those three loaders already
+// establish, so companion_stat_fields' shared AC/Max HP inputs need no
+// Whelp-specific logic beyond knowing to LABEL them as auto-computed (see
+// companion_fields.html's own $isWhelp gate).
+func (s *server) loadWhelpReference(characterID int64, companion charstore.Companion, sheet *charsheet.Sheet) (*whelpReference, error) {
+	scienceNinLevel, err := s.scienceNinClassLevel(characterID)
+	if err != nil {
+		return nil, err
+	}
+	ac := 18 + ninjutsuAbilityModifier(sheet)
+	intMod := sheet.Abilities["int"].Modifier
+	hpMax := intMod * scienceNinLevel
+	if hpMax < 1 {
+		hpMax = 1
+	}
+
+	overrides, err := charstore.GetCompanionOverrides(s.charDB, companion.ID)
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := companionOverrideInt(overrides, "ac"); ok {
+		ac = int(v)
+	}
+	if v, ok := companionOverrideInt(overrides, "hp_max"); ok {
+		hpMax = int(v)
+	}
+
+	if err := charstore.SetWhelpStatDefaultsLive(s.charDB, characterID, companion.ID, int64(ac), int64(hpMax)); err != nil {
+		return nil, err
+	}
+
+	return &whelpReference{ExpectedAC: ac, ExpectedMaxHP: hpMax}, nil
+}
+
+// ninjutsuAbilityModifier resolves the player's own Ninjutsu ability
+// modifier (the ability score their Ninjutsu attacks key off), 0 for a
+// sheet with no Ninjutsu discipline at all — factored out of
+// ensureWhelpCompanion so loadWhelpReference's own live recompute can never
+// drift from the identical formula the one-time creation prefill uses.
+func ninjutsuAbilityModifier(sheet *charsheet.Sheet) int {
+	for _, a := range sheet.JutsuAttacks {
+		if a.Kind == "Ninjutsu" {
+			return sheet.Abilities[a.Ability].Modifier
 		}
 	}
 	return 0

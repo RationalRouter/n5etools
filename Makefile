@@ -38,9 +38,12 @@ run: build
 # model. n5e-ingest is maintainer-only tooling and deliberately left out of
 # the release zip. Uses tools/zipdist (stdlib archive/zip) instead of a
 # system `zip` binary, since that isn't guaranteed to be installed.
+# Override the output filename with ZIPNAME, e.g.:
+#   make release-windows ZIPNAME=n5e-v2.3-windows.zip
+release-windows: ZIPNAME ?= n5e-windows.zip
 release-windows: build-windows
 	mkdir -p dist-release
-	go run ./tools/zipdist dist-release/n5e-windows.zip dist/n5e.exe
+	go run ./tools/zipdist "dist-release/$(ZIPNAME)" dist/n5e.exe
 
 # Linux has no PE-resource-style mechanism to embed an icon in a bare ELF
 # binary (that's a Windows-specific concept — see the icon target above),
@@ -50,11 +53,14 @@ release-windows: build-windows
 # zipdist now faithfully carries whatever mode the file has into the
 # archive (see tools/zipdist's FileInfoHeader fix), so this has to be
 # right going in.
+# Override the output filename with ZIPNAME, e.g.:
+#   make release-linux ZIPNAME=n5e-v2.3-linux.zip
+release-linux: ZIPNAME ?= n5e-linux.zip
 release-linux: embed-rules
 	mkdir -p dist-release
 	GOOS=linux GOARCH=amd64 go build -o dist/n5e-linux ./cmd/n5e
 	chmod +x dist/n5e-linux
-	go run ./tools/zipdist dist-release/n5e-linux.zip dist/n5e-linux assets/n5e.ico
+	go run ./tools/zipdist "dist-release/$(ZIPNAME)" dist/n5e-linux assets/n5e.ico
 
 # No lipo/universal-binary support when cross-compiling from Linux, so
 # Apple Silicon and Intel ship as two separate binaries in the same zip
@@ -63,12 +69,18 @@ release-linux: embed-rules
 # above (macOS icons normally live in an .app bundle's Resources/*.icns,
 # well beyond what a quick dev-testing binary needs) — n5e.ico rides along
 # loose here too.
+# Stripped with -ldflags="-s -w" (drops the debug symbol table and DWARF
+# info, neither used at runtime) — shipping both arches unstripped puts the
+# zip over GitHub's 25MB file-size limit.
+# Override the output filename with ZIPNAME, e.g.:
+#   make release-macos ZIPNAME=n5e-v2.3-macos.zip
+release-macos: ZIPNAME ?= n5e-macos.zip
 release-macos: embed-rules
 	mkdir -p dist-release
-	GOOS=darwin GOARCH=arm64 go build -o dist/n5e-macos-arm64 ./cmd/n5e
-	GOOS=darwin GOARCH=amd64 go build -o dist/n5e-macos-amd64 ./cmd/n5e
+	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/n5e-macos-arm64 ./cmd/n5e
+	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/n5e-macos-amd64 ./cmd/n5e
 	chmod +x dist/n5e-macos-arm64 dist/n5e-macos-amd64
-	go run ./tools/zipdist dist-release/n5e-macos.zip dist/n5e-macos-arm64 dist/n5e-macos-amd64 assets/n5e.ico
+	go run ./tools/zipdist "dist-release/$(ZIPNAME)" dist/n5e-macos-arm64 dist/n5e-macos-amd64 assets/n5e.ico
 
 clean:
 	rm -rf dist dist-release internal/embedded/rules.db cmd/n5e/resource_windows.syso

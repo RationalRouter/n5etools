@@ -222,19 +222,23 @@ func upsertJutsu(tx *sql.Tx, book SourceBook, slug string, j parse.Jutsu, status
 	}
 
 	if err == sql.ErrNoRows {
+		insertArgs := append([]any{
+			slug, j.Name, j.Classification, j.Rank, j.CastingTime,
+			j.Range, j.Duration, j.Components, costChakra,
+			j.CostText, j.Keywords, j.Description,
+			atHigherRanks, j.CategoryGroup,
+			book.Slug, book.Version, j.SourcePage, status,
+		}, statBlockArgs(j.StatBlock)...)
 		if _, err := tx.Exec(`
 			INSERT INTO jutsu (slug, name, classification, rank, casting_time,
 			                   range, duration, components, cost_chakra,
 			                   cost_text, keywords, description,
 			                   at_higher_ranks, category_group,
 			                   source_book, source_version, source_page,
-			                   detection_status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			slug, j.Name, j.Classification, j.Rank, j.CastingTime,
-			j.Range, j.Duration, j.Components, costChakra,
-			j.CostText, j.Keywords, j.Description,
-			atHigherRanks, j.CategoryGroup,
-			book.Slug, book.Version, j.SourcePage, status); err != nil {
+			                   detection_status, `+statBlockColumnList+`)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+			        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			insertArgs...); err != nil {
 			return 0, err
 		}
 		return rowCreated, upsertJutsuUpcastRule(tx, slug, j.AtHigherRanks)
@@ -274,6 +278,15 @@ func upsertJutsu(tx *sql.Tx, book SourceBook, slug string, j parse.Jutsu, status
 		outcome = rowDemoted
 	}
 
+	updateArgs := append([]any{
+		j.Name, j.Classification, j.Rank, j.CastingTime,
+		j.Range, j.Duration, j.Components, costChakra,
+		j.CostText, j.Keywords, j.Description,
+		atHigherRanks, j.CategoryGroup,
+		book.Slug, book.Version, j.SourcePage,
+		newStatus,
+	}, statBlockArgs(j.StatBlock)...)
+	updateArgs = append(updateArgs, slug)
 	_, err = tx.Exec(`
 		UPDATE jutsu
 		SET name = ?, classification = ?, rank = ?, casting_time = ?,
@@ -281,14 +294,9 @@ func upsertJutsu(tx *sql.Tx, book SourceBook, slug string, j parse.Jutsu, status
 		    cost_text = ?, keywords = ?, description = ?,
 		    at_higher_ranks = ?, category_group = ?,
 		    source_book = ?, source_version = ?, source_page = ?,
-		    detection_status = ?
+		    detection_status = ?, `+statBlockSetClause+`
 		WHERE slug = ?`,
-		j.Name, j.Classification, j.Rank, j.CastingTime,
-		j.Range, j.Duration, j.Components, costChakra,
-		j.CostText, j.Keywords, j.Description,
-		atHigherRanks, j.CategoryGroup,
-		book.Slug, book.Version, j.SourcePage,
-		newStatus, slug)
+		updateArgs...)
 	if err != nil {
 		return 0, err
 	}

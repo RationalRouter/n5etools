@@ -49,6 +49,15 @@ type Jutsu struct {
 	AtHigherRanks  string
 	CategoryGroup  string // book section, e.g. "Ninjutsu / Fire Release", "Summoning: Toad"
 	SourcePage     int    // physical PDF page the entry starts on
+
+	// StatBlock holds a companion/summon stat card split out of Description
+	// or AtHigherRanks by SplitStatBlock (see statblock.go) — many summoning
+	// and beast-transformation jutsu glue a creature's sidebar stat card
+	// into whichever of the two fields the flat text extractor happened to
+	// be accumulating at that point, the same bug class already fixed for
+	// class_features/class_options. Found is false when neither field
+	// contained one.
+	StatBlock StatBlockMatch
 }
 
 // Anomaly is something a human should look at, destined for the validation
@@ -441,6 +450,18 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 			})
 		}
 	}
+
+	// A glued-in stat card lands in whichever field the extractor was
+	// accumulating when the sidebar's text interleaved — check both;
+	// Description is checked first since it is by far the more common site.
+	if sbm := SplitStatBlock(entry.Description); sbm.Found {
+		entry.StatBlock = sbm
+		entry.Description = sbm.Prose
+	} else if sbm := SplitStatBlock(entry.AtHigherRanks); sbm.Found {
+		entry.StatBlock = sbm
+		entry.AtHigherRanks = sbm.Prose
+	}
+
 	return entry, i, anomalies
 }
 

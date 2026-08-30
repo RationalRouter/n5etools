@@ -62,15 +62,21 @@ type ClassFeature struct {
 	Level       *int
 	Description string
 	SourcePage  int
+
+	// StatBlock is set whenever flushFeature's call to SplitStatBlock finds
+	// a companion/summon stat card glued into this feature's raw text — see
+	// statblock.go. StatBlock.Found is false for the overwhelming majority
+	// of features, which never had anything split out.
+	StatBlock StatBlockMatch
 }
 
 // PuppetToolStatBlock is Puppet Master's "Puppet Tool" feature's baseline
 // stat card — printed as a sidebar box in the book, interleaved into the
-// PDF's flat text stream mid-paragraph (see puppetToolUnitCardRe). HPBase/
-// HPConBonusAdd describe the formula "HPBase + (HPConBonusAdd + Puppet
-// Master's own Con modifier) × Puppet Master's class level" — the Puppet
-// MASTER's Con modifier and level, not the puppet's own ability scores.
-// No AC is printed anywhere in this block.
+// PDF's flat text stream mid-paragraph (see SplitStatBlock, statblock.go).
+// HPBase/HPConBonusAdd describe the formula "HPBase + (HPConBonusAdd +
+// Puppet Master's own Con modifier) × Puppet Master's class level" — the
+// Puppet MASTER's Con modifier and level, not the puppet's own ability
+// scores. No AC is printed anywhere in this block.
 type PuppetToolStatBlock struct {
 	CreatureType        string
 	ProficiencyRuleText string
@@ -83,6 +89,51 @@ type PuppetToolStatBlock struct {
 	TraitsText          string // raw "Bound. ... Hollow Shell. ... Mechanical Limits. ..." block
 }
 
+// puppetToolHPFormulaRe matches Puppet Tool's own HP formula shape, as
+// isolated by the generic SplitStatBlock's HPFormulaText field: "4 +
+// [(5+Constitution Modifier) x Puppet Master level]".
+var puppetToolHPFormulaRe = regexp.MustCompile(`^(\d+)\s*\+\s*\[\((\d+)\+Constitution Modifier\)\s*x\s*Puppet Master level\]$`)
+
+// puppetToolProficiencyPrefixRe strips the "Proficiency = " lead-in SplitStatBlock's
+// generic PreambleText carries, leaving just the rule text itself (e.g.
+// "Puppet Master's Proficiency") — matching PuppetToolStatBlock.ProficiencyRuleText's
+// pre-existing contract.
+var puppetToolProficiencyPrefixRe = regexp.MustCompile(`^Proficiency\s*=\s*`)
+
+// passivePerceptionValueRe pulls the trailing number off a StatBlockFields.Senses
+// value shaped like "Passive Perception 7".
+var passivePerceptionValueRe = regexp.MustCompile(`(\d+)\s*$`)
+
+// puppetToolStatBlockFromGeneric maps SplitStatBlock's generic result onto
+// PuppetToolStatBlock's pre-existing, Puppet-Master-specific field shape
+// (its HP formula is Puppet MASTER's own Con modifier and level, not the
+// puppet's own ability scores — real class-specific meaning worth keeping
+// as its own type, see that type's own doc comment) — replaces the old
+// puppetToolUnitCardRe literal regex now that SplitStatBlock finds the same
+// boundary generically.
+func puppetToolStatBlockFromGeneric(f StatBlockFields) *PuppetToolStatBlock {
+	sb := &PuppetToolStatBlock{
+		CreatureType:        f.CreatureType,
+		ProficiencyRuleText: puppetToolProficiencyPrefixRe.ReplaceAllString(f.PreambleText, ""),
+		Speed:               f.Speed,
+		Str:                 f.Str,
+		Dex:                 f.Dex,
+		Con:                 f.Con,
+		Int:                 f.Int,
+		Wis:                 f.Wis,
+		Cha:                 f.Cha,
+		TraitsText:          f.TraitsAndAttacksText,
+	}
+	if m := puppetToolHPFormulaRe.FindStringSubmatch(strings.TrimSpace(f.HPFormulaText)); m != nil {
+		sb.HPBase = atoiSafe(m[1])
+		sb.HPConBonusAdd = atoiSafe(m[2])
+	}
+	if m := passivePerceptionValueRe.FindStringSubmatch(f.Senses); m != nil {
+		sb.PassivePerception = atoiSafe(m[1])
+	}
+	return sb
+}
+
 // Class is one parsed class, up to its subclass section.
 type Class struct {
 	Name        string
@@ -92,12 +143,12 @@ type Class struct {
 
 	// PuppetToolStatBlock is set only for Puppet Master, once flushFeature
 	// splits it out of the Puppet Tool feature's description (see
-	// puppetToolUnitCardRe).
+	// SplitStatBlock, statblock.go).
 	PuppetToolStatBlock *PuppetToolStatBlock
 
 	// TitanBaseText is set only for Science-Nin, once ParseSubclasses splits
 	// it out of the Titan option list's "Ronin Specialization" entry (see
-	// titanUnitCardMarker in subclasses.go) — the Titan's own shared base
+	// SplitStatBlock, statblock.go) — the Titan's own shared base
 	// unit card (creature type, HP/AC formula, ability scores, senses, and
 	// its Battery Powered Barrier/Extra Attack/Gradual Expansion/Ninja Tool
 	// Integration/Steady Improvement/Titan Specialization traits plus its
@@ -156,25 +207,6 @@ var (
 	skillChooseRe = regexp.MustCompile(`(?i)choose (one|two|three|four|five) from (.+)$`)
 )
 
-// puppetToolUnitCardRe matches Puppet Master's "Puppet Tool" sidebar stat
-// card, glued verbatim onto the end of the feature's real prose by the flat
-// PDF text extractor (see PuppetToolStatBlock's doc comment). Confirmed
-// against the real book text, e.g.:
-//
-//	Medium Construct, Proficiency = Puppet Master’s Proficiency Hit Points
-//	4 + [(5+Constitution Modifier) x Puppet Master level] Speed 30 ft.
-//	15 (+2) 13 (+1) 13 (+1) 5 (-3) 5 (-3) 5 (-3) Senses Passive Perception 7
-//	Bound. A Puppet is bound to its user ... Mechanical Limits. Puppets
-//	cannot cast jutsu ...
-//
-// Fixed literal shape, not a generic stat-block detector — this is the only
-// sidebar stat card in either sourcebook (see V2_ROADMAP.md's "no monster
-// stat-block ingestion" note), so a small targeted regex is the right size
-// of fix, same as the earlier Science-Nin/Mastercraft boundary fix.
-var puppetToolUnitCardRe = regexp.MustCompile(
-	`Medium Construct, Proficiency = (.+?) Hit Points (\d+) \+ \[\((\d+)\+Constitution Modifier\) x Puppet Master level\] Speed (\d+) ft\. ` +
-		`(\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) (\d+) \([+-]\d+\) ` +
-		`Senses Passive Perception (\d+) (.+)$`)
 
 // artistCreditRe strips a stray image/artist-credit caption the flat PDF
 // text extractor glues onto nearby rules prose — confirmed in the wild in
@@ -529,30 +561,11 @@ func parseClass(ls []Line) (Class, []Anomaly) {
 			curFeature = nil
 			return
 		}
-		if c.Name == "Puppet Master" && curFeature.Name == "Puppet Tool" {
-			if loc := puppetToolUnitCardRe.FindStringSubmatchIndex(curFeature.Description); loc != nil {
-				m := make([]string, len(loc)/2)
-				for i := range m {
-					if loc[2*i] >= 0 {
-						m[i] = curFeature.Description[loc[2*i]:loc[2*i+1]]
-					}
-				}
-				c.PuppetToolStatBlock = &PuppetToolStatBlock{
-					CreatureType:        "Medium Construct",
-					ProficiencyRuleText: m[1],
-					HPBase:              atoiSafe(m[2]),
-					HPConBonusAdd:       atoiSafe(m[3]),
-					Speed:               atoiSafe(m[4]),
-					Str:                 atoiSafe(m[5]),
-					Dex:                 atoiSafe(m[6]),
-					Con:                 atoiSafe(m[7]),
-					Int:                 atoiSafe(m[8]),
-					Wis:                 atoiSafe(m[9]),
-					Cha:                 atoiSafe(m[10]),
-					PassivePerception:   atoiSafe(m[11]),
-					TraitsText:          strings.TrimSpace(m[12]),
-				}
-				curFeature.Description = strings.TrimSpace(curFeature.Description[:loc[0]])
+		if sbm := SplitStatBlock(curFeature.Description); sbm.Found {
+			curFeature.StatBlock = sbm
+			curFeature.Description = sbm.Prose
+			if c.Name == "Puppet Master" && curFeature.Name == "Puppet Tool" {
+				c.PuppetToolStatBlock = puppetToolStatBlockFromGeneric(sbm.Fields)
 			}
 		}
 		if clean, lvl, ok := stripLevelSuffix(curFeature.Name); ok {

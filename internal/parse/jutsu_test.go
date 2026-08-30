@@ -66,6 +66,60 @@ func TestParseJutsuBookBasicEntry(t *testing.T) {
 	}
 }
 
+// A summoning/transformation jutsu can have a companion stat card glued
+// into either Description or At Higher Ranks by the same flat-extractor bug
+// class already fixed for class_features/class_options — confirmed for real
+// against "Beast Senses" (at_higher_ranks) and "Explosive Substitution
+// Technique" (description) via tools/sourcebook-audit.rb's independent
+// sweep. SplitStatBlock must be applied to whichever field actually
+// contains it.
+func TestParseJutsuBookStatBlockSplitFromAtHigherRanks(t *testing.T) {
+	lines := mkLines(4,
+		"NINJUTSU",
+		"SUMMONING",
+		"D-RANK:",
+		"BEAST SENSES",
+		"Classification: Ninjutsu",
+		"Rank: D-Rank",
+		"Casting Time: 1 Action",
+		"Range: Self",
+		"Duration: 1 Hour",
+		"Components: HS",
+		"Cost: 4 Chakra",
+		"Keywords: Ninjutsu, Summoning",
+		"Description: You share your senses with a summoned",
+		"beast for the duration.",
+		"At Higher Ranks: The beast gains the following statistics.",
+		"Medium Beast Armor Class 14 Hit Points 45 (5d10 + 15) Speed 35 ft.",
+		"STR DEX CON INT WIS CHA",
+		"19 (+4) 12 (+1) 16 (+3) 1 (-5) 10 (+0) 1 (-5)",
+		"Condition Immunities Poisoned Senses Darkvision 60ft., passive Perception 10",
+	)
+	jutsu, anomalies := ParseJutsuBook(lines)
+	if len(anomalies) != 0 {
+		t.Fatalf("unexpected anomalies: %+v", anomalies)
+	}
+	if len(jutsu) != 1 {
+		t.Fatalf("got %d jutsu, want 1", len(jutsu))
+	}
+	j := jutsu[0]
+	if !j.StatBlock.Found {
+		t.Fatalf("StatBlock.Found = false, want true")
+	}
+	if strings.Contains(j.AtHigherRanks, "STR DEX CON") {
+		t.Errorf("AtHigherRanks still contains the stat block: %q", j.AtHigherRanks)
+	}
+	if want := "The beast gains the following statistics."; j.AtHigherRanks != want {
+		t.Errorf("AtHigherRanks = %q, want %q", j.AtHigherRanks, want)
+	}
+	if j.StatBlock.Fields.CreatureType == "" {
+		t.Errorf("StatBlock.Fields.CreatureType is empty")
+	}
+	if j.StatBlock.Fields.Str != 19 {
+		t.Errorf("StatBlock.Fields.Str = %d, want 19", j.StatBlock.Fields.Str)
+	}
+}
+
 // The book sometimes prints a field label without its colon ("Rank C-Rank",
 // "Cost 12 Chakra"). The parser recovers the value and flags the typo.
 func TestParseJutsuBookColonlessFieldRecovered(t *testing.T) {

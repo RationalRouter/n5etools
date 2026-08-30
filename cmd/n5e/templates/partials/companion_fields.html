@@ -59,6 +59,17 @@
      four formula kinds do for every field in this group. */}}
 {{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom") (ne .Companion.Kind "void-soul")}}
 {{$autoComputedSpeed := or $autoComputed (eq .Companion.Kind "void-soul")}}
+{{/* $isWhelp: the one specific kind="custom" companion (the Draconic
+     Gauntlet's own Whelp, matched by exact Name — see
+     scienceNinWhelpCompanionName) that DOES have a real formula behind two
+     of its fields (AC, Max HP — wow_whelp.go's loadWhelpReference), unlike
+     every other summon/custom companion $autoComputed already excludes.
+     $autoComputedACHP folds that into just those two fields' own tooltip/
+     pin-labeling, leaving Speed and the six ability scores below on
+     $autoComputed unchanged (still plain player-set — the Whelp has no
+     formula for those either). */}}
+{{$isWhelp := eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
+{{$autoComputedACHP := or $autoComputed $isWhelp}}
 <div class="companion-stat-row">
   {{/* AC/HP-current/HP-max share the same delta-editable shape: a leading
        +/- adjusts, a bare number sets outright (and, for an auto-computed
@@ -70,7 +81,7 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/ac" class="companion-delta-form">
     <label>AC <input type="text" inputmode="numeric" name="value" value="{{if .Companion.AC.Valid}}{{.Companion.AC.Int64}}{{end}}"
                       class="companion-delta-field" data-field="ac" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set AC, or +1 / -1 to adjust it{{end}}"></label>
+                      title="{{if $autoComputedACHP}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set AC, or +1 / -1 to adjust it{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp" class="companion-hp-form">
     <label>HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPCurrent.Valid}}{{.Companion.HPCurrent.Int64}}{{end}}"
@@ -81,7 +92,7 @@
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPMax.Valid}}{{.Companion.HPMax.Int64}}{{end}}"
                       class="companion-delta-field" data-field="hp_max" placeholder="—" aria-label="Max HP"
-                      title="{{if $autoComputed}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Max HP, or +2 / -2 to adjust it{{end}}"></label>
+                      title="{{if $autoComputedACHP}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Max HP, or +2 / -2 to adjust it{{end}}"></label>
   </form>
   {{/* Temp HP: a separate pool absorbed before HP on damage (see
        AddCompanionHP's own cascade, migration 0080_companion_temp_hp.sql),
@@ -1117,9 +1128,12 @@
      "companion-reference" shape as Angel E.I.P's Spectre block just above,
      matched by exact Name the same way ensureWhelpCompanion/
      removeWhelpCompanion (cmd/n5e/wow_whelp.go) identify this specific
-     auto-added companion. DR 5 and the "treat negative modifiers as +0"
-     saving-throw clause have no dedicated mechanical field anywhere in this
-     app's companion model (every companion's AC is a single number with no
+     auto-added companion. AC's own formula is no longer stated here since
+     the AC field above now computes and shows it live (loadWhelpReference)
+     — restating it here would just be a second, driftable copy of the same
+     number. DR 5 and the "treat negative modifiers as +0" saving-throw
+     clause have no dedicated mechanical field anywhere in this app's
+     companion model (every companion's AC is a single number with no
      separate flat damage-reduction stat, and no companion save proficiency
      ever floors a negative modifier), so both stay narrated here rather
      than becoming new fields for a single stat only one companion in the
@@ -1127,7 +1141,7 @@
 {{if eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
 <section class="companion-reference">
   <h2>Draconic Gauntlet Reference</h2>
-  <p>Armor Class 18 + your Ninjutsu ability modifier, DR 5. Saving throws proficient in all (treat negative modifiers as +0).</p>
+  <p>DR 5. Saving throws proficient in all (treat negative modifiers as +0).</p>
   <p>Elemental Existence. The Whelp rests perched on the Draconic Gauntlet. While perched on the Gauntlet, the Whelp cannot be targeted and is immune to area of effects. As a bonus action, you may use the Whelp's Aether Fireball or Aether Breath attacks.</p>
   <p>As an action, you may allow the Whelp to detach from your Gauntlet, allowing it to immediately move up to its movement speed and take an Action. The Whelp retains access to its attacks (requiring an Action to use), and also gains access to its Aether Meteor attack and may make two attacks with its Aether Fireball. On subsequent turns, you may command the Whelp to move and take an action at the end of your turn (no action required). If the Whelp is not commanded to take an action while unperched, it takes the dodge action.</p>
   <p>While unperched the Whelp can be targeted by attacks and area of effects as normal. If the Whelp is reduced to 0 hit points, it disappears until your next rest. The Whelp can be no more than 300 feet from you, teleporting back to you in a cloud of alchemical mist if moved beyond this range. Starting from your next turn you may allow the Whelp to reperch itself to your Gauntlet as an object interaction.</p>

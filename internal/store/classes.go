@@ -14,6 +14,51 @@ import (
 	"github.com/sergio/n5e/internal/parse"
 )
 
+// statBlockColumnList is the 18 stat_block_* columns' names, in the exact
+// order migration 0067_generic_stat_block_columns.sql adds them to both
+// class_features and class_options — shared by upsertLeveledFeature and
+// upsertClassOption so the two INSERT/UPDATE statements can't drift apart.
+const statBlockColumnList = `raw_stat_block_text, stat_block_creature_type, stat_block_ac,
+	stat_block_ac_formula_text, stat_block_hp_formula_text, stat_block_speed,
+	stat_block_str, stat_block_dex, stat_block_con, stat_block_int, stat_block_wis, stat_block_cha,
+	stat_block_saving_throws_text, stat_block_resistances, stat_block_immunities,
+	stat_block_condition_immunities, stat_block_senses, stat_block_traits_attacks_text`
+
+// statBlockSetClause is statBlockColumnList's columns rendered as "col = ?"
+// pairs, for use in an UPDATE statement's SET clause (statBlockColumnList
+// itself is bare names, correct for an INSERT's column list but not valid
+// SQL inside SET).
+const statBlockSetClause = `raw_stat_block_text = ?, stat_block_creature_type = ?, stat_block_ac = ?,
+	stat_block_ac_formula_text = ?, stat_block_hp_formula_text = ?, stat_block_speed = ?,
+	stat_block_str = ?, stat_block_dex = ?, stat_block_con = ?, stat_block_int = ?, stat_block_wis = ?, stat_block_cha = ?,
+	stat_block_saving_throws_text = ?, stat_block_resistances = ?, stat_block_immunities = ?,
+	stat_block_condition_immunities = ?, stat_block_senses = ?, stat_block_traits_attacks_text = ?`
+
+// statBlockArgs returns the 18 stat_block_* column values, in statBlockColumnList's
+// own order, for one parse.StatBlockMatch — all NULL when m.Found is false
+// (no companion/summon stat card was glued into this row's text). Reference
+// data only, see StatBlockFields' own doc comment (internal/parse/statblock.go)
+// — not gameplay-critical, so unlike name/description this is simply
+// overwritten on every load rather than tracked through decideStatus's own
+// auto/manual/needs_review machinery.
+func statBlockArgs(m parse.StatBlockMatch) []any {
+	if !m.Found {
+		return make([]any, 18)
+	}
+	f := m.Fields
+	var ac any
+	if f.AC != nil {
+		ac = *f.AC
+	}
+	return []any{
+		m.RawStatBlock, f.CreatureType, ac,
+		f.ACFormulaText, f.HPFormulaText, f.Speed,
+		f.Str, f.Dex, f.Con, f.Int, f.Wis, f.Cha,
+		f.SavingThrowsText, f.Resistances, f.Immunities,
+		f.ConditionImmunities, f.Senses, f.TraitsAndAttacksText,
+	}
+}
+
 // LoadClassBook upserts the parsed classes (with their subclass groups,
 // subclasses, features and option lists) inside one transaction.
 func LoadClassBook(db *sql.DB, book SourceBook, classes []parse.Class, anomalies []parse.Anomaly) (*LoadReport, error) {
@@ -255,8 +300,12 @@ func rebuildClassDetail(tx *sql.Tx, classSlug string, c parse.Class) error {
 }
 
 // upsertLeveledFeature covers class_features and subclass_features — the
-// two tables share the same shape apart from the owner column.
+// two tables share the same shape apart from the owner column. Migration
+// 0067 only added the stat_block_* columns to class_features (the one table
+// with proven instances of the bug so far), so subclass_features rows never
+// get those columns in their INSERT/UPDATE — hasStatBlockCols gates that.
 func upsertLeveledFeature(tx *sql.Tx, book SourceBook, table, ownerCol, slug, owner string, f parse.ClassFeature, order int) (rowOutcome, error) {
+	hasStatBlockCols := table == "class_features"
 	var level any
 	if f.Level != nil {
 		level = *f.Level
@@ -272,13 +321,21 @@ func upsertLeveledFeature(tx *sql.Tx, book SourceBook, table, ownerCol, slug, ow
 		&old.name, &old.description, &old.level, &old.status)
 
 	if err == sql.ErrNoRows {
+		args := []any{slug, owner, f.Name, level, f.Description, order,
+			book.Slug, book.Version, f.SourcePage}
+		columns := ""
+		placeholders := "?, ?, ?, ?, ?, ?, ?, ?, ?"
+		if hasStatBlockCols {
+			args = append(args, statBlockArgs(f.StatBlock)...)
+			columns = ", " + statBlockColumnList
+			placeholders += strings.Repeat(", ?", 18)
+		}
 		_, err := tx.Exec(`
 			INSERT INTO `+table+` (slug, `+ownerCol+`, name, level, description,
 			                       sort_order, source_book, source_version,
-			                       source_page, detection_status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto')`,
-			slug, owner, f.Name, level, f.Description, order,
-			book.Slug, book.Version, f.SourcePage)
+			                       source_page`+columns+`, detection_status)
+			VALUES (`+placeholders+`, 'auto')`,
+			args...)
 		return rowCreated, err
 	}
 	if err != nil {
@@ -292,13 +349,21 @@ func upsertLeveledFeature(tx *sql.Tx, book SourceBook, table, ownerCol, slug, ow
 	if outcome == rowUnchanged {
 		return rowUnchanged, nil
 	}
+	args := []any{f.Name, level, f.Description, order,
+		book.Slug, book.Version, f.SourcePage}
+	setClause := ""
+	if hasStatBlockCols {
+		args = append(args, statBlockArgs(f.StatBlock)...)
+		setClause = statBlockSetClause + ", "
+	}
+	args = append(args, newStatus, slug)
 	_, err = tx.Exec(`
 		UPDATE `+table+`
 		SET name = ?, level = ?, description = ?, sort_order = ?,
-		    source_book = ?, source_version = ?, source_page = ?, detection_status = ?
+		    source_book = ?, source_version = ?, source_page = ?,
+		    `+setClause+`detection_status = ?
 		WHERE slug = ?`,
-		f.Name, level, f.Description, order,
-		book.Slug, book.Version, f.SourcePage, newStatus, slug)
+		args...)
 	return outcome, err
 }
 
@@ -395,14 +460,15 @@ func upsertClassOption(tx *sql.Tx, book SourceBook, slug, classSlug string, subc
 		&old.name, &old.prereq, &old.description, &old.subclassSlug, &old.status)
 
 	if err == sql.ErrNoRows {
+		args := append([]any{slug, classSlug, subclassRef, listName, o.Name, o.Prerequisites, o.Description,
+			order, book.Slug, book.Version, o.SourcePage}, statBlockArgs(o.StatBlock)...)
 		_, err := tx.Exec(`
 			INSERT INTO class_options (slug, class_slug, subclass_slug, list_name,
 			                           name, prerequisites, description, sort_order,
 			                           source_book, source_version, source_page,
-			                           detection_status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto')`,
-			slug, classSlug, subclassRef, listName, o.Name, o.Prerequisites, o.Description,
-			order, book.Slug, book.Version, o.SourcePage)
+			                           `+statBlockColumnList+`, detection_status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto')`,
+			args...)
 		return rowCreated, err
 	}
 	if err != nil {
@@ -418,14 +484,16 @@ func upsertClassOption(tx *sql.Tx, book SourceBook, slug, classSlug string, subc
 	if outcome == rowUnchanged {
 		return rowUnchanged, nil
 	}
+	args := append([]any{o.Name, o.Prerequisites, o.Description, order, subclassRef, listName,
+		book.Slug, book.Version, o.SourcePage}, statBlockArgs(o.StatBlock)...)
+	args = append(args, newStatus, slug)
 	_, err = tx.Exec(`
 		UPDATE class_options
 		SET name = ?, prerequisites = ?, description = ?, sort_order = ?,
 		    subclass_slug = ?, list_name = ?, source_book = ?, source_version = ?,
-		    source_page = ?, detection_status = ?
+		    source_page = ?, `+statBlockSetClause+`, detection_status = ?
 		WHERE slug = ?`,
-		o.Name, o.Prerequisites, o.Description, order, subclassRef, listName,
-		book.Slug, book.Version, o.SourcePage, newStatus, slug)
+		args...)
 	return outcome, err
 }
 

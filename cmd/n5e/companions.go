@@ -788,6 +788,11 @@ type summonCompanionView struct {
 	TitanReference    *titanReference
 	SNBReference      *snbReference
 	VoidSoulReference *voidSoulReference
+	// WhelpReference: only populated for the one specific kind="custom"
+	// companion the Draconic Gauntlet auto-adds (matched by exact Name, see
+	// scienceNinWhelpCompanionName) — nil for every other summon/custom
+	// companion, which has no formula of its own to compute.
+	WhelpReference *whelpReference
 	// Attacks: only populated for a kind companionSupportsStructuredAttacks
 	// reports true for (nin-dog, titan, summon, custom — puppet has its own
 	// richer card on the Puppets tab instead, see sheet_puppet_tab's own
@@ -976,6 +981,23 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
 				voidSoulJutsuAttackRows(ref.KnownJutsu, sheet)...)
 		}
+		if c.Kind == "custom" && c.Name == scienceNinWhelpCompanionName {
+			ref, err := s.loadWhelpReference(characterID, c, sheet)
+			if err != nil {
+				return data, err
+			}
+			view.WhelpReference = ref
+
+			// Re-read for the same reason as the nin-dog/titan/snb blocks
+			// above — loadWhelpReference just wrote fresh AC/Max HP this
+			// render.
+			c, err = charstore.GetCompanion(s.charDB, characterID, c.ID)
+			if err != nil {
+				return data, err
+			}
+			view.Companion = c
+			view.Saves = companionSaves(c, sheet)
+		}
 		if c.Kind == "summon" || c.Kind == "custom" {
 			// Neither of these two kinds has a computed baseline attack the
 			// way Bite/Bash do (no rules-defined natural weapon or stat
@@ -1148,8 +1170,32 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	case "custom":
 		// "Custom" shows no rules-reference panel of any kind (see
-		// 0017_companions.sql's own doc) — structured Attacks is the only
-		// popup content this kind gets beyond the shared stat fields.
+		// 0017_companions.sql's own doc), EXCEPT the one specific companion
+		// the Draconic Gauntlet auto-adds (matched by exact Name, same as
+		// loadSummonsTabData's own identical branch) — that one has a real
+		// AC/Max HP formula behind it (wow_whelp.go's loadWhelpReference)
+		// unlike every other custom companion.
+		if companion.Name == scienceNinWhelpCompanionName {
+			ref, err := s.loadWhelpReference(id, companion, sheet)
+			if err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("load whelp reference:", err)
+				return
+			}
+			data["WhelpReference"] = ref
+
+			// Re-read for the same reason as the snb/nin-dog/titan cases
+			// above — loadWhelpReference just wrote fresh AC/Max HP this
+			// render.
+			companion, err = charstore.GetCompanion(s.charDB, id, cid)
+			if err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("reload companion after whelp reference:", err)
+				return
+			}
+			data["Companion"] = companion
+			data["Saves"] = companionSaves(companion, sheet)
+		}
 		data["ReadOnlyAttacks"] = true
 		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
 		if err != nil {

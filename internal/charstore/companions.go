@@ -557,6 +557,29 @@ func SetSNBStatDefaultsLive(charDB *sql.DB, characterID, companionID int64,
 	return err
 }
 
+// SetWhelpStatDefaultsLive unconditionally overwrites a Draconic Gauntlet
+// Whelp's AC and Max HP on every render — the Whelp equivalent of
+// SetNinDogStatDefaultsLive/SetTitanStatDefaultsLive/SetSNBStatDefaultsLive
+// just above, called from cmd/n5e/wow_whelp.go's loadWhelpReference. Same
+// override-already-resolved-by-the-caller contract as those three
+// functions. Unlike them, no Speed/ability-score/Size columns: the Whelp's
+// stat block gives no formula for those (60ft flying, 18/20/16/20/5/5 are
+// flat constants set once at creation — see ensureWhelpCompanion), only for
+// AC ("18 + your Ninjutsu ability modifier") and Max HP ("your Intelligence
+// modifier x your Science-Nin Level"), so those two are the only columns
+// with a live formula behind them to keep in sync with the owner's current
+// stats.
+func SetWhelpStatDefaultsLive(charDB *sql.DB, characterID, companionID, ac, hpMax int64) error {
+	_, err := charDB.Exec(`
+		UPDATE character_companions SET
+			ac = ?, hp_max = ?,
+			updated_at = datetime('now')
+		WHERE id = ? AND character_id = ?`,
+		ac, hpMax, companionID, characterID,
+	)
+	return err
+}
+
 // SetVoidSoulSpeedLive unconditionally overwrites a void-soul companion's
 // own speed column on every render — the one Void Soul stat with an actual
 // formula behind it ("Movement speed is equal to yours," i.e. the player's
