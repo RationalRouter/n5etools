@@ -2287,58 +2287,25 @@ body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
    fine-grained row snapping. grid-auto-rows uses minmax(20px, auto), not a
    bare 20px, so a box renders at its natural height before sheet-layout.js
    has run (or if it fails to load) instead of being clipped to one row. */
-/* .sheet-core-grid is a sibling of .sheet-layout-toolbar, not a wrapper
-   around it: sheet-layout.js resolves the actual grid root as
-   ":scope > form, :scope > .sheet-core-grid" (Bio's <form> plays the same
-   role). Making the toolbar itself a grid child here — instead of a plain
-   block sibling above the grid — would turn it into an implicit grid item
-   with no explicit placement, and the browser auto-places that wherever it
-   finds a free cell, which is nowhere near the top once every box carries
-   an explicit grid-column/grid-row. */
+/* .sheet-core-grid/.sheet-bio-form become Gridstack's own ".grid-stack"
+   container at init (sheet-layout.js adds that class once it's done
+   wrapping every box as a .grid-stack-item — see that file); vendor/
+   gridstack.min.css supplies position:relative and Gridstack positions
+   every item itself via absolute positioning from then on, not CSS grid or
+   this flex rule. Before that JS has run (the brief pre-script paint), this
+   plain flex row lays the still-unwrapped .sheet-col bands out side by
+   side well enough for that moment — the same shape the page has always
+   shown pre-script. */
 .sheet-core-grid,
 .sheet-bio-form {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  /* Fixed, not minmax(20px, auto): every box carries an explicit
-     grid-row span computed by sheet-layout.js (20px + 8px gap per row,
-     matching N5eGrid.ROW_HEIGHT/ROW_GAP exactly), and .sheet-box already
-     has overflow:auto for content that doesn't fit. An "auto" max let any
-     row a tall box's content passed through grow to fit that content
-     regardless of the box's own assigned span — which meant a box's
-     rendered height was really max(rowSpan's floor, tallest content
-     sharing its rows), not rowSpan itself. That's what made shrinking a
-     box with real content (Bio's Character Backstory, a 24-row textarea)
-     visually do nothing: the row kept inflating back to fit the content
-     no matter how small a rowSpan the resize grip committed. Fixed rows
-     make box height strictly rowSpan-driven in both directions, with
-     overflow now actually reaching .sheet-box's overflow:auto instead of
-     never triggering it. */
-  grid-auto-rows: 20px;
+  display: flex;
   gap: 0.5rem 1.75rem;
 }
 /* .sheet-col is a transitional wrapper: sheet-layout.js reads it once at
-   init (for default box grouping/order) and then removes it, reparenting
-   every box directly into the grid above. Until that JS has run — the
-   moment of initial paint, and also the DOM state sheet-layout.js itself
-   measures natural box heights against before flattening anything — a
-   .sheet-col still needs to occupy its correct default band width as a
-   grid item (not the 1-track sliver it'd auto-place into with no explicit
-   span) and still needs to stack its boxes vertically itself, exactly like
-   the old pre-grid flex layout did. Getting either of these wrong doesn't
-   just flash briefly: it corrupts the natural-height measurement
-   sheet-layout.js bases every box's default row-span on.
-   align-self: start (not the grid default of stretch) matters now that
-   grid-auto-rows below is a fixed 20px rather than minmax(20px, auto): a
-   stretched item is forced to the track's exact size, and a flex column
-   forced down to 20px shrinks every child inside it to fit — which is
-   what silently crushed every box's natural-height measurement to next to
-   nothing the moment the row track stopped being allowed to grow. Letting
-   .sheet-col size itself from its own content instead — free to extend
-   past that nominal 20px track, since nothing here clips it — is what
-   keeps the measurement accurate. */
-.sheet-col { display: flex; flex-direction: column; align-self: start; gap: 0.4rem; min-width: 0; }
-.sheet-core-grid > .sheet-col { grid-column: span 4; }
-.sheet-bio-form > .sheet-col { grid-column: span 6; }
+   init (for default box grouping/order and natural-height measurement,
+   before any box becomes a Gridstack item) and then removes it,
+   reparenting every box into the grid root as a wrapped Gridstack item. */
+.sheet-col { display: flex; flex-direction: column; align-self: start; gap: 0.4rem; min-width: 0; flex: 1 1 0; }
 .sheet-col h2 { margin: 1rem 0 0.4rem; font-size: 1rem; }
 
 .sheet-inline-form { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
@@ -3215,29 +3182,11 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   .sheet-body { flex-direction: column; }
   .sheet-sidebar { flex: 1 1 auto; width: 100%; position: static; }
 }
-@media (max-width: 860px) {
-  /* Boxes carry explicit inline grid-column/grid-row placement (up to
-     column 12) from sheet-layout.js — just narrowing the grid's own tracks
-     isn't enough here, the placement itself has to be overridden too, or
-     the browser spins up unexpected implicit tracks to satisfy stale
-     coordinates against a container that suddenly only has one explicit
-     track. !important is the only way to beat an inline style, already
-     used this way elsewhere in this file (see [hidden]). */
-  .sheet-core-grid,
-  .sheet-bio-form {
-    grid-template-columns: 1fr;
-    /* Every box below drops to grid-row: auto, so — unlike the desktop
-       explicit-span case above — this row's size has nothing else to go
-       on but content, same as the old universal rule. Fixed 20px rows
-       here would squash every stacked mobile box down to a 20px sliver. */
-    grid-auto-rows: minmax(20px, auto);
-  }
-  .sheet-core-grid .sheet-box,
-  .sheet-bio-form .sheet-box {
-    grid-column: 1 / -1 !important;
-    grid-row: auto !important;
-  }
-}
+/* Mobile stacking below 860px used to need an explicit CSS override here
+   (grid placement doesn't just narrow gracefully on its own). Gridstack's
+   own oneColumnSize option (see sheet-layout.js's init options) now handles
+   this natively — below that width it drops every item to a single
+   full-width column itself, no CSS override needed. */
 
 .character-list { display: flex; flex-direction: column; gap: 0.6rem; max-width: 70ch; }
 .character-card { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -4032,7 +3981,6 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    by it either. Kept unconditional (not gated on editing) so headings don't
    reflow width every time Edit Layout is toggled. */
 .sheet-box-handle + h2 { padding-right: 1.7rem; }
-.sheet-box-dragging { opacity: 0.45; }
 /* Same feature-count summary line the panel already had, just sharing its
    row with the handle now — gap gives the icon and the disclosure text the
    same ~3mm separation every other pair of distinct controls on this sheet
@@ -4053,21 +4001,22 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 }
 .sheet-feature-panel.sheet-box[open] > summary::before { transform: rotate(90deg); }
 
-/* The resize grip, bottom-right corner, editing-only same as the drag
-   handle. A plain CSS corner-bracket rather than an emoji/icon font glyph —
-   nothing in the existing icon set reads as "resize" at this size. */
-.sheet-box-resize-handle {
-  display: none;
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
+/* The resize grip, bottom-right corner: Gridstack's own resizable plugin
+   (see sheet-layout.js's init options) injects this element itself as a
+   direct child of .grid-stack-item (a sibling of .sheet-box, not inside
+   it) whenever the grid isn't static — i.e. already gated to editing-only
+   for free, since grid.setStatic() disables resizing entirely otherwise.
+   Restyled to match the old hand-rolled grip: a plain CSS corner-bracket
+   rather than an emoji/icon font glyph, nothing in the existing icon set
+   reads as "resize" at this size. */
+.grid-stack-item > .ui-resizable-se {
   width: 14px;
   height: 14px;
+  right: 1px;
+  bottom: 1px;
   cursor: nwse-resize;
-  z-index: 2;
 }
-.sheet-layout-editing .sheet-box-resize-handle { display: block; }
-.sheet-box-resize-handle::before {
+.grid-stack-item > .ui-resizable-se::before {
   content: "";
   position: absolute;
   right: 3px;
@@ -4078,11 +4027,29 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   border-bottom: 2px solid var(--text-dim);
   opacity: 0.5;
 }
-.sheet-box-resize-handle:hover::before { opacity: 1; border-color: var(--accent); }
+.grid-stack-item > .ui-resizable-se:hover::before { opacity: 1; border-color: var(--accent); }
 /* The dashed outline is the whole "this is now an editable dashboard" cue —
    every box gets it uniformly rather than only the one being dragged or
    resized, so it reads as a mode the whole layout is in. */
 .sheet-layout-editing .sheet-box { outline: 1px dashed var(--panel-border); outline-offset: 3px; }
+
+/* Kibana-style snap-grid dots, editing-only: one dot per column/row slot a
+   box can snap to. Column pitch is a CSS var (--n5e-grid-col-pitch) kept in
+   sync with Gridstack's own cellWidth() by sheet-layout.js, since it depends
+   on the grid's rendered width; row pitch is fixed px (cellHeight) and set
+   once. No background-position offset — Gridstack positions items edge-to-
+   edge at exactly x*cellWidth()/y*cellHeight with zero item-level margin
+   (confirmed against real rendered boxes), so column 0/row 0 already sits
+   flush with the grid's own top-left corner. Two selectors because gridRoot
+   IS the [data-sheet-layout] element for Bio/Puppets/Companions (no nested
+   .sheet-core-grid), so .sheet-layout-editing and .grid-stack land on the
+   same element there, but stay on separate ancestor/descendant elements for
+   Core. */
+.sheet-layout-editing.grid-stack,
+.sheet-layout-editing .grid-stack {
+  background-image: radial-gradient(circle, var(--panel-border) 1px, transparent 1px);
+  background-size: var(--n5e-grid-col-pitch, 8.3%) var(--n5e-grid-row-pitch, 20px);
+}
 
 /* Part 11: "boxes inside a box" — the individual tiles inside
    sheet_squares/Ability Scores/Saving Throws can themselves be
@@ -4217,10 +4184,7 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
   height: 2cm;
   min-height: 0;
 }
-body.n5e-resizing { cursor: nwse-resize; user-select: none; }
-
 .sheet-layout-toolbar {
-  grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
   align-items: center;
