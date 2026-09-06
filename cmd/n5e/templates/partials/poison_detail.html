@@ -4,13 +4,13 @@
      partials/item_detail.html. Call with a poisonRow. */}}
 {{define "poison_detail_card"}}
 <h1>{{.Name}}</h1>
-{{if .PoisonRank.Valid}}<p class="card-epithet">{{.PoisonRank.String}}-Rank</p>{{end}}
+{{if .PoisonRank.Valid}}<p class="card-epithet">{{T "poisons.rank_suffix" .PoisonRank.String}}</p>{{end}}
 
 <dl class="fact-list">
-  <dt>Craft DC</dt><dd>{{.CraftDC.Int64}}</dd>
-  {{if .CostRyo.Valid}}<dt>Cost</dt><dd>{{.CostRyo.Float64}} Ryo</dd>{{end}}
-  {{if .Uses.Valid}}<dt>Uses</dt><dd>{{.Uses.Int64}}</dd>{{end}}
-  {{if .Bulk.Valid}}<dt>Bulk</dt><dd>{{.Bulk.Float64}}</dd>{{end}}
+  <dt>{{T "poisons.craft_dc"}}</dt><dd>{{.CraftDC.Int64}}</dd>
+  {{if .CostRyo.Valid}}<dt>{{T "poisons.cost"}}</dt><dd>{{.CostRyo.Float64}} {{T "sheet.ryo_heading"}}</dd>{{end}}
+  {{if .Uses.Valid}}<dt>{{T "poisons.uses"}}</dt><dd>{{.Uses.Int64}}</dd>{{end}}
+  {{if .Bulk.Valid}}<dt>{{T "poisons.bulk"}}</dt><dd>{{.Bulk.Float64}}</dd>{{end}}
 </dl>
 
 {{formatDescription .Description}}

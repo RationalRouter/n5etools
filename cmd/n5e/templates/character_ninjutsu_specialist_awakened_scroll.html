@@ -15,15 +15,15 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Awakened Scroll <span class="option-picker-epithet">{{.NinjutsuSpecialist.AwakenedScrollUsed}}/{{.NinjutsuSpecialist.AwakenedScrollCap}} seals</span></h3>
-    <p class="section-hint">Jutsu sealed from another source (a scroll, a willing creature) instead of your own known jutsu isn't tracked here — apply that by hand.</p>
+    <h3>{{T "character_ninjutsu_specialist_awakened_scroll.title"}} <span class="option-picker-epithet">{{T "character_ninjutsu_specialist_awakened_scroll.seals_count" .NinjutsuSpecialist.AwakenedScrollUsed .NinjutsuSpecialist.AwakenedScrollCap}}</span></h3>
+    <p class="section-hint">{{T "character_ninjutsu_specialist_awakened_scroll.hint"}}</p>
     {{range .NinjutsuSpecialist.KnownAwakenedScroll}}
     <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
       <form method="post" action="/characters/{{$.Data.CharacterID}}/ninjutsu-specialist/awakened-scroll/delete" class="sheet-inline-form">
         <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}} seal" title="Remove seal">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "character_ninjutsu_specialist_awakened_scroll.remove_seal" .Name}}" title="{{T "character_ninjutsu_specialist_awakened_scroll.remove_seal_title"}}">&times;</button>
       </form>
-      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">{{T "character_ninjutsu_specialist_awakened_scroll.rank_label" .Rank}}</span></span>
     </div>
     {{end}}
     {{if lt .NinjutsuSpecialist.AwakenedScrollUsed .NinjutsuSpecialist.AwakenedScrollCap}}
@@ -32,13 +32,13 @@
         {{range .NinjutsuSpecialist.AvailableAwakenedScroll}}
         <li>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">{{T "character_ninjutsu_specialist_awakened_scroll.rank_label" .Rank}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
         </li>
         {{end}}
       </ul>
-      <button type="submit">Seal Jutsu</button>
+      <button type="submit">{{T "character_ninjutsu_specialist_awakened_scroll.seal_jutsu"}}</button>
     </form>
     {{end}}
   </section>

@@ -352,7 +352,7 @@ func (s *server) handleCharacterReference(w http.ResponseWriter, r *http.Request
 				}
 				choices = append(choices, classReferenceChoice{Slug: c.Slug, Name: name, Levels: c.Levels})
 			}
-			s.render(w, "character_reference_picker.html", map[string]any{
+			s.render(w, r, "character_reference_picker.html", map[string]any{
 				"Title":         sheet.Name + " — Class Reference",
 				"CharacterID":   id,
 				"CharacterName": sheet.Name,
@@ -374,7 +374,7 @@ func (s *server) handleCharacterReference(w http.ResponseWriter, r *http.Request
 	ref.CharacterName = sheet.Name
 	ref.Casting = sheet.JutsuAttacks
 
-	s.render(w, "character_reference.html", map[string]any{
+	s.render(w, r, "character_reference.html", map[string]any{
 		"Title":         sheet.Name + " — Class Reference",
 		"CharacterID":   id,
 		"CharacterName": sheet.Name,

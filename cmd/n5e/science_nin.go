@@ -1117,7 +1117,7 @@ func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Reque
 	// hardcoded constants instead of 404ing the way every real tool's
 	// detail popup would for an unrecognized slug.
 	if slug == scienceNinAetherConnectorToolSlug {
-		s.renderScienceNinToolDetailCard(w, "Aether Connector", scienceNinAetherConnectorDescription)
+		s.renderScienceNinToolDetailCard(w, r, "Aether Connector", scienceNinAetherConnectorDescription)
 		return
 	}
 
@@ -1137,24 +1137,15 @@ func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Reque
 		log.Println("load science-nin tool detail:", err)
 		return
 	}
-	s.renderScienceNinToolDetailCard(w, name, description)
+	s.renderScienceNinToolDetailCard(w, r, name, description)
 }
 
 // renderScienceNinToolDetailCard is the shared tail of
 // handleScienceNinToolDetail, split out so the Aether Connector's hardcoded
 // text and a real catalog row's rules.db text render through the exact same
 // template call.
-func (s *server) renderScienceNinToolDetailCard(w http.ResponseWriter, name, description string) {
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render science-nin tool detail: no template registered")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
-		log.Println("render science-nin tool detail:", err)
-	}
+func (s *server) renderScienceNinToolDetailCard(w http.ResponseWriter, r *http.Request, name, description string) {
+	s.renderCard(w, r, "character_sheet.html", "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description})
 }
 
 // handleSheetExoskeletonToggle toggles Elemental Innovationist's Exoskeleton

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // ---- Backgrounds --------------------------------------------------------
@@ -20,6 +22,34 @@ type backgroundRow struct {
 	EquipmentText     sql.NullString
 	EquipmentPackText sql.NullString
 	Proficiencies     []profGroup
+}
+
+// overlayBackgroundTranslation applies a content_translations overlay (see
+// internal/i18n) onto a background row in place. tr may be nil/empty (no
+// translation yet, or English locale) -- every field left untouched keeps
+// its English value.
+func overlayBackgroundTranslation(b *backgroundRow, tr map[string]string) {
+	if v, ok := tr["name"]; ok {
+		b.Name = v
+	}
+	if v, ok := tr["description"]; ok {
+		b.Description = v
+	}
+	if v, ok := tr["feature_name"]; ok {
+		b.FeatureName = sql.NullString{String: v, Valid: true}
+	}
+	if v, ok := tr["feature_text"]; ok {
+		b.FeatureText = sql.NullString{String: v, Valid: true}
+	}
+	if v, ok := tr["asi_text"]; ok {
+		b.ASIText = sql.NullString{String: v, Valid: true}
+	}
+	if v, ok := tr["equipment_text"]; ok {
+		b.EquipmentText = sql.NullString{String: v, Valid: true}
+	}
+	if v, ok := tr["equipment_pack_text"]; ok {
+		b.EquipmentPackText = sql.NullString{String: v, Valid: true}
+	}
 }
 
 func (s *server) handleBackgrounds(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +80,21 @@ func (s *server) handleBackgrounds(w http.ResponseWriter, r *http.Request) {
 		log.Println("backgrounds rows:", err)
 		return
 	}
+	locale := localeFromContext(r.Context())
+	slugs := make([]string, len(backgrounds))
+	for i, b := range backgrounds {
+		slugs[i] = b.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "backgrounds", slugs)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("translate backgrounds:", err)
+		return
+	}
+	for i := range backgrounds {
+		overlayBackgroundTranslation(&backgrounds[i], translations[backgrounds[i].Slug])
+	}
+
 	sort.Slice(backgrounds, func(i, k int) bool { return sortKey(backgrounds[i].Name) < sortKey(backgrounds[k].Name) })
 
 	profRows, err := s.rulesDB.Query(`SELECT background_slug, kind, value FROM background_proficiencies`)
@@ -86,7 +131,7 @@ func (s *server) handleBackgrounds(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.render(w, "backgrounds.html", map[string]any{"Title": "Backgrounds", "Backgrounds": backgrounds})
+	s.render(w, r, "backgrounds.html", map[string]any{"Title": "Backgrounds", "Backgrounds": backgrounds})
 }
 
 type ambitionPrompt struct {
@@ -103,7 +148,7 @@ type backgroundDetail struct {
 // page, the character-creation Background step's two-pane preview, and the
 // AJAX fragment swap (see handleBackgroundDetail) — same pattern as
 // jutsu.go's loadJutsuDetail.
-func (s *server) loadBackgroundDetail(slug string) (*backgroundDetail, error) {
+func (s *server) loadBackgroundDetail(locale, slug string) (*backgroundDetail, error) {
 	var b backgroundDetail
 	err := s.rulesDB.QueryRow(`
 		SELECT slug, name, description, feature_name, feature_text, asi_text,
@@ -113,6 +158,9 @@ func (s *server) loadBackgroundDetail(slug string) (*backgroundDetail, error) {
 		&b.ASIText, &b.EquipmentText, &b.EquipmentPackText)
 	if err != nil {
 		return nil, err
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "backgrounds", b.Slug); err == nil {
+		overlayBackgroundTranslation(&b.backgroundRow, tr)
 	}
 
 	profRows, err := s.rulesDB.Query(`
@@ -174,7 +222,7 @@ func (s *server) loadBackgroundDetail(slug string) (*backgroundDetail, error) {
 func (s *server) handleBackgroundDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
-	b, err := s.loadBackgroundDetail(slug)
+	b, err := s.loadBackgroundDetail(localeFromContext(r.Context()), slug)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -186,20 +234,11 @@ func (s *server) handleBackgroundDetail(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["background_detail.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render background fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "background_detail_card", b); err != nil {
-			log.Println("render background fragment:", err)
-		}
+		s.renderCard(w, r, "background_detail.html", "background_detail_card", b)
 		return
 	}
 
-	s.render(w, "background_detail.html", map[string]any{"Title": b.Name, "Background": b})
+	s.render(w, r, "background_detail.html", map[string]any{"Title": b.Name, "Background": b})
 }
 
 // ---- Fighting Stances -----------------------------------------------------
@@ -255,7 +294,7 @@ func (s *server) handleStances(w http.ResponseWriter, r *http.Request) {
 		groups = append(groups, stanceGroup{Label: g.label, Stances: stances})
 	}
 
-	s.render(w, "stances.html", map[string]any{"Title": "Fighting Stances", "Groups": groups})
+	s.render(w, r, "stances.html", map[string]any{"Title": "Fighting Stances", "Groups": groups})
 }
 
 func (s *server) handleStanceDetail(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +321,7 @@ func (s *server) handleStanceDetail(w http.ResponseWriter, r *http.Request) {
 		label = "Bukijutsu Stance"
 	}
 
-	s.render(w, "stance_detail.html", map[string]any{"Title": st.Name, "Stance": st, "TypeLabel": label})
+	s.render(w, r, "stance_detail.html", map[string]any{"Title": st.Name, "Stance": st, "TypeLabel": label})
 }
 
 // ---- Feats ----------------------------------------------------------------
@@ -372,6 +411,33 @@ func (s *server) handleFeats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := localeFromContext(r.Context())
+	for category, feats := range byCategory {
+		slugs := make([]string, len(feats))
+		for i, f := range feats {
+			slugs[i] = f.Slug
+		}
+		translations, err := i18n.Batch(s.rulesDB, locale, "feats", slugs)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("translate feats:", err)
+			return
+		}
+		for i := range feats {
+			tr := translations[feats[i].Slug]
+			if v, ok := tr["name"]; ok {
+				feats[i].Name = v
+			}
+			if v, ok := tr["prerequisites"]; ok {
+				feats[i].Prerequisites = sql.NullString{String: v, Valid: true}
+			}
+			if v, ok := tr["description"]; ok {
+				feats[i].Description = v
+			}
+		}
+		byCategory[category] = feats
+	}
+
 	type featGroup struct {
 		Category string
 		Feats    []featRow
@@ -389,7 +455,7 @@ func (s *server) handleFeats(w http.ResponseWriter, r *http.Request) {
 		groups = append(groups, featGroup{Category: featCategoryLabel(c), Feats: feats})
 	}
 
-	s.render(w, "feats.html", map[string]any{"Title": "Feats", "Groups": groups})
+	s.render(w, r, "feats.html", map[string]any{"Title": "Feats", "Groups": groups})
 }
 
 func (s *server) handleFeatDetail(w http.ResponseWriter, r *http.Request) {
@@ -416,12 +482,24 @@ func (s *server) handleFeatDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	f.Category = featCategoryLabel(f.Category)
 
+	if tr, err := i18n.Row(s.rulesDB, localeFromContext(r.Context()), "feats", f.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			f.Name = v
+		}
+		if v, ok := tr["prerequisites"]; ok {
+			f.Prerequisites = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["description"]; ok {
+			f.Description = v
+		}
+	}
+
 	if r.URL.Query().Get("fragment") == "1" {
-		s.renderCard(w, "feats.html", "feat_detail_card", f)
+		s.renderCard(w, r, "feats.html", "feat_detail_card", f)
 		return
 	}
 
-	s.render(w, "feat_detail.html", map[string]any{"Title": f.Name, "Feat": f})
+	s.render(w, r, "feat_detail.html", map[string]any{"Title": f.Name, "Feat": f})
 }
 
 // ---- Enhancement Seals ------------------------------------------------------
@@ -492,7 +570,7 @@ func (s *server) handleSeals(w http.ResponseWriter, r *http.Request) {
 		groups[len(groups)-1].Seals = append(groups[len(groups)-1].Seals, sw.sealRow)
 	}
 
-	s.render(w, "seals.html", map[string]any{"Title": "Enhancement Seals", "Groups": groups})
+	s.render(w, r, "seals.html", map[string]any{"Title": "Enhancement Seals", "Groups": groups})
 }
 
 func (s *server) handleSealDetail(w http.ResponseWriter, r *http.Request) {
@@ -524,5 +602,5 @@ func (s *server) handleSealDetail(w http.ResponseWriter, r *http.Request) {
 		appliesToLabel = "Armor"
 	}
 
-	s.render(w, "seal_detail.html", map[string]any{"Title": sw.Name, "Seal": sw, "AppliesTo": appliesToLabel})
+	s.render(w, r, "seal_detail.html", map[string]any{"Title": sw.Name, "Seal": sw, "AppliesTo": appliesToLabel})
 }

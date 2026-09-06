@@ -17,39 +17,39 @@
   {{end}}
   {{if .MixedMartialArts}}
   <section class="companion-reference">
-    <h3>Mixed Martial Arts</h3>
-    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding its benefit alongside your primary Stance at once (1 Martial Dice, for the next minute) is tracked on paper, not here.</p>
+    <h3>{{T "character_taijutsu_stancer.mixed_martial_arts_heading"}}</h3>
+    <p class="section-hint">{{T "character_taijutsu_stancer.mixed_martial_arts_hint"}}</p>
     <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/stancer/mixed-martial-arts" class="sheet-inline-form">
       <select name="stance_slug" class="sheet-option-tooltip-select" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "character_taijutsu_stancer.choose_option"}}</option>
         {{range .MixedMartialArts.Options}}
         <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.MixedMartialArts.Current}} selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .MixedMartialArts.Current}}{{.MixedMartialArts.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .MixedMartialArts.Current}}{{.MixedMartialArts.CurrentDescription}}{{else}}{{T "character_taijutsu_stancer.choose_stance_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_taijutsu_stancer.set_button"}}</button>
     </form>
   </section>
   {{end}}
   {{if .StanceBlending}}
   <section class="companion-reference">
-    <h3>Stance Blending</h3>
-    <p class="section-hint">Learn one more Taijutsu Stance you don't know. Holding up to 3 stances' benefits simultaneously (1 Martial Dice per turn) is tracked on paper, not here.</p>
+    <h3>{{T "character_taijutsu_stancer.stance_blending_heading"}}</h3>
+    <p class="section-hint">{{T "character_taijutsu_stancer.stance_blending_hint"}}</p>
     <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/stancer/stance-blending" class="sheet-inline-form">
       <select name="stance_slug" class="sheet-option-tooltip-select" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "character_taijutsu_stancer.choose_option"}}</option>
         {{range .StanceBlending.Options}}
         <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.StanceBlending.Current}} selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .StanceBlending.Current}}{{.StanceBlending.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .StanceBlending.Current}}{{.StanceBlending.CurrentDescription}}{{else}}{{T "character_taijutsu_stancer.choose_stance_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_taijutsu_stancer.set_button"}}</button>
     </form>
   </section>
   {{end}}

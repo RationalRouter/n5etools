@@ -738,6 +738,15 @@ func TestSheetVitalsSubgridMarkup(t *testing.T) {
 	if !ok {
 		t.Fatal("character_sheet.html template not loaded")
 	}
+	// Clone before executing directly: pageTemplates entries are shared
+	// across the whole test binary, and html/template forbids Clone after
+	// a template set has executed — executing the shared value directly
+	// here would poison it for every later render()/renderCard() call in
+	// the same test run.
+	tmpl, err := tmpl.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	sheet := &charsheet.Sheet{
 		CurrentHP: 12, MaxHP: 20, TempHP: 3, BaseTempHP: 5,

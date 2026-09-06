@@ -242,5 +242,5 @@ func (s *server) respondCompanionAction(w http.ResponseWriter, r *http.Request, 
 		http.Redirect(w, r, "/characters/"+strconv.FormatInt(characterID, 10)+"/companions/"+strconv.FormatInt(companionID, 10), http.StatusSeeOther)
 		return
 	}
-	s.renderSheetFragment(w, characterID, "sheet_puppet_tab")
+	s.renderSheetFragment(w, r, characterID, "sheet_puppet_tab")
 }

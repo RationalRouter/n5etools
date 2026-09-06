@@ -17,10 +17,10 @@
        [hidden] attribute, same reasoning as layout.html's own copy: the
        button needs to animate in/out via app.css's opacity/visibility
        toggle, which display:none (what [hidden] maps to) can't do. */}}
-  <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  <button type="button" id="back-to-top" aria-label="{{T "nav.back_to_top"}}" title="{{T "nav.back_to_top"}}">&uarr;</button>
   {{/* Same fade-in-past-a-threshold mechanism as #back-to-top just above,
        mirrored for the opposite direction (back-to-bottom.js). */}}
-  <button type="button" id="back-to-bottom" aria-label="Scroll to bottom" title="Scroll to bottom">&darr;</button>
+  <button type="button" id="back-to-bottom" aria-label="{{T "nav.back_to_bottom"}}" title="{{T "nav.back_to_bottom"}}">&darr;</button>
   {{/* dice_roller: the same floating d20 FAB the main sheet uses, so a
        puppet's rollable Attacks/Puppet Skills can actually be rolled from
        this small popup window too. Deliberately WITHOUT dice3d.js/
@@ -41,7 +41,7 @@
        fragment, stranding the player away from the page's own delete
        buttons in the process. */}}
   <dialog id="sheet-item-popup" class="sheet-popup-dialog">
-    <button type="button" class="sheet-popup-close" aria-label="Close">&times;</button>
+    <button type="button" class="sheet-popup-close" aria-label="{{T "nav.close"}}">&times;</button>
     <div id="sheet-popup-body"></div>
   </dialog>
   <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>

@@ -47,7 +47,7 @@ func (s *server) handleNinjaneerPopup(w http.ResponseWriter, r *http.Request) {
 	popup := subclassTrackerPopupData{Title: "Ninjaneer", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Ninjaneer == nil {
 		popup.EmptyHint = "This character has no Arsenal Modifications yet — Arsenal Modifications grants this at 3rd-level Ninjaneer."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_ninjaneer.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_ninjaneer.html", popup, nil)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (s *server) handleNinjaneerPopup(w http.ResponseWriter, r *http.Request) {
 	if nj.PerfectedWeaponMark != nil || len(nj.AvailablePerfectedWeaponMarks) > 0 {
 		popup.Sections = append(popup.Sections, perfectedWeaponMarkSection(id, nj))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_ninjaneer.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_ninjaneer.html", popup, map[string]any{
 		"WarriorOfScience": nj.WarriorOfScience,
 	})
 }

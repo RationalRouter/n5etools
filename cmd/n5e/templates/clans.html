@@ -1,13 +1,13 @@
 {{define "content"}}
-<h1>Clans</h1>
+<h1>{{T "clans.title"}}</h1>
 <div class="card-grid">
   {{range .Clans}}
   <a class="card" href="/clans/{{.Slug}}">
     <h2>{{.Name}}</h2>
     <p class="card-epithet">{{.Epithet}}</p>
     <dl>
-      <dt>Speed</dt><dd>{{if .SpeedFeet.Valid}}{{.SpeedFeet.Int64}} ft{{else}}—{{end}}</dd>
-      <dt>Extra Language</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
+      <dt>{{T "clans.speed"}}</dt><dd>{{if .SpeedFeet.Valid}}{{T "clans.speed_ft" .SpeedFeet.Int64}}{{else}}—{{end}}</dd>
+      <dt>{{T "clans.extra_language"}}</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
     </dl>
   </a>
   {{end}}

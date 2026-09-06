@@ -190,7 +190,7 @@ func TestPassionateFlamePopupRenderSet(t *testing.T) {
 	if !strings.Contains(body, `class="character-reference-page subclass-scope"`) {
 		t.Errorf("popup page missing the subclass-scope wrapper:\n%s", body)
 	}
-	if !strings.Contains(body, "Fists of Iron: +2 Martial Dice bonus") {
+	if !strings.Contains(body, "Fists of Iron: &#43;2 Martial Dice bonus") {
 		t.Errorf("initial render missing the Fists of Iron readout at 9th level:\n%s", body)
 	}
 	if !strings.Contains(body, "Mighty Blows") {
@@ -298,19 +298,19 @@ func TestWeaponFormAndTaijutsuSubclassTrackerSidebarButtons(t *testing.T) {
 		{"Weapon Form", func(t *testing.T, s *server) int64 {
 			seedSlayerFormCatalog(t, s, 14, 4)
 			return seedSlayerFormCharacter(t, s, "Zabuza", 14)
-		}, weaponFormPopupPath, `tracked in the "Weapon Form" popup`, "Learn Style"},
+		}, weaponFormPopupPath, `tracked in the &#34;Weapon Form&#34; popup`, "Learn Style"},
 		{"Stancer", func(t *testing.T, s *server) int64 {
 			seedTaijutsuLevelResources(t, s)
 			return seedStancerCharacter(t, s, "Ne", 9)
-		}, stancerPopupPath, `tracked in the "Stancer" popup`, "Holding its benefit alongside your primary Stance"},
+		}, stancerPopupPath, `tracked in the &#34;Stancer&#34; popup`, "Holding its benefit alongside your primary Stance"},
 		{"Passionate Flame", func(t *testing.T, s *server) int64 {
 			seedTaijutsuLevelResources(t, s)
 			return seedPassionateFlameCharacter(t, s, "Rock Lee", 9)
-		}, passionateFlamePopupPath, `tracked in the "Passionate Flame" popup`, "Choose an enhancement above"},
+		}, passionateFlamePopupPath, `tracked in the &#34;Passionate Flame&#34; popup`, "Choose an enhancement above"},
 		{"Ruin", func(t *testing.T, s *server) int64 {
 			seedTaijutsuLevelResources(t, s)
 			return seedRuinCharacter(t, s, "Karin", 3)
-		}, ruinPopupPath, `tracked in the "Ruin" popup`, "Choose 2 keywords"},
+		}, ruinPopupPath, `tracked in the &#34;Ruin&#34; popup`, "Choose 2 keywords"},
 	}
 
 	for _, c := range cases {

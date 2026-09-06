@@ -3219,6 +3219,40 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-header-actions form { margin: 0; }
 .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
+/* Language switcher — home page only (its markup lives solely in
+   home.html), so it never needs a route-based conditional to stay off
+   every other page. .hero needs position:relative purely as the anchor
+   for this absolutely-positioned stack; it has no other positioning
+   need of its own. Anchored top-right of .hero so its top edge lines up
+   with the hero <h1> (both start at the section's own top edge) and its
+   right edge stays clear of the section's own content column — sitting
+   below the shared nav's search box, not inside that top nav strip,
+   since .hero is a separate section further down the page. */
+.hero { position: relative; }
+.locale-switcher {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.locale-switcher form { margin: 0; }
+.locale-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+.locale-btn:hover { border-color: var(--accent); color: var(--text); }
+.locale-btn-active { border-color: var(--gold); color: var(--gold); }
+
 /* Confirm form under a two-pane creation picker (Clan/Class/Background) —
    sits below .browse-layout, not styled like .creation-form's single-column
    input form since it only ever holds one hidden input + one button. */

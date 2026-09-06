@@ -1,40 +1,40 @@
 {{define "content"}}
-<h1>Characters</h1>
-<p class="page-subtitle"><a href="/characters/new" class="btn-primary">+ New Character</a></p>
+<h1>{{T "characters.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/new" class="btn-primary">{{T "characters.new_character"}}</a></p>
 <div class="character-list">
   {{range .Characters}}
   <div class="entry character-card">
     <p>
       <a href="/characters/{{.ID}}{{if ne .CreationStatus "complete"}}/create{{end}}">{{.Name}}</a><br>
       {{if eq .CreationStatus "draft"}}
-        <span class="draft-tag">Resume Creation</span>
+        <span class="draft-tag">{{T "characters.resume_creation"}}</span>
       {{else}}
-        {{.ClassSummary}}{{if .Clan}}, {{.Clan}} Clan{{end}}
+        {{.ClassSummary}}{{if .Clan}}{{T "characters.clan_suffix" .Clan}}{{end}}
       {{end}}
     </p>
     {{if .Sheet}}
     <div class="character-card-stats">
-      <span class="character-stat">HP <strong>{{.Sheet.MaxHP}}</strong></span>
-      <span class="character-stat">Chakra <strong>{{.Sheet.MaxChakra}}</strong></span>
-      <span class="character-stat">AC <strong>{{if .Sheet.AC}}{{.Sheet.AC}}{{else}}—{{end}}</strong></span>
-      <span class="character-stat">STR <strong>{{.Sheet.Abilities.str.Score}}</strong></span>
-      <span class="character-stat">DEX <strong>{{.Sheet.Abilities.dex.Score}}</strong></span>
-      <span class="character-stat">CON <strong>{{.Sheet.Abilities.con.Score}}</strong></span>
-      <span class="character-stat">INT <strong>{{.Sheet.Abilities.int.Score}}</strong></span>
-      <span class="character-stat">WIS <strong>{{.Sheet.Abilities.wis.Score}}</strong></span>
-      <span class="character-stat">CHA <strong>{{.Sheet.Abilities.cha.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_hp"}} <strong>{{.Sheet.MaxHP}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_chakra"}} <strong>{{.Sheet.MaxChakra}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_ac"}} <strong>{{if .Sheet.AC}}{{.Sheet.AC}}{{else}}—{{end}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_str"}} <strong>{{.Sheet.Abilities.str.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_dex"}} <strong>{{.Sheet.Abilities.dex.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_con"}} <strong>{{.Sheet.Abilities.con.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_int"}} <strong>{{.Sheet.Abilities.int.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_wis"}} <strong>{{.Sheet.Abilities.wis.Score}}</strong></span>
+      <span class="character-stat">{{T "characters.stat_cha"}} <strong>{{.Sheet.Abilities.cha.Score}}</strong></span>
     </div>
     {{end}}
     {{/* Sits below the stats rather than beside the name, so a misfired
          click while opening a character can't land on it. data-confirm is
          handled by confirm-submit.js. */}}
     <form class="character-card-delete" method="post" action="/characters/{{.ID}}/delete"
-          data-confirm="Delete {{.Name}}? This removes the character and everything on the sheet, and cannot be undone.">
-      <button type="submit" class="btn-danger">Delete</button>
+          data-confirm="{{T "characters.confirm_delete" .Name}}">
+      <button type="submit" class="btn-danger">{{T "characters.delete_button"}}</button>
     </form>
   </div>
   {{else}}
-  <p>No characters yet — <a href="/characters/new">create one</a> to get started.</p>
+  <p>{{T "characters.empty_state"}} <a href="/characters/new">{{T "characters.empty_state_link"}}</a>{{T "characters.empty_state_suffix"}}</p>
   {{end}}
 </div>
 {{end}}

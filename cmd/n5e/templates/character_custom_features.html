@@ -10,9 +10,9 @@
      CustomFeatures}. */}}
 {{define "content"}}
 <div class="character-reference-page">
-  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
-  <h1>Custom Features</h1>
-  <p class="section-hint">Homebrew or DM-granted features — anything not already covered by Class Reference or Clan Reference.</p>
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">{{T "character_custom_features.back_to_sheet" .CharacterName}}</a></p>
+  <h1>{{T "character_custom_features.title"}}</h1>
+  <p class="section-hint">{{T "character_custom_features.hint"}}</p>
 
   {{if .CustomFeatures}}
   <ul class="sheet-feature-list">
@@ -21,21 +21,21 @@
       <strong>{{.Name}}</strong>
       {{if .SourceLabel}}<span class="option-picker-epithet">{{.SourceLabel}}</span>{{end}}
       <form method="post" action="/characters/{{$.CharacterID}}/custom-features/{{.ID}}/delete" class="sheet-inline-form">
-        <button type="submit" class="sheet-delete-btn" aria-label="Delete {{.Name}}" title="Delete">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "character_custom_features.delete_feature" .Name}}" title="{{T "character_custom_features.delete"}}">&times;</button>
       </form>
       {{if .Description}}{{formatDescription .Description}}{{end}}
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p class="section-hint">No custom features yet.</p>
+  <p class="section-hint">{{T "character_custom_features.none_yet"}}</p>
   {{end}}
 
   <form method="post" action="/characters/{{.CharacterID}}/custom-features/add" class="sheet-panel-form">
-    <input type="text" name="name" placeholder="Feature name" required>
-    <input type="text" name="source_label" placeholder="Source (e.g. Other: Magic Item)">
-    <textarea name="description" rows="2" placeholder="Description"></textarea>
-    <button type="submit">+ Add Feature</button>
+    <input type="text" name="name" placeholder="{{T "character_custom_features.name_placeholder"}}" required>
+    <input type="text" name="source_label" placeholder="{{T "character_custom_features.source_placeholder"}}">
+    <textarea name="description" rows="2" placeholder="{{T "character_custom_features.description_placeholder"}}"></textarea>
+    <button type="submit">{{T "character_custom_features.add_feature"}}</button>
   </form>
 </div>
 {{end}}

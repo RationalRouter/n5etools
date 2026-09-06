@@ -5,12 +5,12 @@
 <h1>{{.Name}}</h1>
 <p class="card-epithet">{{.Category}}</p>
 
-{{if .ClanSlug.Valid}}<p class="section-hint">Clan: <a href="/clans/{{.ClanSlug.String}}">{{.ClanName.String}}</a></p>{{end}}
-{{if .ClassSlug.Valid}}<p class="section-hint">Class: <a href="/classes/{{.ClassSlug.String}}">{{.ClassName.String}}</a></p>{{end}}
+{{if .ClanSlug.Valid}}<p class="section-hint">{{T "partial_feat_detail.clan_prefix"}} <a href="/clans/{{.ClanSlug.String}}">{{.ClanName.String}}</a></p>{{end}}
+{{if .ClassSlug.Valid}}<p class="section-hint">{{T "partial_feat_detail.class_prefix"}} <a href="/classes/{{.ClassSlug.String}}">{{.ClassName.String}}</a></p>{{end}}
 
 {{if .Prerequisites.Valid}}
 <dl class="fact-list">
-  <dt>Prerequisite</dt><dd>{{.Prerequisites.String}}</dd>
+  <dt>{{T "stance_detail.prerequisite"}}</dt><dd>{{.Prerequisites.String}}</dd>
 </dl>
 {{end}}
 

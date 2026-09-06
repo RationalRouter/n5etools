@@ -245,11 +245,11 @@ func TestTwistedCastingPsycheBreakerSidebarButtons(t *testing.T) {
 		{"Twisted Casting", func(t *testing.T, s *server) int64 {
 			seedGenjutsuPledgesCatalog(t, s)
 			return seedGenjutsuPledgeCharacter(t, s, "Ino", "class/genjutsu-specialist/group/genjutsu-pledges/beguiler", 10)
-		}, twistedCastingPopupPath, `tracked in the "Twisted Casting" popup`},
+		}, twistedCastingPopupPath, `tracked in the &#34;Twisted Casting&#34; popup`},
 		{"Psyche Breaker", func(t *testing.T, s *server) int64 {
 			seedGenjutsuPledgesCatalog(t, s)
 			return seedGenjutsuPledgeCharacter(t, s, "Sasuke", "class/genjutsu-specialist/group/genjutsu-pledges/corrupt-thoughts", 10)
-		}, psycheBreakerPopupPath, `tracked in the "Psyche Breaker" popup`},
+		}, psycheBreakerPopupPath, `tracked in the &#34;Psyche Breaker&#34; popup`},
 	}
 
 	for _, c := range cases {

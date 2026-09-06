@@ -1,12 +1,12 @@
 {{define "content"}}
 {{with .Stance}}
-<p><a href="/stances">← All Fighting Stances</a></p>
+<p><a href="/stances">{{T "stance_detail.back_link"}}</a></p>
 <h1>{{.Name}}</h1>
 <p class="card-epithet">{{$.TypeLabel}}</p>
 
 {{if .Prerequisites.Valid}}
 <dl class="fact-list">
-  <dt>Prerequisite</dt><dd>{{.Prerequisites.String}}</dd>
+  <dt>{{T "stance_detail.prerequisite"}}</dt><dd>{{.Prerequisites.String}}</dd>
 </dl>
 {{end}}
 

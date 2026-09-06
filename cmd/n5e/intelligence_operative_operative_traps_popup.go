@@ -57,12 +57,12 @@ func (s *server) handleOperativeTrapsPopup(w http.ResponseWriter, r *http.Reques
 	popup := subclassTrackerPopupData{Title: "Operative Traps", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-intelligence-operative"}
 	if data == nil || data.OperativeTrapsCap == 0 {
 		popup.EmptyHint = "This character has no Operative Traps yet — Trap Setter grants this at 3rd-level Tactical Strategist."
-		s.renderSubclassTrackerPopup(w, "character_intelligence_operative_operative_traps.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_intelligence_operative_operative_traps.html", popup, nil)
 		return
 	}
 
 	popup.Sections = append(popup.Sections, operativeTrapsSection(id, data))
-	s.renderSubclassTrackerPopup(w, "character_intelligence_operative_operative_traps.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_intelligence_operative_operative_traps.html", popup, nil)
 }
 
 func operativeTrapsSection(characterID int64, data *intelligenceOperativeTabData) subclassTrackerSection {

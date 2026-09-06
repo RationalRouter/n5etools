@@ -67,7 +67,7 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 	}
 	if data == nil {
 		popup.EmptyHint = "This character has no Titan Slots yet — Ordnance Training grants this at 3rd-level Mech Crafter."
-		s.renderSubclassTrackerPopup(w, "character_titan_slots.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_titan_slots.html", popup, nil)
 		return
 	}
 
@@ -81,7 +81,7 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 	// Specialist Crafting (14th level) isn't a catalog picker at all — a
 	// single "Mech or Weapon" <select>, not part of subclassTrackerSection
 	// — so it rides along as an "extra" template field instead.
-	s.renderSubclassTrackerPopup(w, "character_titan_slots.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_titan_slots.html", popup, map[string]any{
 		"SpecialistCraftingAvailable": data.SpecialistCraftingAvailable,
 		"SpecialistCraftingKeyword":   data.SpecialistCraftingKeyword,
 	})

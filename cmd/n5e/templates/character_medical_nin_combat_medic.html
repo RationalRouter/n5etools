@@ -28,33 +28,33 @@
   {{if not .Data.EmptyHint}}
   {{if .MedicalNin.Stance}}
   <section class="companion-reference">
-    <h3>Fighting Stance</h3>
+    <h3>{{T "character_medical_nin_combat_medic.fighting_stance_title"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/medical-nin/combat-medic/fighting-stance" class="sheet-inline-form">
       <select name="stance_slug" class="sheet-option-tooltip-select" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "character_medical_nin_combat_medic.choose_option"}}</option>
         {{range .MedicalNin.Stance.Options}}
         <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $.MedicalNin.Stance.Current}} selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .MedicalNin.Stance.Current}}{{.MedicalNin.Stance.CurrentDescription}}{{else}}Choose a Taijutsu Stance to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .MedicalNin.Stance.Current}}{{.MedicalNin.Stance.CurrentDescription}}{{else}}{{T "character_medical_nin_combat_medic.stance_hint"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_medical_nin_combat_medic.set"}}</button>
     </form>
   </section>
   {{end}}
   {{if gt .MedicalNin.ExpertCombatantCap 0}}
   <section class="companion-reference">
-    <h3>Expert Combatant <span class="option-picker-epithet">{{.MedicalNin.ExpertCombatantUsed}}/{{.MedicalNin.ExpertCombatantCap}} chosen</span></h3>
-    <p class="section-hint">Taijutsu or Bukijutsu you know that gains the Medical Keyword. Freely re-editable on a long rest — this app doesn't enforce that timing. The extra attack Expert Combatant also grants isn't tracked here.</p>
+    <h3>{{T "character_medical_nin_combat_medic.expert_combatant_title"}} <span class="option-picker-epithet">{{T "character_medical_nin_combat_medic.chosen_count" .MedicalNin.ExpertCombatantUsed .MedicalNin.ExpertCombatantCap}}</span></h3>
+    <p class="section-hint">{{T "character_medical_nin_combat_medic.expert_combatant_hint"}}</p>
     {{range .MedicalNin.KnownExpertCombatant}}
     <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
       <form method="post" action="/characters/{{$.Data.CharacterID}}/medical-nin/combat-medic/expert-combatant/delete" class="sheet-inline-form">
         <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "character_medical_nin_combat_medic.forget" .Name}}" title="{{T "character_medical_nin_combat_medic.forget_title"}}">&times;</button>
       </form>
-      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">{{T "character_medical_nin_combat_medic.rank_label" .Rank}}</span></span>
     </div>
     {{end}}
     {{if lt .MedicalNin.ExpertCombatantUsed .MedicalNin.ExpertCombatantCap}}
@@ -63,13 +63,13 @@
         {{range .MedicalNin.AvailableExpertCombatant}}
         <li>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">{{T "character_medical_nin_combat_medic.rank_label" .Rank}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
         </li>
         {{end}}
       </ul>
-      <button type="submit">Choose Expert Combatant</button>
+      <button type="submit">{{T "character_medical_nin_combat_medic.choose"}}</button>
     </form>
     {{end}}
   </section>

@@ -1,7 +1,7 @@
 {{define "content"}}
-<h1>Equipment Properties</h1>
+<h1>{{T "properties.title"}}</h1>
 
-<h2>Weapon Properties</h2>
+<h2>{{T "properties.weapon_properties"}}</h2>
 <ul class="tooltip-list">
   {{range .WeaponProperties}}
   <li class="tooltip" tabindex="0">
@@ -11,7 +11,7 @@
   {{end}}
 </ul>
 
-<h2>Armor Properties</h2>
+<h2>{{T "properties.armor_properties"}}</h2>
 <ul class="tooltip-list">
   {{range .ArmorProperties}}
   <li class="tooltip" tabindex="0">

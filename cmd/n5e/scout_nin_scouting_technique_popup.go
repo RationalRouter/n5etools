@@ -88,7 +88,7 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 	popup := subclassTrackerPopupData{Title: "Scouting Technique", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-scout-nin"}
 	if data == nil || data.TechniqueName == "" {
 		popup.EmptyHint = "This character hasn't chosen a Scouting Technique yet — every Scout-Nin picks one of the 9 Scouting Techniques at 3rd level."
-		s.renderSubclassTrackerPopup(w, "character_scout_nin_scouting_technique.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_scout_nin_scouting_technique.html", popup, nil)
 		return
 	}
 	popup.Title = data.TechniqueName
@@ -121,7 +121,7 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	s.renderSubclassTrackerPopup(w, "character_scout_nin_scouting_technique.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_scout_nin_scouting_technique.html", popup, map[string]any{
 		"ChangeOfHeart":    data.ChangeOfHeart,
 		"ParagonsPresence": data.ParagonsPresence,
 	})

@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"sort"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // jutsuRankOrder is a small fixed enum (E..S never changes book to book),
@@ -102,7 +104,7 @@ func otherClansJutsu(rulesDB *sql.DB, ownClanSlug string) (map[string]bool, erro
 	return out, rows.Err()
 }
 
-func loadJutsuList(rulesDB *sql.DB) ([]jutsuListEntry, error) {
+func loadJutsuList(rulesDB *sql.DB, locale string) ([]jutsuListEntry, error) {
 	// Joined back to the raw jutsu table for source_book, which v_jutsu
 	// doesn't project (it only carries columns a character-facing page
 	// would ever need to override) — a small, scoped join rather than
@@ -138,6 +140,40 @@ func loadJutsuList(rulesDB *sql.DB) ([]jutsuListEntry, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	slugs := make([]string, len(entries))
+	for i, e := range entries {
+		slugs[i] = e.Slug
+	}
+	translations, err := i18n.Batch(rulesDB, locale, "jutsu", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		tr := translations[entries[i].Slug]
+		if v, ok := tr["name"]; ok {
+			entries[i].Name = v
+		}
+		if v, ok := tr["casting_time"]; ok {
+			entries[i].CastingTime = v
+		}
+		if v, ok := tr["range"]; ok {
+			entries[i].Range = v
+		}
+		if v, ok := tr["duration"]; ok {
+			entries[i].Duration = v
+		}
+		if v, ok := tr["keywords"]; ok {
+			entries[i].Keywords = v
+		}
+		if v, ok := tr["category_group"]; ok {
+			entries[i].CategoryGroup = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["description"]; ok {
+			entries[i].Description = v
+			entries[i].Preview = previewSnippet(v, 140)
+		}
 	}
 
 	sort.Slice(entries, func(i, k int) bool {
@@ -180,7 +216,8 @@ func groupJutsu(entries []jutsuListEntry) []jutsuGroup {
 }
 
 func (s *server) handleJutsuList(w http.ResponseWriter, r *http.Request) {
-	entries, err := loadJutsuList(s.rulesDB)
+	locale := localeFromContext(r.Context())
+	entries, err := loadJutsuList(s.rulesDB, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load jutsu list:", err)
@@ -195,7 +232,7 @@ func (s *server) handleJutsuList(w http.ResponseWriter, r *http.Request) {
 
 	var selected *jutsuDetail
 	if len(entries) > 0 {
-		selected, err = loadJutsuDetail(s.rulesDB, entries[0].Slug)
+		selected, err = loadJutsuDetail(s.rulesDB, locale, entries[0].Slug)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load initial jutsu detail:", err)
@@ -203,7 +240,7 @@ func (s *server) handleJutsuList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.render(w, "jutsu.html", map[string]any{
+	s.render(w, r, "jutsu.html", map[string]any{
 		"Title": "Jutsu", "Groups": groupJutsu(entries), "SourceTiles": tiles, "Selected": selected,
 	})
 }
@@ -236,7 +273,7 @@ type jutsuDetail struct {
 // two-pane view's initial server-rendered selection, and the AJAX
 // fragment swap (see handleJutsuDetail) — one query/struct/template
 // reused three ways, same pattern as items.go's loadItem.
-func loadJutsuDetail(rulesDB *sql.DB, slug string) (*jutsuDetail, error) {
+func loadJutsuDetail(rulesDB *sql.DB, locale, slug string) (*jutsuDetail, error) {
 	var j jutsuDetail
 	err := rulesDB.QueryRow(`
 		SELECT j.slug, j.name, j.classification, j.rank, j.casting_time, j.range, j.duration,
@@ -249,6 +286,36 @@ func loadJutsuDetail(rulesDB *sql.DB, slug string) (*jutsuDetail, error) {
 		&j.CategoryGroup, &j.ClanSlug, &j.ClanName)
 	if err != nil {
 		return nil, err
+	}
+
+	if tr, err := i18n.Row(rulesDB, locale, "jutsu", j.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			j.Name = v
+		}
+		if v, ok := tr["casting_time"]; ok {
+			j.CastingTime = v
+		}
+		if v, ok := tr["range"]; ok {
+			j.Range = v
+		}
+		if v, ok := tr["duration"]; ok {
+			j.Duration = v
+		}
+		if v, ok := tr["cost_text"]; ok {
+			j.CostText = v
+		}
+		if v, ok := tr["keywords"]; ok {
+			j.Keywords = v
+		}
+		if v, ok := tr["description"]; ok {
+			j.Description = v
+		}
+		if v, ok := tr["at_higher_ranks"]; ok {
+			j.AtHigherRanks = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["category_group"]; ok {
+			j.CategoryGroup = sql.NullString{String: v, Valid: true}
+		}
 	}
 
 	// Classes that CAN cast this jutsu's discipline, derived indirectly
@@ -288,7 +355,7 @@ func loadJutsuDetail(rulesDB *sql.DB, slug string) (*jutsuDetail, error) {
 func (s *server) handleJutsuDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
-	j, err := loadJutsuDetail(s.rulesDB, slug)
+	j, err := loadJutsuDetail(s.rulesDB, localeFromContext(r.Context()), slug)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -300,18 +367,9 @@ func (s *server) handleJutsuDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["jutsu.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render jutsu fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "jutsu_detail_card", j); err != nil {
-			log.Println("render jutsu fragment:", err)
-		}
+		s.renderCard(w, r, "jutsu.html", "jutsu_detail_card", j)
 		return
 	}
 
-	s.render(w, "jutsu_detail.html", map[string]any{"Title": j.Name, "Jutsu": j})
+	s.render(w, r, "jutsu_detail.html", map[string]any{"Title": j.Name, "Jutsu": j})
 }

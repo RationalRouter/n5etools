@@ -17,20 +17,20 @@
   {{end}}
   {{if .Technobi.SENTOptions}}
   <section class="companion-reference">
-    <h3>S.E.N.T</h3>
-    <p class="section-hint">During a Short Rest, work an Arrow/Bolt/Kunai/Shuriken/Senbon stack into your S.E.N.T — freely re-workable at any later Short Rest.</p>
+    <h3>{{T "character_science_nin_technobi.sent_heading"}}</h3>
+    <p class="section-hint">{{T "character_science_nin_technobi.sent_hint"}}</p>
     <form method="post" action="/characters/{{.Data.CharacterID}}/science-nin/technobi/sent" class="sheet-inline-form">
       <select name="value" class="sheet-option-tooltip-select">
-        <option value="">— none worked yet —</option>
+        <option value="">{{T "character_science_nin_technobi.none_worked_yet_option"}}</option>
         {{range .Technobi.SENTOptions}}
         <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.Technobi.SENTCurrent}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Technobi.SENTCurrent}}{{range .Technobi.SENTOptions}}{{if eq .Value $.Technobi.SENTCurrent}}{{.Description}}{{end}}{{end}}{{else}}It deals 1d12 damage and uses Intelligence in place of Dexterity for attack and damage rolls.{{end}}</span>
+        <span class="tooltip-content">{{if .Technobi.SENTCurrent}}{{range .Technobi.SENTOptions}}{{if eq .Value $.Technobi.SENTCurrent}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_science_nin_technobi.sent_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_science_nin_technobi.set_button"}}</button>
     </form>
   </section>
   {{end}}

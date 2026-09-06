@@ -1,14 +1,14 @@
 {{define "content"}}
-<h1>Ambitions</h1>
-<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
-<p class="page-subtitle">Drive, Goal, and Fear — pre-filled with a suggestion from your background where one exists. Edit freely.</p>
+<h1>{{T "create_ambitions.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">{{T "create_ambitions.back_to_checklist"}}</a></p>
+<p class="page-subtitle">{{T "create_ambitions.hint"}}</p>
 <form class="creation-form" method="post" action="/characters/{{.ID}}/create/ambitions">
-  <label for="drive">Drive</label>
+  <label for="drive">{{T "create_ambitions.drive_label"}}</label>
   <textarea id="drive" name="drive">{{.Drive}}</textarea>
-  <label for="goal">Goal</label>
+  <label for="goal">{{T "create_ambitions.goal_label"}}</label>
   <textarea id="goal" name="goal">{{.Goal}}</textarea>
-  <label for="fear">Fear</label>
+  <label for="fear">{{T "create_ambitions.fear_label"}}</label>
   <textarea id="fear" name="fear">{{.Fear}}</textarea>
-  <button type="submit" class="btn-primary">Save Ambitions</button>
+  <button type="submit" class="btn-primary">{{T "create_ambitions.save_button"}}</button>
 </form>
 {{end}}

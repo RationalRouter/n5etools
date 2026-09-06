@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 //go:embed templates/*.html templates/partials/*.html
@@ -248,6 +249,23 @@ var templateFuncs = template.FuncMap{
 		}
 		return b
 	},
+	// T: UI string catalog lookup, e.g. {{T "jutsu.filter_all"}}. This
+	// placeholder (English only) exists so every page parses cleanly even
+	// before any template uses T; render/renderCard rebind it to the
+	// current request's locale via localeTemplateFuncs before Execute.
+	// Content fields (.Description etc.) never go through T — those come
+	// from content_translations, not the UI catalog.
+	"T": i18n.Translator("en"),
+}
+
+// localeTemplateFuncs returns the per-request override for templateFuncs'
+// locale-dependent entries, applied via Template.Clone().Funcs(...) in
+// render/renderCard right before Execute — see those functions' own
+// comments for why Clone is required first.
+func localeTemplateFuncs(locale string) template.FuncMap {
+	return template.FuncMap{
+		"T": i18n.Translator(locale),
+	}
 }
 
 func init() {

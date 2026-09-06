@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"sort"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 type poisonRow struct {
@@ -24,6 +26,15 @@ func scanPoisonRow(scan func(dest ...any) error) (poisonRow, error) {
 	var p poisonRow
 	err := scan(&p.Slug, &p.Name, &p.PoisonRank, &p.CraftDC, &p.Uses, &p.Bulk, &p.CostRyo, &p.Description)
 	return p, err
+}
+
+func overlayPoisonTranslation(p *poisonRow, tr map[string]string) {
+	if v, ok := tr["name"]; ok {
+		p.Name = v
+	}
+	if v, ok := tr["description"]; ok {
+		p.Description = v
+	}
 }
 
 // poisonRankOrder mirrors jutsuRankOrder (jutsu.go) — the same fixed D..S
@@ -60,6 +71,21 @@ func (s *server) handlePoisons(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := localeFromContext(r.Context())
+	slugs := make([]string, len(poisons))
+	for i, p := range poisons {
+		slugs[i] = p.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "poisons", slugs)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("translate poisons:", err)
+		return
+	}
+	for i := range poisons {
+		overlayPoisonTranslation(&poisons[i], translations[poisons[i].Slug])
+	}
+
 	sort.Slice(poisons, func(i, j int) bool {
 		ri, rj := poisonRankOrder[poisons[i].PoisonRank.String], poisonRankOrder[poisons[j].PoisonRank.String]
 		if ri != rj {
@@ -78,7 +104,7 @@ func (s *server) handlePoisons(w http.ResponseWriter, r *http.Request) {
 		g.Poisons = append(g.Poisons, p)
 	}
 
-	s.render(w, "poisons.html", map[string]any{"Title": "Poisons", "Groups": groups})
+	s.render(w, r, "poisons.html", map[string]any{"Title": "Poisons", "Groups": groups})
 }
 
 func (s *server) handlePoisonDetail(w http.ResponseWriter, r *http.Request) {
@@ -95,11 +121,14 @@ func (s *server) handlePoisonDetail(w http.ResponseWriter, r *http.Request) {
 		log.Println("query poison detail:", err)
 		return
 	}
+	if tr, err := i18n.Row(s.rulesDB, localeFromContext(r.Context()), "poisons", p.Slug); err == nil {
+		overlayPoisonTranslation(&p, tr)
+	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		s.renderCard(w, "poisons.html", "poison_detail_card", p)
+		s.renderCard(w, r, "poisons.html", "poison_detail_card", p)
 		return
 	}
 
-	s.render(w, "poison_detail.html", map[string]any{"Title": p.Name, "Poison": p})
+	s.render(w, r, "poison_detail.html", map[string]any{"Title": p.Name, "Poison": p})
 }

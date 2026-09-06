@@ -456,15 +456,15 @@ func TestLastSubclassTrackerSidebarButtons(t *testing.T) {
 		{"Spyware", func(t *testing.T, s *server) int64 {
 			seedSpywareCatalog(t, s, 3)
 			return seedSpywareCharacter(t, s, "Kabuto", 3)
-		}, spywarePopupPath, `tracked in the "Spyware" popup`, "Install Program"},
+		}, spywarePopupPath, `tracked in the &#34;Spyware&#34; popup`, "Install Program"},
 		{"Storm Rider", func(t *testing.T, s *server) int64 {
 			seedStormRiderCatalog(t, s, 3)
 			return seedStormRiderCharacter(t, s, "Karin", 3)
-		}, stormRiderPopupPath, `tracked in the "Storm Rider" popup`, "Install Enhancement"},
+		}, stormRiderPopupPath, `tracked in the &#34;Storm Rider&#34; popup`, "Install Enhancement"},
 		{"Technobi", func(t *testing.T, s *server) int64 {
 			seedTechnobiCatalog(t, s, 3)
 			return seedTechnobiCharacter(t, s, "Sasori", 3)
-		}, technobiPopupPath, `tracked in the "Technobi" popup`, "Install Mechanization"},
+		}, technobiPopupPath, `tracked in the &#34;Technobi&#34; popup`, "Install Mechanization"},
 	}
 
 	for _, c := range cases {

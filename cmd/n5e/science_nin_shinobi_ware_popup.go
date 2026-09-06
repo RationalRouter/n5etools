@@ -47,7 +47,7 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 	popup := subclassTrackerPopupData{Title: "Shinobi-Ware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.ShinobiWare == nil {
 		popup.EmptyHint = "This character has no Shinobi-Ware Upgrades yet — Edge Runner grants this at 3rd-level Shinobi-Ware."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_shinobi_ware.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_shinobi_ware.html", popup, nil)
 		return
 	}
 
@@ -65,7 +65,7 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 	if sw.EverEvolvingSeal != nil || len(sw.AvailableEverEvolvingSeal) > 0 {
 		popup.Sections = append(popup.Sections, everEvolvingSection(id, sw, data.CreationPointsUsed, data.CreationPointsCap))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_shinobi_ware.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_shinobi_ware.html", popup, map[string]any{
 		"ShinobiWare": sw,
 	})
 }

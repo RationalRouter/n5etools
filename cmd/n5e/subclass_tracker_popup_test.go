@@ -402,7 +402,7 @@ func TestSubclassTrackerPopupSidebarButtons(t *testing.T) {
 	if strings.Contains(snbBody, `action="/characters/`+strconv.FormatInt(snbID, 10)+`/sheet/science-nin-snb-upgrade"`) {
 		t.Errorf("Core sheet still renders the old inline S.N.B Upgrades picker form; it should only point at the popup now")
 	}
-	if !strings.Contains(snbBody, `S.N.B Upgrades and Future of Shinobi: S.N.B are tracked in the "S.N.B Upgrades" popup`) {
+	if !strings.Contains(snbBody, `S.N.B Upgrades and Future of Shinobi: S.N.B are tracked in the &#34;S.N.B Upgrades&#34; popup`) {
 		t.Errorf("Core sheet missing the pointer text to the S.N.B Upgrades popup:\n%s", snbBody)
 	}
 

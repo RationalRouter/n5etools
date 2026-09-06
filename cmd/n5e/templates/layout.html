@@ -12,28 +12,28 @@
   <nav class="nav">
     <a class="nav-brand" href="/">N5etools</a>
     <div class="nav-links">
-      <a href="/characters">Characters</a>
-      <a href="/backups">Backups</a>
-      <a href="/clans">Clans</a>
-      <a href="/jutsu">Jutsu</a>
-      <a href="/classes">Classes</a>
-      <a href="/feats">Feats</a>
-      <a href="/backgrounds">Backgrounds</a>
-      <a href="/stances">Stances</a>
-      <a href="/seals">Seals</a>
-      <a href="/items">Items</a>
-      <a href="/properties">Properties</a>
-      <a href="/traps">Traps</a>
-      <a href="/poisons">Poisons</a>
+      <a href="/characters">{{T "nav.characters"}}</a>
+      <a href="/backups">{{T "nav.backups"}}</a>
+      <a href="/clans">{{T "nav.clans"}}</a>
+      <a href="/jutsu">{{T "nav.jutsu"}}</a>
+      <a href="/classes">{{T "nav.classes"}}</a>
+      <a href="/feats">{{T "nav.feats"}}</a>
+      <a href="/backgrounds">{{T "nav.backgrounds"}}</a>
+      <a href="/stances">{{T "nav.stances"}}</a>
+      <a href="/seals">{{T "nav.seals"}}</a>
+      <a href="/items">{{T "nav.items"}}</a>
+      <a href="/properties">{{T "nav.properties"}}</a>
+      <a href="/traps">{{T "nav.traps"}}</a>
+      <a href="/poisons">{{T "nav.poisons"}}</a>
     </div>
     <div class="nav-info">
-      <a href="/about">About the Creator</a>
-      <a href="/bugs">Bug Reports</a>
-      <a href="/faq">FAQ</a>
-      <a href="/technical">Technical Overview</a>
+      <a href="/about">{{T "nav.about"}}</a>
+      <a href="/bugs">{{T "nav.bugs"}}</a>
+      <a href="/faq">{{T "nav.faq"}}</a>
+      <a href="/technical">{{T "nav.technical"}}</a>
     </div>
     <div class="nav-search">
-      <input type="search" id="site-search" placeholder="Search everything…" autocomplete="off" aria-label="Search">
+      <input type="search" id="site-search" placeholder="{{T "nav.search_placeholder"}}" autocomplete="off" aria-label="{{T "nav.search_aria"}}">
       <ul id="site-search-results" class="search-results" hidden></ul>
       <div id="search-tooltip" hidden></div>
     </div>
@@ -41,7 +41,7 @@
   <main class="content">
     {{template "content" .}}
   </main>
-  <footer class="site-footer">Created and maintained by RationalRouter and Claude</footer>
+  <footer class="site-footer">{{T "nav.footer"}}</footer>
   {{/* Hidden until static/js/back-to-top.js shows it past a scroll
        threshold — most pages never scroll far enough for it to appear at
        all, so this needs no per-page "is this one long enough" judgment
@@ -51,11 +51,11 @@
   {{/* No [hidden] attribute — app.css starts it at opacity:0/visibility:
        hidden so back-to-top.js's scroll-triggered class toggle can fade it
        in/out, which display:none (what [hidden] maps to) can't animate. */}}
-  <button type="button" id="back-to-top" aria-label="Back to top" title="Back to top">&uarr;</button>
+  <button type="button" id="back-to-top" aria-label="{{T "nav.back_to_top"}}" title="{{T "nav.back_to_top"}}">&uarr;</button>
   {{/* Same fade-in-past-a-threshold mechanism as #back-to-top just above,
        mirrored for the opposite direction (back-to-bottom.js) — placed
        right next to it so either end of a long page is one click away. */}}
-  <button type="button" id="back-to-bottom" aria-label="Scroll to bottom" title="Scroll to bottom">&darr;</button>
+  <button type="button" id="back-to-bottom" aria-label="{{T "nav.back_to_bottom"}}" title="{{T "nav.back_to_bottom"}}">&darr;</button>
   {{template "dice_roller" .}}
   {{/* First, so its capture-phase listener is registered before any
        fetch-and-swap submit handler further down can act on a form it

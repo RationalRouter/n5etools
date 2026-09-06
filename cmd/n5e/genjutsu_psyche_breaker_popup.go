@@ -62,11 +62,11 @@ func (s *server) handlePsycheBreakerPopup(w http.ResponseWriter, r *http.Request
 	popup := subclassTrackerPopupData{Title: "Psyche Breaker", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
 	if data == nil || data.PsycheBreakerCap == 0 {
 		popup.EmptyHint = "This character isn't a 10th-level (or higher) Corrupt Thoughts Genjutsu Specialist — Psyche Breaker is Corrupt Thoughts' own 10th-level feature."
-		s.renderSubclassTrackerPopup(w, "character_genjutsu_psyche_breaker.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_genjutsu_psyche_breaker.html", popup, nil)
 		return
 	}
 
-	s.renderSubclassTrackerPopup(w, "character_genjutsu_psyche_breaker.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_genjutsu_psyche_breaker.html", popup, map[string]any{
 		"Genjutsu": data,
 	})
 }

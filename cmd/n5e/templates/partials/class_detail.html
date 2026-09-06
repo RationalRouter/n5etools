@@ -8,14 +8,14 @@
      features) is unaffected. */}}
 {{define "class_detail_card"}}
 <h1>{{.Name}}</h1>
-<p class="card-epithet">{{if .JutsuTier.Valid}}{{.JutsuTier.String}} jutsu tier{{end}}</p>
+<p class="card-epithet">{{if .JutsuTier.Valid}}{{T "partial_class_detail.jutsu_tier" .JutsuTier.String}}{{end}}</p>
 
 {{if .Description.Valid}}<p class="overview">{{.Description.String}}</p>{{end}}
 
 <dl class="fact-list">
-  <dt>Hit Die</dt><dd>{{if .HitDie.Valid}}{{diceAvg (printf "d%d" .HitDie.Int64)}}{{else}}—{{end}}</dd>
-  <dt>Chakra Die</dt><dd>{{if .ChakraDie.Valid}}{{diceAvg (printf "d%d" .ChakraDie.Int64)}}{{else}}—{{end}}</dd>
-  {{if .QuickBuild.Valid}}<dt>Quick Build</dt><dd>{{.QuickBuild.String}}</dd>{{end}}
+  <dt>{{T "classes.hit_die"}}</dt><dd>{{if .HitDie.Valid}}{{diceAvg (printf "d%d" .HitDie.Int64)}}{{else}}—{{end}}</dd>
+  <dt>{{T "classes.chakra_die"}}</dt><dd>{{if .ChakraDie.Valid}}{{diceAvg (printf "d%d" .ChakraDie.Int64)}}{{else}}—{{end}}</dd>
+  {{if .QuickBuild.Valid}}<dt>{{T "partial_class_detail.quick_build"}}</dt><dd>{{.QuickBuild.String}}</dd>{{end}}
 </dl>
 
 {{/* Casting: the book's own per-class "Casting" stat block, straight from
@@ -40,16 +40,16 @@
      what the book prints for a class in the abstract, so the same
      "don't guess in a reference page" concern doesn't apply there. */}}
 {{if .Casting}}
-<h2>Casting</h2>
+<h2>{{T "character_reference.casting_heading"}}</h2>
 <dl class="fact-list">
   {{range .Casting}}
-  <dt>{{.Discipline}}</dt><dd>{{.Ability}} — Save DC = 8 + your proficiency bonus + your {{.Ability}} modifier; Attack modifier = your proficiency bonus + your {{.Ability}} modifier</dd>
+  <dt>{{.Discipline}}</dt><dd>{{T "partial_class_detail.casting_formula" .Ability .Ability}}</dd>
   {{end}}
 </dl>
 {{end}}
 
 {{if .Proficiencies}}
-<h2>Proficiencies</h2>
+<h2>{{T "partial_class_detail.proficiencies_heading"}}</h2>
 <dl class="fact-list">
   {{range .Proficiencies}}
   <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
@@ -58,32 +58,32 @@
 {{end}}
 
 {{if .Equipment}}
-<h2>Starting Equipment</h2>
+<h2>{{T "create_equipment.title"}}</h2>
 <ul class="plain-list">
   {{range .Equipment}}
-  <li>{{range $i, $c := .Choices}}{{if $i}} — or {{end}}{{$c}}{{end}}</li>
+  <li>{{range $i, $c := .Choices}}{{if $i}}{{T "partial_class_detail.or_choice"}}{{end}}{{$c}}{{end}}</li>
   {{end}}
 </ul>
 {{end}}
 
 {{if .MulticlassRules}}
-<h2>Multiclassing</h2>
+<h2>{{T "partial_class_detail.multiclassing_heading"}}</h2>
 <dl class="fact-list">
-  <dt>Ability Prerequisite</dt><dd>{{.MulticlassRules.AbilityPrereqText}}</dd>
-  <dt>Proficiencies Gained</dt><dd>{{.MulticlassRules.ProficienciesText}}</dd>
-  <dt>Jutsu per Level</dt><dd>{{.MulticlassRules.JutsuPerLevelText}}</dd>
+  <dt>{{T "partial_class_detail.ability_prerequisite"}}</dt><dd>{{.MulticlassRules.AbilityPrereqText}}</dd>
+  <dt>{{T "partial_class_detail.proficiencies_gained"}}</dt><dd>{{.MulticlassRules.ProficienciesText}}</dd>
+  <dt>{{T "partial_class_detail.jutsu_per_level"}}</dt><dd>{{.MulticlassRules.JutsuPerLevelText}}</dd>
 </dl>
 {{end}}
 
 {{if .Levels}}
-<h2>Class Levels</h2>
+<h2>{{T "partial_class_detail.class_levels_heading"}}</h2>
 <div class="table-scroll">
 <table class="data-table class-level-table">
   <thead>
     <tr>
-      <th>Level</th><th>Proficiency Bonus</th><th>Features</th>
+      <th>{{T "partial_class_detail.level_col"}}</th><th>{{T "partial_class_detail.proficiency_bonus_col"}}</th><th>{{T "partial_class_detail.features_col"}}</th>
       {{range .ResourceColumns}}<th>{{.}}</th>{{end}}
-      <th>Jutsu Known</th><th>Highest Rank Known</th>
+      <th>{{T "partial_class_detail.jutsu_known_col"}}</th><th>{{T "partial_class_detail.highest_rank_known_col"}}</th>
     </tr>
   </thead>
   <tbody>
@@ -103,7 +103,7 @@
 {{end}}
 
 {{if .Feats}}
-<h2>Class Feats</h2>
+<h2>{{T "partial_class_detail.class_feats_heading"}}</h2>
 <ul class="tooltip-list">
   {{range .Feats}}
   <li class="tooltip" tabindex="0">
@@ -115,10 +115,10 @@
 {{end}}
 
 {{range .SubclassGroups}}
-<h2>{{.DisplayName}}{{if .SelectionLevels.Valid}} <span class="entry-level">(chosen at level {{.SelectionLevels.String}})</span>{{end}}</h2>
+<h2>{{.DisplayName}}{{if .SelectionLevels.Valid}} <span class="entry-level">{{T "partial_class_detail.chosen_at_level" .SelectionLevels.String}}</span>{{end}}</h2>
 {{if .Description.Valid}}<p class="overview">{{.Description.String}}</p>{{end}}
 {{if .Subclasses}}
-<div class="subclass-tiles" role="group" aria-label="Select subclasses to compare">
+<div class="subclass-tiles" role="group" aria-label="{{T "partial_class_detail.select_subclasses_to_compare_aria"}}">
   {{range .Subclasses}}
   <button type="button" class="subclass-tile" data-subclass="{{.Slug}}" aria-pressed="false">{{.Name}}</button>
   {{end}}
@@ -135,17 +135,17 @@
 {{end}}
 
 {{if .LevelFeatures}}
-<h2>Class Features</h2>
+<h2>{{T "partial_class_detail.class_features_heading"}}</h2>
 <div class="entry-list">
   {{range .LevelFeatures}}
   <div class="level-feature-group">
     {{range .Entries}}
     <div class="entry{{if .SubclassSlug}} subclass-scope{{end}}"{{if .SubclassSlug}} data-subclass="{{.SubclassSlug}}" hidden{{end}}>
       {{if .SubclassSlug}}
-      <h3>{{.SubclassName}}: {{if .Level.Valid}}Level {{.Level.Int64}}: {{end}}{{.Name}}</h3>
+      <h3>{{.SubclassName}}: {{if .Level.Valid}}{{T "partial_class_detail.level_prefix" .Level.Int64}}{{end}}{{.Name}}</h3>
       {{else}}
       <h3>{{.Name}}</h3>
-      {{if .Level.Valid}}<p class="entry-level-note">Level {{.Level.Int64}} feature</p>{{end}}
+      {{if .Level.Valid}}<p class="entry-level-note">{{T "partial_class_detail.level_feature" .Level.Int64}}</p>{{end}}
       {{end}}
       {{formatDescription .Description}}
     </div>

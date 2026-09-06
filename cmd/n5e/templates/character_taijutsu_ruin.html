@@ -13,22 +13,22 @@
   {{end}}
   {{if .Ruin}}
   <section class="companion-reference">
-    <h3>Anti-Chakra Wavelength</h3>
-    <p class="section-hint">Choose 2 keywords your Martial Techniques from this subclass affect.</p>
+    <h3>{{T "character_taijutsu_ruin.anti_chakra_wavelength_heading"}}</h3>
+    <p class="section-hint">{{T "character_taijutsu_ruin.anti_chakra_hint"}}</p>
     <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/ruin/anti-chakra-wavelength" class="sheet-inline-form">
       <select name="keyword1" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "character_taijutsu_ruin.choose_option"}}</option>
         {{range .Ruin.Options}}
         <option value="{{.}}"{{if eq . $.Ruin.Keyword1}} selected{{end}}>{{.}}</option>
         {{end}}
       </select>
       <select name="keyword2" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "character_taijutsu_ruin.choose_option"}}</option>
         {{range .Ruin.Options}}
         <option value="{{.}}"{{if eq . $.Ruin.Keyword2}} selected{{end}}>{{.}}</option>
         {{end}}
       </select>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_taijutsu_ruin.set_button"}}</button>
     </form>
   </section>
   {{end}}

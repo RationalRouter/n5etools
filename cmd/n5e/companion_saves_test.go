@@ -423,7 +423,7 @@ func TestSheetSummonTabCollapseRoundTrips(t *testing.T) {
 	}
 
 	renderW := httptest.NewRecorder()
-	s.renderSheetFragment(renderW, 1, "sheet_summon_tab")
+	s.renderSheetFragment(renderW, req, 1, "sheet_summon_tab")
 	if renderW.Code != http.StatusOK {
 		t.Fatalf("render sheet_summon_tab: status %d, body %s", renderW.Code, renderW.Body.String())
 	}
@@ -479,7 +479,7 @@ func TestSheetSummonTabRendersSavingThrowsToggles(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	s.renderSheetFragment(w, 1, "sheet_summon_tab")
+	s.renderSheetFragment(w, httptest.NewRequest(http.MethodGet, "/", nil), 1, "sheet_summon_tab")
 	if w.Code != http.StatusOK {
 		t.Fatalf("render sheet_summon_tab: status %d, body %s", w.Code, w.Body.String())
 	}

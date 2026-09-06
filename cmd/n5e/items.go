@@ -434,7 +434,7 @@ func (s *server) handleItems(w http.ResponseWriter, r *http.Request) {
 		selected = &groups[0].Items[0]
 	}
 
-	s.render(w, "items.html", map[string]any{"Title": "Items", "Groups": groups, "Selected": selected})
+	s.render(w, r, "items.html", map[string]any{"Title": "Items", "Groups": groups, "Selected": selected})
 }
 
 // handleItemDetail serves both the standalone /items/{slug} page (used by
@@ -468,20 +468,11 @@ func (s *server) handleItemDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["items.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render item fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "item_detail_card", item); err != nil {
-			log.Println("render item fragment:", err)
-		}
+		s.renderCard(w, r, "items.html", "item_detail_card", item)
 		return
 	}
 
-	s.render(w, "item_detail.html", map[string]any{"Title": item.Name, "Item": item})
+	s.render(w, r, "item_detail.html", map[string]any{"Title": item.Name, "Item": item})
 }
 
 // handleCustomItemUpdate saves every editable field of a library entry —

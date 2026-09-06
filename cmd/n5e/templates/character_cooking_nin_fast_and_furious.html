@@ -13,11 +13,11 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Fast and Furious</h3>
+    <h3>{{T "character_cooking_nin_fast_and_furious.title"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/fast-and-furious/set" class="sheet-inline-form">
-      <label class="sheet-vitals-label">Initiative
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_fast_and_furious.initiative_label"}}
         <select name="value" class="sheet-option-tooltip-select">
-          <option value="">— Dexterity (default) —</option>
+          <option value="">{{T "character_cooking_nin_fast_and_furious.dexterity_default"}}</option>
           {{range .FastAndFurious.Options}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.FastAndFurious.Current}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -25,9 +25,9 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .FastAndFurious.Current}}{{range .FastAndFurious.Options}}{{if eq .Value $.FastAndFurious.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose Intelligence or Charisma above to use it for Initiative instead of Dexterity — sets the sheet's own Initiative ability default, still overridable from the Adjust panel.{{end}}</span>
+        <span class="tooltip-content">{{if .FastAndFurious.Current}}{{range .FastAndFurious.Options}}{{if eq .Value $.FastAndFurious.Current}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_fast_and_furious.hint"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_fast_and_furious.set"}}</button>
     </form>
   </section>
   {{end}}

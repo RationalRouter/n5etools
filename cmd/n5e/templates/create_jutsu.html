@@ -1,14 +1,14 @@
 {{define "content"}}
-<h1>Learn Jutsu</h1>
-<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+<h1>{{T "create_jutsu.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">{{T "create_jutsu.back_to_checklist"}}</a></p>
 {{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
 
 {{if not .Jutsu}}
-<p class="callout">Choose a class first — its available jutsu will show up here.</p>
+<p class="callout">{{T "create_jutsu.choose_class_first"}}</p>
 {{else}}
 <p class="page-subtitle">
-  {{if ge .JutsuKnown 0}}Choose up to {{.JutsuKnown}} jutsu at level {{.Level}}.{{else}}No known-jutsu limit found for this class/level — pick as many as apply.{{end}}
-  Your clan's own jutsu are in this list too, marked <span class="jutsu-source-badge">Clan</span> — the book has you take them <em>instead of</em> jutsu from the normal lists, so they come out of the same allowance.
+  {{if ge .JutsuKnown 0}}{{T "create_jutsu.choose_up_to" .JutsuKnown .Level}}{{else}}{{T "create_jutsu.no_limit_found"}}{{end}}
+  {{T "create_jutsu.clan_jutsu_note_prefix"}}<span class="jutsu-source-badge">{{T "create_jutsu.clan_badge"}}</span>{{T "create_jutsu.clan_jutsu_note_middle"}}<em>{{T "create_jutsu.instead_of"}}</em>{{T "create_jutsu.clan_jutsu_note_suffix"}}
 </p>
 <form method="post" action="/characters/{{.ID}}/create/jutsu">
 <div class="browse-layout">
@@ -19,46 +19,46 @@
          to one toolbar has to be added to the other with the matching id, or
          that control silently does nothing on this page. */}}
     <div class="items-toolbar">
-      <input type="search" id="create-jutsu-search" placeholder="Filter jutsu…" autocomplete="off" aria-label="Filter jutsu">
+      <input type="search" id="create-jutsu-search" placeholder="{{T "create_jutsu.filter_jutsu_placeholder"}}" autocomplete="off" aria-label="{{T "create_jutsu.filter_jutsu_aria"}}">
       <div class="dropdown-filter" id="create-jutsu-category-filter">
-        <button type="button" id="create-jutsu-category-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Categories ▾</button>
+        <button type="button" id="create-jutsu-category-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "create_jutsu.categories_toggle"}}</button>
         <div id="create-jutsu-category-panel" class="dropdown-panel" hidden></div>
       </div>
       <div class="dropdown-filter" id="create-jutsu-details-filter">
-        <button type="button" id="create-jutsu-details-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Filters ▾</button>
+        <button type="button" id="create-jutsu-details-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "create_jutsu.filters_toggle"}}</button>
         <div id="create-jutsu-details-panel" class="dropdown-panel dropdown-panel-wide" hidden>
-          <div class="dropdown-panel-section-heading">Range</div>
+          <div class="dropdown-panel-section-heading">{{T "create_jutsu.range_heading"}}</div>
           <div class="range-slider" id="create-jutsu-range-slider">
             <div class="range-slider-track"><div class="range-slider-track-fill" id="create-jutsu-range-fill"></div></div>
-            <input type="range" id="create-jutsu-range-min" min="0" max="0" value="0" step="1" aria-label="Minimum range">
-            <input type="range" id="create-jutsu-range-max" min="0" max="0" value="0" step="1" aria-label="Maximum range">
+            <input type="range" id="create-jutsu-range-min" min="0" max="0" value="0" step="1" aria-label="{{T "create_jutsu.minimum_range_aria"}}">
+            <input type="range" id="create-jutsu-range-max" min="0" max="0" value="0" step="1" aria-label="{{T "create_jutsu.maximum_range_aria"}}">
           </div>
           <div class="range-slider-labels">
             <span id="create-jutsu-range-min-label"></span>&ndash;<span id="create-jutsu-range-max-label"></span>
           </div>
           <label class="dropdown-panel-item range-slider-item">
             <input type="checkbox" id="create-jutsu-range-include-special" checked>
-            Include Weapon Range / Movement Speed / Special
+            {{T "create_jutsu.include_special_ranges"}}
           </label>
 
-          <div class="dropdown-panel-section-heading">Duration</div>
+          <div class="dropdown-panel-section-heading">{{T "create_jutsu.duration_heading"}}</div>
           <div class="dropdown-panel-section-actions">
-            <button type="button" id="create-jutsu-duration-select-all">Select all</button>
-            <button type="button" id="create-jutsu-duration-deselect-all">Deselect all</button>
+            <button type="button" id="create-jutsu-duration-select-all">{{T "create_jutsu.select_all"}}</button>
+            <button type="button" id="create-jutsu-duration-deselect-all">{{T "create_jutsu.deselect_all"}}</button>
           </div>
           <div id="create-jutsu-duration-filters"></div>
 
-          <div class="dropdown-panel-section-heading">Components</div>
+          <div class="dropdown-panel-section-heading">{{T "create_jutsu.components_heading"}}</div>
           <div id="create-jutsu-component-filters"></div>
         </div>
       </div>
       <div class="jutsu-select-actions">
-        <button type="button" id="create-jutsu-select-all">Select all</button>
-        <button type="button" id="create-jutsu-deselect-all">Deselect all</button>
+        <button type="button" id="create-jutsu-select-all">{{T "create_jutsu.select_all"}}</button>
+        <button type="button" id="create-jutsu-deselect-all">{{T "create_jutsu.deselect_all"}}</button>
       </div>
       <span class="jutsu-selected-count" id="create-jutsu-count" data-known="{{.JutsuKnown}}"></span>
       <span class="jutsu-selected-count jutsu-clan-count" id="create-jutsu-clan-count" hidden></span>
-      <span class="jutsu-cap-hint" id="create-jutsu-cap-hint" hidden>All picks used — uncheck one to swap.</span>
+      <span class="jutsu-cap-hint" id="create-jutsu-cap-hint" hidden>{{T "create_jutsu.all_picks_used_hint"}}</span>
     </div>
     <div class="source-tiles" id="create-jutsu-source-tiles">
       {{range .SourceTiles}}
@@ -88,18 +88,18 @@
            data-range-feet="{{.RangeFeet}}" data-range-numeric="{{.RangeNumeric}}" data-range-special="{{.RangeSpecial}}"
            data-components="{{range .Components}}{{.}} {{end}}">
           <span class="browse-row-name">{{.Name}}</span>
-          {{if eq .Source "clan"}}<span class="jutsu-source-badge">Clan</span>{{end}}
-          {{if .Rank.Valid}}<span class="browse-row-meta">{{.Rank.String}}-Rank</span>{{end}}
+          {{if eq .Source "clan"}}<span class="jutsu-source-badge">{{T "create_jutsu.clan_badge"}}</span>{{end}}
+          {{if .Rank.Valid}}<span class="browse-row-meta">{{T "create_jutsu.rank_suffix" .Rank.String}}</span>{{end}}
         </a>
       </div>
       {{end}}
     </div>
   </div>
   <div class="browse-detail-pane" id="creation-detail-pane">
-    {{if .FocusDetail}}{{template "jutsu_detail_card" .FocusDetail}}{{else}}<p class="section-hint">Click a jutsu to see its details.</p>{{end}}
+    {{if .FocusDetail}}{{template "jutsu_detail_card" .FocusDetail}}{{else}}<p class="section-hint">{{T "create_jutsu.click_hint"}}</p>{{end}}
   </div>
 </div>
-<button type="submit" class="btn-primary creation-picker-below">Save Jutsu</button>
+<button type="submit" class="btn-primary creation-picker-below">{{T "create_jutsu.save_button"}}</button>
 </form>
 {{end}}
 {{end}}

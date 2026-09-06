@@ -68,7 +68,7 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	}
 	if data == nil || data.ElementalInnovationist == nil {
 		popup.EmptyHint = "This character has no Elemental Innovationist picks yet — E.I.Ps grants this at 3rd-level Elemental Innovationist."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_elemental_innovationist.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_elemental_innovationist.html", popup, nil)
 		return
 	}
 
@@ -86,7 +86,7 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	if ei.PermaPerk != nil || len(ei.AvailablePermaPerk) > 0 {
 		popup.Sections = append(popup.Sections, permaPerkSection(id, ei))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_elemental_innovationist.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_elemental_innovationist.html", popup, map[string]any{
 		"Exoskeleton": data.Exoskeleton,
 	})
 }

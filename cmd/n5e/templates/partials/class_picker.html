@@ -12,7 +12,7 @@
 {{define "your_classes_panel"}}
 {{if .YourClasses}}
 <div class="your-classes-panel">
-  <h2>Your Classes</h2>
+  <h2>{{T "class_picker.your_classes_heading"}}</h2>
   <div class="your-classes-list">
     {{$base := .ActionBase}}
     {{$levelOpts := .LevelOptions}}
@@ -32,17 +32,17 @@
            listener would never see it. */}}
       <form method="post" action="{{$base}}/level" class="your-class-inline-form">
         <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
-        <select name="level" class="your-class-level-select" aria-label="{{.ClassName}} level">
+        <select name="level" class="your-class-level-select" aria-label="{{T "class_picker.class_level_aria" .ClassName}}">
           {{range $levelOpts}}
-          <option value="{{.}}" {{if eq . $c.Levels}}selected{{end}}>Level {{.}}</option>
+          <option value="{{.}}" {{if eq . $c.Levels}}selected{{end}}>{{T "class_picker.level_option" .}}</option>
           {{end}}
         </select>
       </form>
       {{if .SubclassOptions}}
       <form method="post" action="{{$base}}/subclass" class="your-class-inline-form">
         <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
-        <select name="subclass_slug" class="your-class-subclass-select" onchange="this.form.submit()" aria-label="{{.ClassName}} subclass">
-          <option value="">— choose subclass —</option>
+        <select name="subclass_slug" class="your-class-subclass-select" onchange="this.form.submit()" aria-label="{{T "class_picker.class_subclass_aria" .ClassName}}">
+          <option value="">{{T "sheet.choose_subclass_option"}}</option>
           {{range .SubclassOptions}}
           <option value="{{.Slug}}" {{if eq .Slug $c.SubclassSlug}}selected{{end}}>{{.Name}}</option>
           {{end}}
@@ -50,9 +50,9 @@
       </form>
       {{end}}
       <form method="post" action="{{$base}}/remove" class="your-class-remove-form"
-            data-confirm="Remove {{.ClassName}}? This deletes everything it granted — proficiencies, HP/Chakra progress and any subclass pick for it — and cannot be undone.">
+            data-confirm="{{T "class_picker.confirm_remove_class" .ClassName}}">
         <input type="hidden" name="class_slug" value="{{.ClassSlug}}">
-        <button type="submit" class="btn-danger btn-small">Remove</button>
+        <button type="submit" class="btn-danger btn-small">{{T "sheet.remove_button"}}</button>
       </form>
     </div>
     {{end}}
@@ -72,7 +72,7 @@
 {{define "create_class_focus"}}
 {{template "class_detail_card" .FocusDetail}}
 {{if .AlreadyHeld}}
-<p class="section-hint">Already one of your classes — remove it above to change your picks.</p>
+<p class="section-hint">{{T "class_picker.already_held_hint"}}</p>
 {{else if .IsMulticlassAdd}}
 {{template "multiclass_add_form" .}}
 {{else}}
@@ -87,7 +87,7 @@
        creation-picker.js reads this form's id/data-current-level to show,
        hide and pre-fill the header control after every swap. */}}
   {{if .SkillChoices}}
-  <label>Choose {{.ChooseN}} skills</label>
+  <label>{{T "class_picker.choose_n_skills" .ChooseN}}</label>
   <div class="choice-grid">
     {{range .SkillChoices}}
     <label><input type="checkbox" name="skills" value="{{.Skill}}" {{if .Selected}}checked{{end}}> {{.Skill}}</label>
@@ -102,13 +102,13 @@
        name. Field names are positional (toolkit_0, toolkit_1, …) so a
        blank slot stays blank at its own index. */}}
   {{$toolkits := .Toolkits}}
-  <label>Toolkit proficiencies</label>
+  <label>{{T "class_picker.toolkit_proficiencies_label"}}</label>
   <div class="kit-choice-slots">
     {{range $i, $slot := .ToolkitChoices}}
     <div class="kit-choice-slot">
       <span class="option-picker-epithet">{{$slot.Prompt}}</span>
       <select name="toolkit_{{$i}}" class="kit-choice-select" required>
-        <option value="">— choose a toolkit —</option>
+        <option value="">{{T "class_picker.choose_a_toolkit_option"}}</option>
         {{/* value is the display NAME, not the slug: character_proficiencies
              stores proficiencies by the name the book prints, and the
              class's automatic kit grants are already stored that way. The
@@ -126,7 +126,7 @@
     {{end}}
   </div>
   {{end}}
-  <button type="submit" class="btn-primary">Confirm {{.FocusDetail.Name}}</button>
+  <button type="submit" class="btn-primary">{{T "class_picker.confirm_class_button" .FocusDetail.Name}}</button>
 </form>
 {{end}}
 {{end}}
@@ -141,14 +141,14 @@
      .UnmetPrereqClasses, .Chosen*). */}}
 {{define "multiclass_add_form"}}
 {{if .UnmetPrereqClasses}}
-<p class="creation-form-error">Ability score prerequisites not currently met for: {{range $i, $name := .UnmetPrereqClasses}}{{if $i}}, {{end}}{{$name}}{{end}}. Adjust ability scores first, or submit anyway and it will be rejected.</p>
+<p class="creation-form-error">{{T "class_picker.unmet_prereq_classes_prefix"}}{{range $i, $name := .UnmetPrereqClasses}}{{if $i}}, {{end}}{{$name}}{{end}}. {{T "class_picker.unmet_prereq_classes_suffix"}}</p>
 {{end}}
 {{if le .MaxLevel 0}}
-<p class="creation-form-error">This character is already at total level 20 across their existing classes — no room for another class.</p>
+<p class="creation-form-error">{{T "class_picker.max_level_reached"}}</p>
 {{else}}
 <form class="creation-form" method="post" action="{{.ActionBase}}">
   <input type="hidden" name="class_slug" value="{{.Focus}}">
-  <label for="mc-level">Starting Level in {{.FocusDetail.Name}}</label>
+  <label for="mc-level">{{T "class_picker.starting_level_in" .FocusDetail.Name}}</label>
   <select name="level" id="mc-level">
     {{$current := .CurrentLevel}}
     {{$max := .MaxLevel}}
@@ -158,11 +158,11 @@
     {{end}}
     {{end}}
   </select>
-  <p class="section-hint">Multiclassing grants a smaller proficiency set than starting in this class — see the Multiclassing table above.</p>
+  <p class="section-hint">{{T "class_picker.multiclass_smaller_proficiency_hint"}}</p>
   {{if .NeedsSkill}}
-  <label for="mc-skill">Choose 1 skill</label>
+  <label for="mc-skill">{{T "class_picker.choose_1_skill"}}</label>
   <select name="mc_skill" id="mc-skill" required>
-    <option value="">— choose a skill —</option>
+    <option value="">{{T "class_picker.choose_a_skill_option"}}</option>
     {{$chosen := .ChosenSkill}}
     {{range .SkillOptions}}
     <option value="{{.}}" {{if eq . $chosen}}selected{{end}}>{{.}}</option>
@@ -170,9 +170,9 @@
   </select>
   {{end}}
   {{if .NeedsToolkit}}
-  <label for="mc-toolkit">Choose 1 toolkit</label>
+  <label for="mc-toolkit">{{T "class_picker.choose_1_toolkit"}}</label>
   <select name="mc_toolkit" id="mc-toolkit" required>
-    <option value="">— choose a toolkit —</option>
+    <option value="">{{T "class_picker.choose_a_toolkit_option"}}</option>
     {{$chosen := .ChosenToolkit}}
     {{range .ToolkitOptions}}
     <option value="{{.Name}}" {{if eq .Name $chosen}}selected{{end}}>{{.Name}}</option>
@@ -180,16 +180,16 @@
   </select>
   {{end}}
   {{if .NeedsWeapon}}
-  <label for="mc-weapon">Choose 1 martial weapon</label>
+  <label for="mc-weapon">{{T "class_picker.choose_1_martial_weapon"}}</label>
   <select name="mc_weapon" id="mc-weapon" required>
-    <option value="">— choose a weapon —</option>
+    <option value="">{{T "create_equipment.choose_a_weapon"}}</option>
     {{$chosen := .ChosenWeapon}}
     {{range .WeaponOptions}}
     <option value="{{.Name}}" {{if eq .Name $chosen}}selected{{end}}>{{.Name}}</option>
     {{end}}
   </select>
   {{end}}
-  <button type="submit" class="btn-primary">Add {{.FocusDetail.Name}} as an additional class</button>
+  <button type="submit" class="btn-primary">{{T "class_picker.add_class_as_additional" .FocusDetail.Name}}</button>
 </form>
 {{end}}
 {{end}}

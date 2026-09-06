@@ -1,9 +1,9 @@
 {{define "content"}}
-<h1>Items</h1>
+<h1>{{T "items.title"}}</h1>
 <div class="browse-layout">
   <div class="browse-list-pane">
     <div class="items-toolbar">
-      <input type="search" id="items-search" placeholder="Filter items…" autocomplete="off" aria-label="Filter items">
+      <input type="search" id="items-search" placeholder="{{T "items.filter_placeholder"}}" autocomplete="off" aria-label="{{T "items.filter_aria_label"}}">
       <div class="items-kind-filters" id="items-kind-filters"></div>
       {{/* Weapon/armor sub-filters (Simple/Martial/Exotic, Light/Medium/
            Heavy), filled in by static/js/equipment-subfilter.js from the
@@ -17,14 +17,14 @@
       <a class="browse-row" href="/items/{{.Slug}}" data-slug="{{.Slug}}" data-kind="{{.Kind}}" data-name="{{.Name}}"
          {{with .WeaponFilterCategory}}data-weapon-category="{{.}}"{{end}}{{with .ArmorFilterCategory}}data-armor-category="{{.}}"{{end}}>
         <span class="browse-row-name">{{.Name}}</span>
-        {{if .CostRyo.Valid}}<span class="browse-row-meta">{{.CostRyo.Float64}} Ryo</span>{{end}}
+        {{if .CostRyo.Valid}}<span class="browse-row-meta">{{T "items.cost_ryo" .CostRyo.Float64}}</span>{{end}}
       </a>
       {{end}}
       {{end}}
     </div>
   </div>
   <div class="browse-detail-pane" id="browse-detail-pane">
-    {{if .Selected}}{{template "item_detail_card" .Selected}}{{else}}<p class="section-hint">No items to show.</p>{{end}}
+    {{if .Selected}}{{template "item_detail_card" .Selected}}{{else}}<p class="section-hint">{{T "items.no_items_to_show"}}</p>{{end}}
   </div>
 </div>
 {{end}}

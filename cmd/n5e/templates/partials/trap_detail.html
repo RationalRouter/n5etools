@@ -5,12 +5,12 @@
 <h1>{{.Name}}</h1>
 
 <dl class="fact-list">
-  <dt>Build DC</dt><dd>{{.BuildDC.Int64}}</dd>
-  {{if .SaveDC.Valid}}<dt>Save DC</dt><dd>{{.SaveDC.Int64}}</dd>{{end}}
-  {{if .NoticeDisableDC.Valid}}<dt>Notice/Disable DC</dt><dd>{{.NoticeDisableDC.Int64}}</dd>{{end}}
-  {{if .VsAbility.Valid}}<dt>Vs. Ability</dt><dd>{{.VsAbility.String}}</dd>{{end}}
-  {{if .TimeToBuild.Valid}}<dt>Time to Build</dt><dd>{{.TimeToBuild.String}}</dd>{{end}}
-  <dt>Toolkit Required</dt><dd>{{.ToolkitRequired}}</dd>
+  <dt>{{T "traps.build_dc"}}</dt><dd>{{.BuildDC.Int64}}</dd>
+  {{if .SaveDC.Valid}}<dt>{{T "character_reference.col_save_dc"}}</dt><dd>{{.SaveDC.Int64}}</dd>{{end}}
+  {{if .NoticeDisableDC.Valid}}<dt>{{T "traps.notice_disable_dc"}}</dt><dd>{{.NoticeDisableDC.Int64}}</dd>{{end}}
+  {{if .VsAbility.Valid}}<dt>{{T "traps.vs_ability"}}</dt><dd>{{.VsAbility.String}}</dd>{{end}}
+  {{if .TimeToBuild.Valid}}<dt>{{T "traps.time_to_build"}}</dt><dd>{{.TimeToBuild.String}}</dd>{{end}}
+  <dt>{{T "traps.toolkit_required"}}</dt><dd>{{.ToolkitRequired}}</dd>
 </dl>
 
 {{formatDescription .Description}}

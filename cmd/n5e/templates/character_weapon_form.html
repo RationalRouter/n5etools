@@ -45,11 +45,11 @@
   <div class="subclass-scope">
     {{if .Techniques}}
     <section class="companion-reference">
-      <h3>{{.FormName}} Techniques</h3>
-      <p class="section-hint">Always known, granted for free — doesn't count against any cap.</p>
+      <h3>{{T "character_weapon_form.form_techniques_heading" .FormName}}</h3>
+      <p class="section-hint">{{T "character_weapon_form.techniques_hint"}}</p>
       {{range .Techniques}}
       <div class="puppet-upgrade-pick">
-        <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{.Name}} (granted)
+        <span class="puppet-upgrade-pick-name tooltip" tabindex="0">{{T "character_weapon_form.name_granted" .Name}}
           <span class="tooltip-content">{{formatDescription .Description}}</span>
         </span>
       </div>
@@ -59,19 +59,19 @@
     {{template "subclass_tracker_section" .Styles}}
     {{if .StalkingPredator}}
     <section class="companion-reference">
-      <h3>Stalking Predator</h3>
+      <h3>{{T "character_weapon_form.stalking_predator_heading"}}</h3>
       <form method="post" action="/characters/{{.Data.CharacterID}}/weapon-specialist/weapon-form/stalking-predator" class="sheet-inline-form">
         <select name="value" class="sheet-option-tooltip-select">
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_weapon_form.none_chosen_option"}}</option>
           {{range .StalkingPredator.Options}}
           <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.StalkingPredator.Current}} selected{{end}}>{{.Label}}</option>
           {{end}}
         </select>
         <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
           <span class="tooltip-trigger">ⓘ</span>
-          <span class="tooltip-content">{{if .StalkingPredator.Current}}{{range .StalkingPredator.Options}}{{if eq .Value $.StalkingPredator.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose an Exploit above to see what it does.{{end}}</span>
+          <span class="tooltip-content">{{if .StalkingPredator.Current}}{{range .StalkingPredator.Options}}{{if eq .Value $.StalkingPredator.Current}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_weapon_form.stalking_predator_default_description"}}{{end}}</span>
         </span>
-        <button type="submit">Set</button>
+        <button type="submit">{{T "character_weapon_form.set_button"}}</button>
       </form>
     </section>
     {{end}}

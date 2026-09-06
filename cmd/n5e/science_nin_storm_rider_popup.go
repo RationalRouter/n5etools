@@ -48,7 +48,7 @@ func (s *server) handleStormRiderPopup(w http.ResponseWriter, r *http.Request) {
 	popup := subclassTrackerPopupData{Title: "Storm Rider", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.StormRider == nil {
 		popup.EmptyHint = "This character has no A.T. Enhancements yet — Air Trecks grants this at 3rd-level Storm Rider."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_storm_rider.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_storm_rider.html", popup, nil)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (s *server) handleStormRiderPopup(w http.ResponseWriter, r *http.Request) {
 	if sr.RegaliaCap > 0 {
 		popup.Sections = append(popup.Sections, regaliaSection(id, sr))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_storm_rider.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_storm_rider.html", popup, nil)
 }
 
 func atEnhancementSection(characterID int64, sr *scienceNinStormRiderData) subclassTrackerSection {

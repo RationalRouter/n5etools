@@ -14,7 +14,7 @@
     <h3>{{.Title}}</h3>
     <form method="post" action="/characters/{{$.Data.CharacterID}}/science-nin/ninjaneer/legendary-weapon-active" class="sheet-inline-form">
       <input type="hidden" name="on" value="{{if $.WarriorOfScience.Active}}0{{else}}1{{end}}">
-      <button type="submit" class="sheet-exoskeleton-toggle{{if $.WarriorOfScience.Active}} sheet-exoskeleton-on{{end}}">Legendary Weapon: {{if $.WarriorOfScience.Active}}Active{{else}}Inactive{{end}}</button>
+      <button type="submit" class="sheet-exoskeleton-toggle{{if $.WarriorOfScience.Active}} sheet-exoskeleton-on{{end}}">{{if $.WarriorOfScience.Active}}{{T "character_science_nin_ninjaneer.legendary_weapon_active"}}{{else}}{{T "character_science_nin_ninjaneer.legendary_weapon_inactive"}}{{end}}</button>
     </form>
   </section>
   {{end}}

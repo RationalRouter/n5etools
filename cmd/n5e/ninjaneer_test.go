@@ -303,7 +303,7 @@ func TestNinjaneerWeaponDesignationTemplateRendersTooltip(t *testing.T) {
 	if strings.Contains(body, "Designate Enhanced Weapon") {
 		t.Errorf("Core sheet still has the inline Enhanced Weapon designation picker — should only point to the Ninjaneer popup")
 	}
-	if !strings.Contains(body, `tracked in the "Ninjaneer" popup`) {
+	if !strings.Contains(body, `tracked in the &#34;Ninjaneer&#34; popup`) {
 		t.Errorf("Core sheet missing its pointer to the Ninjaneer popup")
 	}
 	if !strings.Contains(body, `href="/characters/`+strconv.FormatInt(id, 10)+`/science-nin/ninjaneer"`) {

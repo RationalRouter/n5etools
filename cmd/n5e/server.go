@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -35,9 +36,11 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 const tokenCookieName = "n5e_token"
+const localeCookieName = "n5e_locale"
 
 // shutdownGrace bounds how long a graceful shutdown waits for in-flight
 // requests (there's only ever a page render or two) before main.go gives up
@@ -119,6 +122,7 @@ func newToken() (string, error) {
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.handleHome)
+	mux.HandleFunc("POST /settings/locale", s.handleSetLocale)
 	mux.HandleFunc("GET /characters", s.handleCharacters)
 	mux.HandleFunc("GET /characters/new", s.handleNewCharacter)
 	mux.HandleFunc("POST /characters", s.handleCreateCharacter)
@@ -1589,7 +1593,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /backups/{filename}/restore", s.handleBackupRestore)
 	mux.Handle("GET /static/", noStaleStatic(http.FileServerFS(staticFS)))
 
-	return noBFCache(s.requireSameOrigin(s.requireToken(mux)))
+	return noBFCache(s.requireSameOrigin(s.requireToken(s.resolveLocale(mux))))
 }
 
 // sortKey folds a name for alphabetical comparison: SQLite's default BINARY
@@ -1649,8 +1653,61 @@ func (s *server) requireToken(next http.Handler) http.Handler {
 	})
 }
 
+type localeCtxKey struct{}
+
+// resolveLocale reads the n5e_locale cookie once per request and stashes it
+// in the request context, so every downstream handler/helper can read it
+// via localeFromContext without threading a locale parameter through every
+// function signature between here and there. This is a deliberate,
+// narrow use of context values: the only place ctx.Value is ever read is
+// localeFromContext itself, right at the top of each handler -- everything
+// below that reads locale as a plain typed parameter, same as any other
+// argument.
+func (s *server) resolveLocale(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		locale := "en"
+		if c, err := r.Cookie(localeCookieName); err == nil && i18n.IsSupported(c.Value) {
+			locale = c.Value
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), localeCtxKey{}, locale)))
+	})
+}
+
+// localeFromContext returns the request's resolved locale, defaulting to
+// "en" if resolveLocale never ran (shouldn't happen outside tests) or the
+// cookie was absent/invalid.
+func localeFromContext(ctx context.Context) string {
+	if l, ok := ctx.Value(localeCtxKey{}).(string); ok {
+		return l
+	}
+	return "en"
+}
+
+// handleSetLocale is the target of every language-switcher button on the
+// home page (see home.html) -- a plain form POST, no JS required, matching
+// the rest of the app's no-JS-required navigation. Only reachable from the
+// home page by design (the switcher UI itself only renders there), but the
+// cookie it sets is read by resolveLocale on every subsequent request
+// site-wide, so the effect is immediate and global despite the switcher's
+// own visibility being restricted to one page.
+func (s *server) handleSetLocale(w http.ResponseWriter, r *http.Request) {
+	locale := r.FormValue("locale")
+	if !i18n.IsSupported(locale) {
+		http.Error(w, "unsupported locale", http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     localeCookieName,
+		Value:    locale,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func (s *server) handleHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "home.html", map[string]any{"Title": "Home"})
+	s.render(w, r, "home.html", map[string]any{"Title": "Home", "Locale": localeFromContext(r.Context())})
 }
 
 type clanRow struct {
@@ -1686,9 +1743,30 @@ func (s *server) handleClans(w http.ResponseWriter, r *http.Request) {
 		log.Println("clans rows:", err)
 		return
 	}
+
+	locale := localeFromContext(r.Context())
+	slugs := make([]string, len(clans))
+	for i, c := range clans {
+		slugs[i] = c.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "clans", slugs)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("translate clans:", err)
+		return
+	}
+	for i := range clans {
+		if v, ok := translations[clans[i].Slug]["epithet"]; ok {
+			clans[i].Epithet = v
+		}
+		if v, ok := translations[clans[i].Slug]["extra_language"]; ok {
+			clans[i].ExtraLanguage = sql.NullString{String: v, Valid: true}
+		}
+	}
+
 	sort.Slice(clans, func(i, j int) bool { return sortKey(clans[i].Name) < sortKey(clans[j].Name) })
 
-	s.render(w, "clans.html", map[string]any{"Title": "Clans", "Clans": clans})
+	s.render(w, r, "clans.html", map[string]any{"Title": "Clans", "Clans": clans})
 }
 
 type clanTrait struct {
@@ -1697,6 +1775,7 @@ type clanTrait struct {
 }
 
 type clanFeature struct {
+	Slug        string
 	Name        string
 	Level       sql.NullInt64
 	Description string
@@ -1759,7 +1838,7 @@ var profKindLabels = []struct{ kind, label string }{
 // character-creation Clan step's two-pane preview, and the AJAX fragment
 // swap (see handleClanDetail) — one query set reused three ways, same
 // pattern as jutsu.go's loadJutsuDetail.
-func loadClanDetail(rulesDB *sql.DB, slug string) (*clanDetail, error) {
+func loadClanDetail(rulesDB *sql.DB, locale, slug string) (*clanDetail, error) {
 	var c clanDetail
 	err := rulesDB.QueryRow(`
 		SELECT slug, name, epithet, overview, speed_feet, extra_language, ability_increase_text
@@ -1767,6 +1846,20 @@ func loadClanDetail(rulesDB *sql.DB, slug string) (*clanDetail, error) {
 	).Scan(&c.Slug, &c.Name, &c.Epithet, &c.Overview, &c.SpeedFeet, &c.ExtraLanguage, &c.AbilityIncreaseText)
 	if err != nil {
 		return nil, err
+	}
+	if tr, err := i18n.Row(rulesDB, locale, "clans", c.Slug); err == nil {
+		if v, ok := tr["epithet"]; ok {
+			c.Epithet = v
+		}
+		if v, ok := tr["overview"]; ok {
+			c.Overview = v
+		}
+		if v, ok := tr["extra_language"]; ok {
+			c.ExtraLanguage = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["ability_increase_text"]; ok {
+			c.AbilityIncreaseText = sql.NullString{String: v, Valid: true}
+		}
 	}
 
 	traitRows, err := rulesDB.Query(`
@@ -1780,6 +1873,14 @@ func loadClanDetail(rulesDB *sql.DB, slug string) (*clanDetail, error) {
 			traitRows.Close()
 			return nil, err
 		}
+		if tr, err := i18n.Row(rulesDB, locale, "clan_traits", slug+i18n.KeySeparator+t.Name); err == nil {
+			if v, ok := tr["name"]; ok {
+				t.Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				t.Description = v
+			}
+		}
 		c.Traits = append(c.Traits, t)
 	}
 	traitRows.Close()
@@ -1788,15 +1889,23 @@ func loadClanDetail(rulesDB *sql.DB, slug string) (*clanDetail, error) {
 	}
 
 	featureRows, err := rulesDB.Query(`
-		SELECT name, level, description FROM v_clan_features WHERE clan_slug = ? ORDER BY sort_order`, slug)
+		SELECT slug, name, level, description FROM v_clan_features WHERE clan_slug = ? ORDER BY sort_order`, slug)
 	if err != nil {
 		return nil, err
 	}
 	for featureRows.Next() {
 		var f clanFeature
-		if err := featureRows.Scan(&f.Name, &f.Level, &f.Description); err != nil {
+		if err := featureRows.Scan(&f.Slug, &f.Name, &f.Level, &f.Description); err != nil {
 			featureRows.Close()
 			return nil, err
+		}
+		if tr, err := i18n.Row(rulesDB, locale, "clan_features", f.Slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				f.Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				f.Description = v
+			}
 		}
 		if scales := highestScalingLevel(f.Description); scales > int(f.Level.Int64) {
 			f.ScalesThrough = scales
@@ -1898,7 +2007,7 @@ func loadClanDetail(rulesDB *sql.DB, slug string) (*clanDetail, error) {
 func (s *server) handleClanDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
-	c, err := loadClanDetail(s.rulesDB, slug)
+	c, err := loadClanDetail(s.rulesDB, localeFromContext(r.Context()), slug)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -1910,20 +2019,11 @@ func (s *server) handleClanDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["clan_detail.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render clan fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "clan_detail_card", c); err != nil {
-			log.Println("render clan fragment:", err)
-		}
+		s.renderCard(w, r, "clan_detail.html", "clan_detail_card", c)
 		return
 	}
 
-	s.render(w, "clan_detail.html", map[string]any{"Title": c.Name, "Clan": c})
+	s.render(w, r, "clan_detail.html", map[string]any{"Title": c.Name, "Clan": c})
 }
 
 // handleHeartbeat records that a page is still open — see static/js/
@@ -2123,13 +2223,26 @@ func wantsFragment(r *http.Request) bool {
 	return r.Header.Get("X-Requested-With") == "fetch"
 }
 
-func (s *server) render(w http.ResponseWriter, page string, data any) {
+func (s *server) render(w http.ResponseWriter, r *http.Request, page string, data any) {
 	tmpl, ok := pageTemplates[page]
 	if !ok {
 		http.Error(w, "template not found", http.StatusInternalServerError)
 		log.Println("render: no template registered for", page)
 		return
 	}
+	// Clone before Funcs: pageTemplates[page] is shared across every
+	// concurrent request. Template.Funcs mutates its receiver's function
+	// map in place rather than returning a copy, so calling it directly on
+	// the shared template would race with other requests and let one
+	// request's locale leak into another's. Clone gives each request its
+	// own independent copy to bind a locale-specific "T" onto.
+	tmpl, err := tmpl.Clone()
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		log.Println("render: cloning template for", page, ":", err)
+		return
+	}
+	tmpl = tmpl.Funcs(localeTemplateFuncs(localeFromContext(r.Context())))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Println("render", page, ":", err)
@@ -2143,13 +2256,21 @@ func (s *server) render(w http.ResponseWriter, page string, data any) {
 // page names any template set the card partial is parsed into; every set
 // includes every partial, so a list page's own name is the conventional
 // choice.
-func (s *server) renderCard(w http.ResponseWriter, page, card string, data any) {
+func (s *server) renderCard(w http.ResponseWriter, r *http.Request, page, card string, data any) {
 	tmpl, ok := pageTemplates[page]
 	if !ok {
 		http.Error(w, "template not found", http.StatusInternalServerError)
 		log.Println("renderCard: no template registered for", page)
 		return
 	}
+	// See render's identical Clone-before-Funcs comment above.
+	tmpl, err := tmpl.Clone()
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		log.Println("renderCard: cloning template for", page, ":", err)
+		return
+	}
+	tmpl = tmpl.Funcs(localeTemplateFuncs(localeFromContext(r.Context())))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, card, data); err != nil {
 		log.Println("renderCard", card, ":", err)

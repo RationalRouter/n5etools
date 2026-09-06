@@ -10,7 +10,7 @@
      viewport and devicePixelRatio, so no width/height attributes here. */}}
 <canvas id="dice-3d" aria-hidden="true"></canvas>
 <div id="dice-roller">
-  <button type="button" id="dice-fab" aria-label="Roll dice" aria-expanded="false" aria-controls="dice-panel">
+  <button type="button" id="dice-fab" aria-label="{{T "dice_roller.roll_dice_aria"}}" aria-expanded="false" aria-controls="dice-panel">
     <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
       <polygon points="12,1.5 22.5,7.75 22.5,16.25 12,22.5 1.5,16.25 1.5,7.75"
                fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -18,20 +18,20 @@
     </svg>
   </button>
 
-  <div id="dice-panel" class="dice-panel" hidden role="dialog" aria-label="Roll dice">
+  <div id="dice-panel" class="dice-panel" hidden role="dialog" aria-label="{{T "dice_roller.roll_dice_aria"}}">
     <div class="dice-panel-header">
-      <h3>Roll Dice</h3>
-      <button type="button" id="dice-close" aria-label="Close">&times;</button>
+      <h3>{{T "dice_roller.roll_dice_heading"}}</h3>
+      <button type="button" id="dice-close" aria-label="{{T "nav.close"}}">&times;</button>
     </div>
 
     {{/* Advantage/Disadvantage applies only to a lone d20 roll (every skill/
          save/ability/attack/Clash check on the sheet, plus a manual single-
          d20 tray roll) — see dice-roller.js's startRoll for exactly which
          rolls qualify. A damage roll or any mixed pool is untouched. */}}
-    <div class="dice-roll-mode" role="group" aria-label="Roll mode">
-      <button type="button" class="dice-mode-btn" data-mode="disadvantage">Disadvantage</button>
-      <button type="button" class="dice-mode-btn active" data-mode="normal">Normal</button>
-      <button type="button" class="dice-mode-btn" data-mode="advantage">Advantage</button>
+    <div class="dice-roll-mode" role="group" aria-label="{{T "dice_roller.roll_mode_aria"}}">
+      <button type="button" class="dice-mode-btn" data-mode="disadvantage">{{T "dice_roller.disadvantage"}}</button>
+      <button type="button" class="dice-mode-btn active" data-mode="normal">{{T "dice_roller.normal"}}</button>
+      <button type="button" class="dice-mode-btn" data-mode="advantage">{{T "dice_roller.advantage"}}</button>
     </div>
 
     {{/* Elemental Advantage: the book's circular Nature Release matchup
@@ -42,29 +42,29 @@
          to a single character sheet. */}}
     <div class="dice-elemental-matchup">
       <label>
-        <span>Your Nature</span>
+        <span>{{T "dice_roller.your_nature"}}</span>
         <select id="dice-elemental-you">
-          <option value="">None</option>
-          <option value="Fire">Fire</option>
-          <option value="Wind">Wind</option>
-          <option value="Lightning">Lightning</option>
-          <option value="Earth">Earth</option>
-          <option value="Water">Water</option>
+          <option value="">{{T "sheet.none_option"}}</option>
+          <option value="Fire">{{T "sheet.fire_placeholder"}}</option>
+          <option value="Wind">{{T "dice_roller.wind"}}</option>
+          <option value="Lightning">{{T "dice_roller.lightning"}}</option>
+          <option value="Earth">{{T "dice_roller.earth"}}</option>
+          <option value="Water">{{T "dice_roller.water"}}</option>
         </select>
       </label>
       <label>
-        <span>Foe's Nature</span>
+        <span>{{T "dice_roller.foes_nature"}}</span>
         <select id="dice-elemental-foe">
-          <option value="">None</option>
-          <option value="Fire">Fire</option>
-          <option value="Wind">Wind</option>
-          <option value="Lightning">Lightning</option>
-          <option value="Earth">Earth</option>
-          <option value="Water">Water</option>
+          <option value="">{{T "sheet.none_option"}}</option>
+          <option value="Fire">{{T "sheet.fire_placeholder"}}</option>
+          <option value="Wind">{{T "dice_roller.wind"}}</option>
+          <option value="Lightning">{{T "dice_roller.lightning"}}</option>
+          <option value="Earth">{{T "dice_roller.earth"}}</option>
+          <option value="Water">{{T "dice_roller.water"}}</option>
         </select>
       </label>
     </div>
-    <div id="dice-elemental-hint" class="dice-elemental-hint" hidden>⚡ Elemental Advantage</div>
+    <div id="dice-elemental-hint" class="dice-elemental-hint" hidden>⚡ {{T "dice_roller.elemental_advantage_hint"}}</div>
 
     <div class="dice-grid">
       <button type="button" class="dice-die" data-sides="20" aria-label="d20">
@@ -98,10 +98,10 @@
     </div>
 
     <div class="dice-actions">
-      <button type="button" id="dice-reset" class="dice-btn-reset">Reset</button>
-      <button type="button" id="dice-roll" class="dice-btn-roll">Roll</button>
+      <button type="button" id="dice-reset" class="dice-btn-reset">{{T "dice_roller.reset"}}</button>
+      <button type="button" id="dice-roll" class="dice-btn-roll">{{T "dice_roller.roll"}}</button>
     </div>
-    <button type="button" id="dice-clear" class="dice-clear-link">Clear Dice</button>
+    <button type="button" id="dice-clear" class="dice-clear-link">{{T "dice_roller.clear_dice"}}</button>
 
     <div id="dice-results" class="dice-results" hidden>
       <div id="dice-results-label" class="dice-results-label" hidden></div>

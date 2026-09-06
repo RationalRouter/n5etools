@@ -1,6 +1,6 @@
 {{define "content"}}
-<h1>Choose a Background</h1>
-<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+<h1>{{T "create_background.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">{{T "create_background.back_to_checklist"}}</a></p>
 {{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
 <div class="browse-layout">
   <div class="browse-list-pane">
@@ -16,7 +16,7 @@
     </div>
   </div>
   <div class="browse-detail-pane" id="creation-detail-pane">
-    {{if .FocusDetail}}{{template "create_background_focus" .}}{{else}}<p class="section-hint">Pick a background on the left to see its details.</p>{{end}}
+    {{if .FocusDetail}}{{template "create_background_focus" .}}{{else}}<p class="section-hint">{{T "create_background.pick_hint"}}</p>{{end}}
   </div>
 </div>
 {{end}}
@@ -31,7 +31,7 @@
   <input type="hidden" name="background_slug" value="{{.Focus}}">
   {{range .Profs}}
   {{if .Options}}
-  <label>Choose {{.ChooseN}} {{.Kind}}{{if gt .ChooseN 1}}s{{end}} from {{.Value}}</label>
+  <label>{{if gt .ChooseN 1}}{{T "create_background.choose_n_plural" .ChooseN .Kind .Value}}{{else}}{{T "create_background.choose_n_singular" .ChooseN .Kind .Value}}{{end}}</label>
   {{$row := .}}
   {{$pairs := skillOptionPairs .}}
   <div class="kit-choice-slots">
@@ -39,24 +39,24 @@
     {{$slotValue := index $row.SlotValues $slot}}
     <div class="kit-choice-slot">
       <select name="choice_{{$row.Index}}_{{$slot}}" class="background-choice-select" required>
-        <option value="">— choose —</option>
+        <option value="">{{T "create_background.choose_placeholder"}}</option>
         {{range $pairs}}
-        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slotValue}}selected{{end}}>{{.Name}}{{if .Desc}} — {{.Desc}}{{end}}</option>
+        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slotValue}}selected{{end}}>{{.Name}}{{if .Desc}}{{T "create_background.name_desc_dash" .Desc}}{{end}}</option>
         {{end}}
       </select>
       {{if eq $row.Kind "tool"}}
-      <a class="creation-picker-row equipment-preview-link background-choice-preview" href="/items/" data-slug="" hidden>View stats</a>
+      <a class="creation-picker-row equipment-preview-link background-choice-preview" href="/items/" data-slug="" hidden>{{T "create_background.view_stats"}}</a>
       {{end}}
     </div>
     {{end}}
   </div>
   {{else if .IsChoice}}
-  <label for="freetext-{{.Index}}">{{.Kind}} — {{.Value}}</label>
-  <input type="text" id="freetext-{{.Index}}" name="choice_{{.Index}}" placeholder="What did you pick?">
+  <label for="freetext-{{.Index}}">{{T "create_background.kind_value_dash" .Kind .Value}}</label>
+  <input type="text" id="freetext-{{.Index}}" name="choice_{{.Index}}" placeholder="{{T "create_background.what_did_you_pick"}}">
   {{else}}
-  <p class="grant-automatic">Grants {{.Kind}}: {{.Value}}{{if .ValueDesc}} — {{.ValueDesc}}{{end}} <span class="option-picker-epithet">(automatic)</span></p>
+  <p class="grant-automatic">{{T "create_background.grants_kind_value" .Kind .Value}}{{if .ValueDesc}}{{T "create_background.value_desc_dash" .ValueDesc}}{{end}} <span class="option-picker-epithet">{{T "create_background.automatic"}}</span></p>
   {{end}}
   {{end}}
-  <button type="submit" class="btn-primary">Confirm {{.FocusDetail.Name}}</button>
+  <button type="submit" class="btn-primary">{{T "create_background.confirm_button" .FocusDetail.Name}}</button>
 </form>
 {{end}}

@@ -377,19 +377,19 @@ func TestCookingNinSubclassPopupSidebarButtons(t *testing.T) {
 		{"Pipe", func(t *testing.T, s *server) int64 {
 			seedCookingNinSubclassCatalog(t, s)
 			return seedCookingNinSubclassCharacter(t, s, "Chouji", "class/cooking-nin/group/cooking-focus/herbalist", 11)
-		}, pipePopupPath, `tracked in the "Bonus Tool Infusion: Pipe" popup`},
+		}, pipePopupPath, `tracked in the &#34;Bonus Tool Infusion: Pipe&#34; popup`},
 		{"Expert Combatant", func(t *testing.T, s *server) int64 {
 			seedCookingNinSubclassCatalog(t, s)
 			return seedCookingNinSubclassCharacter(t, s, "Ino", "class/cooking-nin/group/cooking-focus/battle-cook", 5)
-		}, battleCookExpertCombatantPopupPath, `tracked in the "Expert Combatant (Battle Cook)" popup`},
+		}, battleCookExpertCombatantPopupPath, `tracked in the &#34;Expert Combatant (Battle Cook)&#34; popup`},
 		{"Fast and Furious", func(t *testing.T, s *server) int64 {
 			seedCookingNinSubclassCatalog(t, s)
 			return seedCookingNinSubclassCharacter(t, s, "Sasuke", "class/cooking-nin/group/cooking-focus/entremetier-chef", 5)
-		}, fastAndFuriousPopupPath, `tracked in the "Fast and Furious" popup`},
+		}, fastAndFuriousPopupPath, `tracked in the &#34;Fast and Furious&#34; popup`},
 		{"Nature's Blend Enhancements", func(t *testing.T, s *server) int64 {
 			seedCookingNinSubclassCatalog(t, s)
 			return seedGastrochemistCharacter(t, s, "Choza", 5)
-		}, blendEnhancementsPopupPath, `tracked in the "Nature's Blend Enhancements" popup`},
+		}, blendEnhancementsPopupPath, `tracked in the &#34;Nature&#39;s Blend Enhancements&#34; popup`},
 	}
 
 	for _, c := range cases {

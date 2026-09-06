@@ -434,7 +434,7 @@ func TestScoutingTechniquePopupArbiterScoutParagonsPresence(t *testing.T) {
 	popupPath := scoutingTechniquePopupPath(id)
 
 	body := getPopup(t, s, popupPath).Body.String()
-	if !strings.Contains(body, "Paragon's Presence") {
+	if !strings.Contains(body, "Paragon&#39;s Presence") {
 		t.Errorf("initial render missing the Paragon's Presence section:\n%s", body)
 	}
 	if !strings.Contains(body, "Frightened") {
@@ -493,7 +493,7 @@ func TestScoutingTechniqueSidebarButton(t *testing.T) {
 			if !strings.Contains(sheetBody, `href="`+wantHref+`"`) {
 				t.Errorf("Core sheet missing its own sidebar button (href=%q):\n%s", wantHref, sheetBody)
 			}
-			if !strings.Contains(sheetBody, `tracked in the "Scouting Technique" popup`) {
+			if !strings.Contains(sheetBody, `tracked in the &#34;Scouting Technique&#34; popup`) {
 				t.Errorf("Core sheet missing pointer text:\n%s", sheetBody)
 			}
 			if strings.Contains(sheetBody, c.goneAddText) {
@@ -532,7 +532,7 @@ func TestScoutingTechniqueBaseClassPicksStayInline(t *testing.T) {
 	if strings.Contains(sheetBody, `href="`+wantHref+`"`) {
 		t.Errorf("Core sheet should not show the Scouting Technique sidebar button with no Technique chosen:\n%s", sheetBody)
 	}
-	if strings.Contains(sheetBody, `tracked in the "Scouting Technique" popup`) {
+	if strings.Contains(sheetBody, `tracked in the &#34;Scouting Technique&#34; popup`) {
 		t.Errorf("Core sheet should not show the popup pointer text with no Technique chosen:\n%s", sheetBody)
 	}
 }

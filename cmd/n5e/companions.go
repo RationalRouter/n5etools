@@ -1345,7 +1345,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			voidSoulJutsuAttackRows(ref.KnownJutsu, sheet)...)
 	}
 
-	s.render(w, "companion_sheet.html", data)
+	s.render(w, r, "companion_sheet.html", data)
 }
 
 // handleCompanionSave is the companion popup's whole-form autosave target —

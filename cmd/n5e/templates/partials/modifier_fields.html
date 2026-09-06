@@ -30,9 +30,9 @@
 {{define "sheet_modifier_fields"}}
 <div class="sheet-modifier-fields">
   <fieldset>
-    <legend>To hit</legend>
+    <legend>{{T "modifier_fields.to_hit"}}</legend>
     <label>
-      <span>Ability</span>
+      <span>{{T "sheet.ability_label"}}</span>
       <select name="attack_ability">
         <option value="">{{.AutoLabel}}</option>
         {{$chosen := .AttackAbility}}
@@ -42,23 +42,23 @@
       </select>
     </label>
     <label>
-      <span>Proficiency</span>
+      <span>{{T "sheet.proficiency_label"}}</span>
       {{$mode := .AttackProf}}
       <select name="attack_prof">
-        <option value="full"{{if eq $mode "full"}} selected{{end}}>Full</option>
-        <option value="half"{{if eq $mode "half"}} selected{{end}}>Half</option>
-        <option value="none"{{if eq $mode "none"}} selected{{end}}>None</option>
+        <option value="full"{{if eq $mode "full"}} selected{{end}}>{{T "sheet.full_option"}}</option>
+        <option value="half"{{if eq $mode "half"}} selected{{end}}>{{T "sheet.half_option"}}</option>
+        <option value="none"{{if eq $mode "none"}} selected{{end}}>{{T "sheet.none_option"}}</option>
       </select>
     </label>
     <label>
-      <span>Bonus</span>
-      <input type="number" name="attack_bonus" step="1" value="{{.AttackFlat}}" aria-label="Flat attack bonus">
+      <span>{{T "sheet.bonus_label"}}</span>
+      <input type="number" name="attack_bonus" step="1" value="{{.AttackFlat}}" aria-label="{{T "modifier_fields.flat_attack_bonus_aria"}}">
     </label>
   </fieldset>
   <fieldset>
-    <legend>Damage</legend>
+    <legend>{{T "sheet.damage_col"}}</legend>
     <label>
-      <span>Ability</span>
+      <span>{{T "sheet.ability_label"}}</span>
       <select name="damage_ability">
         <option value="">{{.AutoLabel}}</option>
         {{$dchosen := .DamageAbility}}
@@ -68,8 +68,8 @@
       </select>
     </label>
     <label>
-      <span>Bonus</span>
-      <input type="number" name="damage_bonus" step="1" value="{{.DamageFlat}}" aria-label="Flat damage bonus">
+      <span>{{T "sheet.bonus_label"}}</span>
+      <input type="number" name="damage_bonus" step="1" value="{{.DamageFlat}}" aria-label="{{T "modifier_fields.flat_damage_bonus_aria"}}">
     </label>
   </fieldset>
 </div>

@@ -79,20 +79,20 @@
        written back into its input so a leftover "+3" is never resubmitted
        by a later, unrelated field's blur. */}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/ac" class="companion-delta-form">
-    <label>AC <input type="text" inputmode="numeric" name="value" value="{{if .Companion.AC.Valid}}{{.Companion.AC.Int64}}{{end}}"
+    <label>{{T "sheet.ac_abbr"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.AC.Valid}}{{.Companion.AC.Int64}}{{end}}"
                       class="companion-delta-field" data-field="ac" placeholder="—"
-                      title="{{if $autoComputedACHP}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set AC, or +1 / -1 to adjust it{{end}}"></label>
+                      title="{{if $autoComputedACHP}}{{T "companion_fields.auto_calculated_bonus_hint"}}{{else}}{{T "companion_fields.set_ac_hint"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp" class="companion-hp-form">
-    <label>HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPCurrent.Valid}}{{.Companion.HPCurrent.Int64}}{{end}}"
+    <label>{{T "sheet.hp_word"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPCurrent.Valid}}{{.Companion.HPCurrent.Int64}}{{end}}"
                       class="companion-hp-field" placeholder="—"
-                      title="Type a number to set HP, or +3 / -2 to adjust it"></label>
+                      title="{{T "companion_fields.set_hp_hint"}}"></label>
   </form>
   <span class="companion-stat-sep">/</span>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/hp_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.HPMax.Valid}}{{.Companion.HPMax.Int64}}{{end}}"
-                      class="companion-delta-field" data-field="hp_max" placeholder="—" aria-label="Max HP"
-                      title="{{if $autoComputedACHP}}Auto-calculated from every applicable bonus — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Max HP, or +2 / -2 to adjust it{{end}}"></label>
+                      class="companion-delta-field" data-field="hp_max" placeholder="—" aria-label="{{T "sheet.max_hp_label"}}"
+                      title="{{if $autoComputedACHP}}{{T "companion_fields.auto_calculated_bonus_hint"}}{{else}}{{T "companion_fields.set_max_hp_hint"}}{{end}}"></label>
   </form>
   {{/* Temp HP: a separate pool absorbed before HP on damage (see
        AddCompanionHP's own cascade, migration 0080_companion_temp_hp.sql),
@@ -104,14 +104,14 @@
        companionOverrideFields) — like HP-current, it's a fluctuating
        resource with no formula default to protect. */}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/temp_hp" class="companion-delta-form">
-    <label>Temp HP <input type="text" inputmode="numeric" name="value" value="{{if .Companion.TempHP.Valid}}{{.Companion.TempHP.Int64}}{{end}}"
+    <label>{{T "sheet.temp_hp_word"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.TempHP.Valid}}{{.Companion.TempHP.Int64}}{{end}}"
                       class="companion-delta-field" data-field="temp_hp" placeholder="—"
-                      title="Type a number to set Temp HP, or +3 / -2 to adjust it — absorbed before HP on damage, same as the Core Sheet's own Temp HP"></label>
+                      title="{{T "companion_fields.set_temp_hp_hint"}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/speed" class="companion-delta-form">
-    <label>Speed <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}"
+    <label>{{T "sheet.speed_label"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Speed.Valid}}{{.Companion.Speed.Int64}}{{end}}"
                       class="companion-delta-field" data-field="speed" placeholder="—"
-                      title="{{if $autoComputedSpeed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Speed, or +5 / -5 to adjust it{{end}}"></label>
+                      title="{{if $autoComputedSpeed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_speed_hint"}}{{end}}"></label>
   </form>
   {{/* Flying speed is shown once this companion already has one (an
        auto-computed kind's own formula granted it, or a Summon/Custom's
@@ -122,9 +122,9 @@
        isn't shown by default since there's nothing to show yet. */}}
   {{if .Companion.FlySpeed.Valid}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/fly_speed" class="companion-delta-form">
-    <label>Fly <input type="text" inputmode="numeric" name="value" value="{{.Companion.FlySpeed.Int64}}"
+    <label>{{T "companion_fields.fly_label"}} <input type="text" inputmode="numeric" name="value" value="{{.Companion.FlySpeed.Int64}}"
                       class="companion-delta-field" data-field="fly_speed" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Fly Speed, or +5 / -5 to adjust it{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_fly_speed_hint"}}{{end}}"></label>
   </form>
   {{end}}
 
@@ -138,15 +138,15 @@
        just as pinnable; current is always a plain fluctuating resource. */}}
   {{if eq .Companion.Kind "nin-dog"}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_current" class="companion-delta-form">
-    <label>Jutsu Slots <input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsCurrent.Valid}}{{.Companion.JutsuSlotsCurrent.Int64}}{{end}}"
+    <label>{{T "companion_fields.jutsu_slots_label"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsCurrent.Valid}}{{.Companion.JutsuSlotsCurrent.Int64}}{{end}}"
                       class="companion-delta-field" data-field="jutsu_slots_current" placeholder="—"
-                      title="Type a number to set current Jutsu Slots, or +1 / -1 to adjust it"></label>
+                      title="{{T "companion_fields.set_jutsu_slots_current_hint"}}"></label>
   </form>
   <span class="companion-stat-sep">/</span>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/jutsu_slots_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.JutsuSlotsMax.Valid}}{{.Companion.JutsuSlotsMax.Int64}}{{end}}"
-                      class="companion-delta-field" data-field="jutsu_slots_max" placeholder="—" aria-label="Max Jutsu Slots"
-                      title="Auto-calculated from Nin-Dog rank — type a number to pin it, or clear to return to the live total"></label>
+                      class="companion-delta-field" data-field="jutsu_slots_max" placeholder="—" aria-label="{{T "companion_fields.max_jutsu_slots_aria"}}"
+                      title="{{T "companion_fields.auto_calculated_nindog_rank_hint"}}"></label>
   </form>
   {{end}}
 
@@ -159,15 +159,15 @@
        current is always a plain fluctuating resource. */}}
   {{if eq .Companion.Kind "titan"}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_current" class="companion-delta-form">
-    <label>Barrier <input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierCurrent.Valid}}{{.Companion.BarrierCurrent.Int64}}{{end}}"
+    <label>{{T "companion_fields.barrier_label"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierCurrent.Valid}}{{.Companion.BarrierCurrent.Int64}}{{end}}"
                       class="companion-delta-field" data-field="barrier_current" placeholder="—"
-                      title="Type a number to set current Barrier hit points, or +5 / -5 to adjust it"></label>
+                      title="{{T "companion_fields.set_barrier_current_hint"}}"></label>
   </form>
   <span class="companion-stat-sep">/</span>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/barrier_max" class="companion-delta-form">
     <label class="companion-stat-nolabel"><input type="text" inputmode="numeric" name="value" value="{{if .Companion.BarrierMax.Valid}}{{.Companion.BarrierMax.Int64}}{{end}}"
-                      class="companion-delta-field" data-field="barrier_max" placeholder="—" aria-label="Max Barrier"
-                      title="Auto-calculated from Science-Nin level — type a number to pin it, or clear to return to the live total"></label>
+                      class="companion-delta-field" data-field="barrier_max" placeholder="—" aria-label="{{T "companion_fields.max_barrier_aria"}}"
+                      title="{{T "companion_fields.auto_calculated_science_nin_level_hint"}}"></label>
   </form>
   {{end}}
 
@@ -181,7 +181,7 @@
        other stat here. */}}
   {{if .ShowSeals}}
   <div class="companion-seals">
-    <span class="companion-seals-label">Seals <span class="option-picker-epithet">{{len .Seals}}/{{.SealCap}}</span></span>
+    <span class="companion-seals-label">{{T "companion_fields.seals_label"}} <span class="option-picker-epithet">{{len .Seals}}/{{.SealCap}}</span></span>
     <div class="companion-seals-chips">
       {{range .Seals}}
       <span class="companion-seal-chip tooltip" tabindex="0">
@@ -189,7 +189,7 @@
         <span class="tooltip-content">{{formatDescription .Description}}</span>
         <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/seals/{{.ID}}/delete"
               class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
-          <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+          <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_button"}}">&times;</button>
         </form>
       </span>
       {{end}}
@@ -198,12 +198,12 @@
     <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/seals"
           class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
       <select name="seal_slug" required>
-        <option value="">— add a seal —</option>
+        <option value="">{{T "companion_fields.add_seal_placeholder"}}</option>
         {{range .SealOptions}}
         <option value="{{.Slug}}">{{.Name}} ({{.AppliesTo}})</option>
         {{end}}
       </select>
-      <button type="submit">+ Add</button>
+      <button type="submit">{{T "companion_fields.add_button"}}</button>
     </form>
     {{end}}
   </div>
@@ -223,7 +223,7 @@
 <div class="section-hint companion-enhanced-durability-hint">
   <span>
     {{range $i, $b := .UpgradeBonuses}}{{if $i}}; {{end}}{{$b.Name}}: {{range $j, $p := $b.Parts}}{{if $j}}, {{end}}{{$p}}{{end}}{{end}}
-    — already folded into the numbers above.
+    {{T "companion_fields.already_folded_into_numbers_above"}}
   </span>
 </div>
 {{end}}
@@ -243,34 +243,34 @@
 {{if ne .Companion.Kind "void-soul"}}
 <div class="companion-ability-row">
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/str_score" class="companion-delta-form">
-    <label>STR <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}"
+    <label>{{T "characters.stat_str"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Str.Valid}}{{.Companion.Str.Int64}}{{end}}"
                       class="companion-delta-field" data-field="str_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Strength{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Strength"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/dex_score" class="companion-delta-form">
-    <label>DEX <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Dex.Valid}}{{.Companion.Dex.Int64}}{{end}}"
+    <label>{{T "characters.stat_dex"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Dex.Valid}}{{.Companion.Dex.Int64}}{{end}}"
                       class="companion-delta-field" data-field="dex_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Dexterity{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Dexterity"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/con_score" class="companion-delta-form">
-    <label>CON <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Con.Valid}}{{.Companion.Con.Int64}}{{end}}"
+    <label>{{T "characters.stat_con"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Con.Valid}}{{.Companion.Con.Int64}}{{end}}"
                       class="companion-delta-field" data-field="con_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Constitution{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Constitution"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/int_score" class="companion-delta-form">
-    <label>INT <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Int.Valid}}{{.Companion.Int.Int64}}{{end}}"
+    <label>{{T "characters.stat_int"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Int.Valid}}{{.Companion.Int.Int64}}{{end}}"
                       class="companion-delta-field" data-field="int_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Intelligence{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Intelligence"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/wis_score" class="companion-delta-form">
-    <label>WIS <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Wis.Valid}}{{.Companion.Wis.Int64}}{{end}}"
+    <label>{{T "characters.stat_wis"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Wis.Valid}}{{.Companion.Wis.Int64}}{{end}}"
                       class="companion-delta-field" data-field="wis_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Wisdom{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Wisdom"}}{{end}}"></label>
   </form>
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/cha_score" class="companion-delta-form">
-    <label>CHA <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}"
+    <label>{{T "characters.stat_cha"}} <input type="text" inputmode="numeric" name="value" value="{{if .Companion.Cha.Valid}}{{.Companion.Cha.Int64}}{{end}}"
                       class="companion-delta-field" data-field="cha_score" placeholder="—"
-                      title="{{if $autoComputed}}Auto-calculated — type a number to pin it, or clear to return to the live total{{else}}Type a number to set Charisma{{end}}"></label>
+                      title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_hint"}}{{else}}{{T "companion_fields.set_ability_score_hint" "Charisma"}}{{end}}"></label>
   </form>
 </div>
 {{end}}
@@ -294,7 +294,7 @@
      them. */}}
 {{if eq .Companion.Kind "void-soul"}}
 {{if not .VoidSoulReference}}
-<p class="section-hint">Void Soul stats need Trickster Scout's Void Soul Awakening to compute — this character doesn't currently qualify.</p>
+<p class="section-hint">{{T "companion_fields.void_soul_needs_awakening"}}</p>
 {{else}}
 <div class="companion-void-soul-summon">
   {{if .ShowVoidSoulEditing}}
@@ -310,19 +310,19 @@
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
     <input type="hidden" name="on" value="{{if .Companion.VoidSoulIsSummoned}}0{{else}}1{{end}}">
     <button type="submit" class="companion-void-soul-toggle{{if .Companion.VoidSoulIsSummoned}} companion-void-soul-summoned{{end}}"
-            data-toggle-class="companion-void-soul-summoned">{{if .Companion.VoidSoulIsSummoned}}Dismiss{{else}}Summon{{end}} Void Soul</button>
+            data-toggle-class="companion-void-soul-summoned">{{if .Companion.VoidSoulIsSummoned}}{{T "companion_fields.dismiss_void_soul"}}{{else}}{{T "companion_fields.summon_void_soul"}}{{end}}</button>
   </form>
   {{else}}
-  <span class="option-picker-epithet">{{if .Companion.VoidSoulIsSummoned}}Currently summoned{{else}}Currently dismissed{{end}}</span>
+  <span class="option-picker-epithet">{{if .Companion.VoidSoulIsSummoned}}{{T "companion_fields.currently_summoned"}}{{else}}{{T "companion_fields.currently_dismissed"}}{{end}}</span>
   {{end}}
   {{if .Companion.VoidSoulIsSummoned}}
-  <p class="section-hint">While summoned: your own AC uses Charisma in place of Dexterity if that's better (already applied to your AC), it's visible to creatures who can mold chakra, and occupies your space. It's resummoned into your space if you end your turn more than 120ft away from it.</p>
+  <p class="section-hint">{{T "companion_fields.void_soul_summoned_hint"}}</p>
   {{end}}
 </div>
 
 <div class="companion-void-soul-abilities">
-  <h4>Ability Modifiers <span class="option-picker-epithet">{{.VoidSoulReference.PointsAvailable}}/{{.VoidSoulReference.PointsTotal}} points available</span></h4>
-  <p class="section-hint">Your Charisma modifier &times; 3 points, each raising one Ability Modifier by +1 (max +6).</p>
+  <h4>{{T "companion_fields.ability_modifiers_heading"}} <span class="option-picker-epithet">{{T "companion_fields.points_available" .VoidSoulReference.PointsAvailable .VoidSoulReference.PointsTotal}}</span></h4>
+  <p class="section-hint">{{T "companion_fields.void_soul_ability_points_hint"}}</p>
   <div class="companion-ability-row companion-void-soul-ability-row">
     {{$ref := .VoidSoulReference}}
     {{range .VoidSoulReference.Abilities}}
@@ -336,14 +336,14 @@
           <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
           <input type="hidden" name="ability" value="{{.Ability}}">
           <input type="hidden" name="delta" value="-1">
-          <button type="submit" class="companion-void-soul-ability-btn" aria-label="Decrease {{upper .Ability}} modifier" title="Decrease {{upper .Ability}} modifier" {{if le .Modifier 0}}disabled{{end}}>&minus;</button>
+          <button type="submit" class="companion-void-soul-ability-btn" aria-label="{{T "companion_fields.decrease_ability_modifier" (upper .Ability)}}" title="{{T "companion_fields.decrease_ability_modifier" (upper .Ability)}}" {{if le .Modifier 0}}disabled{{end}}>&minus;</button>
         </form>
         <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/void-soul-ability-point"
               class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
           <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
           <input type="hidden" name="ability" value="{{.Ability}}">
           <input type="hidden" name="delta" value="1">
-          <button type="submit" class="companion-void-soul-ability-btn" aria-label="Increase {{upper .Ability}} modifier" title="Increase {{upper .Ability}} modifier" {{if or (ge .Modifier 6) (le $ref.PointsAvailable 0)}}disabled{{end}}>+</button>
+          <button type="submit" class="companion-void-soul-ability-btn" aria-label="{{T "companion_fields.increase_ability_modifier" (upper .Ability)}}" title="{{T "companion_fields.increase_ability_modifier" (upper .Ability)}}" {{if or (ge .Modifier 6) (le $ref.PointsAvailable 0)}}disabled{{end}}>+</button>
         </form>
       </span>
       {{end}}
@@ -353,25 +353,25 @@
 </div>
 
 {{$bonusKeywordTooltipID := printf "void-soul-bonus-keyword-tooltip-%d" .Companion.ID}}
-<label class="companion-block-label">Bonus Keyword
+<label class="companion-block-label">{{T "companion_fields.bonus_keyword_label"}}
   {{if .ShowVoidSoulEditing}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/void-soul-bonus-keyword"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
     <select name="keyword" class="sheet-option-tooltip-select" data-tooltip-for="{{$bonusKeywordTooltipID}}">
-      <option value="">&mdash; none &mdash;</option>
+      <option value="">&mdash; {{T "sheet.none_option"}} &mdash;</option>
       {{range .VoidSoulReference.BonusKeywordOptions}}
-      <option value="{{.}}" data-description="Grants your Void Soul jutsu access to the {{.}} keyword, on top of everything you yourself qualify for." {{if eq . $.VoidSoulReference.BonusKeyword}}selected{{end}}>{{.}}</option>
+      <option value="{{.}}" data-description="{{T "companion_fields.bonus_keyword_option_description" .}}" {{if eq . $.VoidSoulReference.BonusKeyword}}selected{{end}}>{{.}}</option>
       {{end}}
     </select>
-    <button type="submit">Set Keyword</button>
+    <button type="submit">{{T "companion_fields.set_keyword_button"}}</button>
   </form>
   {{else}}
-  <span class="option-picker-epithet">{{if .VoidSoulReference.BonusKeyword}}{{.VoidSoulReference.BonusKeyword}}{{else}}None chosen{{end}}</span>
+  <span class="option-picker-epithet">{{if .VoidSoulReference.BonusKeyword}}{{.VoidSoulReference.BonusKeyword}}{{else}}{{T "companion_fields.none_chosen"}}{{end}}</span>
   {{end}}
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
     <span class="tooltip-trigger">ⓘ</span>
-    <span class="tooltip-content" id="{{$bonusKeywordTooltipID}}">{{if .VoidSoulReference.BonusKeyword}}Currently grants jutsu access to the {{.VoidSoulReference.BonusKeyword}} keyword.{{else}}One Nature Release or Medical keyword your Void Soul can access beyond your own normal jutsu access.{{end}}</span>
+    <span class="tooltip-content" id="{{$bonusKeywordTooltipID}}">{{if .VoidSoulReference.BonusKeyword}}{{T "companion_fields.bonus_keyword_currently_grants" .VoidSoulReference.BonusKeyword}}{{else}}{{T "companion_fields.bonus_keyword_hint"}}{{end}}</span>
   </span>
 </label>
 
@@ -381,8 +381,8 @@
      forms post to /sheet/void-soul-jutsu, not /companions/{cid}/... like
      every other form on this card. */}}
 <div class="companion-void-soul-jutsu">
-  <h4>Known Jutsu <span class="option-picker-epithet">{{len .VoidSoulReference.KnownJutsu}}/{{.VoidSoulReference.JutsuCap}} known</span></h4>
-  <p class="section-hint">Cast only by your Void Soul, using your own Chakra — never by you. Freely re-pickable whenever you gain a level.</p>
+  <h4>{{T "sheet.known_jutsu_heading"}} <span class="option-picker-epithet">{{T "companion_fields.n_of_n_known" (len .VoidSoulReference.KnownJutsu) .VoidSoulReference.JutsuCap}}</span></h4>
+  <p class="section-hint">{{T "companion_fields.void_soul_jutsu_hint"}}</p>
   {{if .VoidSoulReference.KnownJutsu}}
   <ul class="sheet-feature-list">
     {{range .VoidSoulReference.KnownJutsu}}
@@ -390,7 +390,7 @@
       {{if $.ShowVoidSoulEditing}}
       <form method="post" action="/characters/{{$.CharacterID}}/sheet/void-soul-jutsu/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
         <input type="hidden" name="jutsu_slug" value="{{.Slug}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "companion_fields.forget_named" .Name}}" title="{{T "companion_fields.forget_verb"}}">&times;</button>
       </form>
       {{end}}
       <strong>{{.Name}}</strong>{{if .Rank}} <span class="option-picker-epithet">{{.Rank}}-Rank</span>{{end}} {{formatDescription .Description}}
@@ -401,16 +401,16 @@
   {{if and .ShowVoidSoulEditing (lt (len .VoidSoulReference.KnownJutsu) .VoidSoulReference.JutsuCap)}}
   <form method="post" action="/characters/{{.CharacterID}}/sheet/void-soul-jutsu" class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
     <select name="jutsu_slug" class="sheet-option-tooltip-select" required>
-      <option value="">&mdash; choose a jutsu &mdash;</option>
+      <option value="">&mdash; {{T "companion_fields.choose_a_jutsu_option"}} &mdash;</option>
       {{range .VoidSoulReference.JutsuOptions}}
       <option value="{{.Slug}}" data-description="{{.Description}}">{{.Name}}{{if .Rank}} ({{.Rank}}-Rank){{end}}</option>
       {{end}}
     </select>
     <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
       <span class="tooltip-trigger">ⓘ</span>
-      <span class="tooltip-content">Choose a jutsu to see what it does.</span>
+      <span class="tooltip-content">{{T "companion_fields.choose_a_jutsu_to_see_hint"}}</span>
     </span>
-    <button type="submit">+ Add</button>
+    <button type="submit">{{T "companion_fields.add_button"}}</button>
   </form>
   {{end}}
 </div>
@@ -450,7 +450,7 @@
 {{$companionID := .Companion.ID}}
 {{$capReached := and .Saves.Cap (ge .Saves.Used .Saves.Cap)}}
 <section class="companion-skills companion-saves">
-  <h3>Saving Throws{{if .Saves.Cap}} <span class="option-picker-epithet">{{.Saves.Used}}/{{.Saves.Cap}} chosen</span>{{end}}</h3>
+  <h3>{{T "sheet.saving_throws"}}{{if .Saves.Cap}} <span class="option-picker-epithet">{{T "companion_fields.n_of_n_chosen" .Saves.Used .Saves.Cap}}</span>{{end}}</h3>
   <div class="sheet-skill-groups companion-skill-groups companion-save-groups">
     {{range .Saves.Rows}}
     <div class="sheet-skill-line">
@@ -460,15 +460,15 @@
         <input type="hidden" name="ability" value="{{.Ability}}">
         <input type="hidden" name="on" value="{{if .Proficient}}0{{else}}1{{end}}">
         <button type="submit" class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}}"
-                data-toggle-class="sheet-prof-bullet-on" aria-label="Toggle {{upper .Ability}} save proficiency"
-                title="{{if and $capReached (not .Proficient)}}Saving throw proficiency cap reached{{else}}Toggle proficiency{{end}}"
+                data-toggle-class="sheet-prof-bullet-on" aria-label="{{T "sheet.toggle_named_proficiency" (printf "%s save" (upper .Ability))}}"
+                title="{{if and $capReached (not .Proficient)}}{{T "companion_fields.saving_throw_cap_reached"}}{{else}}{{T "sheet.toggle_proficiency_title"}}{{end}}"
                 {{if and $capReached (not .Proficient)}}disabled{{end}}></button>
       </form>
       {{else}}
       <span class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}} companion-skill-prof-dot" aria-hidden="true"></span>
       {{end}}
       <div class="sheet-skill-row rollable{{if .Proficient}} sheet-proficient{{end}}"
-           data-sides="20" data-modifier="{{.Modifier}}" data-label="{{upper .Ability}} Save" tabindex="0" role="button">
+           data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_save_label" (upper .Ability)}}" tabindex="0" role="button">
         <span class="sheet-skill-name">{{upper .Ability}}</span>
         <span class="sheet-skill-mod">{{signed .Modifier}}</span>
       </div>
@@ -488,9 +488,9 @@
      independent pick per companion. */}}
 {{if .SymphonyEnhancement}}
 <div class="section-hint companion-symphony-enhancement-hint">
-  <span>Symphony of Puppetry (Enhancement): this Puppet Tool's max HP is permanently doubled — already folded into the Max HP field above.</span>
+  <span>{{T "companion_fields.symphony_enhancement_hp_hint"}}</span>
   {{if .SymphonyEnhancement.Ability}}
-  <span>Ability bonus: {{abilityLabel .SymphonyEnhancement.Ability}} +2 — already folded into the field above.</span>
+  <span>{{T "companion_fields.symphony_enhancement_ability_bonus" (abilityLabel .SymphonyEnhancement.Ability)}}</span>
   {{else}}
   {{/* A permanent, one-way pick (this whole form disappears for good once
        .SymphonyEnhancement.Ability is set — same "picking is itself the
@@ -504,12 +504,12 @@
        with nothing further to reveal beyond "+2", already stated above. */}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/symphony-enhancement-ability"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
-    <label class="companion-block-label">Ability bonus (+2)
+    <label class="companion-block-label">{{T "companion_fields.ability_bonus_plus2_label"}}
       <select name="ability" required class="companion-commit-select">
-        <option value="">— choose —</option>
+        <option value="">{{T "sheet.choose_placeholder_option"}}</option>
         {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
       </select>
-      <button type="button" class="companion-commit-btn" disabled>Set Ability</button>
+      <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_ability_button"}}</button>
     </label>
   </form>
   {{end}}
@@ -522,9 +522,9 @@
      instead of the shared numeric delta endpoint — see that handler's doc
      for why a bare set/clear is enough without +/- adjustment. */}}
 <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/size" class="companion-delta-form">
-  <label class="companion-block-label">Size <input type="text" name="value" value="{{.Companion.Size}}"
+  <label class="companion-block-label">{{T "companion_fields.size_label"}} <input type="text" name="value" value="{{.Companion.Size}}"
                     class="companion-delta-field companion-size-field" data-field="size" placeholder="—"
-                    title="{{if $autoComputed}}Auto-calculated — type a size category to pin it, or clear to return to the live value{{else}}Type a size category (Small, Medium, Large...){{end}}"></label>
+                    title="{{if $autoComputed}}{{T "companion_fields.auto_calculated_size_hint"}}{{else}}{{T "companion_fields.set_size_hint"}}{{end}}"></label>
 </form>
 
 {{/* Beast Master's own one-time breed pick ("Choose between one of the
@@ -573,21 +573,21 @@
 {{if eq .Companion.Kind "nin-dog"}}
 {{$currentBreed := .Companion.NinDogBreed}}
 {{$breedTooltipID := printf "nin-dog-breed-tooltip-%d" .Companion.ID}}
-<label class="companion-block-label">Breed
+<label class="companion-block-label">{{T "companion_fields.breed_label"}}
   <select name="nin_dog_breed" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$breedTooltipID}}"{{if $currentBreed}} disabled{{end}}>
-    <option value="">— choose a breed —</option>
+    <option value="">{{T "companion_fields.choose_a_breed_option"}}</option>
     {{range .NinDogReference.Breeds}}
     <option value="{{.Slug}}" data-description="{{.Blurb}} {{range .Traits}}{{.}} {{end}}"{{if eq .Slug $currentBreed}} selected{{end}}>{{.Name}}</option>
     {{end}}
   </select>
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
     <span class="tooltip-trigger">ⓘ</span>
-    <span class="tooltip-content" id="{{$breedTooltipID}}">{{if .NinDogReference.Breed}}{{.NinDogReference.Breed.Blurb}} {{range .NinDogReference.Breed.Traits}}{{.}} {{end}}{{else}}Choose a breed to see what it grants.{{end}}</span>
+    <span class="tooltip-content" id="{{$breedTooltipID}}">{{if .NinDogReference.Breed}}{{.NinDogReference.Breed.Blurb}} {{range .NinDogReference.Breed.Traits}}{{.}} {{end}}{{else}}{{T "companion_fields.choose_a_breed_hint"}}{{end}}</span>
   </span>
   {{if $currentBreed}}
-  <span class="section-hint companion-armor-chassis-locked">Chosen permanently — cannot be changed.</span>
+  <span class="section-hint companion-armor-chassis-locked">{{T "companion_fields.chosen_permanently_cannot_change"}}</span>
   {{else}}
-  <button type="button" class="companion-commit-btn" disabled>Set Breed</button>
+  <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_breed_button"}}</button>
   {{end}}
 </label>
 {{/* Every breed's own trait list is short (5 bullets) — always shown in
@@ -644,26 +644,26 @@
      before the page's own trailing <script> tags, leaving every button on
      the page dead. */}}
 {{if and (eq .Companion.Kind "titan") (not .TitanReference)}}
-<p class="section-hint">Titan stats need Science-Nin's Mech Crafter subclass to compute — this character doesn't currently qualify.</p>
+<p class="section-hint">{{T "companion_fields.titan_needs_mech_crafter"}}</p>
 {{end}}
 {{if and (eq .Companion.Kind "titan") .TitanReference}}
 {{$currentSpec := .Companion.TitanSpecialization}}
 {{$specTooltipID := printf "titan-spec-tooltip-%d" .Companion.ID}}
-<label class="companion-block-label">Titan Specialization
+<label class="companion-block-label">{{T "companion_fields.titan_specialization_label"}}
   <select name="titan_specialization" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$specTooltipID}}"{{if $currentSpec}} disabled{{end}}>
-    <option value="">— choose a specialization —</option>
+    <option value="">{{T "companion_fields.choose_a_specialization_option"}}</option>
     {{range .TitanReference.Specializations}}
     <option value="{{.Slug}}" data-description="{{.Description}}"{{if eq .Slug $currentSpec}} selected{{end}}>{{.Name}}</option>
     {{end}}
   </select>
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
     <span class="tooltip-trigger">ⓘ</span>
-    <span class="tooltip-content" id="{{$specTooltipID}}">{{if .TitanReference.Specialization}}{{formatDescription .TitanReference.Specialization.Description}}{{else}}Choose a specialization to see what it grants.{{end}}</span>
+    <span class="tooltip-content" id="{{$specTooltipID}}">{{if .TitanReference.Specialization}}{{formatDescription .TitanReference.Specialization.Description}}{{else}}{{T "companion_fields.choose_a_specialization_hint"}}{{end}}</span>
   </span>
   {{if $currentSpec}}
-  <span class="section-hint companion-armor-chassis-locked">Chosen permanently — cannot be changed.</span>
+  <span class="section-hint companion-armor-chassis-locked">{{T "companion_fields.chosen_permanently_cannot_change"}}</span>
   {{else}}
-  <button type="button" class="companion-commit-btn" disabled>Set Specialization</button>
+  <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_specialization_button"}}</button>
   {{end}}
 </label>
 {{/* Demon Foe's own checkbox used to live here as a single toggle, easy to
@@ -691,34 +691,34 @@
      same treatment Symphony Enhancement's own resolved pick gets. */}}
 {{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.IsLegionSpecialization}}
 <div class="section-hint companion-titan-legion-ability-bonus">
-  <span>Legion Specialization: two ability scores increase by +2 (and their maximums by +2) — already folded into the ability scores above.</span>
+  <span>{{T "companion_fields.legion_specialization_hint"}}</span>
   {{if .TitanReference.LegionAbility1}}
-  <span>Ability bonus 1: {{abilityLabel .TitanReference.LegionAbility1}} +2</span>
+  <span>{{T "companion_fields.ability_bonus_slot" 1 (abilityLabel .TitanReference.LegionAbility1)}}</span>
   {{else}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/titan-legion-ability"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
     <input type="hidden" name="slot" value="0">
-    <label class="companion-block-label">Ability bonus 1 (+2)
+    <label class="companion-block-label">{{T "companion_fields.ability_bonus_slot_plus2_label" 1}}
       <select name="ability" required class="companion-commit-select">
-        <option value="">— choose —</option>
+        <option value="">{{T "sheet.choose_placeholder_option"}}</option>
         {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
       </select>
-      <button type="button" class="companion-commit-btn" disabled>Set Ability 1</button>
+      <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_ability_slot_button" 1}}</button>
     </label>
   </form>
   {{end}}
   {{if .TitanReference.LegionAbility2}}
-  <span>Ability bonus 2: {{abilityLabel .TitanReference.LegionAbility2}} +2</span>
+  <span>{{T "companion_fields.ability_bonus_slot" 2 (abilityLabel .TitanReference.LegionAbility2)}}</span>
   {{else}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/titan-legion-ability"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-summon-tab">
     <input type="hidden" name="slot" value="1">
-    <label class="companion-block-label">Ability bonus 2 (+2)
+    <label class="companion-block-label">{{T "companion_fields.ability_bonus_slot_plus2_label" 2}}
       <select name="ability" required class="companion-commit-select">
-        <option value="">— choose —</option>
+        <option value="">{{T "sheet.choose_placeholder_option"}}</option>
         {{range abilities}}<option value="{{.}}">{{abilityLabel .}}</option>{{end}}
       </select>
-      <button type="button" class="companion-commit-btn" disabled>Set Ability 2</button>
+      <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_ability_slot_button" 2}}</button>
     </label>
   </form>
   {{end}}
@@ -739,11 +739,11 @@
      own small Tactics list already uses, rather than a tooltip. */}}
 {{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.KnownUpgrades}}
 <div class="companion-titan-upgrades-known">
-  <h4>Known Titan Upgrades</h4>
+  <h4>{{T "companion_fields.known_titan_upgrades_heading"}}</h4>
   {{range .TitanReference.KnownUpgrades}}
   <div class="companion-titan-upgrade-entry">
     <span class="companion-titan-upgrade-name">{{.Name}}</span>
-    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} CP{{if .Drain}} · {{.Drain}} CCD Chakra{{end}}</span>
+    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
     <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
   </div>
   {{end}}
@@ -751,11 +751,11 @@
 {{end}}
 {{if and (eq .Companion.Kind "titan") .TitanReference .TitanReference.ExoSuit .TitanReference.ExoSuit.Known}}
 <div class="companion-titan-upgrades-known">
-  <h4>Known Exo-Suit Upgrades</h4>
+  <h4>{{T "companion_fields.known_exo_suit_upgrades_heading"}}</h4>
   {{range .TitanReference.ExoSuit.Known}}
   <div class="companion-titan-upgrade-entry">
     <span class="companion-titan-upgrade-name">{{.Name}}</span>
-    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} CP{{if .Drain}} · {{.Drain}} CCD Chakra{{end}}</span>
+    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
     <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
   </div>
   {{end}}
@@ -763,9 +763,9 @@
 {{end}}
 
 {{if eq .Companion.Kind "summon"}}
-<label class="companion-block-label">Summon Tribe
+<label class="companion-block-label">{{T "companion_fields.summon_tribe_label"}}
   <select name="summon_tribe_slug" form="{{.FormID}}" class="companion-field">
-    <option value="">— choose a tribe —</option>
+    <option value="">{{T "companion_fields.choose_a_tribe_option"}}</option>
     {{$current := .Companion.SummonTribeSlug}}
     {{range .SummonTribes}}
     <option value="{{.Slug}}"{{if eq .Slug $current}} selected{{end}}>{{.Name}}</option>
@@ -797,21 +797,21 @@
 {{if and (eq .Companion.Kind "puppet") .ArmorChassisOptions}}
 {{$current := .Companion.ArmorChassis}}
 {{$chassisTooltipID := printf "armor-chassis-tooltip-%d" .Companion.ID}}
-<label class="companion-block-label">Armor Chassis
+<label class="companion-block-label">{{T "companion_fields.armor_chassis_label"}}
   <select name="armor_chassis" form="{{.FormID}}" class="companion-commit-select sheet-option-tooltip-select" data-tooltip-for="{{$chassisTooltipID}}" data-detail-select{{if $current}} disabled{{end}}>
-    <option value="">— none —</option>
+    <option value="">{{T "companion_fields.none_option_dash"}}</option>
     {{range .ArmorChassisOptions}}
     <option value="{{.Name}}" data-ac-bonus="{{.ACBonus}}" data-dex-mode="{{.DexBonusMode}}" data-description="{{formatDescription .Description}}"{{if eq .Name $current}} selected{{end}}>{{.Name}}</option>
     {{end}}
   </select>
   <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
     <span class="tooltip-trigger">ⓘ</span>
-    <span class="tooltip-content" id="{{$chassisTooltipID}}">{{if $current}}{{range .ArmorChassisOptions}}{{if eq .Name $current}}{{formatDescription .Description}}{{end}}{{end}}{{else}}Choose a chassis to see what it grants.{{end}}</span>
+    <span class="tooltip-content" id="{{$chassisTooltipID}}">{{if $current}}{{range .ArmorChassisOptions}}{{if eq .Name $current}}{{formatDescription .Description}}{{end}}{{end}}{{else}}{{T "companion_fields.choose_a_chassis_hint"}}{{end}}</span>
   </span>
   {{if $current}}
-  <span class="section-hint companion-armor-chassis-locked">Chosen permanently at 2nd level — cannot be changed.</span>
+  <span class="section-hint companion-armor-chassis-locked">{{T "companion_fields.chosen_permanently_l2_cannot_change"}}</span>
   {{else}}
-  <button type="button" class="companion-commit-btn" disabled>Set Armor Chassis</button>
+  <button type="button" class="companion-commit-btn" disabled>{{T "companion_fields.set_armor_chassis_button"}}</button>
   {{end}}
   {{/* The chosen chassis's own armor properties, each with its rules text
        on hover. Reinforced's number is the damage reduction it grants and
@@ -839,7 +839,7 @@
 </label>
 <label class="companion-armor-form-toggle">
   <input type="checkbox" name="is_armor_form" form="{{.FormID}}" value="1" class="companion-field" {{if .Companion.IsArmorForm}}checked{{end}}>
-  Currently worn as armor
+  {{T "companion_fields.currently_worn_as_armor"}}
 </label>
 {{end}}
 
@@ -854,34 +854,34 @@
 {{if and .ShowMatryoshka (eq .Companion.Kind "puppet") (or .IsMatryoshkaFramework .Companion.MatryoshkaGroupID.Valid)}}
 <div class="companion-matryoshka">
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/matryoshka_jutsu_slots" class="companion-delta-form">
-    <label>Known Jutsu Slots
+    <label>{{T "companion_fields.known_jutsu_slots_label"}}
       <input type="text" inputmode="numeric" name="value" value="{{.Companion.MatryoshkaJutsuSlots}}"
              class="companion-delta-field" data-field="matryoshka_jutsu_slots" placeholder="0"
-             title="Type a number to set known jutsu slots, or +1 / -1 to adjust it">
+             title="{{T "companion_fields.set_known_jutsu_slots_hint"}}">
     </label>
-    <span class="section-hint companion-matryoshka-hint">Up to 9 total, 3 per body if split.</span>
+    <span class="section-hint companion-matryoshka-hint">{{T "companion_fields.matryoshka_slots_cap_hint"}}</span>
   </form>
 
   {{if .Companion.MatryoshkaGroupID.Valid}}
   {{if eq .Companion.MatryoshkaGroupID.Int64 .Companion.ID}}
-  <span class="companion-matryoshka-status">Split into multiple bodies.</span>
+  <span class="companion-matryoshka-status">{{T "companion_fields.split_into_multiple_bodies"}}</span>
   {{else}}
-  <span class="companion-matryoshka-status">Part of a split body group.</span>
+  <span class="companion-matryoshka-status">{{T "companion_fields.part_of_split_body_group"}}</span>
   {{end}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.MatryoshkaGroupID.Int64}}/matryoshka-merge"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab" data-also-refresh="sheet-companions">
-    <button type="submit">Merge bodies</button>
+    <button type="submit">{{T "companion_fields.merge_bodies_button"}}</button>
   </form>
   {{else}}
   <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/matryoshka-split"
         class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab" data-also-refresh="sheet-companions">
-    <label>Split into
+    <label>{{T "companion_fields.split_into_label"}}
       <select name="count" required>
-        <option value="2">2 bodies</option>
-        <option value="3">3 bodies</option>
+        <option value="2">{{T "companion_fields.n_bodies_option" 2}}</option>
+        <option value="3">{{T "companion_fields.n_bodies_option" 3}}</option>
       </select>
     </label>
-    <button type="submit">Split</button>
+    <button type="submit">{{T "companion_fields.split_button"}}</button>
   </form>
   {{end}}
 </div>
@@ -896,19 +896,19 @@
      proficiency list, shown on the Core tab's own Proficiencies box. */}}
 {{if and (eq .Companion.Kind "puppet") .BaseTraits}}
 <section class="companion-block-label companion-base-traits">
-  <span>Puppet Tool Traits</span>
+  <span>{{T "companion_fields.puppet_tool_traits_heading"}}</span>
   <dl class="companion-trait-list">
-    <dt>Saving Throws</dt><dd>{{.BaseTraits.SavingThrowsText}}</dd>
-    <dt>Damage Resistance</dt><dd>{{.BaseTraits.DamageResistance}}</dd>
-    <dt>Damage Immunity</dt><dd>{{.BaseTraits.DamageImmunity}}</dd>
-    <dt>Condition Immunities</dt><dd>{{.BaseTraits.ConditionImmunity}}</dd>
-    <dt>Weapon Proficiencies</dt><dd>{{.BaseTraits.WeaponProficiency}}</dd>
-    <dt>Senses</dt><dd>Passive Perception {{.BaseTraits.PassivePerception}}</dd>
+    <dt>{{T "sheet.saving_throws"}}</dt><dd>{{.BaseTraits.SavingThrowsText}}</dd>
+    <dt>{{T "companion_fields.damage_resistance_label"}}</dt><dd>{{.BaseTraits.DamageResistance}}</dd>
+    <dt>{{T "companion_fields.damage_immunity_label"}}</dt><dd>{{.BaseTraits.DamageImmunity}}</dd>
+    <dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd>{{.BaseTraits.ConditionImmunity}}</dd>
+    <dt>{{T "companion_fields.weapon_proficiencies_label"}}</dt><dd>{{.BaseTraits.WeaponProficiency}}</dd>
+    <dt>{{T "companion_fields.senses_label"}}</dt><dd>{{T "sheet.passive_perception_label"}} {{.BaseTraits.PassivePerception}}</dd>
     {{/* MendingHealDie: puppetMendingHealDie's own computed die size — a
          readout, not a spendable resource (Mending itself is unlimited,
          gated only by action economy/chakra, both already tracked
          elsewhere). Actually rolling and applying the heal stays manual. */}}
-    {{if .MendingHealDie}}<dt>Mending Heal Die</dt><dd>{{.MendingHealDie}} + half your Puppet Master level (scales to 2d8 at 9th, 2d10 at 15th)</dd>{{end}}
+    {{if .MendingHealDie}}<dt>{{T "companion_fields.mending_heal_die_label"}}</dt><dd>{{T "companion_fields.mending_heal_die_desc" .MendingHealDie}}</dd>{{end}}
   </dl>
   {{if .BaseTraits.TraitsText}}<p class="companion-base-traits-text">{{.BaseTraits.TraitsText}}</p>{{end}}
 </section>
@@ -945,7 +945,7 @@
      rather than reading as dim label text like Traits/Notes' own plain
      .companion-block-label headers. */}}
 <section class="companion-block-label companion-attacks">
-  <h3>Attacks</h3>
+  <h3>{{T "companion_fields.attacks_heading"}}</h3>
   {{if .Attacks}}
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
@@ -962,14 +962,14 @@
            document-level "change" listener keeps every checkbox on this
            card in lockstep the instant any one of them is clicked. */}}
       {{if .DemonFoeEligible}}
-      <label class="companion-demon-foe-toggle tooltip" title="Demon Foe">
+      <label class="companion-demon-foe-toggle tooltip" title="{{T "companion_fields.demon_foe_title"}}">
         <input type="checkbox" name="is_demon_foe" form="{{$.FormID}}" value="1" class="companion-field" {{if $.Companion.IsDemonFoe}}checked{{end}}>
-        <span class="tooltip-content">Bijuu Slayer: while checked, this attack's damage roll gets +2 damage dice of its own type against a Demon-type foe. Uncheck once the fight isn't against a Demon.</span>
+        <span class="tooltip-content">{{T "companion_fields.demon_foe_hint"}}</span>
       </label>
       {{end}}
       {{if not .NoAttackRoll}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
-              data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
+              data-modifier="{{.AttackTotal}}" data-label="{{T "sheet.named_attack_label" .Name}}"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
       {{end}}
       {{/* Hover preview (sheet-attack-detail.js's .tooltip CSS, same
@@ -981,7 +981,7 @@
       <span class="companion-attack-name{{if .Description}} tooltip{{end}}">{{.Name}}{{if .Description}}<span class="tooltip-content">{{.Description}}</span>{{end}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
-              data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
+              data-modifier="{{.DamageTotal}}" data-label="{{T "sheet.named_damage_label" .Name}}"
               data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
       {{end}}
       <template class="detail-body">{{if .Description}}<p>{{.Description}}</p>{{end}}</template>
@@ -997,30 +997,30 @@
       {{if .ID}}
       <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.Companion.ID}}/attacks/{{.ID}}/delete"
             class="sheet-inline-form sheet-fetch-form" data-target="{{$.AttacksTarget}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Remove {{.Name}}" title="Remove">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_button"}}">&times;</button>
       </form>
       {{else if .GrantedHint}}
-      <span class="companion-attack-granted-hint" title="{{.GrantedHint}}">from upgrade</span>
+      <span class="companion-attack-granted-hint" title="{{.GrantedHint}}">{{T "companion_fields.from_upgrade"}}</span>
       {{end}}
     </li>
     {{end}}
   </ul>
   {{end}}
   <details class="sheet-custom-attack companion-add-attack">
-    <summary>Add an attack</summary>
+    <summary>{{T "companion_fields.add_an_attack_summary"}}</summary>
     <form method="post" action="/characters/{{.CharacterID}}/companions/{{.Companion.ID}}/attacks" class="sheet-fetch-form" data-target="{{.AttacksTarget}}">
-      <label>Name <input type="text" name="name" required placeholder="Bash"></label>
+      <label>{{T "sheet.name_label"}} <input type="text" name="name" required placeholder="{{T "companion_fields.bash_placeholder"}}"></label>
       <div class="sheet-custom-attack-damage">
-        <span class="sheet-vitals-label">Damage dice</span>
-        <input type="number" name="damage_count" min="0" placeholder="2" aria-label="Number of damage dice">
+        <span class="sheet-vitals-label">{{T "sheet.damage_dice_label"}}</span>
+        <input type="number" name="damage_count" min="0" placeholder="2" aria-label="{{T "sheet.damage_dice_count_aria"}}">
         <span class="sheet-custom-attack-d">d</span>
-        <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="Damage die size">
-        <input type="text" name="damage_type" placeholder="Slashing" aria-label="Damage type">
+        <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="{{T "sheet.damage_die_size_aria"}}">
+        <input type="text" name="damage_type" placeholder="{{T "sheet.slashing_placeholder"}}" aria-label="{{T "sheet.damage_type_aria"}}">
       </div>
       {{template "sheet_modifier_fields" (dict "AttackAbility" "" "AttackProf" "none" "AttackFlat" 0
                   "DamageAbility" "" "DamageFlat" 0 "AutoLabel" "None")}}
-      <label>Description <input type="text" name="description" placeholder="Optional — what it does, when you can use it"></label>
-      <button type="submit">Add Attack</button>
+      <label>{{T "sheet.description_label"}} <input type="text" name="description" placeholder="{{T "companion_fields.attack_description_placeholder"}}"></label>
+      <button type="submit">{{T "sheet.add_attack"}}</button>
     </form>
   </details>
 </section>
@@ -1036,7 +1036,7 @@
      isn't loaded on this standalone page, but sheet-attack-detail.js is, so
      the click-to-card behavior works here too. */}}
 <section class="companion-block-label companion-attacks">
-  <h3>Attacks</h3>
+  <h3>{{T "companion_fields.attacks_heading"}}</h3>
   {{if .Attacks}}
   <ul class="sheet-feature-list companion-attack-list">
     {{range .Attacks}}
@@ -1051,20 +1051,20 @@
            on the page) — see the structured-attacks branch above for the
            fuller comment on why this lives per-row now. */}}
       {{if .DemonFoeEligible}}
-      <label class="companion-demon-foe-toggle tooltip" title="Demon Foe">
+      <label class="companion-demon-foe-toggle tooltip" title="{{T "companion_fields.demon_foe_title"}}">
         <input type="checkbox" name="is_demon_foe" form="{{$.FormID}}" value="1" class="companion-field" {{if $.Companion.IsDemonFoe}}checked{{end}}>
-        <span class="tooltip-content">Bijuu Slayer: while checked, this attack's damage roll gets +2 damage dice of its own type against a Demon-type foe. Uncheck once the fight isn't against a Demon.</span>
+        <span class="tooltip-content">{{T "companion_fields.demon_foe_hint"}}</span>
       </label>
       {{end}}
       {{if not .NoAttackRoll}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
-              data-modifier="{{.AttackTotal}}" data-label="{{.Name}} Attack"
+              data-modifier="{{.AttackTotal}}" data-label="{{T "sheet.named_attack_label" .Name}}"
               data-crit-range="{{if .CritRangeThreshold}}{{.CritRangeThreshold}}{{else}}20{{end}}">{{signed .AttackTotal}}</button>
       {{end}}
       <span class="companion-attack-name{{if .Description}} tooltip{{end}}">{{.Name}}{{if .Description}}<span class="tooltip-content">{{.Description}}</span>{{end}}</span>
       {{if .DamageDice}}
       <button type="button" class="sheet-attack-roll rollable" data-sides="{{.DamageSides}}" data-count="{{.DamageCount}}"
-              data-modifier="{{.DamageTotal}}" data-label="{{.Name}} Damage"
+              data-modifier="{{.DamageTotal}}" data-label="{{T "sheet.named_damage_label" .Name}}"
               data-crit-damage-bonus="{{.CritDamageBonus}}">{{.DamageDice}} {{signed .DamageTotal}}{{if .DamageType}} {{.DamageType}}{{end}}</button>
       {{end}}
       <template class="detail-body">{{if .Description}}<p>{{.Description}}</p>{{end}}</template>
@@ -1072,21 +1072,21 @@
     {{end}}
   </ul>
   {{else}}
-  <p class="section-hint">No attacks yet — add one from the {{.AttacksTabName}} tab on the main sheet.</p>
+  <p class="section-hint">{{T "companion_fields.no_attacks_yet" .AttacksTabName}}</p>
   {{end}}
 </section>
 {{else}}
-<label class="companion-block-label">Attacks
-  <textarea name="attacks" form="{{.FormID}}" rows="4" class="companion-field" placeholder="One attack per line — name, bonus, damage.">{{.Companion.Attacks}}</textarea>
+<label class="companion-block-label">{{T "companion_fields.attacks_heading"}}
+  <textarea name="attacks" form="{{.FormID}}" rows="4" class="companion-field" placeholder="{{T "companion_fields.freeform_attacks_placeholder"}}">{{.Companion.Attacks}}</textarea>
 </label>
 {{end}}
 
-<label class="companion-block-label">Traits &amp; Abilities
-  <textarea name="traits" form="{{.FormID}}" rows="4" class="companion-field" placeholder="Chassis/upgrades, tribe traits, whatever applies.">{{.Companion.Traits}}</textarea>
+<label class="companion-block-label">{{T "companion_fields.traits_abilities_label"}}
+  <textarea name="traits" form="{{.FormID}}" rows="4" class="companion-field" placeholder="{{T "companion_fields.traits_placeholder"}}">{{.Companion.Traits}}</textarea>
 </label>
 
-<label class="companion-block-label">Notes
-  <textarea name="notes" form="{{.FormID}}" rows="4" class="companion-field" placeholder="Anything else.">{{.Companion.Notes}}</textarea>
+<label class="companion-block-label">{{T "sheet.notes_label"}}
+  <textarea name="notes" form="{{.FormID}}" rows="4" class="companion-field" placeholder="{{T "companion_fields.notes_placeholder"}}">{{.Companion.Notes}}</textarea>
 </label>
 
 {{/* Resistances/Immunities/ConditionImmunities: kind="custom" only — every
@@ -1109,9 +1109,9 @@
      (SetCompanionFields), not a separate endpoint. */}}
 {{if eq .Companion.Kind "custom"}}
 <dl class="sheet-passive-trait-list companion-custom-resistances">
-  <dt>Damage Resistances</dt><dd><input type="text" name="resistances" form="{{.FormID}}" value="{{.Companion.Resistances}}" class="companion-field" placeholder="e.g. Fire, Cold"></dd>
-  <dt>Damage Immunities</dt><dd><input type="text" name="immunities" form="{{.FormID}}" value="{{.Companion.Immunities}}" class="companion-field" placeholder="e.g. Poison"></dd>
-  <dt>Condition Immunities</dt><dd><input type="text" name="condition_immunities" form="{{.FormID}}" value="{{.Companion.ConditionImmunities}}" class="companion-field" placeholder="e.g. Charmed, Frightened"></dd>
+  <dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd><input type="text" name="resistances" form="{{.FormID}}" value="{{.Companion.Resistances}}" class="companion-field" placeholder="{{T "companion_fields.resistances_example_placeholder"}}"></dd>
+  <dt>{{T "companion_fields.damage_immunities_label"}}</dt><dd><input type="text" name="immunities" form="{{.FormID}}" value="{{.Companion.Immunities}}" class="companion-field" placeholder="{{T "companion_fields.immunities_example_placeholder"}}"></dd>
+  <dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd><input type="text" name="condition_immunities" form="{{.FormID}}" value="{{.Companion.ConditionImmunities}}" class="companion-field" placeholder="{{T "companion_fields.condition_immunities_example_placeholder"}}"></dd>
 </dl>
 {{/* Angel E.I.P's own Spectre reference: static prose, matching the
      Titan/S.N.B/Nin-Dog/Summon Tribe reference panels' own read-only
@@ -1125,12 +1125,12 @@
      other back-reference to what created it. */}}
 {{if eq .Companion.Name "Spectre (Angel E.I.P)"}}
 <section class="companion-reference">
-  <h2>Angel E.I.P Reference</h2>
-  <p>Once per long rest, when you would be reduced to 0 hit points, you may cause this Spectre to appear within 60 feet of you — a ghostly version of yourself, possessing your equipment, jutsu, and features (excluding other Perks besides the Revival E.I.P).</p>
-  <p>3d10 chakra points. Resistance to all damage. Acts at the end of initiative order; you control it.</p>
-  <p>For the first round it is active, it has the benefits of the Non-Detection and Invisibility Ninjutsu.</p>
-  <p>Lasts 3 rounds. When it goes to stabilize you, it automatically succeeds the check and you regain 5 times your Intelligence modifier in hit points. It disappears once it stabilizes you, or it reaches 0 hit points, whichever occurs first.</p>
-  <p>While it is active, you have advantage on Death Saving Throws and do not automatically fail Death Saving Throws as a result of taking damage.</p>
+  <h2>{{T "companion_fields.angel_eip_reference_heading"}}</h2>
+  <p>{{T "companion_fields.angel_eip_p1"}}</p>
+  <p>{{T "companion_fields.angel_eip_p2"}}</p>
+  <p>{{T "companion_fields.angel_eip_p3"}}</p>
+  <p>{{T "companion_fields.angel_eip_p4"}}</p>
+  <p>{{T "companion_fields.angel_eip_p5"}}</p>
 </section>
 {{end}}
 {{/* Draconic Gauntlet W.o.W's own Whelp reference: same static-prose
@@ -1149,13 +1149,13 @@
      game needs. */}}
 {{if eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
 <section class="companion-reference">
-  <h2>Draconic Gauntlet Reference</h2>
-  <p>DR 5. Saving throws proficient in all (treat negative modifiers as +0).</p>
-  <p>Elemental Existence. The Whelp rests perched on the Draconic Gauntlet. While perched on the Gauntlet, the Whelp cannot be targeted and is immune to area of effects. As a bonus action, you may use the Whelp's Aether Fireball or Aether Breath attacks.</p>
-  <p>As an action, you may allow the Whelp to detach from your Gauntlet, allowing it to immediately move up to its movement speed and take an Action. The Whelp retains access to its attacks (requiring an Action to use), and also gains access to its Aether Meteor attack and may make two attacks with its Aether Fireball. On subsequent turns, you may command the Whelp to move and take an action at the end of your turn (no action required). If the Whelp is not commanded to take an action while unperched, it takes the dodge action.</p>
-  <p>While unperched the Whelp can be targeted by attacks and area of effects as normal. If the Whelp is reduced to 0 hit points, it disappears until your next rest. The Whelp can be no more than 300 feet from you, teleporting back to you in a cloud of alchemical mist if moved beyond this range. Starting from your next turn you may allow the Whelp to reperch itself to your Gauntlet as an object interaction.</p>
-  <p>Immutable Form, Impenetrable Will. The Whelp's form and will is immune to being altered by any Jutsu and effect. The Whelp is loyal to you and those whom you allow.</p>
-  <p>Work of Science. The Whelp uses chakra from your CCD to pay for its chakra costs, and uses your Ninjutsu attack bonus and Save DC for all effects.</p>
+  <h2>{{T "companion_fields.draconic_gauntlet_reference_heading"}}</h2>
+  <p>{{T "companion_fields.draconic_gauntlet_p1"}}</p>
+  <p>{{T "companion_fields.draconic_gauntlet_p2"}}</p>
+  <p>{{T "companion_fields.draconic_gauntlet_p3"}}</p>
+  <p>{{T "companion_fields.draconic_gauntlet_p4"}}</p>
+  <p>{{T "companion_fields.draconic_gauntlet_p5"}}</p>
+  <p>{{T "companion_fields.draconic_gauntlet_p6"}}</p>
 </section>
 {{end}}
 {{end}}
@@ -1175,7 +1175,7 @@
 {{define "puppet_skills_box"}}
 {{if .}}
 <section class="companion-skills">
-  <h3>Puppet Skills</h3>
+  <h3>{{T "companion_fields.puppet_skills_heading"}}</h3>
   <div class="sheet-skill-groups companion-skill-groups">
     {{range .}}
     <div class="sheet-skill-group">
@@ -1184,7 +1184,7 @@
       <div class="sheet-skill-line">
         <span class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}} companion-skill-prof-dot" aria-hidden="true"></span>
         <div class="sheet-skill-row rollable{{if .Proficient}} sheet-proficient{{end}}"
-             data-sides="20" data-modifier="{{.Modifier}}" data-label="{{.Name}} Check" tabindex="0" role="button">
+             data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_check_label" .Name}}" tabindex="0" role="button">
           <span class="sheet-skill-name">{{.Name}}</span>
           <span class="sheet-skill-mod">{{signed .Modifier}}</span>
         </div>
@@ -1203,33 +1203,33 @@
      no tribe chosen yet). */}}
 {{define "summon_tribe_reference"}}
 <section class="companion-reference">
-  <h2>Summon Tribe Reference</h2>
+  <h2>{{T "companion_fields.summon_tribe_reference_heading"}}</h2>
   {{if not .}}
-  <p class="section-hint">Choose a Summon Tribe above to see its reference here.</p>
+  <p class="section-hint">{{T "companion_fields.choose_summon_tribe_hint"}}</p>
   {{else}}
   <p class="section-hint">{{.SummonType}}</p>
   {{if .Description}}<p>{{.Description}}</p>{{end}}
   <dl class="sheet-passive-trait-list">
-    {{if .DefensiveAbility}}<dt>Defensive Ability</dt><dd>{{.DefensiveAbility}}</dd>{{end}}
-    {{if .SavingThrows}}<dt>Saving Throws</dt><dd>{{.SavingThrows}}</dd>{{end}}
-    {{if .Skills}}<dt>Skills</dt><dd>{{.Skills}}</dd>{{end}}
-    {{if .Senses}}<dt>Senses</dt><dd>{{.Senses}}</dd>{{end}}
+    {{if .DefensiveAbility}}<dt>{{T "companion_fields.defensive_ability_label"}}</dt><dd>{{.DefensiveAbility}}</dd>{{end}}
+    {{if .SavingThrows}}<dt>{{T "sheet.saving_throws"}}</dt><dd>{{.SavingThrows}}</dd>{{end}}
+    {{if .Skills}}<dt>{{T "companion_fields.skills_label"}}</dt><dd>{{.Skills}}</dd>{{end}}
+    {{if .Senses}}<dt>{{T "companion_fields.senses_label"}}</dt><dd>{{.Senses}}</dd>{{end}}
     {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
          entirely, same conditional-dt/dd shape titan_reference/snb_reference
          already use) until this tribe has a currently-unlocked feature that
          actually grants one — see summonTribeResistancesImmunities/
          summonTribeResistanceCatalog (companions.go) for exactly which
          tribes/features qualify. */}}
-    {{if .Resistances}}<dt>Damage Resistances</dt><dd>{{.Resistances}}</dd>{{end}}
-    {{if .Immunities}}<dt>Immunities</dt><dd>{{.Immunities}}</dd>{{end}}
-    {{if .ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.ConditionImmunities}}</dd>{{end}}
-    {{if .JutsuSaveDCText}}<dt>Jutsu Save DC</dt><dd>{{.JutsuSaveDCText}}</dd>{{end}}
-    {{if .JutsuAttackBonusText}}<dt>Jutsu Attack Bonus</dt><dd>{{.JutsuAttackBonusText}}</dd>{{end}}
-    {{if .JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{.JutsuSpecialtyText}}</dd>{{end}}
+    {{if .Resistances}}<dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd>{{.Resistances}}</dd>{{end}}
+    {{if .Immunities}}<dt>{{T "companion_fields.immunities_label"}}</dt><dd>{{.Immunities}}</dd>{{end}}
+    {{if .ConditionImmunities}}<dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd>{{.ConditionImmunities}}</dd>{{end}}
+    {{if .JutsuSaveDCText}}<dt>{{T "companion_fields.jutsu_save_dc_label"}}</dt><dd>{{.JutsuSaveDCText}}</dd>{{end}}
+    {{if .JutsuAttackBonusText}}<dt>{{T "companion_fields.jutsu_attack_bonus_label"}}</dt><dd>{{.JutsuAttackBonusText}}</dd>{{end}}
+    {{if .JutsuSpecialtyText}}<dt>{{T "companion_fields.jutsu_specialty_label"}}</dt><dd>{{.JutsuSpecialtyText}}</dd>{{end}}
   </dl>
 
   {{if .Attacks}}
-  <h3>Natural Weapons</h3>
+  <h3>{{T "companion_fields.natural_weapons_heading"}}</h3>
   <ul class="sheet-feature-list">
     {{range .Attacks}}
     <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
@@ -1238,7 +1238,7 @@
   {{end}}
 
   {{if .Roles}}
-  <h3>Roles</h3>
+  <h3>{{T "companion_fields.roles_heading"}}</h3>
   <ul class="sheet-feature-list">
     {{range .Roles}}
     <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
@@ -1247,13 +1247,13 @@
   {{end}}
 
   {{if .Features}}
-  <h3>Special Features</h3>
-  <p class="section-hint">Gated by the character's current summon rank. Locked ones are dimmed until the character's rank catches up.</p>
+  <h3>{{T "companion_fields.special_features_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.special_features_rank_gated_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Features}}
     <li{{if .Locked}} class="companion-reference-locked"{{end}}>
       <strong>{{.Name}}</strong>
-      <span class="option-picker-epithet">{{.Rank}}-Rank{{if .Locked}} (locked){{end}}</span>
+      <span class="option-picker-epithet">{{T "companion_fields.rank_suffix" .Rank}}{{if .Locked}} {{T "companion_fields.locked_suffix"}}{{end}}</span>
       {{formatDescription .Description}}
     </li>
     {{end}}
@@ -1261,14 +1261,14 @@
   {{end}}
 
   {{if .Progression}}
-  <h3>Stat Progression</h3>
+  <h3>{{T "companion_fields.stat_progression_heading"}}</h3>
   <div class="table-scroll">
     <table class="data-table">
-      <thead><tr><th>Rank</th><th>Size</th><th>Stats</th></tr></thead>
+      <thead><tr><th>{{T "companion_fields.rank_col"}}</th><th>{{T "companion_fields.size_label"}}</th><th>{{T "companion_fields.stats_col"}}</th></tr></thead>
       <tbody>
         {{range .Progression}}
         <tr{{if .Locked}} class="companion-reference-locked"{{end}}>
-          <td>{{.Rank}}{{if .Locked}} (locked){{end}}</td>
+          <td>{{.Rank}}{{if .Locked}} {{T "companion_fields.locked_suffix"}}{{end}}</td>
           <td>{{.SizeText}}</td>
           <td>{{.StatsText}}</td>
         </tr>
@@ -1289,44 +1289,44 @@
      CharacterID, CompanionID. */}}
 {{define "nindog_reference"}}
 <section class="companion-reference">
-  <h2>Nin-Dog Reference</h2>
+  <h2>{{T "companion_fields.nin_dog_reference_heading"}}</h2>
   <dl class="sheet-passive-trait-list">
-    <dt>Rank</dt><dd>{{.Ref.Rank}}-Rank (Level {{.Ref.Level}})</dd>
-    <dt>Size</dt><dd>{{.Ref.Size}}</dd>
-    <dt>Saving Throws</dt><dd>Proficient in all</dd>
+    <dt>{{T "companion_fields.rank_col"}}</dt><dd>{{T "companion_fields.rank_level_dd" .Ref.Rank .Ref.Level}}</dd>
+    <dt>{{T "companion_fields.size_label"}}</dt><dd>{{.Ref.Size}}</dd>
+    <dt>{{T "sheet.saving_throws"}}</dt><dd>{{T "companion_fields.proficient_in_all"}}</dd>
     {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
          entirely, same conditional-dt/dd shape titan_reference/snb_reference
          already use) until a currently-unlocked Dog/Wolf special feature or
          breed trait actually grants one — see ninDogResistancesImmunities
          (nindog.go), which resolves to "" for all three today. */}}
-    {{if .Ref.Resistances}}<dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}</dd>{{end}}
-    {{if .Ref.Immunities}}<dt>Immunities</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
-    {{if .Ref.ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
-    <dt>Jutsu Slots</dt><dd>{{.Ref.JutsuSlotsMax}} max; regains {{.Ref.JutsuSlotShortRegen}} on a Short Rest, all on a Long Rest</dd>
-    {{if .Ref.BiteDescription}}<dt>Bite</dt><dd>{{formatDescription .Ref.BiteDescription}}</dd>{{end}}
-    {{if .Ref.JutsuSpecialtyText}}<dt>Jutsu Specialty</dt><dd>{{formatDescription .Ref.JutsuSpecialtyText}}</dd>{{end}}
+    {{if .Ref.Resistances}}<dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd>{{.Ref.Resistances}}</dd>{{end}}
+    {{if .Ref.Immunities}}<dt>{{T "companion_fields.immunities_label"}}</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
+    {{if .Ref.ConditionImmunities}}<dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
+    <dt>{{T "companion_fields.jutsu_slots_label"}}</dt><dd>{{T "companion_fields.jutsu_slots_regen_dd" .Ref.JutsuSlotsMax .Ref.JutsuSlotShortRegen}}</dd>
+    {{if .Ref.BiteDescription}}<dt>{{T "companion_fields.bite_label"}}</dt><dd>{{formatDescription .Ref.BiteDescription}}</dd>{{end}}
+    {{if .Ref.JutsuSpecialtyText}}<dt>{{T "companion_fields.jutsu_specialty_label"}}</dt><dd>{{formatDescription .Ref.JutsuSpecialtyText}}</dd>{{end}}
   </dl>
 
   {{if .Ref.KnownHijutsu}}
-  <h3>Known Inuzuka Hijutsu</h3>
-  <p class="section-hint">Every Inuzuka Clan Hijutsu the character themselves knows — Beast Master: "Cannot learn jutsu like a Dog/Wolf summon, instead knowing all Inuzuka Clan Hijutsu you know." Auto-listed, not a pick — casting one spends 1 of the Nin-Dog's own Jutsu Slots, the same resource the Jutsu Slots field above tracks.</p>
+  <h3>{{T "companion_fields.known_inuzuka_hijutsu_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.known_inuzuka_hijutsu_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Ref.KnownHijutsu}}
     <li>
-      <button type="button" class="companion-jutsu-cast-btn" title="Spend 1 Jutsu Slot to cast {{.Name}}">Cast</button>
+      <button type="button" class="companion-jutsu-cast-btn" title="{{T "companion_fields.spend_jutsu_slot_to_cast" .Name}}">{{T "companion_fields.cast_button"}}</button>
       <strong>{{.Name}}</strong> {{formatDescription .Description}}
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p class="section-hint">The character knows no Inuzuka Clan Hijutsu yet — none for the Nin-Dog to share.</p>
+  <p class="section-hint">{{T "companion_fields.no_inuzuka_hijutsu_known"}}</p>
   {{end}}
 
   {{/* Inuzuka Hijutsu clan trait's own bonus D-Rank pick — "Your Nin-Dog
        knows 1 Inuzuka Clan D-Rank Jutsu, that you do not need to add to
        your known jutsu list." Independent of the character's own known
        jutsu above, and independent of breed. */}}
-  <h3>Bonus Hijutsu (Inuzuka Hijutsu trait)</h3>
+  <h3>{{T "companion_fields.bonus_hijutsu_heading"}}</h3>
   {{if .Ref.HijutsuTraitPick}}
   <p>{{.Ref.HijutsuTraitPick}}</p>
   {{else if .Ref.HijutsuTraitOptions}}
@@ -1344,22 +1344,22 @@
          the Kind dropdown until the next full reload. */}}
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
     <select name="jutsu_name" required>
-      <option value="">— choose a D-Rank Hijutsu —</option>
+      <option value="">{{T "companion_fields.choose_a_d_rank_hijutsu_option"}}</option>
       {{range .Ref.HijutsuTraitOptions}}
       <option value="{{.Name}}">{{.Name}}</option>
       {{end}}
     </select>
-    <button type="submit">+ Choose</button>
+    <button type="submit">{{T "companion_fields.choose_button"}}</button>
   </form>
   {{else}}
-  <p class="section-hint">No D-Rank Inuzuka Hijutsu found.</p>
+  <p class="section-hint">{{T "companion_fields.no_d_rank_inuzuka_hijutsu_found"}}</p>
   {{end}}
 
   {{if not .Ref.Breed}}
-  <p class="section-hint">Choose a breed above to unlock special-feature picks.</p>
+  <p class="section-hint">{{T "companion_fields.choose_breed_to_unlock_hint"}}</p>
   {{else}}
-  <h3>Special Features</h3>
-  <p class="section-hint">One pick per open slot, from that slot's own rank pool. Not-yet-unlocked slots are dimmed.</p>
+  <h3>{{T "companion_fields.special_features_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.special_features_slot_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Ref.Slots}}
     <li{{if not .Unlocked}} class="companion-reference-locked"{{end}}>
@@ -1374,27 +1374,27 @@
         <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
         <input type="hidden" name="choice_index" value="{{.ChoiceIndex}}">
         <select name="feature_name" required>
-          <option value="">— choose —</option>
+          <option value="">{{T "sheet.choose_placeholder_option"}}</option>
           {{range .Options}}
-          <option value="{{.Name}}">{{.Name}} ({{.Rank}}-Rank)</option>
+          <option value="{{.Name}}">{{T "companion_fields.name_rank_option" .Name .Rank}}</option>
           {{end}}
         </select>
-        <button type="submit">+ Choose</button>
+        <button type="submit">{{T "companion_fields.choose_button"}}</button>
       </form>
       {{else}}
-      <span class="option-picker-epithet">not yet unlocked</span>
+      <span class="option-picker-epithet">{{T "companion_fields.not_yet_unlocked"}}</span>
       {{end}}
     </li>
     {{end}}
   </ul>
   {{if .Ref.Features}}
   <details class="sheet-custom-attack">
-    <summary>Full Special Feature catalog</summary>
+    <summary>{{T "companion_fields.full_special_feature_catalog_summary"}}</summary>
     <ul class="sheet-feature-list">
       {{range .Ref.Features}}
       <li{{if .Locked}} class="companion-reference-locked"{{end}}>
         <strong>{{.Name}}</strong>
-        <span class="option-picker-epithet">{{.Rank}}-Rank{{if .Locked}} (locked){{end}}</span>
+        <span class="option-picker-epithet">{{T "companion_fields.rank_suffix" .Rank}}{{if .Locked}} {{T "companion_fields.locked_suffix"}}{{end}}</span>
         {{formatDescription .Description}}
       </li>
       {{end}}
@@ -1417,17 +1417,17 @@
      Expects a dict: Ref (*titanReference), CharacterID, CompanionID. */}}
 {{define "titan_reference"}}
 <section class="companion-reference">
-  <h2>Titan Reference</h2>
+  <h2>{{T "companion_fields.titan_reference_heading"}}</h2>
   {{if not .Ref}}
-  <p class="section-hint">This character has no Ordnance Training yet — the Titan reference panel unlocks at 3rd-level Mech Crafter.</p>
+  <p class="section-hint">{{T "companion_fields.titan_needs_ordnance_training"}}</p>
   {{else}}
   <dl class="sheet-passive-trait-list">
-    <dt>Size</dt><dd>{{.Ref.Size}}{{if eq .Ref.Size "Large"}} (Huge at 14th level){{end}}</dd>
-    <dt>Proficiency Bonus</dt><dd>+{{.Ref.ProficiencyBonus}} (shares yours)</dd>
-    <dt>Senses</dt><dd>{{.Ref.Senses}}</dd>
-    <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}} (yours + this Titan's own Intelligence modifier)</dd>
-    <dt>Steady Improvement</dt><dd>{{.Ref.SteadyImprovementASIPoints}} bonus ASI points — distributed when crafted, redistributable on a long rest</dd>
-    <dt>Saving Throws</dt><dd>Makes Strength/Dexterity/Constitution saves in your place, using its own ability scores. Mental saves (Intelligence/Wisdom/Charisma) still use yours.</dd>
+    <dt>{{T "companion_fields.size_label"}}</dt><dd>{{.Ref.Size}}{{if eq .Ref.Size "Large"}} {{T "companion_fields.huge_at_14th_level"}}{{end}}</dd>
+    <dt>{{T "companion_fields.proficiency_bonus_label"}}</dt><dd>{{T "companion_fields.proficiency_bonus_shares_yours" .Ref.ProficiencyBonus}}</dd>
+    <dt>{{T "companion_fields.senses_label"}}</dt><dd>{{.Ref.Senses}}</dd>
+    <dt>{{T "sheet.passive_perception_label"}}</dt><dd>{{T "companion_fields.titan_passive_perception_dd" .Ref.PassivePerception}}</dd>
+    <dt>{{T "companion_fields.steady_improvement_label"}}</dt><dd>{{T "companion_fields.steady_improvement_dd" .Ref.SteadyImprovementASIPoints}}</dd>
+    <dt>{{T "sheet.saving_throws"}}</dt><dd>{{T "companion_fields.titan_saving_throws_dd"}}</dd>
     {{/* Resistances/Immunities/ConditionImmunities: "" (row omitted
          entirely, same conditional-dt/dd shape the S.N.B block below
          already uses) until a known Titan Upgrade actually grants one —
@@ -1436,15 +1436,15 @@
          Thermite Launcher's own accompanying clause rather than a
          separately tracked mechanic (this app has no generic
          advantage-on-saves flag for a companion to hold it in). */}}
-    {{if .Ref.Resistances}}<dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}{{if .Ref.ResistanceAdvantageText}} — {{.Ref.ResistanceAdvantageText}}{{end}}</dd>{{end}}
-    {{if .Ref.Immunities}}<dt>Immunities</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
-    {{if .Ref.ConditionImmunities}}<dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
+    {{if .Ref.Resistances}}<dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd>{{.Ref.Resistances}}{{if .Ref.ResistanceAdvantageText}} — {{.Ref.ResistanceAdvantageText}}{{end}}</dd>{{end}}
+    {{if .Ref.Immunities}}<dt>{{T "companion_fields.immunities_label"}}</dt><dd>{{.Ref.Immunities}}</dd>{{end}}
+    {{if .Ref.ConditionImmunities}}<dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd>{{.Ref.ConditionImmunities}}</dd>{{end}}
   </dl>
 
-  <h3>Bash</h3>
+  <h3>{{T "companion_fields.bash_heading"}}</h3>
   {{formatDescription .Ref.BashAttackText}}
 
-  <h3>Base Traits</h3>
+  <h3>{{T "companion_fields.base_traits_heading"}}</h3>
   <ul class="sheet-feature-list">
     {{range .Ref.BaseTraits}}
     <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
@@ -1455,16 +1455,16 @@
   <h3>{{.Ref.Specialization.Name}}</h3>
   <p>{{formatDescription .Ref.Specialization.Description}}</p>
   {{else}}
-  <p class="section-hint">Choose a Titan Specialization above to see its full text here.</p>
+  <p class="section-hint">{{T "companion_fields.choose_titan_specialization_hint"}}</p>
   {{end}}
 
-  <h3>Mech Crafter Features</h3>
-  <p class="section-hint">Locked ones are dimmed until the character's level catches up.</p>
+  <h3>{{T "companion_fields.mech_crafter_features_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.locked_until_level_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Ref.Features}}
     <li{{if .Locked}} class="companion-reference-locked"{{end}}>
       <strong>{{.Name}}</strong>
-      <span class="option-picker-epithet">Level {{.Level}}{{if .Locked}} (locked){{end}}</span>
+      <span class="option-picker-epithet">{{T "companion_fields.level_suffix" .Level}}{{if .Locked}} {{T "companion_fields.locked_suffix"}}{{end}}</span>
       {{formatDescription .Description}}
     </li>
     {{end}}
@@ -1484,8 +1484,8 @@
        a reference-text entry here). Absent entirely (no heading shown)
        until at least one of these five is actually known. */}}
   {{if .Ref.UpgradeAbilities}}
-  <h3>Resolved Upgrade Abilities</h3>
-  <p class="section-hint">Known Titan Upgrades whose raw text names an unresolved proficiency-bonus-based number or size-dependent die — shown here with the real numbers already substituted in.</p>
+  <h3>{{T "companion_fields.resolved_upgrade_abilities_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.resolved_upgrade_abilities_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Ref.UpgradeAbilities}}
     <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
@@ -1501,7 +1501,7 @@
        only leaves a pointer rather than duplicating the three
        Creation-Points-budget-spending pickers inline. */}}
   <div class="sheet-subclass-detail subclass-scope">
-    <p class="section-hint">Titan Slots, Exo-Suit, and Specialist Crafting are tracked in the "Titan Slots" popup — see the sidebar.</p>
+    <p class="section-hint">{{T "companion_fields.titan_slots_tracked_elsewhere_hint"}}</p>
   </div>
   {{end}}
 </section>
@@ -1520,23 +1520,23 @@
      .TitanReference — no top-level "not built yet" guard needed. */}}
 {{define "snb_reference"}}
 <section class="companion-reference">
-  <h2>S.N.B Reference</h2>
+  <h2>{{T "companion_fields.snb_reference_heading"}}</h2>
   <dl class="sheet-passive-trait-list">
-    <dt>Size</dt><dd>{{.Ref.Size}}</dd>
-    <dt>Proficiency Bonus</dt><dd>+{{.Ref.ProficiencyBonus}} (shares yours)</dd>
-    <dt>Saving Throws</dt><dd>Proficient in 2 of your choice (3 at 14th level); negative modifiers are treated as +0</dd>
-    <dt>Senses</dt><dd>{{.Ref.Senses}}</dd>
-    <dt>Passive Perception</dt><dd>{{.Ref.PassivePerception}}</dd>
-    <dt>Damage Immunities</dt><dd>{{.Ref.Immunities}}</dd>
-    <dt>Damage Resistances</dt><dd>{{.Ref.Resistances}}</dd>
-    <dt>Condition Immunities</dt><dd>{{.Ref.ConditionImmunities}}</dd>
-    <dt>Hit Dice</dt><dd>{{.Ref.HitDiceMax}}d8 — spent via Regenerative Armor (17th level) to heal, not tracked as a separate pool here</dd>
+    <dt>{{T "companion_fields.size_label"}}</dt><dd>{{.Ref.Size}}</dd>
+    <dt>{{T "companion_fields.proficiency_bonus_label"}}</dt><dd>{{T "companion_fields.proficiency_bonus_shares_yours" .Ref.ProficiencyBonus}}</dd>
+    <dt>{{T "sheet.saving_throws"}}</dt><dd>{{T "companion_fields.snb_saving_throws_dd"}}</dd>
+    <dt>{{T "companion_fields.senses_label"}}</dt><dd>{{.Ref.Senses}}</dd>
+    <dt>{{T "sheet.passive_perception_label"}}</dt><dd>{{.Ref.PassivePerception}}</dd>
+    <dt>{{T "companion_fields.damage_immunities_label"}}</dt><dd>{{.Ref.Immunities}}</dd>
+    <dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd>{{.Ref.Resistances}}</dd>
+    <dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd>{{.Ref.ConditionImmunities}}</dd>
+    <dt>{{T "companion_fields.hit_dice_label"}}</dt><dd>{{T "companion_fields.snb_hit_dice_dd" .Ref.HitDiceMax}}</dd>
   </dl>
 
-  <h3>Bite</h3>
+  <h3>{{T "companion_fields.bite_label"}}</h3>
   {{formatDescription .Ref.BiteDescription}}
 
-  <h3>Base Traits</h3>
+  <h3>{{T "companion_fields.base_traits_heading"}}</h3>
   <ul class="sheet-feature-list">
     {{range .Ref.Traits}}
     <li><strong>{{.Name}}</strong> {{formatDescription .Description}}</li>
@@ -1551,7 +1551,7 @@
        same shape Titan Slots/Exo-Suit's own radio pickers already use
        just above, and every option needs a rollover tooltip per this
        project's own standing UI rule. */}}
-  <h3>Combat Programming</h3>
+  <h3>{{T "companion_fields.combat_programming_heading"}}</h3>
   {{if .Ref.CombatProgrammingPick}}
   {{range .Ref.CombatProgrammingOptions}}
   {{if eq .Name $.Ref.CombatProgrammingPick}}
@@ -1559,7 +1559,7 @@
   {{end}}
   {{end}}
   {{else if .Ref.CombatProgrammingUnlocked}}
-  <p class="section-hint">Choose one — permanent once picked. Defensive's own AC bonus is already folded into the AC field above once chosen.</p>
+  <p class="section-hint">{{T "companion_fields.combat_programming_choose_hint"}}</p>
   <form method="post" action="/characters/{{$.CharacterID}}/companions/{{$.CompanionID}}/snb-combat-programming"
         class="sheet-panel-form sheet-fetch-form" data-target="sheet-summon-tab" data-also-refresh="sheet-companions">
     <input type="hidden" name="respond_fragment" value="sheet_summon_tab">
@@ -1573,19 +1573,19 @@
       </li>
       {{end}}
     </ul>
-    <button type="submit">Choose</button>
+    <button type="submit">{{T "companion_fields.choose_button_plain"}}</button>
   </form>
   {{else}}
-  <p class="section-hint">Unlocks at 6th level.</p>
+  <p class="section-hint">{{T "companion_fields.unlocks_at_6th_level"}}</p>
   {{end}}
 
-  <h3>S.N.B Specialist Features</h3>
-  <p class="section-hint">Locked ones are dimmed until the character's level catches up. Secondary C.C.D is tracked elsewhere (the character's own resource pools) and isn't repeated here.</p>
+  <h3>{{T "companion_fields.snb_specialist_features_heading"}}</h3>
+  <p class="section-hint">{{T "companion_fields.snb_specialist_features_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Ref.Features}}
     <li{{if .Locked}} class="companion-reference-locked"{{end}}>
       <strong>{{.Name}}</strong>
-      <span class="option-picker-epithet">Level {{.Level}}{{if .Locked}} (locked){{end}}</span>
+      <span class="option-picker-epithet">{{T "companion_fields.level_suffix" .Level}}{{if .Locked}} {{T "companion_fields.locked_suffix"}}{{end}}</span>
       {{formatDescription .Description}}
     </li>
     {{end}}
@@ -1602,7 +1602,7 @@
        own Weapon-keyword picks getting both a rollable row AND a listing
        here. */}}
   {{if .Ref.KnownUpgrades}}
-  <h3>Known S.N.B Upgrades</h3>
+  <h3>{{T "companion_fields.known_snb_upgrades_heading"}}</h3>
   <div class="companion-titan-upgrades-known">
     {{range .Ref.KnownUpgrades}}
     <div class="companion-titan-upgrade-entry">
@@ -1629,12 +1629,12 @@
      CharacterID, CompanionID. */}}
 {{define "void_soul_reference"}}
 <section class="companion-reference">
-  <h2>Void Soul Awakening Reference</h2>
-  <p>A Chakra Construct manifestation of your true self, summoned as a Bonus Action into your own space and dismissed as a Bonus Action (or when you fall unconscious). Visible to creatures who can mold chakra. Once summoned, you command it by spending your own Actions, Bonus Actions, and Reactions.</p>
+  <h2>{{T "companion_fields.void_soul_reference_heading"}}</h2>
+  <p>{{T "companion_fields.void_soul_reference_intro"}}</p>
   <dl class="sheet-passive-trait-list">
-    <dt>Movement Speed</dt><dd>Equal to yours. Resummoned into your space if you end your turn more than 120ft from it.</dd>
-    <dt>Chakra</dt><dd>Casts its known jutsu from your own Chakra pool, not a separate reserve.</dd>
-    <dt>Saving Throws</dt><dd>Uses your saving throw proficiencies. If you and it would make a save against the same effect, only one save is made — the effect applies once, not twice. If it takes damage, you don't need a concentration check.</dd>
+    <dt>{{T "companion_fields.movement_speed_label"}}</dt><dd>{{T "companion_fields.void_soul_movement_speed_dd"}}</dd>
+    <dt>{{T "companion_fields.chakra_label"}}</dt><dd>{{T "companion_fields.void_soul_chakra_dd"}}</dd>
+    <dt>{{T "sheet.saving_throws"}}</dt><dd>{{T "companion_fields.void_soul_saving_throws_dd"}}</dd>
   </dl>
 </section>
 {{end}}

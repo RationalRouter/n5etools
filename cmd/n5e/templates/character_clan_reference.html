@@ -12,8 +12,8 @@
      (reference-popup.js, [data-reference-popup]). */}}
 {{define "content"}}
 <div class="character-reference-page">
-  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
-  <p class="clan-reference-hint">Clan Reference — every benefit {{.CharacterName}}'s clan grants. Features this character hasn't reached the level for yet are dimmed.</p>
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">{{T "character_clan_reference.back_to_sheet" .CharacterName}}</a></p>
+  <p class="clan-reference-hint">{{T "character_clan_reference.clan_reference_hint" .CharacterName}}</p>
   {{template "clan_detail_card" .Clan}}
 </div>
 {{end}}

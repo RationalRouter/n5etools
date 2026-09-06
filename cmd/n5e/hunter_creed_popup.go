@@ -78,7 +78,7 @@ func (s *server) handleHunterCreedPopup(w http.ResponseWriter, r *http.Request) 
 	popup := subclassTrackerPopupData{Title: "Hunter's Creed", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-hunter-techniques sheet-weapon-attacks"}
 	if data == nil || data.CreedName == "" {
 		popup.EmptyHint = "This character hasn't chosen a Hunter's Creed yet — every Hunter-Nin picks one of the 8 Creeds at 3rd level."
-		s.renderSubclassTrackerPopup(w, "character_hunter_creed.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_hunter_creed.html", popup, nil)
 		return
 	}
 
@@ -129,7 +129,7 @@ func (s *server) handleHunterCreedPopup(w http.ResponseWriter, r *http.Request) 
 			popup.Sections = append(popup.Sections, wolfTechniqueSection(id, data))
 		}
 	}
-	s.renderSubclassTrackerPopup(w, "character_hunter_creed.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_hunter_creed.html", popup, nil)
 }
 
 func wardenWeaponSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {

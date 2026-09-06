@@ -1,6 +1,6 @@
 {{define "content"}}
-<h1>Choose a Clan</h1>
-<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+<h1>{{T "create_clan.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">{{T "create_clan.back_to_checklist"}}</a></p>
 {{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
 <div class="browse-layout">
   <div class="browse-list-pane">
@@ -11,14 +11,14 @@
       {{range .Clans}}
       <a class="browse-row creation-picker-row {{if eq .Slug $focus}}active{{end}}"
          href="/characters/{{$id}}/create/clan?clan={{.Slug}}" data-slug="{{.Slug}}">
-        <span class="browse-row-name">{{.Name}}{{if eq .Slug $selected}} <span class="option-picker-epithet">(current)</span>{{end}}</span>
+        <span class="browse-row-name">{{.Name}}{{if eq .Slug $selected}} <span class="option-picker-epithet">{{T "create_clan.current"}}</span>{{end}}</span>
         {{if .Epithet}}<span class="browse-row-meta">{{.Epithet}}</span>{{end}}
       </a>
       {{end}}
     </div>
   </div>
   <div class="browse-detail-pane" id="creation-detail-pane">
-    {{if .FocusDetail}}{{template "create_clan_focus" .}}{{else}}<p class="section-hint">Pick a clan on the left to see its details.</p>{{end}}
+    {{if .FocusDetail}}{{template "create_clan_focus" .}}{{else}}<p class="section-hint">{{T "create_clan.pick_hint"}}</p>{{end}}
   </div>
 </div>
 {{end}}
@@ -38,7 +38,7 @@
 <form class="creation-form" method="post" action="/characters/{{.ID}}/create/clan">
   <input type="hidden" name="clan_slug" value="{{.Focus}}">
   {{if .ASIVariants}}
-  <h3 class="creation-form-heading">Ability Score Increases</h3>
+  <h3 class="creation-form-heading">{{T "create_clan.asi_heading"}}</h3>
   {{$chosen := .ASIChosen}}
   {{$multi := gt (len .ASIVariants) 1}}
   {{range $vi, $variant := .ASIVariants}}
@@ -80,10 +80,10 @@
     </div>
   </div>
   {{end}}
-  <p class="section-hint">Each increase has to go to a different ability.</p>
+  <p class="section-hint">{{T "create_clan.asi_distinct_hint"}}</p>
   {{else}}
-  <p class="section-hint">This clan grants no ability score increases.</p>
+  <p class="section-hint">{{T "create_clan.no_asi_hint"}}</p>
   {{end}}
-  <button type="submit" class="btn-primary">Choose {{.FocusDetail.Name}}</button>
+  <button type="submit" class="btn-primary">{{T "create_clan.choose_button" .FocusDetail.Name}}</button>
 </form>
 {{end}}

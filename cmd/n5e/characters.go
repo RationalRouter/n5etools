@@ -26,6 +26,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 func parseCharacterID(r *http.Request) (int64, error) {
@@ -136,11 +137,11 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.render(w, "characters.html", map[string]any{"Title": "Characters", "Characters": characters})
+	s.render(w, r, "characters.html", map[string]any{"Title": "Characters", "Characters": characters})
 }
 
 func (s *server) handleNewCharacter(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "character_new.html", map[string]any{"Title": "New Character"})
+	s.render(w, r, "character_new.html", map[string]any{"Title": "New Character"})
 }
 
 func (s *server) handleCreateCharacter(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +151,7 @@ func (s *server) handleCreateCharacter(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
-		s.render(w, "character_new.html", map[string]any{
+		s.render(w, r, "character_new.html", map[string]any{
 			"Title": "New Character", "Error": "Name can't be empty.",
 		})
 		return
@@ -234,7 +235,7 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 		log.Println("build creation hub data:", err)
 		return
 	}
-	s.render(w, "creation_hub.html", data)
+	s.render(w, r, "creation_hub.html", data)
 }
 
 // buildCreationHubData assembles the hub's template data — factored out of
@@ -299,7 +300,7 @@ func (s *server) buildCreationHubData(id int64) (map[string]any, error) {
 // renderCreationHubError re-renders the creation hub with an inline error —
 // the subclass gate's own "can't finish yet" path, same "rebuild the page,
 // add Error" shape handleCreateClan already uses for its own step.
-func (s *server) renderCreationHubError(w http.ResponseWriter, id int64, message string) {
+func (s *server) renderCreationHubError(w http.ResponseWriter, r *http.Request, id int64, message string) {
 	data, err := s.buildCreationHubData(id)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -307,7 +308,7 @@ func (s *server) renderCreationHubError(w http.ResponseWriter, id int64, message
 		return
 	}
 	data["Error"] = message
-	s.render(w, "creation_hub.html", data)
+	s.render(w, r, "creation_hub.html", data)
 }
 
 // handleCreateFinish is also reachable from an already-complete character
@@ -345,7 +346,7 @@ func (s *server) handleCreateFinish(w http.ResponseWriter, r *http.Request) {
 		for i, row := range missing {
 			names[i] = row.ClassName
 		}
-		s.renderCreationHubError(w, id,
+		s.renderCreationHubError(w, r, id,
 			"Choose a subclass before finishing — "+strings.Join(names, ", ")+" reached 3rd level without one.")
 		return
 	}
@@ -430,14 +431,14 @@ func (s *server) handleCreateClan(w http.ResponseWriter, r *http.Request) {
 				log.Println("set clan:", err)
 				return
 			}
-			data, buildErr := s.buildClanStepData(id, clanSlug)
+			data, buildErr := s.buildClanStepData(id, clanSlug, localeFromContext(r.Context()))
 			if buildErr != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("set clan:", err, "| rebuild clan step:", buildErr)
 				return
 			}
 			data["Error"] = strings.TrimPrefix(err.Error(), charstore.ErrInvalidPick.Error()+": ")
-			s.render(w, "create_clan.html", data)
+			s.render(w, r, "create_clan.html", data)
 			return
 		}
 		http.Redirect(w, r, "/characters/"+strconv.FormatInt(id, 10)+"/create", http.StatusSeeOther)
@@ -445,7 +446,7 @@ func (s *server) handleCreateClan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	focus := r.URL.Query().Get("clan")
-	data, err := s.buildClanStepData(id, focus)
+	data, err := s.buildClanStepData(id, focus, localeFromContext(r.Context()))
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -471,20 +472,11 @@ func (s *server) handleCreateClan(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["create_clan.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render clan step fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "create_clan_focus", data); err != nil {
-			log.Println("render clan step fragment:", err)
-		}
+		s.renderCard(w, r, "create_clan.html", "create_clan_focus", data)
 		return
 	}
 
-	s.render(w, "create_clan.html", data)
+	s.render(w, r, "create_clan.html", data)
 }
 
 // buildClanStepData assembles the clan step's page context — the clan list,
@@ -492,7 +484,7 @@ func (s *server) handleCreateClan(w http.ResponseWriter, r *http.Request) {
 // ability-increase picker for it. Shared by the GET render, the ?fragment=1
 // pane swap and the POST rejected-pick re-render, same as
 // buildClassStepData/buildBackgroundStepData.
-func (s *server) buildClanStepData(characterID int64, focus string) (map[string]any, error) {
+func (s *server) buildClanStepData(characterID int64, focus, locale string) (map[string]any, error) {
 	var current sql.NullString
 	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&current); err != nil {
 		return nil, err
@@ -517,6 +509,19 @@ func (s *server) buildClanStepData(characterID int64, focus string) (map[string]
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	clanSlugs := make([]string, len(clans))
+	for i, c := range clans {
+		clanSlugs[i] = c.Slug
+	}
+	clanTranslations, err := i18n.Batch(s.rulesDB, locale, "clans", clanSlugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range clans {
+		if v, ok := clanTranslations[clans[i].Slug]["epithet"]; ok {
+			clans[i].Epithet = v
+		}
+	}
 	sort.Slice(clans, func(i, k int) bool { return sortKey(clans[i].Name) < sortKey(clans[k].Name) })
 
 	if focus == "" {
@@ -527,7 +532,7 @@ func (s *server) buildClanStepData(characterID int64, focus string) (map[string]
 		"Selected": current.String, "Focus": focus,
 	}
 	if focus != "" {
-		if detail, err := loadClanDetail(s.rulesDB, focus); err == nil {
+		if detail, err := loadClanDetail(s.rulesDB, locale, focus); err == nil {
 			data["FocusDetail"] = detail
 		}
 		// unknown slug (stale query param) — fall through with no FocusDetail,
@@ -782,7 +787,7 @@ func (s *server) renderClassStep(w http.ResponseWriter, r *http.Request, charact
 	if focus == "" {
 		focus = currentClass
 	}
-	data, err := s.buildClassStepData(characterID, currentClass, focus, nil, actionBase)
+	data, err := s.buildClassStepData(characterID, currentClass, focus, localeFromContext(r.Context()), nil, actionBase)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build class step data:", err)
@@ -813,20 +818,11 @@ func (s *server) renderClassStep(w http.ResponseWriter, r *http.Request, charact
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates[templateName]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render class step fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "create_class_focus", data); err != nil {
-			log.Println("render class step fragment:", err)
-		}
+		s.renderCard(w, r, templateName, "create_class_focus", data)
 		return
 	}
 
-	s.render(w, templateName, data)
+	s.render(w, r, templateName, data)
 }
 
 // submitClassStep handles POSTing a class pick on either the creation
@@ -882,7 +878,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 			return
 		}
 		if !ok {
-			data, buildErr := s.buildClassStepData(characterID, currentClass, classSlug, nil, actionBase)
+			data, buildErr := s.buildClassStepData(characterID, currentClass, classSlug, localeFromContext(r.Context()), nil, actionBase)
 			if buildErr != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("build class step data:", buildErr)
@@ -895,7 +891,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 			data["ChosenToolkit"] = r.FormValue("mc_toolkit")
 			data["ChosenWeapon"] = r.FormValue("mc_weapon")
 			data["Error"] = errMsg
-			s.render(w, templateName, data)
+			s.render(w, r, templateName, data)
 			return
 		}
 		http.Redirect(w, r, successRedirect, http.StatusSeeOther)
@@ -913,7 +909,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 		var convErr error
 		level, convErr = strconv.Atoi(levelStr)
 		if convErr != nil || level < 1 || level > 20 {
-			data, buildErr := s.buildClassStepData(characterID, currentClass, classSlug, nil, actionBase)
+			data, buildErr := s.buildClassStepData(characterID, currentClass, classSlug, localeFromContext(r.Context()), nil, actionBase)
 			if buildErr != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("build class step data:", buildErr)
@@ -921,7 +917,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 			}
 			data["CurrentLevel"] = 1
 			data["Error"] = "Starting level must be a whole number from 1 to 20."
-			s.render(w, templateName, data)
+			s.render(w, r, templateName, data)
 			return
 		}
 	}
@@ -1002,7 +998,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 		for _, sk := range chosenSkills {
 			chosenSet[sk] = true
 		}
-		data, err := s.buildClassStepData(characterID, currentClass, classSlug, chosenSet, actionBase)
+		data, err := s.buildClassStepData(characterID, currentClass, classSlug, localeFromContext(r.Context()), chosenSet, actionBase)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build class step data:", err)
@@ -1030,7 +1026,7 @@ func (s *server) submitClassStep(w http.ResponseWriter, r *http.Request, charact
 		default:
 			data["Error"] = "Pick a toolkit for every slot."
 		}
-		s.render(w, templateName, data)
+		s.render(w, r, templateName, data)
 		return
 	}
 
@@ -1188,7 +1184,7 @@ func (s *server) handleCreateClassLevel(w http.ResponseWriter, r *http.Request) 
 // posts every control to — "/characters/{id}/create/class" from the
 // creation flow, "/characters/{id}/sheet/class" from the sheet's own Add a
 // Class page — the two pages this data map feeds.
-func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus string, selectedOverride map[string]bool, actionBase string) (map[string]any, error) {
+func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, locale string, selectedOverride map[string]bool, actionBase string) (map[string]any, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name, hit_die, chakra_die FROM classes`)
 	if err != nil {
 		return nil, err
@@ -1234,7 +1230,7 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus s
 		return data, nil
 	}
 
-	detail, err := s.loadClassDetail(focus)
+	detail, err := s.loadClassDetail(locale, focus)
 	if err != nil {
 		return data, nil // unknown slug (e.g. stale query param) — show the list with no focus panel
 	}
@@ -1485,7 +1481,7 @@ func (s *server) handleCreateAbilities(w http.ResponseWriter, r *http.Request) {
 			for score := 8; score <= 15; score++ {
 				costRows = append(costRows, struct{ Score, Cost int }{score, costs[score]})
 			}
-			s.render(w, "create_abilities.html", map[string]any{
+			s.render(w, r, "create_abilities.html", map[string]any{
 				"Title": "Ability Scores", "ID": id, "Error": errMsg, "Values": scores, "Costs": costRows, "CostMap": costs,
 			})
 			return
@@ -1528,7 +1524,7 @@ func (s *server) handleCreateAbilities(w http.ResponseWriter, r *http.Request) {
 		costRows = append(costRows, struct{ Score, Cost int }{score, costs[score]})
 	}
 
-	s.render(w, "create_abilities.html", map[string]any{
+	s.render(w, r, "create_abilities.html", map[string]any{
 		"Title": "Ability Scores", "ID": id,
 		"Values":  map[string]int{"str": str, "dex": dex, "con": con, "int": intel, "wis": wis, "cha": cha},
 		"Costs":   costRows,
@@ -1864,14 +1860,14 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 		if dupErr != "" {
-			data, err := s.buildBackgroundStepData(id, backgroundSlug)
+			data, err := s.buildBackgroundStepData(id, backgroundSlug, localeFromContext(r.Context()))
 			if err != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("build background step data:", err)
 				return
 			}
 			data["Error"] = dupErr
-			s.render(w, "create_background.html", data)
+			s.render(w, r, "create_background.html", data)
 			return
 		}
 		if err := charstore.SetBackground(s.charDB, id, backgroundSlug, grants); err != nil {
@@ -1884,7 +1880,7 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 	}
 
 	focus := r.URL.Query().Get("background")
-	data, err := s.buildBackgroundStepData(id, focus)
+	data, err := s.buildBackgroundStepData(id, focus, localeFromContext(r.Context()))
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -1904,20 +1900,11 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["create_background.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render background step fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "create_background_focus", data); err != nil {
-			log.Println("render background step fragment:", err)
-		}
+		s.renderCard(w, r, "create_background.html", "create_background_focus", data)
 		return
 	}
 
-	s.render(w, "create_background.html", data)
+	s.render(w, r, "create_background.html", data)
 }
 
 // buildBackgroundStepData assembles the full page context for
@@ -1925,7 +1912,7 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 // that background's rich detail card plus this character's grant/choice
 // form — shared by the GET render and the POST duplicate-choice
 // re-render, same reasoning as buildClassStepData.
-func (s *server) buildBackgroundStepData(characterID int64, focus string) (map[string]any, error) {
+func (s *server) buildBackgroundStepData(characterID int64, focus, locale string) (map[string]any, error) {
 	var currentBackground sql.NullString
 	if err := s.charDB.QueryRow(`SELECT background_slug FROM characters WHERE id = ?`, characterID).Scan(&currentBackground); err != nil {
 		return nil, err
@@ -1951,6 +1938,23 @@ func (s *server) buildBackgroundStepData(characterID int64, focus string) (map[s
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	slugs := make([]string, len(backgrounds))
+	for i, b := range backgrounds {
+		slugs[i] = b.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "backgrounds", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range backgrounds {
+		tr := translations[backgrounds[i].Slug]
+		if v, ok := tr["name"]; ok {
+			backgrounds[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			backgrounds[i].Description = v
+		}
+	}
 	sort.Slice(backgrounds, func(i, k int) bool { return sortKey(backgrounds[i].Name) < sortKey(backgrounds[k].Name) })
 
 	data := map[string]any{
@@ -1961,7 +1965,7 @@ func (s *server) buildBackgroundStepData(characterID int64, focus string) (map[s
 		return data, nil
 	}
 
-	detail, err := s.loadBackgroundDetail(focus)
+	detail, err := s.loadBackgroundDetail(locale, focus)
 	if err != nil {
 		return data, nil // unknown slug (e.g. stale query param) — show the list with no focus panel
 	}
@@ -2845,7 +2849,7 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 			if backgroundSlug.Valid {
 				s.addBackgroundEquipmentData(data, id, backgroundSlug.String)
 			}
-			s.render(w, "create_equipment.html", data)
+			s.render(w, r, "create_equipment.html", data)
 			return
 		}
 		startingRyo := 0.0
@@ -2956,7 +2960,7 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 	if backgroundSlug.Valid {
 		s.addBackgroundEquipmentData(data, id, backgroundSlug.String)
 	}
-	s.render(w, "create_equipment.html", data)
+	s.render(w, r, "create_equipment.html", data)
 }
 
 // packChoiceOption is one selectable adventuring pack in a background's
@@ -3176,7 +3180,7 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 				log.Println("load eligible jutsu:", err)
 				return
 			}
-			s.render(w, "create_jutsu.html", map[string]any{
+			s.render(w, r, "create_jutsu.html", map[string]any{
 				"Title": "Learn Jutsu", "ID": id, "Jutsu": options,
 				"JutsuKnown": jutsuKnown, "Level": level,
 				"SourceTiles": s.jutsuSourceTilesOrNil(),
@@ -3195,7 +3199,7 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(classes) == 0 {
-		s.render(w, "create_jutsu.html", map[string]any{"Title": "Learn Jutsu", "ID": id})
+		s.render(w, r, "create_jutsu.html", map[string]any{"Title": "Learn Jutsu", "ID": id})
 		return
 	}
 
@@ -3240,12 +3244,12 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 	// before any click — same progressive-enhancement precedent
 	// handleJutsuList follows for the standalone /jutsu page.
 	if len(options) > 0 {
-		if detail, err := loadJutsuDetail(s.rulesDB, options[0].Slug); err == nil {
+		if detail, err := loadJutsuDetail(s.rulesDB, localeFromContext(r.Context()), options[0].Slug); err == nil {
 			data["FocusDetail"] = detail
 		}
 	}
 
-	s.render(w, "create_jutsu.html", data)
+	s.render(w, r, "create_jutsu.html", data)
 }
 
 // jutsuSourceTilesOrNil supplies the creation step's sourcebook filter tiles.
@@ -3655,7 +3659,7 @@ func (s *server) handleCreateAmbitions(w http.ResponseWriter, r *http.Request) {
 		promptRows.Close()
 	}
 
-	s.render(w, "create_ambitions.html", map[string]any{
+	s.render(w, r, "create_ambitions.html", map[string]any{
 		"Title": "Ambitions", "ID": id, "Drive": values["drive"], "Goal": values["goal"], "Fear": values["fear"],
 	})
 }
@@ -5149,7 +5153,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	for _, j := range jutsu {
 		ownedJutsu[j.Slug] = true
 	}
-	jutsuLibrary, err := loadJutsuList(s.rulesDB)
+	jutsuLibrary, err := loadJutsuList(s.rulesDB, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load jutsu library:", err)
@@ -5321,7 +5325,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.render(w, "character_sheet.html", map[string]any{
+	s.render(w, r, "character_sheet.html", map[string]any{
 		"Title": sheet.Name, "ID": id, "Sheet": sheet,
 		"AbilityOrder": charsheet.Abilities, // Sheet.Abilities is a map — fixed display order comes from here
 		"SkillGroups":  groupSkillsByAbility(sheet.Skills),
@@ -6616,17 +6620,11 @@ func (s *server) loadChatLog(characterID int64) ([]chatLogRow, error) {
 // catalogues) that every other fragment here has no use for, so those are
 // loaded only when one of those two names is asked for rather than paid on
 // every HP tick or dice roll.
-func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, name string) {
+func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, characterID int64, name string) {
 	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, characterID)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("compute sheet for "+name+" fragment:", err)
-		return
-	}
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render " + name + " fragment: no template registered")
 		return
 	}
 	data := map[string]any{
@@ -7104,33 +7102,21 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, characterID int64, n
 			data["CustomJutsuAttacks"] = composeCustomAttacks(customJutsuAttacks, sheet, 0)
 		}
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
-		log.Println("render "+name+" fragment:", err)
-	}
+	s.renderCard(w, r, "character_sheet.html", name, data)
 }
 
 // renderSheetChatFragment renders just the chat/dice-log list
 // ("sheet_chat_log", defined in character_sheet.html) — shared by the GET
 // (initial/poll) and POST (after appending a line) branches of
 // handleSheetChat.
-func (s *server) renderSheetChatFragment(w http.ResponseWriter, characterID int64) {
+func (s *server) renderSheetChatFragment(w http.ResponseWriter, r *http.Request, characterID int64) {
 	chatLog, err := s.loadChatLog(characterID)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load chat log for fragment:", err)
 		return
 	}
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render chat fragment: no template registered")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "sheet_chat_log", map[string]any{"ID": characterID, "ChatLog": chatLog}); err != nil {
-		log.Println("render chat fragment:", err)
-	}
+	s.renderCard(w, r, "character_sheet.html", "sheet_chat_log", map[string]any{"ID": characterID, "ChatLog": chatLog})
 }
 
 // respondSheet answers a sheet mutation: the re-rendered fragment when the
@@ -7145,7 +7131,7 @@ func (s *server) respondSheet(w http.ResponseWriter, r *http.Request, characterI
 		redirectToSheet(w, r, characterID)
 		return
 	}
-	s.renderSheetFragment(w, characterID, fragment)
+	s.renderSheetFragment(w, r, characterID, fragment)
 }
 
 // redirectToSheet is the shared "plain form POST, no live feedback needed"
@@ -8861,7 +8847,7 @@ func (s *server) handleSheetFragment(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderSheetFragment(w, id, name)
+	s.renderSheetFragment(w, r, id, name)
 }
 
 // handleSheetCustomAttack adds one player-defined attack row (form fields
@@ -9469,7 +9455,7 @@ func (s *server) handleCharacterCustomFeatures(w http.ResponseWriter, r *http.Re
 		log.Println("load custom features for popup:", err)
 		return
 	}
-	s.render(w, "character_custom_features.html", map[string]any{
+	s.render(w, r, "character_custom_features.html", map[string]any{
 		"Title":          name + " — Custom Features",
 		"CharacterID":    id,
 		"CharacterName":  name,
@@ -9640,7 +9626,7 @@ func (s *server) handleSheetChat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.renderSheetChatFragment(w, id)
+	s.renderSheetChatFragment(w, r, id)
 }
 
 // handleSheetChatClear wipes one character's whole chat/dice log — reachable
@@ -9660,5 +9646,5 @@ func (s *server) handleSheetChatClear(w http.ResponseWriter, r *http.Request) {
 		log.Println("clear chat log:", err)
 		return
 	}
-	s.renderSheetChatFragment(w, id)
+	s.renderSheetChatFragment(w, r, id)
 }

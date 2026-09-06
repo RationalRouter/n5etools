@@ -35,15 +35,15 @@
        annotation. */}}
   {{if .SpecialistCraftingAvailable}}
   <section class="companion-reference">
-    <h3>Specialist Crafting</h3>
-    <p class="section-hint">Upgrades of the designated keyword cost 2 less Creation Points (min. 1) — already reflected in the Cost badges above. Re-pick freely during a long rest.</p>
+    <h3>{{T "character_titan_slots.specialist_crafting_heading"}}</h3>
+    <p class="section-hint">{{T "character_titan_slots.specialist_crafting_hint"}}</p>
     <form method="post" action="/characters/{{.Data.CharacterID}}/titan-slots/specialist-crafting" class="sheet-inline-form">
       <select name="keyword" required>
-        <option value="">— choose —</option>
-        <option value="mech"{{if eq .SpecialistCraftingKeyword "mech"}} selected{{end}}>Mech</option>
-        <option value="weapon"{{if eq .SpecialistCraftingKeyword "weapon"}} selected{{end}}>Weapon</option>
+        <option value="">{{T "character_titan_slots.choose_option"}}</option>
+        <option value="mech"{{if eq .SpecialistCraftingKeyword "mech"}} selected{{end}}>{{T "character_titan_slots.mech_option"}}</option>
+        <option value="weapon"{{if eq .SpecialistCraftingKeyword "weapon"}} selected{{end}}>{{T "character_titan_slots.weapon_option"}}</option>
       </select>
-      <button type="submit">Set Keyword</button>
+      <button type="submit">{{T "character_titan_slots.set_keyword_button"}}</button>
     </form>
   </section>
   {{end}}

@@ -41,7 +41,7 @@ func (s *server) handleCharacterClanReference(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	clan, err := loadClanDetail(s.rulesDB, sheet.ClanSlug)
+	clan, err := loadClanDetail(s.rulesDB, localeFromContext(r.Context()), sheet.ClanSlug)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -57,7 +57,7 @@ func (s *server) handleCharacterClanReference(w http.ResponseWriter, r *http.Req
 		f.Locked = f.Level.Valid && int(f.Level.Int64) > sheet.Level
 	}
 
-	s.render(w, "character_clan_reference.html", map[string]any{
+	s.render(w, r, "character_clan_reference.html", map[string]any{
 		"Title":         sheet.Name + " — Clan Reference",
 		"CharacterID":   id,
 		"CharacterName": sheet.Name,

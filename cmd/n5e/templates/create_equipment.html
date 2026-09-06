@@ -1,10 +1,10 @@
 {{define "content"}}
-<h1>Starting Equipment</h1>
-<p class="page-subtitle"><a href="/characters/{{.ID}}/create">← Back to checklist</a></p>
+<h1>{{T "create_equipment.title"}}</h1>
+<p class="page-subtitle"><a href="/characters/{{.ID}}/create">{{T "create_equipment.back_to_checklist"}}</a></p>
 {{if .Error}}<p class="creation-form-error">{{.Error}}</p>{{end}}
 
 {{if not .Groups}}
-<p class="callout">Choose a class first — its starting equipment options will show up here.</p>
+<p class="callout">{{T "create_equipment.choose_class_first"}}</p>
 {{end}}
 
 <div class="equipment-layout">
@@ -23,10 +23,10 @@
         <div class="equipment-option">
         <label>
           <input type="radio" name="group_{{$groupIdx}}" value="{{.ChoiceIdx}}" {{if .Selected}}checked{{end}} required>
-          {{.Description}}{{if gt .Quantity 1}} ({{.Quantity}}){{end}}
+          {{.Description}}{{if gt .Quantity 1}}{{T "create_equipment.quantity_paren" .Quantity}}{{end}}
         </label>
         {{if .ItemSlug}}
-        <a class="creation-picker-row equipment-preview-link" href="/items/{{.ItemSlug}}" data-slug="{{.ItemSlug}}">View stats</a>
+        <a class="creation-picker-row equipment-preview-link" href="/items/{{.ItemSlug}}" data-slug="{{.ItemSlug}}">{{T "create_equipment.view_stats"}}</a>
         {{end}}
         {{if .IsKitChoice}}
         {{$choiceIdx := .ChoiceIdx}}
@@ -36,13 +36,13 @@
           {{$slotValue := index $slots $slot}}
           <div class="kit-choice-slot">
             <select name="kit_{{$groupIdx}}_{{$choiceIdx}}_{{$slot}}" class="kit-choice-select" required>
-              <option value="">— choose a kit —</option>
+              <option value="">{{T "create_equipment.choose_a_kit"}}</option>
               {{range $toolkits}}
               <option value="{{.Slug}}" {{if eq .Slug $slotValue}}selected{{end}}>{{.Name}}</option>
               {{end}}
             </select>
             <a class="creation-picker-row equipment-preview-link kit-choice-preview"
-               href="/items/{{$slotValue}}" data-slug="{{$slotValue}}" {{if not $slotValue}}hidden{{end}}>View stats</a>
+               href="/items/{{$slotValue}}" data-slug="{{$slotValue}}" {{if not $slotValue}}hidden{{end}}>{{T "create_equipment.view_stats"}}</a>
           </div>
           {{end}}
         </div>
@@ -62,13 +62,13 @@
           {{$slotValue := index $slots $slot}}
           <div class="kit-choice-slot">
             <select name="weapon_{{$groupIdx}}_{{$choiceIdx}}_{{$slot}}" class="kit-choice-select" required>
-              <option value="">— choose a weapon —</option>
+              <option value="">{{T "create_equipment.choose_a_weapon"}}</option>
               {{range $choices}}
               <option value="{{.Slug}}" {{if eq .Slug $slotValue}}selected{{end}}>{{.Name}}</option>
               {{end}}
             </select>
             <a class="creation-picker-row equipment-preview-link kit-choice-preview"
-               href="/items/{{$slotValue}}" data-slug="{{$slotValue}}" {{if not $slotValue}}hidden{{end}}>View stats</a>
+               href="/items/{{$slotValue}}" data-slug="{{$slotValue}}" {{if not $slotValue}}hidden{{end}}>{{T "create_equipment.view_stats"}}</a>
           </div>
           {{end}}
         </div>
@@ -79,8 +79,8 @@
       {{end}}
 
       {{if or .BackgroundEquipmentText .BackgroundPackText}}
-      <h2>From Background</h2>
-      <p class="page-subtitle">Granted automatically alongside whatever's chosen above.</p>
+      <h2>{{T "create_equipment.from_background"}}</h2>
+      <p class="page-subtitle">{{T "create_equipment.granted_automatically_hint"}}</p>
       {{if .BackgroundEquipmentText}}<p>{{.BackgroundEquipmentText}}</p>{{end}}
       {{if .BackgroundPackChoices}}
       {{/* The printed line names two real packs, so it becomes a real
@@ -92,24 +92,24 @@
       {{$chosen := .BackgroundPackChosen}}
       <div class="kit-choice-slot">
         <select name="background_pack" class="kit-choice-select" required>
-          <option value="">— choose a pack —</option>
+          <option value="">{{T "create_equipment.choose_a_pack"}}</option>
           {{range .BackgroundPackChoices}}
           <option value="{{.Slug}}" {{if eq .Slug $chosen}}selected{{end}}>{{.Name}}</option>
           {{end}}
         </select>
         <a class="creation-picker-row equipment-preview-link kit-choice-preview"
-           href="/items/{{$chosen}}" data-slug="{{$chosen}}" {{if not $chosen}}hidden{{end}}>View stats</a>
+           href="/items/{{$chosen}}" data-slug="{{$chosen}}" {{if not $chosen}}hidden{{end}}>{{T "create_equipment.view_stats"}}</a>
       </div>
       {{else if .BackgroundPackText}}
       <p>{{.BackgroundPackText}}</p>
       {{end}}
       {{end}}
 
-      <button type="submit" class="btn-primary">Save Equipment</button>
+      <button type="submit" class="btn-primary">{{T "create_equipment.save_button"}}</button>
     </form>
   </div>
   <div class="browse-detail-pane equipment-preview-pane" id="creation-detail-pane">
-    <p class="section-hint">Click "View stats" next to an item above to see its details here.</p>
+    <p class="section-hint">{{T "create_equipment.click_view_stats_hint"}}</p>
   </div>
 </div>
 {{end}}

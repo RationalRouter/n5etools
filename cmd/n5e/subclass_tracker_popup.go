@@ -215,7 +215,7 @@ type subclassTrackerPopupData struct {
 // Specialist Crafting <select> is the existing example — it isn't a
 // catalog picker, so it isn't part of subclassTrackerSection at all); nil
 // for a popup that needs nothing beyond the shared shape.
-func (s *server) renderSubclassTrackerPopup(w http.ResponseWriter, page string, data subclassTrackerPopupData, extra map[string]any) {
+func (s *server) renderSubclassTrackerPopup(w http.ResponseWriter, r *http.Request, page string, data subclassTrackerPopupData, extra map[string]any) {
 	fields := map[string]any{
 		"Title": data.CharacterName + " — " + data.Title,
 		"Data":  data,
@@ -223,7 +223,7 @@ func (s *server) renderSubclassTrackerPopup(w http.ResponseWriter, page string, 
 	for k, v := range extra {
 		fields[k] = v
 	}
-	s.render(w, page, fields)
+	s.render(w, r, page, fields)
 }
 
 // subclassTrackerPopupDelete builds a "forget a pick" POST route for a

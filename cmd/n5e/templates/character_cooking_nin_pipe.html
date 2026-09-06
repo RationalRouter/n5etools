@@ -20,12 +20,12 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Bonus Tool Infusion: Pipe</h3>
+    <h3>{{T "character_cooking_nin_pipe.title"}}</h3>
 
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/pipe/implement" class="sheet-inline-form">
-      <label class="sheet-vitals-label">Pipe
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_pipe.pipe_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .Pipe.Implement}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_pipe.none_chosen"}}</option>
           {{range .Pipe.ImplementOptions}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.Pipe.Implement}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -33,17 +33,17 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Pipe.Implement}}{{range .Pipe.ImplementOptions}}{{if eq .Value $.Pipe.Implement}}{{.Description}}{{end}}{{end}}{{else}}Choose an implement above — some kind of smoking implement that fits your personal way of cooking.{{end}}</span>
+        <span class="tooltip-content">{{if .Pipe.Implement}}{{range .Pipe.ImplementOptions}}{{if eq .Value $.Pipe.Implement}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_pipe.implement_hint"}}{{end}}</span>
       </span>
       {{if not .Pipe.Implement}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_pipe.set"}}</button>
       {{end}}
     </form>
 
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/pipe/damage-type" class="sheet-inline-form">
-      <label class="sheet-vitals-label">Damage Type
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_pipe.damage_type_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .Pipe.DamageType}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_pipe.none_chosen"}}</option>
           {{range .Pipe.DamageTypeOptions}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.Pipe.DamageType}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -51,17 +51,17 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Pipe.DamageType}}{{range .Pipe.DamageTypeOptions}}{{if eq .Value $.Pipe.DamageType}}{{.Description}}{{end}}{{end}}{{else}}Choose a damage type for your Pipe.{{end}}</span>
+        <span class="tooltip-content">{{if .Pipe.DamageType}}{{range .Pipe.DamageTypeOptions}}{{if eq .Value $.Pipe.DamageType}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_pipe.damage_type_hint"}}{{end}}</span>
       </span>
       {{if not .Pipe.DamageType}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_pipe.set"}}</button>
       {{end}}
     </form>
 
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/pipe/property-l3" class="sheet-inline-form">
-      <label class="sheet-vitals-label">3rd Level Property
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_pipe.property_l3_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .Pipe.PropertyL3}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_pipe.none_chosen"}}</option>
           {{range .Pipe.PropertyL3Options}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.Pipe.PropertyL3}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -69,18 +69,18 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Pipe.PropertyL3}}{{range .Pipe.PropertyL3Options}}{{if eq .Value $.Pipe.PropertyL3}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 3rd-level weapon property.{{end}}</span>
+        <span class="tooltip-content">{{if .Pipe.PropertyL3}}{{range .Pipe.PropertyL3Options}}{{if eq .Value $.Pipe.PropertyL3}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_pipe.property_l3_hint"}}{{end}}</span>
       </span>
       {{if not .Pipe.PropertyL3}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_pipe.set"}}</button>
       {{end}}
     </form>
 
     {{if .Pipe.PropertyL6Available}}
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/pipe/property-l6" class="sheet-inline-form">
-      <label class="sheet-vitals-label">6th Level Property
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_pipe.property_l6_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .Pipe.PropertyL6}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_pipe.none_chosen"}}</option>
           {{range .Pipe.PropertyL6Options}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.Pipe.PropertyL6}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -88,19 +88,19 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Pipe.PropertyL6}}{{range .Pipe.PropertyL6Options}}{{if eq .Value $.Pipe.PropertyL6}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 6th-level weapon property.{{end}}</span>
+        <span class="tooltip-content">{{if .Pipe.PropertyL6}}{{range .Pipe.PropertyL6Options}}{{if eq .Value $.Pipe.PropertyL6}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_pipe.property_l6_hint"}}{{end}}</span>
       </span>
       {{if not .Pipe.PropertyL6}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_pipe.set"}}</button>
       {{end}}
     </form>
     {{end}}
 
     {{if .Pipe.PropertyL11Available}}
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/pipe/property-l11" class="sheet-inline-form">
-      <label class="sheet-vitals-label">11th Level Property
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_pipe.property_l11_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .Pipe.PropertyL11}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_pipe.none_chosen"}}</option>
           {{range .Pipe.PropertyL11Options}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.Pipe.PropertyL11}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -108,10 +108,10 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .Pipe.PropertyL11}}{{range .Pipe.PropertyL11Options}}{{if eq .Value $.Pipe.PropertyL11}}{{.Description}}{{end}}{{end}}{{else}}Choose your Pipe's 11th-level weapon property.{{end}}</span>
+        <span class="tooltip-content">{{if .Pipe.PropertyL11}}{{range .Pipe.PropertyL11Options}}{{if eq .Value $.Pipe.PropertyL11}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_pipe.property_l11_hint"}}{{end}}</span>
       </span>
       {{if not .Pipe.PropertyL11}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_pipe.set"}}</button>
       {{end}}
     </form>
     {{end}}

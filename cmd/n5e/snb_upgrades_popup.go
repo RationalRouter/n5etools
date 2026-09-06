@@ -62,7 +62,7 @@ func (s *server) handleSNBUpgradesPopup(w http.ResponseWriter, r *http.Request) 
 	}
 	if data == nil || data.SNBSpecialist == nil {
 		popup.EmptyHint = "This character has no S.N.B Upgrades yet — Combat Programming's Scientific Ninja Beast grants this at 3rd-level S.N.B Specialist."
-		s.renderSubclassTrackerPopup(w, "character_snb_upgrades.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_snb_upgrades.html", popup, nil)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (s *server) handleSNBUpgradesPopup(w http.ResponseWriter, r *http.Request) 
 	if len(snb.KnownPermanent) > 0 || len(snb.AvailablePermanent) > 0 {
 		popup.Sections = append(popup.Sections, snbUpgradesPermanentSection(id, snb))
 	}
-	s.renderSubclassTrackerPopup(w, "character_snb_upgrades.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_snb_upgrades.html", popup, nil)
 }
 
 // snbUpgradesSection builds the popup's own main Known/Available section —

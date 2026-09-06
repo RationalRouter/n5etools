@@ -21,16 +21,16 @@
      multiclass picker. */}}
 {{define "content"}}
 <div class="character-reference-page">
-  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a>{{if .Multiclass}} · <a href="/characters/{{.CharacterID}}/reference">Choose a different class</a>{{end}}</p>
-  <h1>Class Reference</h1>
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">{{T "character_reference.back_to_sheet" .CharacterName}}</a>{{if .Multiclass}} · <a href="/characters/{{.CharacterID}}/reference">{{T "character_reference.choose_different_class"}}</a>{{end}}</p>
+  <h1>{{T "character_reference.title"}}</h1>
 
   {{if .Reference.Casting}}
-  <h2>Casting</h2>
-  <p class="section-hint">This character's own resolved casting numbers — every ability override (feats, class features, and any manual pick on the sheet's own Attack tiles) is already folded in.</p>
+  <h2>{{T "character_reference.casting_heading"}}</h2>
+  <p class="section-hint">{{T "character_reference.casting_hint"}}</p>
   <div class="table-scroll">
   <table class="data-table">
     <thead>
-      <tr><th>Discipline</th><th>Ability</th><th>Attack Modifier</th><th>Save DC</th></tr>
+      <tr><th>{{T "character_reference.col_discipline"}}</th><th>{{T "character_reference.col_ability"}}</th><th>{{T "character_reference.col_attack_modifier"}}</th><th>{{T "character_reference.col_save_dc"}}</th></tr>
     </thead>
     <tbody>
       {{range .Reference.Casting}}
@@ -47,23 +47,23 @@
   {{end}}
 
   {{if .Reference.Features}}
-  <p class="section-hint">Every class and subclass feature this character has, in level order. Locked ones are dimmed until the character actually reaches that level.</p>
+  <p class="section-hint">{{T "character_reference.features_hint"}}</p>
   <ul class="sheet-feature-list">
     {{range .Reference.Features}}
     <li class="{{if .IsSubclass}}subclass-scope{{end}}{{if .Locked}} companion-reference-locked{{end}}">
       <strong>{{.Name}}</strong>
-      <span class="option-picker-epithet">{{if .Level}}Level {{.Level}}{{if .Locked}} (locked){{end}}{{else}}Always on{{end}}{{if .ScalesThrough}}, scales through {{.ScalesThrough}}{{end}} · {{.SourceLabel}}</span>
+      <span class="option-picker-epithet">{{if .Level}}{{T "character_reference.level_n" .Level}}{{if .Locked}} {{T "character_reference.locked_suffix"}}{{end}}{{else}}{{T "character_reference.always_on"}}{{end}}{{if .ScalesThrough}}{{T "character_reference.scales_through" .ScalesThrough}}{{end}} · {{.SourceLabel}}</span>
       {{formatDescription .Description}}
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p class="section-hint">This character has no class levels yet, so there's no reference to show here.</p>
+  <p class="section-hint">{{T "character_reference.no_levels_hint"}}</p>
   {{end}}
 
   {{range .Reference.BaseOptions}}
   <section class="companion-reference subclass-scope">
-    <h2>{{.ClassName}}{{if .SubclassName}} — {{.SubclassName}}{{end}}: {{.ListName}}</h2>
+    <h2>{{.ClassName}}{{if .SubclassName}}{{T "character_reference.subclass_dash" .SubclassName}}{{end}}: {{.ListName}}</h2>
     <ul class="sheet-feature-list">
       {{range .Options}}
       <li>

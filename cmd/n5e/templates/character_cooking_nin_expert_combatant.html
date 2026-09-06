@@ -14,11 +14,11 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Expert Combatant</h3>
+    <h3>{{T "character_cooking_nin_expert_combatant.title"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/cooking-nin/expert-combatant/weapon" class="sheet-inline-form">
-      <label class="sheet-vitals-label">Weapon
+      <label class="sheet-vitals-label">{{T "character_cooking_nin_expert_combatant.weapon_label"}}
         <select name="value" class="sheet-option-tooltip-select"{{if .ExpertCombatant.Weapon}} disabled{{end}}>
-          <option value="">— none chosen —</option>
+          <option value="">{{T "character_cooking_nin_expert_combatant.none_chosen"}}</option>
           {{range .ExpertCombatant.WeaponOptions}}
           <option value="{{.Value}}" data-description="{{.Description}}" {{if eq .Value $.ExpertCombatant.Weapon}}selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -26,10 +26,10 @@
       </label>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .ExpertCombatant.Weapon}}{{range .ExpertCombatant.WeaponOptions}}{{if eq .Value $.ExpertCombatant.Weapon}}{{.Description}}{{end}}{{end}}{{else}}Choose one martial or simple weapon — your Cooking Tool is considered to be this weapon for the purpose of Bukijutsu, including fulfilling keyword requirements (narrate this at the table; no keyword-requirement check exists to automate).{{end}}</span>
+        <span class="tooltip-content">{{if .ExpertCombatant.Weapon}}{{range .ExpertCombatant.WeaponOptions}}{{if eq .Value $.ExpertCombatant.Weapon}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_cooking_nin_expert_combatant.weapon_hint"}}{{end}}</span>
       </span>
       {{if not .ExpertCombatant.Weapon}}
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_cooking_nin_expert_combatant.set"}}</button>
       {{end}}
     </form>
   </section>

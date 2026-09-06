@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 type propertyRow struct {
@@ -14,7 +16,7 @@ type propertyRow struct {
 	Description string
 }
 
-func queryPropertyRows(rulesDB *sql.DB, table string) ([]propertyRow, error) {
+func queryPropertyRows(rulesDB *sql.DB, table, locale string) ([]propertyRow, error) {
 	rows, err := rulesDB.Query(`SELECT slug, name, description FROM ` + table)
 	if err != nil {
 		return nil, err
@@ -32,25 +34,45 @@ func queryPropertyRows(rulesDB *sql.DB, table string) ([]propertyRow, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	slugs := make([]string, len(properties))
+	for i, p := range properties {
+		slugs[i] = p.Slug
+	}
+	translations, err := i18n.Batch(rulesDB, locale, table, slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range properties {
+		tr := translations[properties[i].Slug]
+		if v, ok := tr["name"]; ok {
+			properties[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			properties[i].Description = v
+		}
+	}
+
 	sort.Slice(properties, func(i, k int) bool { return sortKey(properties[i].Name) < sortKey(properties[k].Name) })
 	return properties, nil
 }
 
 func (s *server) handleProperties(w http.ResponseWriter, r *http.Request) {
-	weaponProperties, err := queryPropertyRows(s.rulesDB, "weapon_properties")
+	locale := localeFromContext(r.Context())
+	weaponProperties, err := queryPropertyRows(s.rulesDB, "weapon_properties", locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("query weapon properties:", err)
 		return
 	}
-	armorProperties, err := queryPropertyRows(s.rulesDB, "armor_properties")
+	armorProperties, err := queryPropertyRows(s.rulesDB, "armor_properties", locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("query armor properties:", err)
 		return
 	}
 
-	s.render(w, "properties.html", map[string]any{
+	s.render(w, r, "properties.html", map[string]any{
 		"Title": "Equipment Properties", "WeaponProperties": weaponProperties, "ArmorProperties": armorProperties,
 	})
 }
@@ -91,6 +113,14 @@ func (s *server) handlePropertyDetail(w http.ResponseWriter, r *http.Request) {
 		log.Println("query property detail:", err)
 		return
 	}
+	if tr, err := i18n.Row(s.rulesDB, localeFromContext(r.Context()), propertyTable, p.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			p.Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			p.Description = v
+		}
+	}
 
 	rows, err := s.rulesDB.Query(`
 		SELECT e.name, ep.detail
@@ -118,5 +148,5 @@ func (s *server) handlePropertyDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(p.Weapons, func(i, k int) bool { return sortKey(p.Weapons[i].Name) < sortKey(p.Weapons[k].Name) })
 
-	s.render(w, "property_detail.html", map[string]any{"Title": p.Name, "Property": p, "EquipmentLabel": label})
+	s.render(w, r, "property_detail.html", map[string]any{"Title": p.Name, "Property": p, "EquipmentLabel": label})
 }

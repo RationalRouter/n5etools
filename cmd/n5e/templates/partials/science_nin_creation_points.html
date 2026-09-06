@@ -16,7 +16,7 @@
      Call with: {{template "science_nin_creation_points_tile" (dict "Used" X "Cap" Y)}} */}}
 {{define "science_nin_creation_points_tile"}}
 <div class="sheet-mini-stat sheet-creation-points-tile">
-  <span class="sheet-mini-stat-label">Creation Points</span>
+  <span class="sheet-mini-stat-label">{{T "science_nin_creation_points.label"}}</span>
   <span class="sheet-mini-stat-value">{{.Used}}/{{.Cap}}</span>
 </div>
 {{end}}

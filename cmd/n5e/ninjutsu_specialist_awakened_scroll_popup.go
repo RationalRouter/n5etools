@@ -64,11 +64,11 @@ func (s *server) handleAwakenedScrollPopup(w http.ResponseWriter, r *http.Reques
 	popup := subclassTrackerPopupData{Title: "Awakened Scroll", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-ninjutsu-specialist"}
 	if data == nil || data.AwakenedScrollCap == 0 {
 		popup.EmptyHint = "This character has no Awakened Scroll seals yet — Awakened Scroll grants this at 2nd-level Scribe Master."
-		s.renderSubclassTrackerPopup(w, "character_ninjutsu_specialist_awakened_scroll.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_ninjutsu_specialist_awakened_scroll.html", popup, nil)
 		return
 	}
 
-	s.renderSubclassTrackerPopup(w, "character_ninjutsu_specialist_awakened_scroll.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_ninjutsu_specialist_awakened_scroll.html", popup, map[string]any{
 		"NinjutsuSpecialist": data,
 	})
 }

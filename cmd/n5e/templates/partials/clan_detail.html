@@ -8,13 +8,13 @@
 {{if .Overview}}<p class="overview">{{.Overview}}</p>{{end}}
 
 <dl class="fact-list">
-  <dt>Speed</dt><dd>{{if .SpeedFeet.Valid}}{{.SpeedFeet.Int64}} ft{{else}}—{{end}}</dd>
-  <dt>Extra Language</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
-  <dt>Ability Increase</dt><dd>{{if .AbilityIncreaseText.String}}{{.AbilityIncreaseText.String}}{{else}}—{{end}}</dd>
+  <dt>{{T "clans.speed"}}</dt><dd>{{if .SpeedFeet.Valid}}{{T "clans.speed_ft" .SpeedFeet.Int64}}{{else}}—{{end}}</dd>
+  <dt>{{T "clans.extra_language"}}</dt><dd>{{if .ExtraLanguage.String}}{{.ExtraLanguage.String}}{{else}}—{{end}}</dd>
+  <dt>{{T "partial_clan_detail.ability_increase"}}</dt><dd>{{if .AbilityIncreaseText.String}}{{.AbilityIncreaseText.String}}{{else}}—{{end}}</dd>
 </dl>
 
 {{if .Traits}}
-<h2>Clan Traits</h2>
+<h2>{{T "partial_clan_detail.clan_traits"}}</h2>
 <div class="entry-list">
   {{range .Traits}}
   <div class="entry">
@@ -26,11 +26,11 @@
 {{end}}
 
 {{if .Features}}
-<h2>Clan Features</h2>
+<h2>{{T "partial_clan_detail.clan_features"}}</h2>
 <div class="entry-list">
   {{range .Features}}
   <div class="entry{{if .Locked}} companion-reference-locked{{end}}">
-    <h3>{{.Name}}{{if .Level.Valid}} <span class="entry-level">(Level {{.Level.Int64}}{{if .Locked}}, locked{{end}}{{if .ScalesThrough}}, scales through {{.ScalesThrough}}{{end}})</span>{{end}}</h3>
+    <h3>{{.Name}}{{if .Level.Valid}} <span class="entry-level">({{T "character_reference.level_n" .Level.Int64}}{{if .Locked}}{{T "partial_clan_detail.locked_suffix"}}{{end}}{{if .ScalesThrough}}{{T "character_reference.scales_through" .ScalesThrough}}{{end}})</span>{{end}}</h3>
     {{formatDescription .Description}}
   </div>
   {{end}}
@@ -38,7 +38,7 @@
 {{end}}
 
 {{if .Proficiencies}}
-<h2>Proficiencies</h2>
+<h2>{{T "partial_clan_detail.proficiencies"}}</h2>
 <dl class="fact-list">
   {{range .Proficiencies}}
   <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
@@ -47,11 +47,11 @@
 {{end}}
 
 {{if .Jutsu}}
-<h2>Clan Jutsu</h2>
+<h2>{{T "partial_clan_detail.clan_jutsu"}}</h2>
 <ul class="tooltip-list">
   {{range .Jutsu}}
   <li class="tooltip" tabindex="0">
-    <span class="tooltip-trigger">{{.Name}}{{if .Rank.Valid}} <span class="tooltip-rank">({{.Rank.String}}-Rank)</span>{{end}}</span>
+    <span class="tooltip-trigger">{{.Name}}{{if .Rank.Valid}} <span class="tooltip-rank">({{T "jutsu.rank_suffix" .Rank.String}})</span>{{end}}</span>
     <span class="tooltip-content">{{formatDescription .Description}}</span>
   </li>
   {{end}}
@@ -59,7 +59,7 @@
 {{end}}
 
 {{if .Latents}}
-<h2>Bloodline Latents</h2>
+<h2>{{T "partial_clan_detail.bloodline_latents"}}</h2>
 <ul class="tooltip-list">
   {{range .Latents}}
   <li class="tooltip" tabindex="0">

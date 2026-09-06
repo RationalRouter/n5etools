@@ -278,6 +278,175 @@ var curatedCorrections = []curatedCorrection{
 		"Beginning at 15th level, the reduction transforms and becomes resistance"},
 	{"Beginning at 15rd level, ranged weapon or taijutsu attacks ignore resistance",
 		"Beginning at 15th level, ranged weapon or taijutsu attacks ignore resistance"},
+
+	// --- from internal/i18n/source_text_grammar_audit.md, 2026-09-04/05 ---
+
+	// jutsu
+	{"If you was the target of a Genjutsu Attack", "If you were the target of a Genjutsu Attack"},
+	{"with an +1 bonus to the attacks critical threat range", "with a +1 bonus to the attacks critical threat range"},
+	{"can facilitate a flowers growth", "can facilitate a flower's growth"},
+	{"Creatures in the target area must make a Intelligence Saving Throw, being under the effects",
+		"Creatures in the target area must make an Intelligence Saving Throw, being under the effects"},
+	{"All creatures within 60 feet of the flower of your choice must make a Intelligence Saving Throw",
+		"All creatures within 60 feet of the flower of your choice must make an Intelligence Saving Throw"},
+
+	// bloodline_latents
+	{"which can only be spent as a Action, action on your turn",
+		"which can only be spent as an Action on your turn"},
+
+	// clan_traits
+	{"You Nin-Dog knows 1 Inuzuka Clan D-Rank Jutsu", "Your Nin-Dog knows 1 Inuzuka Clan D-Rank Jutsu"},
+
+	// clans (overview)
+	{"they can manifest something greater. A powerful nature release transformation known as Data Release, which possesses a unique affinity for technology.",
+		"they can manifest something greater, a powerful nature release transformation known as Data Release, which possesses a unique affinity for technology."},
+	{"The Ranton Clan is a clan that hails proudly from the Land of Lightning. Known to work closely with the Raikage, but not limited to that one country.",
+		"The Ranton Clan is a clan that hails proudly from the Land of Lightning. They are known to work closely with the Raikage, but are not limited to that one country."},
+	{"Even three of its Hokage has been Senju by birth", "Even three of its Hokage have been Senju by birth"},
+	{"A Clan without a clear family name, but one which has produced many of prominent shinobi.",
+		"A Clan without a clear family name, but one which has produced many prominent shinobi."},
+
+	// backgrounds
+	{"so you can keep up you’re training on your own time", "so you can keep up your training on your own time"},
+	{"You were taken from your home to be trained either by the Master who found you.",
+		"You were taken from your home to be trained by the Master who found you."},
+	{"1 Blank Jutsu Scrolls, A Wallet Containing 100 Ryo", "1 Blank Jutsu Scroll, A Wallet Containing 100 Ryo"},
+
+	// feats
+	{"If you roll higher then their attack roll AND hit", "If you roll higher than their attack roll AND hit"},
+	{"If they roll higher then you, you gain the Defeated condition", "If they roll higher than you, you gain the Defeated condition"},
+
+	// fighting_stances
+	{"capable to striking enemies at a slight distance from you", "capable of striking enemies at a slight distance from you"},
+
+	// summon_tribe_attacks
+	{"Ranged Weapon Attack: Reach 30ft., On a hit target must make a Strength Saving Throw or be",
+		"Ranged Weapon Attack: Reach 30ft., On a hit target must make a Strength Saving Throw or be Restrained."},
+	{"the target is knocked Prone or drug 5 feet in any direction to summon wants",
+		"the target is knocked Prone or drug 5 feet in any direction the summon wants"},
+
+	// classes — systemic comma splice in the "connected by one common
+	// factor" sentence template, 8 of 10 class intros (the other 2 already
+	// use a colon, which is the correct version).
+	{"one common factor, they", "one common factor: they"},
+	{"With a focused eye on the wanted criminal who fled the village. A masked Hyūga activates his Byakugan",
+		"With a focused eye on the wanted criminal who fled the village, a masked Hyūga activates his Byakugan"},
+	{"Slyly and gracefully entering unseen, and she raises from the floor",
+		"Slyly and gracefully entering unseen, she raises from the floor"},
+	{"with the edge of a blade of the knock of a bow, the song of a flying shuriken or the lethality of a flying kunai",
+		"with the edge of a blade, the knock of a bow, the song of a flying shuriken, or the lethality of a flying kunai"},
+	{"Second, choose any clan that you find the most appealing, this class is flexible enough to support them.",
+		"Second, choose any clan that you find the most appealing; this class is flexible enough to support them."},
+
+	// subclasses
+	{"The Ninjutsu Specialist who chose to specialize in the Hemomantic Traditions, learn to use the chakra inherent in a creatures blood",
+		"The Ninjutsu Specialist who chose to specialize in the Hemomantic Traditions, learns to use the chakra inherent in a creature's blood"},
+	{"Genjutsu Specialist who pledge themselves to the art of Layered Reality",
+		"The Genjutsu Specialist who pledges themselves to the art of Layered Reality"},
+	{"Genjutsu Specialist who choose to become Misty Distortionists specialize in inhaled toxins",
+		"The Genjutsu Specialist who chooses to become a Misty Distortionist specializes in inhaled toxins"},
+	{"Genjutsu Specialist who choose to become a Time Slipper, dedicate themselves",
+		"The Genjutsu Specialist who chooses to become a Time Slipper dedicates themselves"},
+	{"Genjutsu Specialist who choose to become a Siren dedicate themselves",
+		"The Genjutsu Specialist who chooses to become a Siren dedicates themselves"},
+
+	// subclass_features
+	{"Taijutsu Specialists who take specialize in multiple stances, are known as",
+		"Taijutsu Specialists who specialize in multiple stances are known as"},
+
+	// class_options / class_option_entries
+	{"You craft a another set of Juggernaut Armor for an ally during a full rest",
+		"You craft another set of Juggernaut Armor for an ally during a full rest"},
+	// Article fix only — the audit flagged the rest of this sentence as
+	// possibly needing a larger rewrite it wasn't confident enough to
+	// suggest, so only the confirmed "a"->"an" error is corrected here.
+	{"When you are a allied creature you can see makes a Ranged attack roll",
+		"When you are an allied creature you can see makes a Ranged attack roll"},
+
+	// --- second pass, from the spelling-grammar-checker subagent, 2026-09-05 ---
+
+	// jutsu — also fixes a LanguageTool auto-apply regression recorded in
+	// text_corrections (SUBJECT_VERB_AGREEMENT_PLURAL flipped a correct
+	// "explodes" into "explode"): this curated fix runs after LanguageTool,
+	// so it wins deterministically every ingest regardless of what LT does.
+	{"right before take damage. The compressed air compresses then explode pushing",
+		"right before it takes damage. The compressed air compresses then explodes, pushing"},
+	{"as your release a surge of Earth Release chakra", "as you release a surge of Earth Release chakra"},
+	{"that then explode. At random. All creatures within range",
+		"that then explode at random. All creatures within range"},
+	{"On a failed save a creature roll 1d4+2 Recording the result.",
+		"On a failed save a creature rolls 1d4+2, recording the result."},
+	{"If you make a 11th mark then one of the previous seals vanish.",
+		"If you make an 11th mark, then one of the previous seals vanishes."},
+	{"so long as they know the location of the target seal's destination, and you have opened your next work to them",
+		"so long as they know the location of the target seal's destination, and you have opened your network to them"},
+	{"1 Reaction, which you take when an hostile creature gains", "1 Reaction, which you take when a hostile creature gains"},
+	{"You manifest your Lightning release until its covering your body",
+		"You manifest your Lightning release until it's covering your body"},
+	{"You manifest your Lightning release until its covering the body of an allied creature",
+		"You manifest your Lightning release until it's covering the body of an allied creature"},
+	{"your body is incapacitated and unaware of its surrounding.",
+		"your body is incapacitated and unaware of its surroundings."},
+
+	// feats
+	{"that creates an quake shard you gain +1 concentration slots",
+		"that creates a quake shard you gain +1 concentration slots"},
+
+	// class_features
+	{"help compliment the form you’ve chosen", "help complement the form you’ve chosen"},
+	{"Starting at 10th Level, you're Healing Jutsu are more effective",
+		"Starting at 10th Level, your Healing Jutsu are more effective"},
+	{"you're training with unarmed techniques have granted you a technique",
+		"your training with unarmed techniques has granted you a technique"},
+
+	// subclass_features
+	{"You may select a second target for this jutsu to effect, in addition to yourself",
+		"You may select a second target for this jutsu to affect, in addition to yourself"},
+
+	// class_options / class_option_entries (duplicate text, same fix needed in both tables)
+	{"and you're carrying capacity and the weight you can push, drag, or lift doubles",
+		"and your carrying capacity and the weight you can push, drag, or lift doubles"},
+	{"you can spend additional CCD Chakra.  they instead gain four times as many",
+		"you can spend additional CCD Chakra; they instead gain four times as many"},
+	{"For the same duration You can walk or run across any liquid as if it were solid stone",
+		"For the same duration, you can walk or run across any liquid as if it were solid stone"},
+	{"engineered to ricochet of its targets You have proficiency in this weapon",
+		"engineered to ricochet off its targets. You have proficiency in this weapon"},
+	{"imputing it with the psychological and psychological properties of your element",
+		"imbuing it with the physical and psychological properties of your element"},
+	{"it begins to gently glow while and produce an numbing psychedelic mist",
+		"it begins to gently glow and produce a numbing psychedelic mist"},
+
+	// equipment (enhancement seals) — every sibling row of the same tier
+	// says "imbued with this seal", confirming the word "seal"/"this seal"
+	// was dropped from just these rows.
+	{"Armor imbued with seal has a 1d6 bonus to saving throws made to resist being moved, pushed or pulled",
+		"Armor imbued with this seal has a 1d6 bonus to saving throws made to resist being moved, pushed or pulled"},
+	{"Armor imbued with seal has a 1d6 bonus to saving throws made to resist the Fear condition",
+		"Armor imbued with this seal has a 1d6 bonus to saving throws made to resist the Fear condition"},
+	{"Armor imbued with seal has a 1d6 bonus to saving throws made to resist the Burned condition",
+		"Armor imbued with this seal has a 1d6 bonus to saving throws made to resist the Burned condition"},
+	{"Armor imbued with this grants its user a +2 bonuses to Chakra Control Checks",
+		"Armor imbued with this seal grants its user a +2 bonuses to Chakra Control Checks"},
+	{"Armor imbued with this grants its user a +4 bonuses to Chakra Control Checks",
+		"Armor imbued with this seal grants its user a +4 bonuses to Chakra Control Checks"},
+
+	// summon_tribes — the original finding that prompted this whole audit
+	// (see internal/i18n/translation_methodology.md and
+	// internal/i18n/source_text_grammar_audit.md's "Original bug" section):
+	// a dangling clause with no verb attaching it to the sentence.
+	{"The snake’s greatest weapon is its cunning and powerful body with its sharp fangs to pierce the flesh of its enemies.",
+		"The snake’s greatest weapon is its cunning and powerful body. Its sharp fangs are used to pierce the flesh of its enemies."},
+
+	// jutsu — same "a +N bonuses" shape as the systemic bonusPluralRe
+	// heuristic, but missing the leading "a" entirely, so the regex (which
+	// requires "a " before the number) doesn't match these two.
+	{"you gain +10 bonuses to your movement speed until the end of the turn you cast it",
+		"you gain a +10 bonus to your movement speed until the end of the turn you cast it"},
+	{"You gain +3 bonuses to AC and resistance to Bludgeoning, piercing and slashing damage",
+		"You gain a +3 bonus to AC and resistance to Bludgeoning, piercing and slashing damage"},
+	{"you can make a third attack against a creature in range, this time with an additional -2 penalties.",
+		"you can make a third attack against a creature in range, this time with an additional -2 penalty."},
 }
 
 // curatedFix applies every entry above as a plain substring replacement,

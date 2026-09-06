@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // ---- Class list -------------------------------------------------------
@@ -45,7 +47,7 @@ func (s *server) handleClasses(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(classes, func(i, k int) bool { return sortKey(classes[i].Name) < sortKey(classes[k].Name) })
 
-	s.render(w, "classes.html", map[string]any{"Title": "Classes", "Classes": classes})
+	s.render(w, r, "classes.html", map[string]any{"Title": "Classes", "Classes": classes})
 }
 
 // ---- Class detail -------------------------------------------------------
@@ -82,12 +84,14 @@ type classLevelRow struct {
 }
 
 type classFeatureRow struct {
+	Slug        string
 	Name        string
 	Level       sql.NullInt64
 	Description string
 }
 
 type subclassFeatureRow struct {
+	Slug        string
 	Name        string
 	Level       sql.NullInt64
 	Description string
@@ -102,6 +106,7 @@ type subclassRow struct {
 }
 
 type subclassGroupRow struct {
+	Slug            string
 	DisplayName     string
 	SelectionLevels sql.NullString
 	Description     sql.NullString
@@ -126,6 +131,7 @@ type levelFeatureGroup struct {
 }
 
 type classOptionRow struct {
+	Slug          string
 	Name          string
 	Prerequisites sql.NullString
 	Description   string
@@ -142,6 +148,11 @@ type equipmentGroup struct {
 }
 
 type classDetail struct {
+	// Locale is internal plumbing, not rendered by any template -- it lets
+	// the sequential loadClassX(&c) helpers below overlay content
+	// translations without each one needing its own locale parameter. Set
+	// once, at the top of loadClassDetail.
+	Locale          string
 	Slug            string
 	Name            string
 	HitDie          sql.NullInt64
@@ -173,8 +184,9 @@ type multiclassRow struct {
 // swap (see handleClassDetail) — wraps the sequential loadClassX(&c) calls
 // in one function so all three callers stay in sync automatically, same
 // pattern as jutsu.go's loadJutsuDetail.
-func (s *server) loadClassDetail(slug string) (*classDetail, error) {
+func (s *server) loadClassDetail(locale, slug string) (*classDetail, error) {
 	var c classDetail
+	c.Locale = locale
 	err := s.rulesDB.QueryRow(`
 		SELECT slug, name, hit_die, chakra_die, jutsu_tier, description, quick_build
 		FROM classes WHERE slug = ?`, slug,
@@ -222,7 +234,7 @@ func (s *server) loadClassDetail(slug string) (*classDetail, error) {
 func (s *server) handleClassDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
-	c, err := s.loadClassDetail(slug)
+	c, err := s.loadClassDetail(localeFromContext(r.Context()), slug)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -234,20 +246,11 @@ func (s *server) handleClassDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Query().Get("fragment") == "1" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, ok := pageTemplates["class_detail.html"]
-		if !ok {
-			http.Error(w, "template not found", http.StatusInternalServerError)
-			log.Println("render class fragment: no template registered")
-			return
-		}
-		if err := tmpl.ExecuteTemplate(w, "class_detail_card", c); err != nil {
-			log.Println("render class fragment:", err)
-		}
+		s.renderCard(w, r, "class_detail.html", "class_detail_card", c)
 		return
 	}
 
-	s.render(w, "class_detail.html", map[string]any{"Title": c.Name, "Class": c})
+	s.render(w, r, "class_detail.html", map[string]any{"Title": c.Name, "Class": c})
 }
 
 func (s *server) loadClassCasting(c *classDetail) error {
@@ -409,7 +412,7 @@ func (s *server) loadClassLevels(c *classDetail) error {
 
 func (s *server) loadClassFeatures(c *classDetail) error {
 	rows, err := s.rulesDB.Query(`
-		SELECT name, level, description FROM v_class_features
+		SELECT slug, name, level, description FROM v_class_features
 		WHERE class_slug = ? ORDER BY (level IS NULL), level, sort_order`, c.Slug)
 	if err != nil {
 		return err
@@ -417,12 +420,33 @@ func (s *server) loadClassFeatures(c *classDetail) error {
 	defer rows.Close()
 	for rows.Next() {
 		var f classFeatureRow
-		if err := rows.Scan(&f.Name, &f.Level, &f.Description); err != nil {
+		if err := rows.Scan(&f.Slug, &f.Name, &f.Level, &f.Description); err != nil {
 			return err
 		}
 		c.Features = append(c.Features, f)
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	slugs := make([]string, len(c.Features))
+	for i, f := range c.Features {
+		slugs[i] = f.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, c.Locale, "class_features", slugs)
+	if err != nil {
+		return err
+	}
+	for i := range c.Features {
+		tr := translations[c.Features[i].Slug]
+		if v, ok := tr["name"]; ok {
+			c.Features[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			c.Features[i].Description = v
+		}
+	}
+	return nil
 }
 
 func (s *server) loadSubclassGroups(c *classDetail) error {
@@ -454,7 +478,15 @@ func (s *server) loadSubclassGroups(c *classDetail) error {
 	sort.Slice(groups, func(i, k int) bool { return sortKey(groups[i].displayName) < sortKey(groups[k].displayName) })
 
 	for _, g := range groups {
-		agr := subclassGroupRow{DisplayName: g.displayName, SelectionLevels: g.selectionLevels, Description: g.description}
+		agr := subclassGroupRow{Slug: g.slug, DisplayName: g.displayName, SelectionLevels: g.selectionLevels, Description: g.description}
+		if tr, err := i18n.Row(s.rulesDB, c.Locale, "subclass_groups", g.slug); err == nil {
+			if v, ok := tr["display_name"]; ok {
+				agr.DisplayName = v
+			}
+			if v, ok := tr["description"]; ok {
+				agr.Description = sql.NullString{String: v, Valid: true}
+			}
+		}
 
 		archRows, err := s.rulesDB.Query(`
 			SELECT slug, name, description FROM subclasses WHERE group_slug = ?`, g.slug)
@@ -474,18 +506,36 @@ func (s *server) loadSubclassGroups(c *classDetail) error {
 		if err := archRows.Err(); err != nil {
 			return err
 		}
+
+		subSlugs := make([]string, len(subclasses))
+		for i, a := range subclasses {
+			subSlugs[i] = a.Slug
+		}
+		subTranslations, err := i18n.Batch(s.rulesDB, c.Locale, "subclasses", subSlugs)
+		if err != nil {
+			return err
+		}
+		for i := range subclasses {
+			tr := subTranslations[subclasses[i].Slug]
+			if v, ok := tr["name"]; ok {
+				subclasses[i].Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				subclasses[i].Description = sql.NullString{String: v, Valid: true}
+			}
+		}
 		sort.Slice(subclasses, func(i, k int) bool { return sortKey(subclasses[i].Name) < sortKey(subclasses[k].Name) })
 
 		for i := range subclasses {
 			featRows, err := s.rulesDB.Query(`
-				SELECT name, level, description FROM v_subclass_features
+				SELECT slug, name, level, description FROM v_subclass_features
 				WHERE subclass_slug = ? ORDER BY (level IS NULL), level, sort_order`, subclasses[i].Slug)
 			if err != nil {
 				return err
 			}
 			for featRows.Next() {
 				var f subclassFeatureRow
-				if err := featRows.Scan(&f.Name, &f.Level, &f.Description); err != nil {
+				if err := featRows.Scan(&f.Slug, &f.Name, &f.Level, &f.Description); err != nil {
 					featRows.Close()
 					return err
 				}
@@ -494,6 +544,24 @@ func (s *server) loadSubclassGroups(c *classDetail) error {
 			featRows.Close()
 			if err := featRows.Err(); err != nil {
 				return err
+			}
+
+			featSlugs := make([]string, len(subclasses[i].Features))
+			for k, f := range subclasses[i].Features {
+				featSlugs[k] = f.Slug
+			}
+			featTranslations, err := i18n.Batch(s.rulesDB, c.Locale, "subclass_features", featSlugs)
+			if err != nil {
+				return err
+			}
+			for k := range subclasses[i].Features {
+				tr := featTranslations[subclasses[i].Features[k].Slug]
+				if v, ok := tr["name"]; ok {
+					subclasses[i].Features[k].Name = v
+				}
+				if v, ok := tr["description"]; ok {
+					subclasses[i].Features[k].Description = v
+				}
 			}
 		}
 
@@ -568,7 +636,7 @@ func buildLevelFeatures(c *classDetail) []levelFeatureGroup {
 // Class-wide lists (subclass_slug NULL) still land in c.Options.
 func (s *server) loadClassOptions(c *classDetail) error {
 	rows, err := s.rulesDB.Query(`
-		SELECT o.list_name, o.name, o.prerequisites, o.description, a.name
+		SELECT o.slug, o.list_name, o.name, o.prerequisites, o.description, o.subclass_slug, a.name
 		FROM class_options o LEFT JOIN subclasses a ON a.slug = o.subclass_slug
 		WHERE o.class_slug = ? ORDER BY o.list_name, o.sort_order`, c.Slug)
 	if err != nil {
@@ -577,13 +645,14 @@ func (s *server) loadClassOptions(c *classDetail) error {
 	defer rows.Close()
 
 	type rawOption struct {
-		listName string
-		opt      classOptionRow
+		listName     string
+		subclassSlug sql.NullString
+		opt          classOptionRow
 	}
 	var raw []rawOption
 	for rows.Next() {
 		var ro rawOption
-		if err := rows.Scan(&ro.listName, &ro.opt.Name, &ro.opt.Prerequisites, &ro.opt.Description, &ro.opt.SubclassName); err != nil {
+		if err := rows.Scan(&ro.opt.Slug, &ro.listName, &ro.opt.Name, &ro.opt.Prerequisites, &ro.opt.Description, &ro.subclassSlug, &ro.opt.SubclassName); err != nil {
 			return err
 		}
 		raw = append(raw, ro)
@@ -592,10 +661,31 @@ func (s *server) loadClassOptions(c *classDetail) error {
 		return err
 	}
 
+	slugs := make([]string, len(raw))
+	for i, ro := range raw {
+		slugs[i] = ro.opt.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, c.Locale, "class_options", slugs)
+	if err != nil {
+		return err
+	}
+	for i := range raw {
+		tr := translations[raw[i].opt.Slug]
+		if v, ok := tr["name"]; ok {
+			raw[i].opt.Name = v
+		}
+		if v, ok := tr["prerequisites"]; ok {
+			raw[i].opt.Prerequisites = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["description"]; ok {
+			raw[i].opt.Description = v
+		}
+	}
+
 	bySubclass := map[string]*subclassRow{}
 	for gi := range c.SubclassGroups {
 		for si := range c.SubclassGroups[gi].Subclasses {
-			bySubclass[c.SubclassGroups[gi].Subclasses[si].Name] = &c.SubclassGroups[gi].Subclasses[si]
+			bySubclass[c.SubclassGroups[gi].Subclasses[si].Slug] = &c.SubclassGroups[gi].Subclasses[si]
 		}
 	}
 
@@ -608,8 +698,8 @@ func (s *server) loadClassOptions(c *classDetail) error {
 	}
 
 	for _, ro := range raw {
-		if ro.opt.SubclassName.Valid {
-			if sub, ok := bySubclass[ro.opt.SubclassName.String]; ok {
+		if ro.subclassSlug.Valid {
+			if sub, ok := bySubclass[ro.subclassSlug.String]; ok {
 				appendOption(&sub.Options, ro.listName, ro.opt)
 				continue
 			}

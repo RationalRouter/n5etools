@@ -17,21 +17,21 @@
   {{if .PassionateFlame}}
   <section class="companion-reference">
     {{if .PassionateFlame.FistsOfIronDice}}
-    <p class="section-hint">Fists of Iron: +{{.PassionateFlame.FistsOfIronDice}} Martial Dice bonus unarmed damage on a hit, once per turn.</p>
+    <p class="section-hint">{{T "character_taijutsu_passionate_flame.fists_of_iron_hint" .PassionateFlame.FistsOfIronDice}}</p>
     {{end}}
-    <h3>Hand Wraps of Passion</h3>
+    <h3>{{T "character_taijutsu_passionate_flame.hand_wraps_heading"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/taijutsu-specialist/passionate-flame/hand-wraps-of-passion" class="sheet-inline-form">
       <select name="value" class="sheet-option-tooltip-select">
-        <option value="">— none chosen —</option>
+        <option value="">{{T "character_taijutsu_passionate_flame.none_chosen_option"}}</option>
         {{range .PassionateFlame.HandWrapsOptions}}
         <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.PassionateFlame.HandWraps}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .PassionateFlame.HandWraps}}{{range .PassionateFlame.HandWrapsOptions}}{{if eq .Value $.PassionateFlame.HandWraps}}{{.Description}}{{end}}{{end}}{{else}}Choose an enhancement above to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .PassionateFlame.HandWraps}}{{range .PassionateFlame.HandWrapsOptions}}{{if eq .Value $.PassionateFlame.HandWraps}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_taijutsu_passionate_flame.hand_wraps_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_taijutsu_passionate_flame.set_button"}}</button>
     </form>
   </section>
   {{end}}

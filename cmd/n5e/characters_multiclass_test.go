@@ -304,7 +304,7 @@ func TestSheetClassMulticlassFlow(t *testing.T) {
 		"Character Level 7", // 5 + 2
 		"Weapon Specialist", "Ninjutsu Specialist",
 		`class="sheet-class-level-select"`,
-		`href="/characters/` + idStr + `/sheet/class">+ Add a Class</a>`,
+		`href="/characters/` + idStr + `/sheet/class">&#43; Add a Class</a>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sheet missing %q\nbody:\n%s", want, body)

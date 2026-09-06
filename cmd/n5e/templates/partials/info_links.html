@@ -5,30 +5,30 @@
      InfoPage must be one of "about", "bugs", "faq", "technical". */}}
 {{define "info_links"}}
 <nav class="info-links">
-  <p class="info-links-label">More about N5etools</p>
+  <p class="info-links-label">{{T "info_links.heading"}}</p>
   <div class="info-links-grid">
     {{if ne .InfoPage "about"}}
     <a class="info-link" href="/about">
-      <strong>About the Creator</strong>
-      <span>Who's behind this, and why it exists.</span>
+      <strong>{{T "nav.about"}}</strong>
+      <span>{{T "info_links.about_desc"}}</span>
     </a>
     {{end}}
     {{if ne .InfoPage "bugs"}}
     <a class="info-link" href="/bugs">
-      <strong>Bug Reports</strong>
-      <span>Something broken? Report it here.</span>
+      <strong>{{T "nav.bugs"}}</strong>
+      <span>{{T "info_links.bugs_desc"}}</span>
     </a>
     {{end}}
     {{if ne .InfoPage "faq"}}
     <a class="info-link" href="/faq">
-      <strong>FAQ</strong>
-      <span>Common questions, answered.</span>
+      <strong>{{T "nav.faq"}}</strong>
+      <span>{{T "info_links.faq_desc"}}</span>
     </a>
     {{end}}
     {{if ne .InfoPage "technical"}}
     <a class="info-link" href="/technical">
-      <strong>Technical Overview</strong>
-      <span>How it's built, and what's planned for 2.0.</span>
+      <strong>{{T "nav.technical"}}</strong>
+      <span>{{T "info_links.technical_desc"}}</span>
     </a>
     {{end}}
   </div>

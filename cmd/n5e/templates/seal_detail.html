@@ -1,8 +1,8 @@
 {{define "content"}}
 {{with .Seal}}
-<p><a href="/seals">← All Seals</a></p>
+<p><a href="/seals">{{T "seal_detail.back_link"}}</a></p>
 <h1>{{.Name}}</h1>
-<p class="card-epithet">{{if .SealRank.Valid}}{{.SealRank.String}}-Rank{{end}}{{if $.AppliesTo}} · {{$.AppliesTo}} Seal{{end}}</p>
+<p class="card-epithet">{{if .SealRank.Valid}}{{T "seal_detail.rank_suffix" .SealRank.String}}{{end}}{{if $.AppliesTo}}{{T "seal_detail.applies_to_seal" $.AppliesTo}}{{end}}</p>
 
 {{if .Description.Valid}}{{formatDescription .Description.String}}{{else}}<p>—</p>{{end}}
 {{end}}

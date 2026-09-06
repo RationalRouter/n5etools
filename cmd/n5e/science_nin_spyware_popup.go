@@ -45,7 +45,7 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 	popup := subclassTrackerPopupData{Title: "Spyware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Spyware == nil {
 		popup.EmptyHint = "This character has no Spyware Programs yet — Cruel Angel's Thesis grants this at 3rd-level Spyware."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_spyware.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_spyware.html", popup, nil)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 	if sp.QuickHack != nil || len(sp.AvailableQuickHack) > 0 {
 		popup.Sections = append(popup.Sections, quickHackSection(id, sp))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_spyware.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_spyware.html", popup, nil)
 }
 
 // spywareProgramSection builds the popup's own main Spyware Programs

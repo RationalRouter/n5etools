@@ -8,13 +8,13 @@
 
 <dl class="fact-list">
   {{if .FeatureName.Valid}}<dt>{{.FeatureName.String}}</dt><dd>{{.FeatureText.String}}</dd>{{end}}
-  {{if .ASIText.Valid}}<dt>Ability Score Increase</dt><dd>{{formatDescription .ASIText.String}}</dd>{{end}}
-  {{if .EquipmentText.Valid}}<dt>Equipment</dt><dd>{{.EquipmentText.String}}</dd>{{end}}
-  {{if .EquipmentPackText.Valid}}<dt>Equipment Pack</dt><dd>{{.EquipmentPackText.String}}</dd>{{end}}
+  {{if .ASIText.Valid}}<dt>{{T "backgrounds.ability_score_increase"}}</dt><dd>{{formatDescription .ASIText.String}}</dd>{{end}}
+  {{if .EquipmentText.Valid}}<dt>{{T "backgrounds.equipment"}}</dt><dd>{{.EquipmentText.String}}</dd>{{end}}
+  {{if .EquipmentPackText.Valid}}<dt>{{T "backgrounds.equipment_pack"}}</dt><dd>{{.EquipmentPackText.String}}</dd>{{end}}
 </dl>
 
 {{if .Proficiencies}}
-<h2>Proficiencies</h2>
+<h2>{{T "partial_background_detail.proficiencies_heading"}}</h2>
 <dl class="fact-list">
   {{range .Proficiencies}}
   <dt>{{.Kind}}</dt><dd>{{range $i, $v := .Values}}{{if $i}}, {{end}}{{$v}}{{end}}</dd>
@@ -23,7 +23,7 @@
 {{end}}
 
 {{if .AmbitionPrompts}}
-<h2>Ambition Prompts</h2>
+<h2>{{T "partial_background_detail.ambition_prompts_heading"}}</h2>
 <dl class="fact-list">
   {{range .AmbitionPrompts}}
   <dt>{{.Kind}}</dt><dd>{{.Text}}</dd>

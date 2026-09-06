@@ -16,21 +16,21 @@
 {{$rk := ""}}{{$dc := 0}}{{$ds := 0}}{{$dt := ""}}{{$props := ""}}
 {{with .Item}}{{$rk = .RollableKind}}{{$dc = .DamageCount}}{{$ds = .DamageSides}}{{$dt = .DamageType.String}}{{$props = .PropertiesText}}{{end}}
 <fieldset class="sheet-custom-attack-kind">
-  <legend class="sheet-vitals-label">Rollable</legend>
-  <label><input type="radio" name="rollable_kind" value="" {{if eq $rk ""}}checked{{end}}> None</label>
-  <label><input type="radio" name="rollable_kind" value="weapon" {{if eq $rk "weapon"}}checked{{end}}> Weapon</label>
-  <label><input type="radio" name="rollable_kind" value="toolkit" {{if eq $rk "toolkit"}}checked{{end}}> Toolkit</label>
-  <label><input type="radio" name="rollable_kind" value="other" {{if eq $rk "other"}}checked{{end}}> Other rollable</label>
+  <legend class="sheet-vitals-label">{{T "custom_item_fields.rollable_legend"}}</legend>
+  <label><input type="radio" name="rollable_kind" value="" {{if eq $rk ""}}checked{{end}}> {{T "sheet.none"}}</label>
+  <label><input type="radio" name="rollable_kind" value="weapon" {{if eq $rk "weapon"}}checked{{end}}> {{T "sheet.weapon_col"}}</label>
+  <label><input type="radio" name="rollable_kind" value="toolkit" {{if eq $rk "toolkit"}}checked{{end}}> {{T "custom_item_fields.toolkit_option"}}</label>
+  <label><input type="radio" name="rollable_kind" value="other" {{if eq $rk "other"}}checked{{end}}> {{T "custom_item_fields.other_rollable_option"}}</label>
 </fieldset>
 <div class="sheet-custom-attack-damage">
-  <span class="sheet-vitals-label">Damage dice (weapon only)</span>
-  <input type="number" name="damage_count" min="0" placeholder="1" aria-label="Number of damage dice"
+  <span class="sheet-vitals-label">{{T "custom_item_fields.damage_dice_weapon_only_label"}}</span>
+  <input type="number" name="damage_count" min="0" placeholder="1" aria-label="{{T "sheet.damage_dice_count_aria"}}"
          value="{{if $dc}}{{$dc}}{{end}}">
   <span class="sheet-custom-attack-d">d</span>
-  <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="Damage die size"
+  <input type="number" name="damage_sides" min="0" placeholder="6" aria-label="{{T "sheet.damage_die_size_aria"}}"
          value="{{if $ds}}{{$ds}}{{end}}">
-  <input type="text" name="damage_type" placeholder="Slashing" aria-label="Damage type (weapon only)" value="{{$dt}}">
+  <input type="text" name="damage_type" placeholder="{{T "sheet.slashing_placeholder"}}" aria-label="{{T "custom_item_fields.damage_type_weapon_only_aria"}}" value="{{$dt}}">
 </div>
-<label>Weapon properties <input type="text" name="properties" placeholder="Optional — finesse, thrown… (weapon only)"
+<label>{{T "custom_item_fields.weapon_properties_label"}} <input type="text" name="properties" placeholder="{{T "custom_item_fields.properties_placeholder"}}"
                     value="{{$props}}"></label>
 {{end}}

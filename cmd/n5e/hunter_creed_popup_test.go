@@ -390,7 +390,7 @@ func TestHunterCreedSidebarButton(t *testing.T) {
 			if !strings.Contains(sheetBody, `href="`+wantHref+`"`) {
 				t.Errorf("Core sheet missing its own sidebar button (href=%q):\n%s", wantHref, sheetBody)
 			}
-			if !strings.Contains(sheetBody, `tracked in the "Hunter's Creed" popup`) {
+			if !strings.Contains(sheetBody, `tracked in the &#34;Hunter&#39;s Creed&#34; popup`) {
 				t.Errorf("Core sheet missing pointer text:\n%s", sheetBody)
 			}
 			if strings.Contains(sheetBody, c.goneAddText) {

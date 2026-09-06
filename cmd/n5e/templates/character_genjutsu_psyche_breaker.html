@@ -14,15 +14,15 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Psyche Breaker <span class="option-picker-epithet">{{.Genjutsu.PsycheBreakerUsed}}/{{.Genjutsu.PsycheBreakerCap}} chosen</span></h3>
-    <p class="section-hint">Genjutsu you know that deal damage (not enforced — pick freely). Casting one as a Bonus Action stacks a -1 AC penalty, up to 3 times, on affected creatures for 1 minute. Freely re-editable — this app doesn't enforce a re-pick timing.</p>
+    <h3>{{T "character_genjutsu_psyche_breaker.title"}} <span class="option-picker-epithet">{{T "character_genjutsu_psyche_breaker.chosen_count" .Genjutsu.PsycheBreakerUsed .Genjutsu.PsycheBreakerCap}}</span></h3>
+    <p class="section-hint">{{T "character_genjutsu_psyche_breaker.hint"}}</p>
     {{range .Genjutsu.KnownPsycheBreaker}}
     <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
       <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/psyche-breaker/delete" class="sheet-inline-form">
         <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "character_genjutsu_psyche_breaker.forget" .Name}}" title="{{T "character_genjutsu_psyche_breaker.forget_title"}}">&times;</button>
       </form>
-      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">{{T "character_genjutsu_psyche_breaker.rank_label" .Rank}}</span></span>
     </div>
     {{end}}
     {{if lt .Genjutsu.PsycheBreakerUsed .Genjutsu.PsycheBreakerCap}}
@@ -31,13 +31,13 @@
         {{range .Genjutsu.AvailablePsycheBreaker}}
         <li>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">{{T "character_genjutsu_psyche_breaker.rank_label" .Rank}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
         </li>
         {{end}}
       </ul>
-      <button type="submit">Choose Psyche Breaker</button>
+      <button type="submit">{{T "character_genjutsu_psyche_breaker.choose"}}</button>
     </form>
     {{end}}
   </section>

@@ -37,7 +37,7 @@ import (
 // text_corrections audit table by internal/store.WriteTextCorrections.
 type Record struct {
 	EntityType, EntityPath, Field string
-	Tool                          string // "misspell", "apostrophe", "hyphenspace", "possessive", "wordconfusion", "curated", or "languagetool"
+	Tool                          string // "misspell", "apostrophe", "hyphenspace", "possessive", "wordconfusion", "bonusplural", "penaltyplural", "curated", or "languagetool"
 	RuleID                        string // LanguageTool rule id; "" for every other tool
 	Original, Corrected           string
 }
@@ -50,6 +50,8 @@ type Report struct {
 	HyphenSpaceFixes    int
 	PossessiveFixes     int
 	WordConfusionFixes  int
+	BonusPluralFixes    int
+	PenaltyPluralFixes  int
 	LanguageToolFixes   int
 	LanguageToolSkipped int
 	CuratedFixes        int
@@ -152,7 +154,29 @@ func Sweep(ctx context.Context, v any, opts Options) (*Report, error) {
 		u.text = fixed
 	}
 
-	// Pass 7: curated one-off corrections — local, instant, always runs.
+	// Pass 7: "a +N bonuses" number-agreement heuristic — local, instant,
+	// always runs.
+	for _, u := range units {
+		fixed, diffs := bonusPluralFix(u.text)
+		for _, d := range diffs {
+			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
+		}
+		rep.BonusPluralFixes += len(diffs)
+		u.text = fixed
+	}
+
+	// Pass 8: "a -N penalties" number-agreement heuristic (mirror of pass
+	// 7) — local, instant, always runs.
+	for _, u := range units {
+		fixed, diffs := penaltyPluralFix(u.text)
+		for _, d := range diffs {
+			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
+		}
+		rep.PenaltyPluralFixes += len(diffs)
+		u.text = fixed
+	}
+
+	// Pass 9: curated one-off corrections — local, instant, always runs.
 	// Runs last so each entry's Original key can be written against the
 	// text as every other pass has already left it.
 	for _, u := range units {

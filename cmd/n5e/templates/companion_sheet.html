@@ -21,10 +21,10 @@
      element wrapping everything was not an option. */}}
 {{define "content"}}
 <div class="companion-sheet" data-character-id="{{.CharacterID}}" data-companion-id="{{.Companion.ID}}">
-  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">{{T "companion_sheet.back_to_sheet" .CharacterName}}</a></p>
 
   <div class="companion-header">
-    <input type="text" name="name" form="companion-form" value="{{.Companion.Name}}" required class="companion-field companion-name-field" placeholder="Companion name">
+    <input type="text" name="name" form="companion-form" value="{{.Companion.Name}}" required class="companion-field companion-name-field" placeholder="{{T "companion_sheet.name_placeholder"}}">
     <span class="option-picker-epithet companion-kind-badge">{{companionKindLabel .Companion.Kind}}</span>
   </div>
 
@@ -64,8 +64,8 @@
   {{if eq .Companion.Kind "void-soul"}}{{template "void_soul_reference" (dict "Ref" .VoidSoulReference "CharacterID" .CharacterID "CompanionID" .Companion.ID)}}{{end}}
 
   <form method="post" action="/characters/{{.CharacterID}}/sheet/companions/{{.Companion.ID}}/delete"
-        data-confirm="Delete {{.Companion.Name}}? This cannot be undone.">
-    <button type="submit" class="btn-danger">Delete Companion</button>
+        data-confirm="{{T "companion_sheet.confirm_delete" .Companion.Name}}">
+    <button type="submit" class="btn-danger">{{T "companion_sheet.delete_button"}}</button>
   </form>
 </div>
 {{end}}

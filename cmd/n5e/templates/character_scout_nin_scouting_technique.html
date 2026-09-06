@@ -22,37 +22,37 @@
   {{end}}
   {{if .ChangeOfHeart}}
   <section class="companion-reference">
-    <h3>Change of Heart</h3>
+    <h3>{{T "character_scout_nin_scouting_technique.change_of_heart_heading"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/scout-nin/scouting-technique/change-of-heart" class="sheet-inline-form">
       <select name="value" class="sheet-option-tooltip-select">
-        <option value="">— none chosen —</option>
+        <option value="">{{T "character_scout_nin_scouting_technique.none_chosen_option"}}</option>
         {{range .ChangeOfHeart.Options}}
         <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.ChangeOfHeart.Current}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .ChangeOfHeart.Current}}{{range .ChangeOfHeart.Options}}{{if eq .Value $.ChangeOfHeart.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a benefit above to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .ChangeOfHeart.Current}}{{range .ChangeOfHeart.Options}}{{if eq .Value $.ChangeOfHeart.Current}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_scout_nin_scouting_technique.change_of_heart_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_scout_nin_scouting_technique.set_button"}}</button>
     </form>
   </section>
   {{end}}
   {{if .ParagonsPresence}}
   <section class="companion-reference">
-    <h3>Paragon's Presence</h3>
+    <h3>{{T "character_scout_nin_scouting_technique.paragons_presence_heading"}}</h3>
     <form method="post" action="/characters/{{.Data.CharacterID}}/scout-nin/scouting-technique/paragons-presence" class="sheet-inline-form">
       <select name="value" class="sheet-option-tooltip-select">
-        <option value="">— none chosen —</option>
+        <option value="">{{T "character_scout_nin_scouting_technique.none_chosen_option"}}</option>
         {{range .ParagonsPresence.Options}}
         <option value="{{.Value}}" data-description="{{.Description}}"{{if eq .Value $.ParagonsPresence.Current}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
         <span class="tooltip-trigger">ⓘ</span>
-        <span class="tooltip-content">{{if .ParagonsPresence.Current}}{{range .ParagonsPresence.Options}}{{if eq .Value $.ParagonsPresence.Current}}{{.Description}}{{end}}{{end}}{{else}}Choose a condition above to see what it does.{{end}}</span>
+        <span class="tooltip-content">{{if .ParagonsPresence.Current}}{{range .ParagonsPresence.Options}}{{if eq .Value $.ParagonsPresence.Current}}{{.Description}}{{end}}{{end}}{{else}}{{T "character_scout_nin_scouting_technique.paragons_presence_default_description"}}{{end}}</span>
       </span>
-      <button type="submit">Set</button>
+      <button type="submit">{{T "character_scout_nin_scouting_technique.set_button"}}</button>
     </form>
   </section>
   {{end}}

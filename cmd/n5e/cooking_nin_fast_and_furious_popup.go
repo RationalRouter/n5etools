@@ -58,11 +58,11 @@ func (s *server) handleFastAndFuriousPopup(w http.ResponseWriter, r *http.Reques
 	popup := subclassTrackerPopupData{Title: "Fast and Furious", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.FastAndFurious == nil {
 		popup.EmptyHint = "This character has no Fast and Furious yet — Entremetier Chef grants this at 2nd level."
-		s.renderSubclassTrackerPopup(w, "character_cooking_nin_fast_and_furious.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_fast_and_furious.html", popup, nil)
 		return
 	}
 
-	s.renderSubclassTrackerPopup(w, "character_cooking_nin_fast_and_furious.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_fast_and_furious.html", popup, map[string]any{
 		"FastAndFurious": data.FastAndFurious,
 	})
 }

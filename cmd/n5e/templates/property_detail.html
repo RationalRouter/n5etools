@@ -1,12 +1,12 @@
 {{define "content"}}
 {{with .Property}}
-<p><a href="/properties">← All Properties</a></p>
+<p><a href="/properties">{{T "property_detail.back_link"}}</a></p>
 <h1>{{.Name}}</h1>
 
 <p class="overview">{{.Description}}</p>
 
 {{if .Weapons}}
-<h2>{{$.EquipmentLabel}} with this Property</h2>
+<h2>{{T "property_detail.equipment_with_property" $.EquipmentLabel}}</h2>
 <ul class="plain-list">
   {{range .Weapons}}
   <li><a href="/items?q={{.Name}}">{{.Name}}</a>{{if .Detail.Valid}} <span class="entry-level">({{.Detail.String}})</span>{{end}}</li>

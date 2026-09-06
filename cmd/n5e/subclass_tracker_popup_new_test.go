@@ -502,15 +502,15 @@ func TestOperativeTrapsAwakenedScrollCombatMedicSidebarButtons(t *testing.T) {
 		{"Operative Traps", func(t *testing.T, s *server) int64 {
 			seedOperativeTrapsCatalog(t, s)
 			return seedTacticalStrategistCharacter(t, s, "Shikamaru", 6)
-		}, operativeTrapsPopupPath, `tracked in the "Operative Traps" popup`, `/sheet/operative-traps"`},
+		}, operativeTrapsPopupPath, `tracked in the &#34;Operative Traps&#34; popup`, `/sheet/operative-traps"`},
 		{"Awakened Scroll", func(t *testing.T, s *server) int64 {
 			seedScribeMasterCatalog(t, s)
 			return seedScribeMasterCharacter(t, s, "Sai", 6)
-		}, awakenedScrollPopupPath, `tracked in the "Awakened Scroll" popup`, `/sheet/awakened-scroll"`},
+		}, awakenedScrollPopupPath, `tracked in the &#34;Awakened Scroll&#34; popup`, `/sheet/awakened-scroll"`},
 		{"Combat Medic", func(t *testing.T, s *server) int64 {
 			seedCombatMedicCatalog(t, s)
 			return seedCombatMedicCharacter(t, s, "Sakura", 9)
-		}, combatMedicPopupPath, `tracked in the "Combat Medic" popup`, `/sheet/expert-combatant"`},
+		}, combatMedicPopupPath, `tracked in the &#34;Combat Medic&#34; popup`, `/sheet/expert-combatant"`},
 	}
 
 	for _, c := range cases {

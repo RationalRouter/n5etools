@@ -688,24 +688,24 @@ func TestNewSubclassTrackerSidebarButtons(t *testing.T) {
 		{"Elemental Innovationist", func(t *testing.T, s *server) int64 {
 			seedElementalInnovationistCatalog(t, s, 6)
 			return seedElementalInnovationistCharacter(t, s, "Karui", 6)
-		}, elementalInnovationistPopupPath, `tracked in the "Elemental Innovationist" popup`, "Fit Perk"},
+		}, elementalInnovationistPopupPath, `tracked in the &#34;Elemental Innovationist&#34; popup`, "Fit Perk"},
 		{"Grenadier", func(t *testing.T, s *server) int64 {
 			seedGrenadierBIMCatalog(t, s, 6)
 			return seedGrenadierCharacter(t, s, "Deidara", 6)
-		}, grenadierPopupPath, `tracked in the "Grenadier" popup`, "Load Bandolier"},
+		}, grenadierPopupPath, `tracked in the &#34;Grenadier&#34; popup`, "Load Bandolier"},
 		{"Mad Scientist", func(t *testing.T, s *server) int64 {
 			seedMadScientistCatalog(t, s, 6)
 			return seedMadScientistCharacter(t, s, "Kabuto", 6)
-		}, madScientistPopupPath, `tracked in the "Mad Scientist" popup`, "Brew Serum"},
+		}, madScientistPopupPath, `tracked in the &#34;Mad Scientist&#34; popup`, "Brew Serum"},
 		{"Ninjaneer", func(t *testing.T, s *server) int64 {
 			seedNinjaneerCatalog(t, s, 6)
 			seedNinjaneerArsenalModCatalog(t, s)
 			return seedNinjaneerCharacter(t, s, "Karin", 6, 14)
-		}, ninjaneerPopupPath, `tracked in the "Ninjaneer" popup`, "Install Modification"},
+		}, ninjaneerPopupPath, `tracked in the &#34;Ninjaneer&#34; popup`, "Install Modification"},
 		{"Shinobi-Ware", func(t *testing.T, s *server) int64 {
 			seedEverEvolvingRules(t, s, 14, 20)
 			return seedEverEvolvingCharacter(t, s, "Kabuto", 14)
-		}, shinobiWarePopupPath, `tracked in the "Shinobi-Ware" popup`, "Install Upgrade"},
+		}, shinobiWarePopupPath, `tracked in the &#34;Shinobi-Ware&#34; popup`, "Install Upgrade"},
 	}
 
 	for _, c := range cases {

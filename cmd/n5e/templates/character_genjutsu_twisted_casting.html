@@ -14,15 +14,15 @@
   <p class="section-hint">{{.Data.EmptyHint}}</p>
   {{else}}
   <section class="companion-reference">
-    <h3>Twisted Casting <span class="option-picker-epithet">{{.Genjutsu.TwistedCastingUsed}}/{{.Genjutsu.TwistedCastingCap}} chosen</span></h3>
-    <p class="section-hint">Genjutsu you know that can appear to originate from another creature you can see, as a Bonus Action. Freely re-editable on a long rest — this app doesn't enforce that timing.</p>
+    <h3>{{T "character_genjutsu_twisted_casting.title"}} <span class="option-picker-epithet">{{T "character_genjutsu_twisted_casting.chosen_count" .Genjutsu.TwistedCastingUsed .Genjutsu.TwistedCastingCap}}</span></h3>
+    <p class="section-hint">{{T "character_genjutsu_twisted_casting.hint"}}</p>
     {{range .Genjutsu.KnownTwistedCasting}}
     <div class="puppet-upgrade-pick ninjutsu-jutsu-pick">
       <form method="post" action="/characters/{{$.Data.CharacterID}}/genjutsu-specialist/twisted-casting/delete" class="sheet-inline-form">
         <input type="hidden" name="jutsu_id" value="{{.JutsuID}}">
-        <button type="submit" class="sheet-delete-btn" aria-label="Forget {{.Name}}" title="Forget">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "character_genjutsu_twisted_casting.forget" .Name}}" title="{{T "character_genjutsu_twisted_casting.forget_title"}}">&times;</button>
       </form>
-      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span></span>
+      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">{{T "character_genjutsu_twisted_casting.rank_label" .Rank}}</span></span>
     </div>
     {{end}}
     {{if lt .Genjutsu.TwistedCastingUsed .Genjutsu.TwistedCastingCap}}
@@ -31,13 +31,13 @@
         {{range .Genjutsu.AvailableTwistedCasting}}
         <li>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">Rank {{.Rank}}</span>
+            <input type="radio" name="jutsu_id" value="{{.JutsuID}}" required> {{.Name}} <span class="option-picker-epithet">{{T "character_genjutsu_twisted_casting.rank_label" .Rank}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
         </li>
         {{end}}
       </ul>
-      <button type="submit">Choose Twisted Casting</button>
+      <button type="submit">{{T "character_genjutsu_twisted_casting.choose"}}</button>
     </form>
     {{end}}
   </section>

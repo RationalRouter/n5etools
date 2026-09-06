@@ -785,14 +785,5 @@ func (s *server) handleNinjutsuMoldingDetail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render ninjutsu molding detail: no template registered")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
-		log.Println("render ninjutsu molding detail:", err)
-	}
+	s.renderCard(w, r, "character_sheet.html", "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description})
 }

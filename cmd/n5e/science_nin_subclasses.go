@@ -2381,7 +2381,7 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 	if category == "regalia" {
 		for _, o := range scienceNinRegaliaOptions {
 			if o.Slug == slug {
-				s.renderScienceNinSubclassPickDetail(w, o.Name, o.Description)
+				s.renderScienceNinSubclassPickDetail(w, r, o.Name, o.Description)
 				return
 			}
 		}
@@ -2398,7 +2398,7 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 	if category == "mixed-studies" {
 		for _, o := range mixedStudiesInquiryOptions {
 			if o.SubclassSlug == slug {
-				s.renderScienceNinSubclassPickDetail(w, o.Name, s.mixedStudiesInquiryDescription(o))
+				s.renderScienceNinSubclassPickDetail(w, r, o.Name, s.mixedStudiesInquiryDescription(o))
 				return
 			}
 		}
@@ -2480,26 +2480,17 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 		return
 	}
 	if category == "wow" {
-		s.renderScienceNinSubclassPickDetailWoW(w, name, description)
+		s.renderScienceNinSubclassPickDetailWoW(w, r, name, description)
 		return
 	}
-	s.renderScienceNinSubclassPickDetail(w, name, description)
+	s.renderScienceNinSubclassPickDetail(w, r, name, description)
 }
 
 // renderScienceNinSubclassPickDetail renders the shared popup body once a
 // caller has resolved a pick's own Name/Description, from either a DB
 // lookup or the in-memory Regalia catalog.
-func (s *server) renderScienceNinSubclassPickDetail(w http.ResponseWriter, name, description string) {
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render science-nin subclass pick detail: no template registered")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
-		log.Println("render science-nin subclass pick detail:", err)
-	}
+func (s *server) renderScienceNinSubclassPickDetail(w http.ResponseWriter, r *http.Request, name, description string) {
+	s.renderCard(w, r, "character_sheet.html", "hunter_pick_detail_card", map[string]any{"Name": name, "Description": description})
 }
 
 // renderScienceNinSubclassPickDetailWoW is renderScienceNinSubclassPickDetail's
@@ -2509,15 +2500,6 @@ func (s *server) renderScienceNinSubclassPickDetail(w http.ResponseWriter, name,
 // and "ascended-wow" (an Ascended W.o.W's own DetailHref, set in
 // ascendedWowSection) route here — an Ascended designation is a pointer at
 // the same underlying class_options row, not a separate catalog.
-func (s *server) renderScienceNinSubclassPickDetailWoW(w http.ResponseWriter, name, description string) {
-	tmpl, ok := pageTemplates["character_sheet.html"]
-	if !ok {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		log.Println("render science-nin subclass pick detail (wow): no template registered")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "wow_pick_detail_card", map[string]any{"Name": name, "Description": description}); err != nil {
-		log.Println("render science-nin subclass pick detail (wow):", err)
-	}
+func (s *server) renderScienceNinSubclassPickDetailWoW(w http.ResponseWriter, r *http.Request, name, description string) {
+	s.renderCard(w, r, "character_sheet.html", "wow_pick_detail_card", map[string]any{"Name": name, "Description": description})
 }

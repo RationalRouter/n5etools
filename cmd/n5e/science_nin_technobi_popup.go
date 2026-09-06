@@ -56,7 +56,7 @@ func (s *server) handleTechnobiPopup(w http.ResponseWriter, r *http.Request) {
 	popup := subclassTrackerPopupData{Title: "Technobi", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Technobi == nil {
 		popup.EmptyHint = "This character has no Technobi Mechanizations yet — The Best Laid Trap grants this at 3rd-level Technobi."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_technobi.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_technobi.html", popup, nil)
 		return
 	}
 
@@ -65,7 +65,7 @@ func (s *server) handleTechnobiPopup(w http.ResponseWriter, r *http.Request) {
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
 	popup.Sections = append(popup.Sections, technobiMechanizationSection(id, tb))
-	s.renderSubclassTrackerPopup(w, "character_science_nin_technobi.html", popup, map[string]any{
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_technobi.html", popup, map[string]any{
 		"Technobi": tb,
 	})
 }

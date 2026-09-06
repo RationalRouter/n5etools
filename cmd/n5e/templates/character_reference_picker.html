@@ -9,12 +9,12 @@
      here, this is a normal same-window navigation. */}}
 {{define "content"}}
 <div class="character-reference-page">
-  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">← {{.CharacterName}}'s Sheet</a></p>
-  <h1>Class Reference</h1>
-  <p class="section-hint">{{.CharacterName}} has levels in more than one class — choose which one to view.</p>
+  <p class="page-subtitle"><a href="/characters/{{.CharacterID}}">{{T "character_reference_picker.back_to_sheet" .CharacterName}}</a></p>
+  <h1>{{T "character_reference_picker.title"}}</h1>
+  <p class="section-hint">{{T "character_reference_picker.multiclass_hint" .CharacterName}}</p>
   <ul class="sheet-owned-list">
     {{range .Classes}}
-    <li><a href="/characters/{{$.CharacterID}}/reference?class={{.Slug}}">{{.Name}} <span class="option-picker-epithet">Level {{.Levels}}</span></a></li>
+    <li><a href="/characters/{{$.CharacterID}}/reference?class={{.Slug}}">{{.Name}} <span class="option-picker-epithet">{{T "character_reference_picker.level_n" .Levels}}</span></a></li>
     {{end}}
   </ul>
 </div>

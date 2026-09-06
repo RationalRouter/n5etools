@@ -44,7 +44,7 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 	popup := subclassTrackerPopupData{Title: "Grenadier", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Grenadier == nil {
 		popup.EmptyHint = "This character has no B.I.M yet — Explosive Modifications grants this at 3rd-level Grenadier."
-		s.renderSubclassTrackerPopup(w, "character_science_nin_grenadier.html", popup, nil)
+		s.renderSubclassTrackerPopup(w, r, "character_science_nin_grenadier.html", popup, nil)
 		return
 	}
 
@@ -56,7 +56,7 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 	if gr.DesignatedBIM != nil || len(gr.AvailableDesignatedBIM) > 0 {
 		popup.Sections = append(popup.Sections, bimSpecialistSection(id, gr))
 	}
-	s.renderSubclassTrackerPopup(w, "character_science_nin_grenadier.html", popup, nil)
+	s.renderSubclassTrackerPopup(w, r, "character_science_nin_grenadier.html", popup, nil)
 }
 
 func bimSection(characterID int64, gr *scienceNinGrenadierData) subclassTrackerSection {
