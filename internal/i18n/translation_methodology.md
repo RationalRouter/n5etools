@@ -606,6 +606,27 @@ before it's assigned into the response struct), never inside the loader itself.*
   `sortedSkillChoiceOptions` left untranslated — see the skill-names finding above. Updated all 3
   call sites (`characters.go`'s two full-sheet-render sites plus this file's own
   `handleSheetHunterPatternChoice`) to pass `localeFromContext(r.Context())`.
+- **`wow_whelp.go`, audited 2026-09-07, no fix applied** (new cross-cutting finding, not a
+  file-local bug): the whole file is Science-Nin's Draconic Gauntlet Whelp companion — a
+  `kind="custom"` companion `ensureWhelpCompanion` auto-adds ONCE (name "Whelp (Draconic
+  Gauntlet)", three `charstore.CompanionAttack` rows with hardcoded English `Name`/`Description`
+  text lifted straight from the book), matching the exact same shape
+  `ensureAngelEIPSpectreCompanion` (`science_nin_subclasses.go`, already a **closed** file in this
+  sweep) already uses for its own Spectre companion. Neither auto-add takes a `locale` parameter or
+  translates anything — the rulebook-sourced attack/description text is written once, in raw
+  English, into an ordinary per-character `custom` companion row that (like any other
+  player-authored custom companion) is never re-read through an `i18n` overlay afterward. This is
+  a genuine gap (a Spanish/Portuguese player's auto-granted Whelp/Spectre shows English attack text
+  forever, unlike every DB-catalog-backed companion kind), but it's NOT specific to `wow_whelp.go`
+  — fixing it properly means threading `locale` through both this file's `ensureWhelpCompanion` (5
+  call sites across `science_nin_elemental_innovationist_popup.go` and Core-sheet add/delete
+  routes, per `syncDraconicGauntletWhelp`'s own doc) AND reopening the already-closed
+  `science_nin_subclasses.go` for its own identically-shaped Spectre gap, translating the
+  write-once text at CREATION time (there's no live re-read to overlay onto, unlike every other
+  gap fixed so far in this sweep). Left as a flagged, deferred cross-cutting item rather than a
+  partial one-file fix that would leave the sibling `science_nin_subclasses.go` instance
+  inconsistent. Everything else in `wow_whelp.go` — `loadWhelpReference`'s AC/HP recompute, the
+  exact-name companion matching — is numeric/matching-key only, nothing else to translate.
 - **`medical_nin.go`** (2026-09-07): `loadKnownExpertCombatantJutsu` (Combat Medic's Expert
   Combatant picker, sourced from the character's own known Taijutsu/Bukijutsu rather than a rules
   catalog) had no `locale` parameter at all and returned raw `v_jutsu`/`custom_jutsu` Name/
@@ -644,9 +665,13 @@ gap by SOURCE, not by database/catalog completeness percentage — completeness 
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
-`medical_nin.go`, and `hunter_pattern_choices.go` are closed; ~9 sibling files (`wow_whelp.go`,
-`taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
-`science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
+`medical_nin.go`, and `hunter_pattern_choices.go` are closed; `wow_whelp.go` was audited (2026-09-07)
+and found clean OF THIS PARTICULAR gap — its own translation gap is real but cross-cutting (see its
+own bullet above) and deliberately deferred rather than fixed in isolation, so don't re-audit it
+from scratch, but also don't count it "closed" until the cross-cutting companion-auto-add pass
+lands; ~8 sibling files (`taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`,
+`snb.go`, `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
+check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
 outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was
