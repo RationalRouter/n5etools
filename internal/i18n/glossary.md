@@ -476,3 +476,72 @@ below); results land in a separate report before this becomes a live editing tas
 > llamas sobre el suelo, en un espacio dentro de 120 pies. Grandes bolas de fuego alquímico
 > comienzan a manifestarse en el cielo, tratando el área como si estuviera siendo el objetivo del
 > Ninjutsu de Fuego Tormenta de Fuego de Rango A.
+
+# Portuguese (pt) translation glossary
+
+Started 2026-09-07, after the first-pass DeepL Pro pipeline run for Portuguese (see
+[[project_i18n_deepl_pivot_status]]). Unlike the Spanish glossary above, this section is
+**not** a mirror of every Spanish table — it starts empty and grows the same way Spanish's
+did: from real mistranslations found by diffing translated output against the English
+source, not speculative upfront entries. `glossaryColumn["pt"] = "Portuguese"` in
+`cmd/n5e-i18n/main.go` already picks up any table below with an "English"/"Portuguese"
+column pair — no code change needed to add more.
+
+**Important finding from the first audit pass**: of the ~74 jutsu `name` fields that came
+back from DeepL identical to their English source, comparing each one against Spanish's own
+translation of the *same* field showed most of them are **not** Portuguese-specific bugs —
+Spanish left the same short, stylized move titles untranslated too (e.g. "Shatter", "Flash",
+"Bane", "Eclipse", "Juggernaut", "Grand Slam", "Buzzsaw Blitz", "Dancing Fool Twister").
+That's consistent behavior across both locales for this category of name, not a Portuguese
+regression — treat single/short stylized English jutsu titles as intentionally untranslated
+unless a specific one is confirmed wrong. Only the entries below, where Spanish *did*
+produce a real translation for the same field (proving DeepL was capable of it) while
+Portuguese returned the raw English, are treated as genuine gaps.
+
+## Core mechanical terms
+
+| English | Portuguese | Source |
+|---|---|---|
+| Class | Classe | RPG character-class sense. Confirmed bug: DeepL non-deterministically mistranslated this as "aula"/"turma" (school-class sense) in ~17 UI catalog keys — hand-patched in `internal/i18n/locales/pt.json`, see [[project_i18n_deepl_pivot_status]] |
+| Classes | Classes | RPG character-class sense, plural. Same bug/fix as above |
+
+## Jutsu names — confirmed gaps (Spanish translated the same field, Portuguese didn't)
+
+| English | Portuguese | Source |
+|---|---|---|
+| Mirage | Miragem | jutsu name; direct cognate; Spanish translated as "Espejismo" |
+| Noble Impact | Impacto Nobre | Spanish translated as "Impacto noble" |
+| Phantom Mobility | Mobilidade Fantasma | Spanish translated (oddly) as "Phantom Movilidad" — corrected here rather than copied, since Spanish's own version left "Phantom" untranslated |
+| Shockwave Slash | Corte de Onda de Choque | Spanish translated (grammatically odd) as "Shockwave Cortante" — corrected here rather than copied |
+| Web Bind | Amarração da Teia | Tsuchigumo-clan jutsu name; Spanish mistranslated this one as "Encuadernación en rústica" (paperback binding, a false-cognate error on "bind") — do NOT copy Spanish's version, it's wrong there too |
+| Breath of Earth: Smash | Sopro da Terra: Impacto | matches the established "Breath of X" → "Sopro de/do/da X" pattern already correctly applied to ~30 sibling jutsu names in this family (Breath of Ash/Beasts/Dust/Echo/Enoki/Flame/Moon/Rain/Skies/Sound/Water/Wind); this was the one straggler left fully in English |
+| Breath of Echo: Reverb | Sopro do Eco: Reverberação | same "Breath of X" pattern; sibling "Breath of Echo: Crescendo/Roar" both already translate the prefix as "Sopro do Eco" |
+| Falling Heaven: Cross | Falling Heaven: Cruz | "Falling Heaven" is a Fuma-clan technique-line title consistently left untranslated across every sibling (Calamity/Execution/Focus/Penetrate/Protect/Rain/Storm all keep "Falling Heaven:" in English) — only the suffix translates |
+| Falling Heaven: Divide | Falling Heaven: Divisão | same pattern as above |
+| Falling Heaven: Split | Falling Heaven: Fragmentação | same pattern as above |
+
+## Jutsu names — left untranslated on purpose (identity, locks the decision)
+
+Confirmed against the equivalent Spanish field (also untranslated) or against genre/franchise
+convention. Listed as identity pairs so a future `-force` retranslation doesn't churn them.
+
+| English | Portuguese | Source |
+|---|---|---|
+| Shatter | Shatter | stylized jutsu title, untranslated in Spanish too |
+| Flash | Flash | stylized jutsu title, untranslated in Spanish too |
+| Bane | Bane | stylized jutsu title, untranslated in Spanish too |
+| Eclipse | Eclipse | stylized jutsu title, untranslated in Spanish too |
+| Juggernaut | Juggernaut | stylized jutsu title, untranslated in Spanish too |
+| Grand Slam | Grand Slam | stylized jutsu title, untranslated in Spanish too |
+| Heavy Metal | Heavy Metal | music-genre loanword, commonly left untranslated in Portuguese; Spanish's "Pesada Metal" is grammatically wrong (should be "Metal Pesado" if translated at all) — left as the loanword instead of copying Spanish's error |
+
+**Not yet resolved**: `jutsu/o-encode-thoughts` ("O Encode Thoughts") — the English source
+name itself looks malformed/ambiguous (stray leading "O"?), so no Portuguese translation was
+guessed here; check with Sergio whether the English name is correct before translating it.
+
+## One-off content fixes (not glossary terms — full phrases, not reusable)
+
+`clan/futton` epithet: English "A Corrosive Breath" came back untranslated in Portuguese
+(Spanish: "Un Aliento Corrosivo"). Hand-fixed to "Um Sopro Corrosivo" directly in the
+database, matching the "Sopro" convention established across the "Breath of X" jutsu family
+above. Not a table entry since it's a one-off phrase, not a reusable term.

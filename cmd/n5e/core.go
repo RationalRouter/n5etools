@@ -131,7 +131,7 @@ func (s *server) handleBackgrounds(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.render(w, r, "backgrounds.html", map[string]any{"Title": "Backgrounds", "Backgrounds": backgrounds})
+	s.render(w, r, "backgrounds.html", map[string]any{"Title": s.t(r, "backgrounds.title"), "Backgrounds": backgrounds})
 }
 
 type ambitionPrompt struct {
@@ -329,7 +329,7 @@ func (s *server) handleStances(w http.ResponseWriter, r *http.Request) {
 		groups = append(groups, stanceGroup{LabelKey: g.labelKey, Stances: stances})
 	}
 
-	s.render(w, r, "stances.html", map[string]any{"Title": "Fighting Stances", "Groups": groups})
+	s.render(w, r, "stances.html", map[string]any{"Title": s.t(r, "stances.title"), "Groups": groups})
 }
 
 func (s *server) handleStanceDetail(w http.ResponseWriter, r *http.Request) {
@@ -493,7 +493,7 @@ func (s *server) handleFeats(w http.ResponseWriter, r *http.Request) {
 		groups = append(groups, featGroup{Category: featCategoryLabel(c), Feats: feats})
 	}
 
-	s.render(w, r, "feats.html", map[string]any{"Title": "Feats", "Groups": groups})
+	s.render(w, r, "feats.html", map[string]any{"Title": s.t(r, "feats.title"), "Groups": groups})
 }
 
 func (s *server) handleFeatDetail(w http.ResponseWriter, r *http.Request) {
@@ -628,7 +628,7 @@ func (s *server) handleSeals(w http.ResponseWriter, r *http.Request) {
 		groups[len(groups)-1].Seals = append(groups[len(groups)-1].Seals, sw.sealRow)
 	}
 
-	s.render(w, r, "seals.html", map[string]any{"Title": "Enhancement Seals", "Groups": groups})
+	s.render(w, r, "seals.html", map[string]any{"Title": s.t(r, "seals.title"), "Groups": groups})
 }
 
 func (s *server) handleSealDetail(w http.ResponseWriter, r *http.Request) {

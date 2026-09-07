@@ -104,7 +104,7 @@ func (s *server) handlePoisons(w http.ResponseWriter, r *http.Request) {
 		g.Poisons = append(g.Poisons, p)
 	}
 
-	s.render(w, r, "poisons.html", map[string]any{"Title": "Poisons", "Groups": groups})
+	s.render(w, r, "poisons.html", map[string]any{"Title": s.t(r, "poisons.title"), "Groups": groups})
 }
 
 func (s *server) handlePoisonDetail(w http.ResponseWriter, r *http.Request) {

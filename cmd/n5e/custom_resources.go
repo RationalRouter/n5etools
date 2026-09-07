@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // customResourceGrants is the curated table backing the sheet's "Special
@@ -5823,12 +5824,38 @@ func (s *server) handleSetCCDMendingPct(w http.ResponseWriter, r *http.Request) 
 	s.respondSheet(w, r, id, "sheet_vitals")
 }
 
+// translateCustomResourceEntries overlays each entry's Name/Restriction with
+// its translated text for locale, in place. customResourceGrants (and the
+// synthetic entries madScientistCCDSplit/genjutsuVisceralLanguagePool/
+// genjutsuDeceitfulDuplicatePool build directly) store plain English display
+// text rather than catalog keys -- there's no natural short key to hand-name
+// for ~400 curated strings scattered across this file, so the English text
+// itself doubles as the catalog lookup key (namespaced so it can't collide
+// with an unrelated key elsewhere in the catalog). See
+// internal/i18n/translation_methodology.md for why every player-facing
+// string gets translated with no exceptions, and locales/en.json for the
+// "cr_name:"/"cr_restriction:" keys themselves (identical to the English
+// values here, so a missing translation falls back to the original text
+// instead of leaking a raw key onto the sheet).
+func translateCustomResourceEntries(entries []CustomResourceEntry, locale string) []CustomResourceEntry {
+	tr := i18n.Translator(locale)
+	for i := range entries {
+		entries[i].Name = tr("cr_name:" + entries[i].Name)
+		if entries[i].Restriction != "" {
+			entries[i].Restriction = tr("cr_restriction:" + entries[i].Restriction)
+		}
+	}
+	return entries
+}
+
 // loadCustomResources gathers everything computeCustomResources needs for
 // one character: its granted features (class/subclass/clan/feats, same
 // merged list the Core tab and passive traits use), per-class level map,
 // and CON/Intelligence/Charisma modifiers, then resolves the curated grant
-// table against them.
-func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet) ([]CustomResourceEntry, error) {
+// table against them. locale selects the display language for the returned
+// entries' Name/Restriction text (see translateCustomResourceEntries) --
+// every other field is language-independent.
+func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet, locale string) ([]CustomResourceEntry, error) {
 	features, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
@@ -5921,6 +5948,7 @@ func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet) 
 		}
 	}
 	entries = puppetResourcefulTacticsGenjutsuBoost(entries, sheet, subclassColor)
+	entries = translateCustomResourceEntries(entries, locale)
 	return entries, nil
 }
 
@@ -5928,7 +5956,10 @@ func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet) 
 // resource a character has, via SetCustomResourceValue. tier selects which
 // of ShortRegen/LongRegen/FullRegen governs each entry.
 func (s *server) applyCustomResourceRest(characterID int64, sheet *charsheet.Sheet, tier string) error {
-	entries, err := s.loadCustomResources(characterID, sheet)
+	// Regen math only touches Key/Max/Current/regen kind, never the
+	// display text -- locale is irrelevant here, so "en" avoids a wasted
+	// catalog lookup on every entry for a value nothing reads.
+	entries, err := s.loadCustomResources(characterID, sheet, "en")
 	if err != nil {
 		return err
 	}

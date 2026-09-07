@@ -89,7 +89,7 @@ func (s *server) handleTraps(w http.ResponseWriter, r *http.Request) {
 
 	sort.Slice(traps, func(i, j int) bool { return sortKey(traps[i].Name) < sortKey(traps[j].Name) })
 
-	s.render(w, r, "traps.html", map[string]any{"Title": "Traps", "Traps": traps})
+	s.render(w, r, "traps.html", map[string]any{"Title": s.t(r, "traps.title"), "Traps": traps})
 }
 
 func (s *server) handleTrapDetail(w http.ResponseWriter, r *http.Request) {

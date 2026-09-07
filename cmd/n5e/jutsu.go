@@ -241,7 +241,7 @@ func (s *server) handleJutsuList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, "jutsu.html", map[string]any{
-		"Title": "Jutsu", "Groups": groupJutsu(entries), "SourceTiles": tiles, "Selected": selected,
+		"Title": s.t(r, "jutsu.title"), "Groups": groupJutsu(entries), "SourceTiles": tiles, "Selected": selected,
 	})
 }
 

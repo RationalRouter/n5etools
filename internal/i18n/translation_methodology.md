@@ -174,6 +174,107 @@ If a row's English turns out to be broken but isn't yet in the audit report,
 add it there rather than silently working around it in the translation alone,
 so the finding is tracked in one place instead of being rediscovered later.
 
+## Known DeepL/pipeline bugs (fixed in code, but explain scars if seen again)
+
+1. **DeepL's glossary-creation endpoint rejects regional `target_lang` variants** (e.g. `PT-BR`)
+   even though the translate endpoint requires one. `cmd/n5e-i18n/main.go`'s
+   `glossaryTargetLang()` strips the region suffix only for the `CreateGlossary` call.
+2. **`cmdCatalogTranslate`'s `existing` map stayed `nil`** (not empty-initialized) when the
+   locale's catalog file didn't exist yet — panicked on first write for a genuinely new locale.
+   Fixed with a nil-check + initialize.
+
+## Known DeepL translation-quality failure modes — check for these on every run
+
+- **Non-deterministic mistranslation of ambiguous English homonyms.** "class(es)" (RPG
+  character-class sense) came back as Portuguese "aula(s)"/"turma(s)" (school-class sense) in
+  ~17 keys, inconsistently even across two runs of identical source text. Spot-check
+  homonym-prone terms (class, level, rank, school, ...) after every translate/retranslate run.
+- **A raw backtick used as a quotation mark** in place of a proper target-language quotation
+  mark — a Portuguese-specific artifact found in `creation_hub.title`, `backups.snapshot_notice`,
+  `sheet.unpack_named`. Grep the locale file for `` ` `` after every run.
+- **DeepL leaves short, stylized compound titles untranslated** (jutsu/move names like "Shatter",
+  "Flash", "Grand Slam"). Cross-locale agreement (both Spanish and Portuguese left the same name
+  untranslated) is NOT evidence it's intentional — it's evidence of a shared pipeline limitation.
+  Translate it unless the term is genuinely Japanese/Naruto-verse in origin, a true cognate
+  spelled identically in the target language, or a coined/invented word with no dictionary
+  meaning anywhere (flag that last category explicitly instead of silently leaving it — see
+  [[feedback_translate_everything_except_japanese_naruto_terms]] for the full standing rule and
+  the incident that established it).
+
+## Methodology that worked, worth reusing directly
+
+- **Diff exported vs. translated `.jsonl` per table** to find no-op translations (English text
+  unchanged) across an entire table without eyeballing every page. Filter to length > 3 and
+  containing a letter to cut noise.
+- **Compare against the OTHER already-translated locale's rendering of the same field, in BOTH
+  directions**, when starting a new locale — a name can be untranslated in the new locale while
+  the older one already got it right (a real gap, worth adapting), or the reverse. Never copy an
+  older locale's translation blindly, though: verify it first (Spanish's own "Encuadernación en
+  rústica" for "Web Bind" was a false-cognate error that would have shipped twice if copied
+  as-is to Portuguese).
+- **Querying `content_translations` directly via sqlite3** (`SELECT`/`UPDATE` against
+  `out/rules.db` and `internal/embedded/rules.db`) is a fast, no-API-key way to hand-patch a
+  handful of confirmed field translations without a full pipeline re-run. Re-run the real
+  pipeline instead once confirmed fixes number in the hundreds.
+
+## Sitewide code-level gaps found — NOT DeepL's fault, structural blind spots in the app itself
+
+The DeepL pipeline only ever sees two things: the UI catalog (`internal/i18n/locales/*.json`)
+and database content registered in `internal/i18n.TranslatableFields`. Any player-facing string
+that lives somewhere else in the Go source is invisible to it — a 100%-complete pipeline report
+says nothing about this category of gap. Found so far:
+
+- **Page `<title>` values were hardcoded English literals** across ~30 Go handler call sites
+  (`"Title": "Fighting Stances"`), never routed through the catalog even though the page's own
+  body content was correctly wired via `i18n.Row`/`Batch`. Fixed 2026-09-07 via a
+  `func (s *server) t(r *http.Request, key string, args ...any) string` helper in
+  `cmd/n5e/server.go`. Applies to any new page/handler added later too — check `"Title":` (and
+  any other literal handed straight into `s.render`'s data map) goes through the catalog.
+- **Class-mechanics Go files build hundreds of feature/resource display names as hardcoded
+  English string literals** — `cmd/n5e/custom_resources.go` and sibling class files
+  (`hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`, and others): `grantedFeatureRow`/custom
+  resource `Name`/`SourceLabel`/`Label`/`Restriction` fields. These never went through the catalog
+  in ANY locale, including "fully translated" Spanish, because they don't live in the rules
+  database at all — there was never a `.jsonl` export for the pipeline to see them in the first
+  place. **`custom_resources.go` fixed 2026-09-07** (243 `Name` values, 164 `Restriction` values):
+  see `translateCustomResourceEntries` in that file for the pattern used, reusable for the
+  remaining sibling files —
+  - Since these ~400 curated strings have no natural short key to hand-name one at a time, the
+    English text itself doubles as the catalog key, namespaced per field
+    (`"cr_name:" + rawName`, `"cr_restriction:" + rawRestriction`) so it can't collide with an
+    unrelated catalog key elsewhere. `locales/en.json` carries an identity entry for every one of
+    these keys (value == the raw English text) so a missing translation falls back to the
+    original text instead of leaking a raw `cr_name:...` key onto the sheet.
+  - Translation happens in exactly one place per file — at the point the display struct
+    (`CustomResourceEntry` here) is actually constructed — not inside the big curated data map
+    itself. That kept every existing `computeCustomResources` test call site (50+) untouched: the
+    map and the pure compute function still produce plain English, and only the one real
+    request-facing entry point (`loadCustomResources`) takes a `locale` parameter and overlays the
+    translation as a final post-process step before returning.
+  - `locale` only needs to reach the few functions whose OUTPUT is actually read for display
+    (`Name`/`Restriction`, or anything copied from them, like `jutsuFreeCastGrant.MirageName` in
+    `characters.go`). A caller that only reads `Max`/`Current`/regen kind from the same function
+    (`applyCustomResourceRest`, pure rest-math) can safely pass `"en"` and discard the unused
+    translated text — no benefit to threading the real request locale through a call site that
+    never displays the result.
+  - The 164 `Restriction` strings were translated by hand for this file (DeepL wasn't reachable
+    from the session that did this work — no `DEEPL_API_KEY` in that tool environment) — run them
+    through `cmd/n5e-i18n catalog-translate` (or a manual spot-check against the glossary) next
+    time DeepL access is available, the same "verify by hand once, then trust the pipeline for the
+    rest" precedent as everything else in this doc.
+
+**Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
+package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
+gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
+what was in scope to begin with, and this whole class of string structurally wasn't. As of
+2026-09-07, `custom_resources.go` is closed; ~19 sibling files (`hunter_nin.go`, `genjutsu.go`,
+`cooking_nin.go`, `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
+`puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`, `taijutsu.go`,
+`weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
+`puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check each one for its
+own hidden `Restriction`/`Description`-shaped field too (the grep above catches `Restriction` now,
+but a new field name in a new file won't match until it's added here).
+
 ## Applying this to a new language
 
 For a language with no existing glossary yet:

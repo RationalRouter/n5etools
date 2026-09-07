@@ -509,7 +509,7 @@ func TestPledgeJutsuGrantsFreeCost(t *testing.T) {
 
 	// Below level 2: Inspired Appearance not yet reached, Transform (not
 	// otherwise known) doesn't even appear on the sheet.
-	rows, err := s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 1})
+	rows, err := s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 1}, "en")
 	if err != nil {
 		t.Fatalf("loadCharacterJutsuSheet at level 1: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestPledgeJutsuGrantsFreeCost(t *testing.T) {
 
 	// At level 2: Transform lands on the sheet at 0 Chakra, not its printed
 	// cost of 1.
-	rows, err = s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 2})
+	rows, err = s.loadCharacterJutsuSheet(characterID, &charsheet.Sheet{Level: 2}, "en")
 	if err != nil {
 		t.Fatalf("loadCharacterJutsuSheet at level 2: %v", err)
 	}

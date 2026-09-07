@@ -53,7 +53,7 @@ func TestNinjutsuMasterAlwaysMaxDamage(t *testing.T) {
 	}
 
 	sheet := &charsheet.Sheet{Level: 20}
-	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	rows, err := s.loadCharacterJutsuSheet(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestNinjutsuMasterAlwaysMaxDamage(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	rows, err = s.loadCharacterJutsuSheet(1, sheet)
+	rows, err = s.loadCharacterJutsuSheet(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

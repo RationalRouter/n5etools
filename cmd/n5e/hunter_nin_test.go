@@ -859,7 +859,7 @@ func TestWolfTechniqueGrantedJutsuReachesSheet(t *testing.T) {
 	}
 
 	sheet := &charsheet.Sheet{Level: 10}
-	rows, err := s.loadCharacterJutsuSheet(characterID, sheet)
+	rows, err := s.loadCharacterJutsuSheet(characterID, sheet, "en")
 	if err != nil {
 		t.Fatalf("loadCharacterJutsuSheet: %v", err)
 	}

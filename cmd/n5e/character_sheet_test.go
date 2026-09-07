@@ -1612,7 +1612,7 @@ func TestLoadCharacterJutsuSheetCriticalFocus(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := s.loadCharacterJutsuSheet(1, &charsheet.Sheet{Level: 7})
+	rows, err := s.loadCharacterJutsuSheet(1, &charsheet.Sheet{Level: 7}, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1949,7 +1949,7 @@ func TestLoadGrantedJutsuLabels(t *testing.T) {
 	// The granted jutsu show up on the sheet itself and don't count against
 	// JutsuKnownCap.
 	sheet := &charsheet.Sheet{ClanSlug: "clan/hoshigaki", Level: 7}
-	rows, err := s.loadCharacterJutsuSheet(characterID, sheet)
+	rows, err := s.loadCharacterJutsuSheet(characterID, sheet, "en")
 	if err != nil {
 		t.Fatalf("loadCharacterJutsuSheet: %v", err)
 	}
@@ -2799,7 +2799,7 @@ func TestSheetJutsuOptions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := s.loadCharacterJutsuSheet(1, sheet)
+		rows, err := s.loadCharacterJutsuSheet(1, sheet, "en")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2943,7 +2943,7 @@ func TestSheetJutsuOptionsAppliesJackOfAllCombatBonus(t *testing.T) {
 	if sheet.JackOfAllCombatBonus != 1 {
 		t.Fatalf("JackOfAllCombatBonus = %d, want 1 (5th-level Scout-Nin with Combat picked)", sheet.JackOfAllCombatBonus)
 	}
-	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	rows, err := s.loadCharacterJutsuSheet(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3001,7 +3001,7 @@ func TestSheetJutsuOptionsAppliesAbilityModForTaijutsuBukijutsu(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	rows, err := s.loadCharacterJutsuSheet(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3047,7 +3047,7 @@ func TestSheetJutsuCostChakra(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := s.loadCharacterJutsuSheet(1, sheet)
+	rows, err := s.loadCharacterJutsuSheet(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

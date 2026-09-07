@@ -555,7 +555,7 @@ func (s *server) handleItems(w http.ResponseWriter, r *http.Request) {
 		selected = &groups[0].Items[0]
 	}
 
-	s.render(w, r, "items.html", map[string]any{"Title": "Items", "Groups": groups, "Selected": selected})
+	s.render(w, r, "items.html", map[string]any{"Title": s.t(r, "items.title"), "Groups": groups, "Selected": selected})
 }
 
 // handleItemDetail serves both the standalone /items/{slug} page (used by

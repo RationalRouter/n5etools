@@ -61,6 +61,11 @@
           <input type="hidden" name="return_to" value="{{currentPath}}">
           <button type="submit" class="lang-option{{if eq currentLocale "es"}} lang-option-active{{end}}">{{T "locale.name.es"}}</button>
         </form>
+        <form method="post" action="/settings/locale">
+          <input type="hidden" name="locale" value="pt">
+          <input type="hidden" name="return_to" value="{{currentPath}}">
+          <button type="submit" class="lang-option{{if eq currentLocale "pt"}} lang-option-active{{end}}">{{T "locale.name.pt"}}</button>
+        </form>
       </div>
     </div>
   </div>

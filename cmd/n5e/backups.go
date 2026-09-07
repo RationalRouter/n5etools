@@ -78,7 +78,7 @@ func (s *server) handleBackups(w http.ResponseWriter, r *http.Request) {
 		log.Println("list backups:", err)
 		return
 	}
-	s.render(w, r, "backups.html", map[string]any{"Title": "Backups", "Backups": rows, "MaxKept": backup.MaxKept})
+	s.render(w, r, "backups.html", map[string]any{"Title": s.t(r, "backups.title"), "Backups": rows, "MaxKept": backup.MaxKept})
 }
 
 // handleBackupCreate is the "Back Up Now" button — a snapshot on demand,
@@ -110,8 +110,8 @@ func (s *server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Println("stage restore:", err)
 		s.render(w, r, "backups.html", map[string]any{
-			"Title": "Backups", "Backups": rows, "MaxKept": backup.MaxKept,
-			"Error": "Couldn't stage that backup for restore: " + err.Error(),
+			"Title": s.t(r, "backups.title"), "Backups": rows, "MaxKept": backup.MaxKept,
+			"Error": s.t(r, "backups.error_stage_restore", err.Error()),
 		})
 		return
 	}
@@ -122,6 +122,6 @@ func (s *server) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
 	s.shutdownOnce.Do(func() { close(s.shutdown) })
 
 	s.render(w, r, "backups.html", map[string]any{
-		"Title": "Backups", "RestoreStaged": true,
+		"Title": s.t(r, "backups.title"), "RestoreStaged": true,
 	})
 }

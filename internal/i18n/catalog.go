@@ -32,7 +32,7 @@ func init() {
 // order) and for validating the n5e_locale cookie. Extend this slice (and
 // add the matching locales/<code>.json file) to ship a new language; no
 // other code changes are required for the UI-catalog side of a new locale.
-var SupportedLocales = []string{"en", "es"}
+var SupportedLocales = []string{"en", "es", "pt"}
 
 // IsSupported reports whether locale is one of SupportedLocales.
 func IsSupported(locale string) bool {

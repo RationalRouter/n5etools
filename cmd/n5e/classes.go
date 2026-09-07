@@ -48,7 +48,7 @@ func (s *server) handleClasses(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(classes, func(i, k int) bool { return sortKey(classes[i].Name) < sortKey(classes[k].Name) })
 
-	s.render(w, r, "classes.html", map[string]any{"Title": "Classes", "Classes": classes})
+	s.render(w, r, "classes.html", map[string]any{"Title": s.t(r, "classes.title"), "Classes": classes})
 }
 
 // ---- Class detail -------------------------------------------------------

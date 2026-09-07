@@ -73,7 +73,7 @@ func (s *server) handleProperties(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, "properties.html", map[string]any{
-		"Title": "Equipment Properties", "WeaponProperties": weaponProperties, "ArmorProperties": armorProperties,
+		"Title": s.t(r, "properties.title"), "WeaponProperties": weaponProperties, "ArmorProperties": armorProperties,
 	})
 }
 

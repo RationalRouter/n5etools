@@ -137,11 +137,11 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.render(w, r, "characters.html", map[string]any{"Title": "Characters", "Characters": characters})
+	s.render(w, r, "characters.html", map[string]any{"Title": s.t(r, "characters.title"), "Characters": characters})
 }
 
 func (s *server) handleNewCharacter(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, "character_new.html", map[string]any{"Title": "New Character"})
+	s.render(w, r, "character_new.html", map[string]any{"Title": s.t(r, "character_new.title")})
 }
 
 func (s *server) handleCreateCharacter(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +152,7 @@ func (s *server) handleCreateCharacter(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
 		s.render(w, r, "character_new.html", map[string]any{
-			"Title": "New Character", "Error": "Name can't be empty.",
+			"Title": s.t(r, "character_new.title"), "Error": s.t(r, "character_new.error_name_required"),
 		})
 		return
 	}
@@ -276,23 +276,24 @@ func (s *server) buildCreationHubData(id int64, locale string) (map[string]any, 
 		return nil, err
 	}
 
+	t := i18n.Translator(locale)
 	steps := []creationStep{
-		{Label: "Clan", Href: "/characters/" + base + "/create/clan", Done: clanSlug.Valid},
-		{Label: "Class", Href: "/characters/" + base + "/create/class",
+		{Label: t("creation_hub.step_clan"), Href: "/characters/" + base + "/create/clan", Done: clanSlug.Valid},
+		{Label: t("creation_hub.step_class"), Href: "/characters/" + base + "/create/class",
 			Done: exists(`SELECT COUNT(*) FROM character_classes WHERE character_id = ?`)},
-		{Label: "Subclass", Href: "/characters/" + base + "/create/class", Done: subclassGateSatisfied(classSummary)},
-		{Label: "Ability Scores", Href: "/characters/" + base + "/create/abilities", Done: abilitiesDone},
-		{Label: "Background", Href: "/characters/" + base + "/create/background", Done: backgroundSlug.Valid},
-		{Label: "Equipment", Href: "/characters/" + base + "/create/equipment",
+		{Label: t("creation_hub.step_subclass"), Href: "/characters/" + base + "/create/class", Done: subclassGateSatisfied(classSummary)},
+		{Label: t("creation_hub.step_abilities"), Href: "/characters/" + base + "/create/abilities", Done: abilitiesDone},
+		{Label: t("creation_hub.step_background"), Href: "/characters/" + base + "/create/background", Done: backgroundSlug.Valid},
+		{Label: t("creation_hub.step_equipment"), Href: "/characters/" + base + "/create/equipment",
 			Done: exists(`SELECT COUNT(*) FROM character_inventory WHERE character_id = ? AND notes = 'creation-equipment'`)},
-		{Label: "Jutsu", Href: "/characters/" + base + "/create/jutsu",
+		{Label: t("creation_hub.step_jutsu"), Href: "/characters/" + base + "/create/jutsu",
 			Done: exists(`SELECT COUNT(*) FROM character_jutsu WHERE character_id = ? AND source = 'learned'`)},
-		{Label: "Ambitions", Href: "/characters/" + base + "/create/ambitions",
+		{Label: t("creation_hub.step_ambitions"), Href: "/characters/" + base + "/create/ambitions",
 			Done: exists(`SELECT COUNT(*) FROM character_ambitions WHERE character_id = ?`)},
 	}
 
 	return map[string]any{
-		"Title": "Creating " + name, "ID": id, "Name": name,
+		"Title": t("creation_hub.title", name), "ID": id, "Name": name,
 		"CreationStatus": creationStatus, "Steps": steps,
 	}, nil
 }
@@ -528,7 +529,7 @@ func (s *server) buildClanStepData(characterID int64, focus, locale string) (map
 		focus = current.String
 	}
 	data := map[string]any{
-		"Title": "Choose a Clan", "ID": characterID, "Clans": clans,
+		"Title": i18n.Translator(locale)("create_clan.title"), "ID": characterID, "Clans": clans,
 		"Selected": current.String, "Focus": focus,
 	}
 	if focus != "" {
@@ -1217,7 +1218,7 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, 
 	}
 
 	data := map[string]any{
-		"Title": "Choose a Class", "ID": characterID, "Classes": classes, "Current": currentClassSlug, "Focus": focus,
+		"Title": i18n.Translator(locale)("create_class.title"), "ID": characterID, "Classes": classes, "Current": currentClassSlug, "Focus": focus,
 		"YourClasses": yourClasses, "HeldSlugs": heldSlugs, "ActionBase": actionBase,
 		// A fixed 1-20 range (same bound SetClassLevel enforces) needed by
 		// every level dropdown this page renders — the first-class picker,
@@ -1486,7 +1487,7 @@ func (s *server) handleCreateAbilities(w http.ResponseWriter, r *http.Request) {
 				costRows = append(costRows, struct{ Score, Cost int }{score, costs[score]})
 			}
 			s.render(w, r, "create_abilities.html", map[string]any{
-				"Title": "Ability Scores", "ID": id, "Error": errMsg, "Values": scores, "Costs": costRows, "CostMap": costs,
+				"Title": s.t(r, "create_abilities.title"), "ID": id, "Error": errMsg, "Values": scores, "Costs": costRows, "CostMap": costs,
 			})
 			return
 		}
@@ -1529,7 +1530,7 @@ func (s *server) handleCreateAbilities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, "create_abilities.html", map[string]any{
-		"Title": "Ability Scores", "ID": id,
+		"Title": s.t(r, "create_abilities.title"), "ID": id,
 		"Values":  map[string]int{"str": str, "dex": dex, "con": con, "int": intel, "wis": wis, "cha": cha},
 		"Costs":   costRows,
 		"CostMap": costs,
@@ -2081,7 +2082,7 @@ func (s *server) buildBackgroundStepData(characterID int64, focus, locale string
 	sort.Slice(backgrounds, func(i, k int) bool { return sortKey(backgrounds[i].Name) < sortKey(backgrounds[k].Name) })
 
 	data := map[string]any{
-		"Title": "Choose a Background", "ID": characterID, "Backgrounds": backgrounds,
+		"Title": i18n.Translator(locale)("create_background.title"), "ID": characterID, "Backgrounds": backgrounds,
 		"Current": currentBackground.String, "Focus": focus,
 	}
 	if focus == "" {
@@ -3032,7 +3033,7 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			data := map[string]any{
-				"Title": "Starting Equipment", "ID": id, "Groups": groups,
+				"Title": s.t(r, "create_equipment.title"), "ID": id, "Groups": groups,
 				"Toolkits": toolkitOptions, "Weapons": weapons, "Error": kitErr,
 			}
 			if backgroundSlug.Valid {
@@ -3109,7 +3110,7 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{"Title": "Starting Equipment", "ID": id}
+	data := map[string]any{"Title": s.t(r, "create_equipment.title"), "ID": id}
 	if classSlug.Valid {
 		groups, err := s.loadEquipmentChoiceGroups(classSlug.String)
 		if err != nil {
@@ -3376,11 +3377,10 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			s.render(w, r, "create_jutsu.html", map[string]any{
-				"Title": "Learn Jutsu", "ID": id, "Jutsu": options,
+				"Title": s.t(r, "create_jutsu.title"), "ID": id, "Jutsu": options,
 				"JutsuKnown": jutsuKnown, "Level": level,
 				"SourceTiles": s.jutsuSourceTilesOrNil(),
-				"Error": "You can only know " + strconv.Itoa(jutsuKnown) + " jutsu at level " + strconv.Itoa(level) +
-					" — clan jutsu are picked instead of normal ones, not on top of them.",
+				"Error":       s.t(r, "create_jutsu.error_known_limit", jutsuKnown, level),
 			})
 			return
 		}
@@ -3394,7 +3394,7 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(classes) == 0 {
-		s.render(w, r, "create_jutsu.html", map[string]any{"Title": "Learn Jutsu", "ID": id})
+		s.render(w, r, "create_jutsu.html", map[string]any{"Title": s.t(r, "create_jutsu.title"), "ID": id})
 		return
 	}
 
@@ -3432,7 +3432,7 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Title": "Learn Jutsu", "ID": id, "Jutsu": options, "JutsuKnown": jutsuKnown, "Level": level,
+		"Title": s.t(r, "create_jutsu.title"), "ID": id, "Jutsu": options, "JutsuKnown": jutsuKnown, "Level": level,
 		"SourceTiles": s.jutsuSourceTilesOrNil(),
 	}
 	// Server-render the first row's detail card so the pane isn't empty
@@ -3855,7 +3855,7 @@ func (s *server) handleCreateAmbitions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, "create_ambitions.html", map[string]any{
-		"Title": "Ambitions", "ID": id, "Drive": values["drive"], "Goal": values["goal"], "Fear": values["fear"],
+		"Title": s.t(r, "create_ambitions.title"), "ID": id, "Drive": values["drive"], "Goal": values["goal"], "Fear": values["fear"],
 	})
 }
 
@@ -5058,7 +5058,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("build attacks:", err)
 		return
 	}
-	jutsu, err := s.loadCharacterJutsuSheet(id, sheet)
+	jutsu, err := s.loadCharacterJutsuSheet(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load character jutsu:", err)
@@ -5238,7 +5238,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		passiveTraitFeatures = append(passiveTraitFeatures, *demonSightRow)
 	}
 	passiveTraits := computePassiveTraits(passiveTraitFeatures, sheet.Level)
-	customResources, err := s.loadCustomResources(id, sheet)
+	customResources, err := s.loadCustomResources(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load custom resources:", err)
@@ -5735,7 +5735,7 @@ func (s *server) lookupCarriedItem(row *inventoryRow, locale string) error {
 // Taijutsu and Bukijutsu — so a jutsu whose description calls for an attack
 // roll can be rolled straight from the sheet at the right bonus, rather than
 // leaving the player to work out which one applies and add it up.
-func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.Sheet) ([]jutsuSheetRow, error) {
+func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.Sheet, locale string) ([]jutsuSheetRow, error) {
 	attackBonus := map[string]int{}
 	attackAbility := map[string]string{}
 	for _, a := range sheet.JutsuAttacks {
@@ -5840,7 +5840,7 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	}
 	var poolResources []CustomResourceEntry
 	if len(mirageGrants) > 0 || len(hunterGrants) > 0 || len(ioGrants) > 0 || len(amGrants) > 0 {
-		poolResources, err = s.loadCustomResources(characterID, sheet)
+		poolResources, err = s.loadCustomResources(characterID, sheet, locale)
 		if err != nil {
 			return nil, err
 		}
@@ -6882,7 +6882,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			return
 		}
 		data["Concentration"] = concentration
-		customResources, err := s.loadCustomResources(characterID, sheet)
+		customResources, err := s.loadCustomResources(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load custom resources for fragment:", err)
@@ -6903,7 +6903,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load granted features for kujaku mode fragment:", err)
 			return
 		}
-		customResources, err := s.loadCustomResources(characterID, sheet)
+		customResources, err := s.loadCustomResources(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load custom resources for kujaku mode fragment:", err)
@@ -7306,7 +7306,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		data["Languages"] = languages
 		data["AllLanguages"] = allLanguages
 	case "sheet_jutsu_known", "sheet_attack_jutsu_table":
-		jutsu, err := s.loadCharacterJutsuSheet(characterID, sheet)
+		jutsu, err := s.loadCharacterJutsuSheet(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load character jutsu for "+name+" fragment:", err)
@@ -7554,7 +7554,7 @@ func (s *server) handleSheetJutsuCast(w http.ResponseWriter, r *http.Request) {
 			log.Println("compute sheet for jutsu cast resource:", err)
 			return
 		}
-		entries, err := s.loadCustomResources(id, sheet)
+		entries, err := s.loadCustomResources(id, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load custom resources for jutsu cast:", err)
@@ -8302,7 +8302,7 @@ func (s *server) handleSheetCustomResource(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for custom resource:", err)
 		return
 	}
-	entries, err := s.loadCustomResources(id, sheet)
+	entries, err := s.loadCustomResources(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load custom resources:", err)

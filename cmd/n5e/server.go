@@ -1727,7 +1727,7 @@ func safeReturnPath(path string) string {
 }
 
 func (s *server) handleHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, "home.html", map[string]any{"Title": "Home"})
+	s.render(w, r, "home.html", map[string]any{"Title": s.t(r, "home.title")})
 }
 
 type clanRow struct {
@@ -1786,7 +1786,7 @@ func (s *server) handleClans(w http.ResponseWriter, r *http.Request) {
 
 	sort.Slice(clans, func(i, j int) bool { return sortKey(clans[i].Name) < sortKey(clans[j].Name) })
 
-	s.render(w, r, "clans.html", map[string]any{"Title": "Clans", "Clans": clans})
+	s.render(w, r, "clans.html", map[string]any{"Title": s.t(r, "clans.title"), "Clans": clans})
 }
 
 type clanTrait struct {
@@ -2241,6 +2241,15 @@ func noStaleStatic(next http.Handler) http.Handler {
 // to a normal page load rather than to a dead end.
 func wantsFragment(r *http.Request) bool {
 	return r.Header.Get("X-Requested-With") == "fetch"
+}
+
+// t translates a catalog key for the request's resolved locale, for use in
+// Go handler code building the map[string]any passed to render -- the
+// html/template-level "T" func (see localeTemplateFuncs) only covers text
+// written inside a template, not values like page titles that handlers
+// assemble before the template ever runs.
+func (s *server) t(r *http.Request, key string, args ...any) string {
+	return i18n.Translator(localeFromContext(r.Context()))(key, args...)
 }
 
 func (s *server) render(w http.ResponseWriter, r *http.Request, page string, data any) {

@@ -131,6 +131,16 @@ var glossaryColumn = map[string]string{
 	"pt": "Portuguese",
 }
 
+// glossaryTargetLang strips a regional variant (e.g. "PT-BR") down to the
+// base language code DeepL's glossary endpoint requires -- it rejects
+// variant codes outright even though the translate endpoint requires one.
+// A glossary built against the base code still applies when translating
+// with the regional variant, since both share the same base language.
+func glossaryTargetLang(targetLang string) string {
+	base, _, _ := strings.Cut(targetLang, "-")
+	return base
+}
+
 func cmdCatalogTranslate(args []string) error {
 	fs := flag.NewFlagSet("catalog-translate", flag.ContinueOnError)
 	in := fs.String("in", "", "source catalog JSON, e.g. internal/i18n/locales/en.json")
@@ -164,6 +174,9 @@ func cmdCatalogTranslate(args []string) error {
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("reading %s: %w", *out, err)
 		}
+		if existing == nil {
+			existing = map[string]string{}
+		}
 	}
 
 	var pendingKeys []string
@@ -183,7 +196,7 @@ func cmdCatalogTranslate(args []string) error {
 
 	glossaryID := ""
 	if terms, err := i18n.ParseGlossaryTables(*glossaryPath, glossaryColumn[*locale]); err == nil && len(terms) > 0 {
-		glossaryID, err = client.CreateGlossary(ctx, "n5e-catalog-"+*locale, targetLang, terms)
+		glossaryID, err = client.CreateGlossary(ctx, "n5e-catalog-"+*locale, glossaryTargetLang(targetLang), terms)
 		if err != nil {
 			return fmt.Errorf("creating glossary: %w", err)
 		}
@@ -312,7 +325,7 @@ func cmdTranslate(args []string) error {
 
 	glossaryID := ""
 	if terms, err := i18n.ParseGlossaryTables(*glossaryPath, glossaryColumn[*locale]); err == nil && len(terms) > 0 {
-		glossaryID, err = client.CreateGlossary(ctx, "n5e-content-"+*locale, targetLang, terms)
+		glossaryID, err = client.CreateGlossary(ctx, "n5e-content-"+*locale, glossaryTargetLang(targetLang), terms)
 		if err != nil {
 			return fmt.Errorf("creating glossary: %w", err)
 		}
