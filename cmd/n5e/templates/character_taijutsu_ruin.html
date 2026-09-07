@@ -19,13 +19,13 @@
       <select name="keyword1" required>
         <option value="">{{T "character_taijutsu_ruin.choose_option"}}</option>
         {{range .Ruin.Options}}
-        <option value="{{.}}"{{if eq . $.Ruin.Keyword1}} selected{{end}}>{{.}}</option>
+        <option value="{{.Value}}"{{if eq .Value $.Ruin.Keyword1}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <select name="keyword2" required>
         <option value="">{{T "character_taijutsu_ruin.choose_option"}}</option>
         {{range .Ruin.Options}}
-        <option value="{{.}}"{{if eq . $.Ruin.Keyword2}} selected{{end}}>{{.}}</option>
+        <option value="{{.Value}}"{{if eq .Value $.Ruin.Keyword2}} selected{{end}}>{{.Label}}</option>
         {{end}}
       </select>
       <button type="submit">{{T "character_taijutsu_ruin.set_button"}}</button>

@@ -116,10 +116,33 @@ var handWrapsOfPassionOptions = []featureChoiceOption{
 
 // antiChakraWavelengthKeywords: Ruin's Anti-Chakra Wavelength lets the
 // player choose 2 keywords from this fixed 10-item list, freely
-// re-editable (same boundary as Hand Wraps of Passion above).
+// re-editable (same boundary as Hand Wraps of Passion above). This is the
+// canonical, always-English list — validation (setAntiChakraWavelength's
+// validKeyword) and the stored character_feature_choices value both match
+// against these raw strings regardless of the viewer's locale, so a pick
+// made in Spanish stays valid after switching the sheet to English (or vice
+// versa). translateAntiChakraWavelengthOptions below is the ONLY place this
+// list's display text is translated — never overlay a translation onto this
+// slice itself.
 var antiChakraWavelengthKeywords = []string{
 	"Sensory", "Fuinjutsu", "Earth Release", "Wind Release", "Fire Release",
 	"Water Release", "Lightning Release", "Tactical", "Visual", "Auditory",
+}
+
+// translateAntiChakraWavelengthOptions renders antiChakraWavelengthKeywords
+// for display: Value is always the raw canonical English keyword (what gets
+// submitted back and matched against validKeyword/stored choices); Label is
+// the locale's own translation, namespaced "acw_keyword:" so it can't
+// collide with an unrelated catalog key. Fuinjutsu is a Japanese-origin
+// discipline name (like Ninjutsu/Genjutsu) and stays untranslated in every
+// locale, same as elsewhere in this app.
+func translateAntiChakraWavelengthOptions(locale string) []featureChoiceOption {
+	tr := i18n.Translator(locale)
+	out := make([]featureChoiceOption, len(antiChakraWavelengthKeywords))
+	for i, kw := range antiChakraWavelengthKeywords {
+		out[i] = featureChoiceOption{Value: kw, Label: tr("acw_keyword:" + kw)}
+	}
+	return out
 }
 
 // taijutsuSpecialistClassLevel returns the character's own Taijutsu
@@ -611,10 +634,13 @@ type passionateFlameView struct {
 // ruinAntiChakraView holds Ruin's own sub-section — nil unless the
 // character's chosen Taijutsu Style is Ruin. Keyword1/Keyword2 (rather than
 // a slice) so the template can bind each <select> to its own value without
-// an out-of-range risk from indexing a short slice.
+// an out-of-range risk from indexing a short slice. Keyword1/Keyword2 are
+// always the raw canonical English value (matching Options' own .Value, see
+// translateAntiChakraWavelengthOptions) — never translated themselves, only
+// compared against for the <select>'s own "selected" state.
 type ruinAntiChakraView struct {
 	Keyword1, Keyword2 string // "" if unset
-	Options            []string
+	Options            []featureChoiceOption
 }
 
 // stanceOption is one Taijutsu Stance offered in the picker (Chapter 13
@@ -826,23 +852,43 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 	if err != nil {
 		return nil, err
 	}
-	var known []knownMartialTechnique
-	var available []martialTechniqueOption
+	var opts []martialTechniqueOption
 	for rows.Next() {
 		var opt martialTechniqueOption
 		if err := rows.Scan(&opt.Slug, &opt.Name, &opt.Description); err != nil {
 			rows.Close()
 			return nil, err
 		}
+		opts = append(opts, opt)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	optSlugs := make([]string, len(opts))
+	for i, o := range opts {
+		optSlugs[i] = o.Slug
+	}
+	optTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", optSlugs)
+	if err != nil {
+		return nil, err
+	}
+	var known []knownMartialTechnique
+	var available []martialTechniqueOption
+	for _, opt := range opts {
+		if tr := optTranslations[opt.Slug]; tr != nil {
+			if v, ok := tr["name"]; ok && v != "" {
+				opt.Name = v
+			}
+			if v, ok := tr["description"]; ok && v != "" {
+				opt.Description = v
+			}
+		}
 		if pickedSet[opt.Slug] {
 			known = append(known, knownMartialTechnique{Slug: opt.Slug, Name: opt.Name, Description: opt.Description})
 		} else {
 			available = append(available, opt)
 		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	for _, f := range grantedFeatures {
@@ -876,13 +922,14 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 
 	if subclassSlug == passionateFlameSubclassSlug || subclassSlug == ruinSubclassSlug {
 		if subclassSlug == passionateFlameSubclassSlug {
-			pf := &passionateFlameView{HandWrapsOptions: handWrapsOfPassionOptions}
+			translatedWrapsOptions := translateFeatureChoiceOptions(handWrapsOfPassionOptions, locale)
+			pf := &passionateFlameView{HandWrapsOptions: translatedWrapsOptions}
 			if hasGrantedFeature(grantedFeatures, fistsOfIronFeatureSlug) {
 				pf.FistsOfIronDice = fistsOfIronBonusDice(taijutsuLevel)
 			}
 			wraps := choices[features.ChoiceKey{FeatureSlug: handWrapsOfPassionFeatureSlug, ChoiceIndex: 0}]
 			pf.HandWraps = wraps
-			for _, o := range handWrapsOfPassionOptions {
+			for _, o := range translatedWrapsOptions {
 				if o.Value == wraps {
 					pf.HandWrapsLabel = o.Label
 				}
@@ -893,7 +940,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 			data.Ruin = &ruinAntiChakraView{
 				Keyword1: choices[features.ChoiceKey{FeatureSlug: antiChakraWavelengthFeatureSlug, ChoiceIndex: 0}],
 				Keyword2: choices[features.ChoiceKey{FeatureSlug: antiChakraWavelengthFeatureSlug, ChoiceIndex: 1}],
-				Options:  antiChakraWavelengthKeywords,
+				Options:  translateAntiChakraWavelengthOptions(locale),
 			}
 		}
 	}

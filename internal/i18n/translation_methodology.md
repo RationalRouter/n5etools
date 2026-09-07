@@ -658,6 +658,42 @@ before it's assigned into the response struct), never inside the loader itself.*
   mechanism spanning `puppet_upgrade_jutsu_grants.go`, `scout_nin.go`, and `medical_nin.go` (plus
   `jutsu_grants.go`/`passive_traits.go` from the earlier finding) — still deferred to its own pass
   once the 19-file sweep is done, not fixed piecemeal per sibling file.
+- **`taijutsu.go`** (2026-09-07): three fixes. (1) `loadMartialTechniquesTabData`'s raw Martial
+  Techniques `class_options` query had no `i18n.Batch` overlay at all — genuine missing-overlay
+  bug, returning fully untranslated Name/Description; fixed the same way as every other bare
+  `class_options` read in this sweep, no matching-key risk since `Slug` is what's matched, not
+  `Name`. (2) `handWrapsOfPassionOptions` (Passionate Flame's 3-option hand-curated catalog) wired
+  through the existing `translateFeatureChoiceOptions` helper — safe, matched only on `.Value`. (3)
+  `ruinAntiChakraView.Options` converted from `[]string` to `[]featureChoiceOption` via a new
+  `translateAntiChakraWavelengthOptions` function — this was a genuine persisted-matching-key risk:
+  the 2-of-10 keyword pick is stored via `SetFeatureChoice` and re-matched by exact string later, so
+  translating the stored value itself would have broken re-matching after a locale switch; `Value`
+  stays the raw canonical English keyword, `Label` carries the translation.
+  `character_taijutsu_ruin.html`'s two `<select>` ranges updated to use `.Value`/`.Label` instead of
+  the bare `.`. ~19 new locale keys added (`fco_label:`/`fco_desc:` for Hand Wraps of Passion,
+  `acw_keyword:` for the 10 Anti-Chakra Wavelength keywords).
+- Found but NOT fixed, cross-cutting (new, surfaced while auditing `taijutsu.go`): every
+  `subclassTrackerPopupData{Title: "...", ...}` construction site hardcodes its `Title` and
+  `EmptyHint` fields in English, and `Title` renders as a real visible `<h1>` on the popup page
+  (`partials/subclass_tracker_popup.html`'s `subclass_tracker_popup_header` block), not just a
+  browser-tab title. `grep -rn "subclassTrackerPopupData{Title:" cmd/n5e/*.go` finds **22 call
+  sites** across `cooking_nin_blend_enhancements_popup.go`, `cooking_nin_expert_combatant_popup.go`,
+  `cooking_nin_pipe_popup.go`, `cooking_nin_fast_and_furious_popup.go`,
+  `genjutsu_twisted_casting_popup.go`, `genjutsu_psyche_breaker_popup.go`,
+  `medical_nin_combat_medic_popup.go`, `hunter_creed_popup.go`, `science_nin_grenadier_popup.go`,
+  `science_nin_shinobi_ware_popup.go`, `science_nin_spyware_popup.go`,
+  `ninjutsu_specialist_awakened_scroll_popup.go`, `scout_nin_scouting_technique_popup.go`,
+  `science_nin_storm_rider_popup.go`, `intelligence_operative_operative_traps_popup.go`,
+  `science_nin_technobi_popup.go`, `science_nin_ninjaneer_popup.go`, `taijutsu_ruin_popup.go`,
+  `weapon_form_popup.go`, `science_nin_mad_scientist_popup.go`, `taijutsu_stancer_popup.go`,
+  `taijutsu_passionate_flame_popup.go`. This spans many files already marked "closed" in this sweep
+  (`hunter_nin.go`'s `hunter_creed_popup.go`, `genjutsu.go`'s two popups, `scout_nin.go`'s popup,
+  `medical_nin.go`'s popup, `cooking_nin.go`'s four popups) — those files are not actually 100%
+  complete for this reason. Given the scale (22 sites across 15+ files, several already closed),
+  needs its own single dedicated pass (a translated Title/EmptyHint lookup, or a small map threaded
+  through `subclassTrackerPopupData`) rather than being fixed piecemeal — do not fix only a few and
+  call it done; fix all 22 in one pass or defer all 22 together. Same "defer a shared/cross-cutting
+  mechanism to its own pass" precedent as the badge-label gap and the skill-names gap above.
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -665,12 +701,16 @@ gap by SOURCE, not by database/catalog completeness percentage — completeness 
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
-`medical_nin.go`, and `hunter_pattern_choices.go` are closed; `wow_whelp.go` was audited (2026-09-07)
-and found clean OF THIS PARTICULAR gap — its own translation gap is real but cross-cutting (see its
-own bullet above) and deliberately deferred rather than fixed in isolation, so don't re-audit it
-from scratch, but also don't count it "closed" until the cross-cutting companion-auto-add pass
-lands; ~8 sibling files (`taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`,
-`snb.go`, `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
+`medical_nin.go`, `hunter_pattern_choices.go`, and `taijutsu.go` are closed; `wow_whelp.go` was
+audited (2026-09-07) and found clean OF THIS PARTICULAR gap — its own translation gap is real but
+cross-cutting (see its own bullet above) and deliberately deferred rather than fixed in isolation,
+so don't re-audit it from scratch, but also don't count it "closed" until the cross-cutting
+companion-auto-add pass lands; `taijutsu.go` also surfaced its own cross-cutting deferred item (the
+22-site `subclassTrackerPopupData` Title/EmptyHint gap, see its own bullet above) — same "don't
+count fully closed until the cross-cutting pass lands" caveat applies to it and to every other file
+that has (or will turn out to have) a `subclassTrackerPopupData{Title: ...}` call site; ~7 sibling
+files (`weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
+`puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
 check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
