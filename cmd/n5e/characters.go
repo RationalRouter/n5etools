@@ -5216,7 +5216,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	// Taken feats belong in the Core tab's Features & Traits list too, in
 	// the same level order as everything else there.
 	grantedFeatures = mergeFeatFeatures(grantedFeatures, characterFeats)
-	patternRows, err := s.hunterNinPatternPassiveRows(id)
+	patternRows, err := s.hunterNinPatternPassiveRows(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load hunter-nin pattern rows:", err)
@@ -7188,7 +7188,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load granted features for passive traits fragment:", err)
 			return
 		}
-		patternRows, err := s.hunterNinPatternPassiveRows(characterID)
+		patternRows, err := s.hunterNinPatternPassiveRows(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load hunter-nin pattern rows for passive traits fragment:", err)

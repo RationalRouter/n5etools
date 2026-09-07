@@ -657,7 +657,7 @@ func (s *server) hunterNinClassLevel(characterID int64) (int, error) {
 // mergeFeatFeatures gives feats. Level/SourceLabel/Description are left zero
 // — computePassiveTraits only reads Slug (against passiveTraitGrants) and
 // Name (for the Sources tooltip).
-func (s *server) hunterNinPatternPassiveRows(characterID int64) ([]grantedFeatureRow, error) {
+func (s *server) hunterNinPatternPassiveRows(characterID int64, locale string) ([]grantedFeatureRow, error) {
 	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickPattern)
 	if err != nil {
 		return nil, err
@@ -666,10 +666,11 @@ func (s *server) hunterNinPatternPassiveRows(characterID int64) ([]grantedFeatur
 		"class/hunter-nin/option/hunters-patterns/horror-films":       "Horror Films",
 		"class/hunter-nin/option/hunters-patterns/illicit-literature": "Illicit Literature",
 	}
+	tr := i18n.Translator(locale)
 	var rows []grantedFeatureRow
 	for _, slug := range picks {
 		if name, ok := names[slug]; ok {
-			rows = append(rows, grantedFeatureRow{Slug: slug, Name: name, SourceLabel: "Hunters Pattern"})
+			rows = append(rows, grantedFeatureRow{Slug: slug, Name: tr("hn_pick_name:" + name), SourceLabel: tr("hn_source_label:Hunters Pattern")})
 		}
 	}
 	return rows, nil
@@ -1015,6 +1016,37 @@ func lookupHunterPickOption(options []hunterPickOption, slug string) (name, desc
 	return "", "", false
 }
 
+// translateHunterPickOption translates a Name/Description pair pulled from
+// one of this file's hand-curated []hunterPickOption catalogs (as opposed
+// to the DB-backed ones read via loadHunterOptionCatalog, which already go
+// through i18n.Batch at read time). These catalogs are transcribed straight
+// from class_features/subclass_features prose rather than class_options
+// rows (see e.g. lethalPrecisionOptions' own doc comment), so there's no
+// rules-database row for the normal i18n.Row/Batch machinery to translate
+// -- the raw English text doubles as the catalog lookup key instead, same
+// convention custom_resources.go's translateCustomResourceEntries
+// established for the identical "curated Go literal, not DB content" shape.
+func translateHunterPickOption(name, description, locale string) (string, string) {
+	tr := i18n.Translator(locale)
+	name = tr("hn_pick_name:" + name)
+	if description != "" {
+		description = tr("hn_pick_desc:" + description)
+	}
+	return name, description
+}
+
+// translateHunterPickOptions applies translateHunterPickOption across a
+// whole catalog, returning a new slice (the originals are shared package
+// vars and must not be mutated in place).
+func translateHunterPickOptions(options []hunterPickOption, locale string) []hunterPickOption {
+	out := make([]hunterPickOption, len(options))
+	for i, o := range options {
+		name, desc := translateHunterPickOption(o.Name, o.Description, locale)
+		out[i] = hunterPickOption{Slug: o.Slug, Name: name, Description: desc}
+	}
+	return out
+}
+
 // knownHunterPick is one entry on a Known list — either a player pick
 // (has a remove button, counts against its own cap) or Granted true (one
 // of the 8 subclass-exclusive Hunters Exploits, no remove button, doesn't
@@ -1313,7 +1345,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 			pickedSet[slug] = true
 		}
 		data.LethalPrecisionUsed = len(picks)
-		data.KnownLethalPrecision, data.AvailableLethalPrecision = splitHunterPicks(lethalPrecisionOptions, pickedSet)
+		data.KnownLethalPrecision, data.AvailableLethalPrecision = splitHunterPicks(translateHunterPickOptions(lethalPrecisionOptions, locale), pickedSet)
 	}
 
 	data.PatternsCap = huntersPatternsCap(hunterLevel)
@@ -1399,7 +1431,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 			pickedSet[slug] = true
 		}
 		data.DefensiveTacticsUsed = len(picks)
-		data.KnownDefensiveTactics, data.AvailableDefensiveTactics = splitHunterPicks(defensiveTacticsOptions, pickedSet)
+		data.KnownDefensiveTactics, data.AvailableDefensiveTactics = splitHunterPicks(translateHunterPickOptions(defensiveTacticsOptions, locale), pickedSet)
 	}
 
 	// The 8 Hunter's Creeds' own subclass-exclusive picks — each block only
@@ -1436,7 +1468,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.WardenWeaponPropertyUsed = len(picks)
-			data.KnownWardenWeaponProperty, data.AvailableWardenWeaponProperty = splitHunterPicks(wardenWeaponPropertyOptions, pickedSet)
+			data.KnownWardenWeaponProperty, data.AvailableWardenWeaponProperty = splitHunterPicks(translateHunterPickOptions(wardenWeaponPropertyOptions, locale), pickedSet)
 		}
 	case necroticHandSubclassSlug:
 		data.MedicalTechniqueCap = subclassTechniqueCap(hunterLevel)
@@ -1450,7 +1482,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.MedicalTechniqueUsed = len(picks)
-			data.KnownMedicalTechnique, data.AvailableMedicalTechnique = splitHunterPicks(medicalAssassinationTechniques, pickedSet)
+			data.KnownMedicalTechnique, data.AvailableMedicalTechnique = splitHunterPicks(translateHunterPickOptions(medicalAssassinationTechniques, locale), pickedSet)
 		}
 	case graveStalkerSubclassSlug:
 		data.ShadowTechniqueCap = subclassTechniqueCap(hunterLevel)
@@ -1464,7 +1496,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.ShadowTechniqueUsed = len(picks)
-			data.KnownShadowTechnique, data.AvailableShadowTechnique = splitHunterPicks(shadowAssassinationTechniques, pickedSet)
+			data.KnownShadowTechnique, data.AvailableShadowTechnique = splitHunterPicks(translateHunterPickOptions(shadowAssassinationTechniques, locale), pickedSet)
 		}
 	case arsenalistSubclassSlug:
 		data.ArsenalItemCap = arsenalItemCap(hunterLevel)
@@ -1478,7 +1510,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.ArsenalItemUsed = len(picks)
-			data.KnownArsenalItem, data.AvailableArsenalItem = splitHunterPicks(arsenalItems, pickedSet)
+			data.KnownArsenalItem, data.AvailableArsenalItem = splitHunterPicks(translateHunterPickOptions(arsenalItems, locale), pickedSet)
 		}
 	case undertakerSubclassSlug:
 		data.ToxicTechniqueCap = subclassTechniqueCap(hunterLevel)
@@ -1492,7 +1524,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.ToxicTechniqueUsed = len(picks)
-			data.KnownToxicTechnique, data.AvailableToxicTechnique = splitHunterPicks(toxicAssassinationTechniques, pickedSet)
+			data.KnownToxicTechnique, data.AvailableToxicTechnique = splitHunterPicks(translateHunterPickOptions(toxicAssassinationTechniques, locale), pickedSet)
 		}
 	case viceAgentSubclassSlug:
 		data.ViceTechniqueCap = subclassTechniqueCap(hunterLevel)
@@ -1506,7 +1538,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.ViceTechniqueUsed = len(picks)
-			data.KnownViceTechnique, data.AvailableViceTechnique = splitHunterPicks(viceAssassinationTechniques, pickedSet)
+			data.KnownViceTechnique, data.AvailableViceTechnique = splitHunterPicks(translateHunterPickOptions(viceAssassinationTechniques, locale), pickedSet)
 		}
 	case voidWalkerSubclassSlug:
 		data.VoidTechniqueCap = subclassTechniqueCap(hunterLevel)
@@ -1520,7 +1552,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.VoidTechniqueUsed = len(picks)
-			data.KnownVoidTechnique, data.AvailableVoidTechnique = splitHunterPicks(voidAssassinationTechniques, pickedSet)
+			data.KnownVoidTechnique, data.AvailableVoidTechnique = splitHunterPicks(translateHunterPickOptions(voidAssassinationTechniques, locale), pickedSet)
 		}
 	case wolvesLegacySubclassSlug:
 		data.ProstheticAttachmentCap = prostheticAttachmentCap(hunterLevel)
@@ -1534,7 +1566,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.ProstheticAttachmentUsed = len(picks)
-			data.KnownProstheticAttachment, data.AvailableProstheticAttachment = splitHunterPicks(prostheticAttachmentOptions, pickedSet)
+			data.KnownProstheticAttachment, data.AvailableProstheticAttachment = splitHunterPicks(translateHunterPickOptions(prostheticAttachmentOptions, locale), pickedSet)
 		}
 		data.WolfTechniqueCap = wolfTechniqueCap(hunterLevel)
 		if data.WolfTechniqueCap > 0 {
@@ -1547,7 +1579,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 				pickedSet[slug] = true
 			}
 			data.WolfTechniqueUsed = len(picks)
-			data.KnownWolfTechnique, data.AvailableWolfTechnique = splitHunterPicks(wolfTechniqueOptions, pickedSet)
+			data.KnownWolfTechnique, data.AvailableWolfTechnique = splitHunterPicks(translateHunterPickOptions(wolfTechniqueOptions, locale), pickedSet)
 		}
 	}
 
@@ -1960,6 +1992,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "lethal-precision":
 		var found bool
 		name, description, found = lookupHunterPickOption(lethalPrecisionOptions, slug)
@@ -1967,6 +2000,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "warden-weapon":
 		// The one hand-curated-list case above doesn't cover — Warden
 		// Weapon TYPE is sourced live from the equipment table, not a
@@ -1999,6 +2033,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "medical-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(medicalAssassinationTechniques, slug)
@@ -2006,6 +2041,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "shadow-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(shadowAssassinationTechniques, slug)
@@ -2013,6 +2049,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "arsenal-item":
 		var found bool
 		name, description, found = lookupHunterPickOption(arsenalItems, slug)
@@ -2020,6 +2057,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "toxic-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(toxicAssassinationTechniques, slug)
@@ -2027,6 +2065,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "vice-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(viceAssassinationTechniques, slug)
@@ -2034,6 +2073,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "void-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(voidAssassinationTechniques, slug)
@@ -2041,6 +2081,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "prosthetic-attachment":
 		var found bool
 		name, description, found = lookupHunterPickOption(prostheticAttachmentOptions, slug)
@@ -2048,6 +2089,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	case "wolf-technique":
 		var found bool
 		name, description, found = lookupHunterPickOption(wolfTechniqueOptions, slug)
@@ -2055,6 +2097,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateHunterPickOption(name, description, locale)
 	default:
 		http.NotFound(w, r)
 		return

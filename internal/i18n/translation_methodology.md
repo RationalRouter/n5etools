@@ -262,18 +262,44 @@ says nothing about this category of gap. Found so far:
     through `cmd/n5e-i18n catalog-translate` (or a manual spot-check against the glossary) next
     time DeepL access is available, the same "verify by hand once, then trust the pipeline for the
     rest" precedent as everything else in this doc.
+  - **`hunter_nin.go` fixed 2026-09-07** (72 `Name` values, 63 `Description` values, plus a
+    `SourceLabel` and 2 more names hidden in a `hunterNinPatternPassiveRows` lookup map outside the
+    file's main catalogs): this file's shape differs from `custom_resources.go` — instead of one
+    big map, the gap was 11 separate hand-curated `[]hunterPickOption{...}` package-level catalogs
+    (`lethalPrecisionOptions`, `defensiveTacticsOptions`, `wardenWeaponPropertyOptions`,
+    `medicalAssassinationTechniques`, `shadowAssassinationTechniques`, `toxicAssassinationTechniques`,
+    `viceAssassinationTechniques`, `voidAssassinationTechniques`, `prostheticAttachmentOptions`,
+    `wolfTechniqueOptions`, `arsenalItems`), each read from two different call sites
+    (`splitHunterPicks` in `loadHunterTechniquesTabData`, and `lookupHunterPickOption` in
+    `handleHunterPickDetail`). Two sibling loader functions in the same file
+    (`loadHunterOptionCatalog`, `loadWardenWeaponCatalog`) were already correctly translated via
+    `i18n.Batch`/`i18n.Row` because they're DB-backed (`class_options`/`equipment` tables) — those,
+    and their own `splitHunterPicks`/`lookupHunterPickOption` call sites, were left untouched.
+    New helpers `translateHunterPickOption`/`translateHunterPickOptions` wrap a
+    `hunterPickOption`'s `Name`/`Description` at the read site, keyed `"hn_pick_name:" + rawName`/
+    `"hn_pick_desc:" + rawDescription` — same raw-text-as-key convention as `cr_name:`/
+    `cr_restriction:`. The outlying `hunterNinPatternPassiveRows` map (2 names + a `SourceLabel`,
+    used for a Core-tab Sources tooltip, not a `hunterPickOption`) got its own `locale` parameter
+    and reuses `hn_pick_name:` for its two names (they're Hunters Patterns' own `class_options`
+    display names, so the key just needs to match what a player would see, not a strict "which
+    struct produced this" rule) plus a new `hn_source_label:` namespace for the one `SourceLabel`
+    literal. All Spanish/Portuguese translation done by hand (still no `DEEPL_API_KEY` in this
+    session's tool environment either).
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go` is closed; ~19 sibling files (`hunter_nin.go`, `genjutsu.go`,
+2026-09-07, `custom_resources.go` and `hunter_nin.go` are closed; ~18 sibling files (`genjutsu.go`,
 `cooking_nin.go`, `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
 `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`, `taijutsu.go`,
 `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
 `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check each one for its
 own hidden `Restriction`/`Description`-shaped field too (the grep above catches `Restriction` now,
-but a new field name in a new file won't match until it's added here).
+but a new field name in a new file won't match until it's added here), and check for outlying
+lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was hiding
+one here — a plain grep for the field-name regex across the whole file (not just inside the
+obvious catalog var) is the only reliable way to catch these.
 
 ## Applying this to a new language
 
