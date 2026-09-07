@@ -910,6 +910,19 @@ before it's assigned into the response struct), never inside the loader itself.*
   shape as every other `internal/features.LoadGrantedFeatures` row, for consistency, rather than
   being fixed in isolation.
 
+- **`puppet_tactics.go`** (2026-09-07): `loadPuppetTacticsTabData`'s `SELECT name, description FROM
+  class_features WHERE slug = ?` (the 5 Tactics picker's own catalog, real player-facing text on
+  the Core tab) had no `locale` parameter and no `i18n.Row` overlay at all — genuine missing-overlay
+  bug, same shape as `science_nin.go`'s Mixed Studies gap. Fixed by threading `locale` through the
+  function and its two callers (`characters.go`'s full-sheet render and the `sheet_puppet_tactics`
+  fragment case). Also fixed a second-order bug this surfaced: Agile Tactics' own `class_features.name`
+  row has a doubled prefix in the SOURCE data ("Puppet Master Tactics Agile Tactics", stripped via
+  `strings.TrimPrefix` before this fix) — DeepL translated the row AS-IS, so the doubled prefix
+  carries into es/pt too ("Tácticas del titiritero Tácticas ágiles", "Táticas do Mestre das
+  Marionetes Táticas Ágeis"), confirmed via `sqlite3`, meaning the old English-only
+  `strings.TrimPrefix` silently stopped stripping anything the moment the overlay was added. Fixed
+  via a `puppetMasterTacticsPrefixByLocale` map (en/es/pt) instead of a bare literal.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
@@ -917,7 +930,8 @@ what was in scope to begin with, and this whole class of string structurally was
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
 `medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`,
-`titan.go`, `elemental_affinity.go`, `snb.go`, and `science_nin.go` are closed (`science_nin.go`
+`titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`, and `puppet_tactics.go` are closed
+(`science_nin.go`
 also surfaced its own new cross-cutting deferred item — the `internal/features.LoadGrantedFeatures`/
 Passive Traits "Sources" tooltip gap, see its own bullet above — same "don't count fully closed
 until the relevant cross-cutting pass lands" caveat applies to it too); `wow_whelp.go` was audited
@@ -938,8 +952,8 @@ don't count it "closed" until the cross-cutting companion-auto-add pass lands; `
 share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
 `genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
 `medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
-gap and the GrantedHint gap); ~2 sibling files (`puppet_tactics.go`,
-`full_metal_shinobi.go`) remain fully unaudited — check
+gap and the GrantedHint gap); ~1 sibling file (`full_metal_shinobi.go`) remains fully
+unaudited — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
 outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was

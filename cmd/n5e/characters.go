@@ -5183,7 +5183,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load puppets tab:", err)
 		return
 	}
-	puppetTactics, err := s.loadPuppetTacticsTabData(id, puppetsTab.PuppetMasterLevel)
+	puppetTactics, err := s.loadPuppetTacticsTabData(id, puppetsTab.PuppetMasterLevel, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load puppet tactics:", err)
@@ -7003,7 +7003,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load puppet master level for tactics fragment:", err)
 			return
 		}
-		tactics, err := s.loadPuppetTacticsTabData(characterID, level)
+		tactics, err := s.loadPuppetTacticsTabData(characterID, level, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load puppet tactics for fragment:", err)

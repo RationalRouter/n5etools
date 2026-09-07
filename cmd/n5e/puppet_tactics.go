@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Puppet Master Tactics: "Tactics of the Craft" (class_features, level 2)
@@ -73,6 +74,16 @@ func puppetTacticCap(level int, subclassColor string) int {
 	return total
 }
 
+// puppetMasterTacticsPrefixByLocale is Agile Tactics' own doubled
+// class-feature-name prefix (see loadPuppetTacticsTabData's own doc),
+// translated per locale since DeepL translated the whole doubled string
+// as one unit rather than just the "clean" half.
+var puppetMasterTacticsPrefixByLocale = map[string]string{
+	"en": "Puppet Master Tactics ",
+	"es": "Tácticas del titiritero ",
+	"pt": "Táticas do Mestre das Marionetes ",
+}
+
 type puppetTactic struct {
 	Slug        string
 	Name        string
@@ -90,7 +101,7 @@ type puppetTacticsTabData struct {
 // with no Puppet Master levels at all — the template gates the whole box's
 // existence on this being non-nil, the same "real DOM removal, not just
 // hidden" treatment the Puppets tab itself gets in the tab bar.
-func (s *server) loadPuppetTacticsTabData(characterID int64, puppetMasterLevel int) (*puppetTacticsTabData, error) {
+func (s *server) loadPuppetTacticsTabData(characterID int64, puppetMasterLevel int, locale string) (*puppetTacticsTabData, error) {
 	if puppetMasterLevel == 0 {
 		return nil, nil
 	}
@@ -120,11 +131,27 @@ func (s *server) loadPuppetTacticsTabData(characterID int64, puppetMasterLevel i
 		if err != nil {
 			return nil, err
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_features", slug); err == nil {
+			if tr["name"] != "" {
+				name = tr["name"]
+			}
+			if tr["description"] != "" {
+				description = tr["description"]
+			}
+		}
 		// "Puppet Master Tactics Agile Tactics" is how rules.db actually
 		// stores Agile Tactics' own name (a doubled prefix, confirmed
 		// directly against the shipped data) — every other Tactic's name
 		// is clean, so this is a one-off strip rather than a general rule.
-		name = strings.TrimPrefix(name, "Puppet Master Tactics ")
+		// DeepL translated the row as-is, carrying the same doubled prefix
+		// into es/pt ("Tácticas del titiritero Tácticas ágiles", "Táticas
+		// do Mestre das Marionetes Táticas Ágeis"), so the strip needs its
+		// own literal per-locale prefix rather than the bare English one.
+		if prefix, ok := puppetMasterTacticsPrefixByLocale[locale]; ok {
+			name = strings.TrimPrefix(name, prefix)
+		} else {
+			name = strings.TrimPrefix(name, puppetMasterTacticsPrefixByLocale["en"])
+		}
 		tactics = append(tactics, puppetTactic{
 			Slug: slug, Name: name, Description: description, Selected: picked[slug],
 		})
