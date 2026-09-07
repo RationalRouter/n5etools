@@ -2495,9 +2495,16 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 	// 3rd Level features (mixedStudiesInquiryDescription), the same text
 	// the picker's own tooltip already shows.
 	if category == "mixed-studies" {
-		for _, o := range mixedStudiesInquiryOptions {
+		locale := localeFromContext(r.Context())
+		translatedInquiries, err := s.translateMixedStudiesInquiryOptions(locale)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("translate mixed studies inquiries:", err)
+			return
+		}
+		for _, o := range translatedInquiries {
 			if o.SubclassSlug == slug {
-				s.renderScienceNinSubclassPickDetail(w, r, o.Name, s.mixedStudiesInquiryDescription(o))
+				s.renderScienceNinSubclassPickDetail(w, r, o.Name, s.mixedStudiesInquiryDescription(locale, o))
 				return
 			}
 		}

@@ -127,6 +127,16 @@ const scienceNinAetherConnectorToolSlug = "class/science-nin/group/scientific-in
 // "class/science-nin/group/scientific-inquiry/elemental-innovationist/feature/beyond-the-veil".
 const scienceNinAetherConnectorDescription = "This device weighs 0 bulk, and is roughly 2 feet in diameter and 4 feet deep. This device allows you to store up to 100 bulk in contents in an alternate dimension, so long as the total volume does not exceed 64 cubic feet. If the Aether Connector is ever destroyed, its contents immediately spill out, and you may craft a new one on a full rest by spending 1 use of an Alchemist Kit."
 
+// translateAetherConnector returns the Aether Connector's Name/Description
+// translated via the "science_nin.aether_connector.*" locale keys — a
+// synthetic catalog entry with no class_option_entries row of its own (see
+// scienceNinAetherConnectorToolSlug's doc), so it can't reuse the DB-backed
+// i18n.Batch overlay every real catalog entry gets.
+func translateAetherConnector(locale string) (name, description string) {
+	tr := i18n.Translator(locale)
+	return tr("science_nin.aether_connector.name"), tr("science_nin.aether_connector.description")
+}
+
 // ensureAetherConnectorGranted auto-adds the Aether Connector to a
 // character's known Scientific Ninja Tools the first time their sheet is
 // loaded after gaining Beyond the Veil — same "one-time, side-effecting
@@ -353,20 +363,56 @@ func (s *server) mergeMixedStudiesFeatures(characterID int64, granted []grantedF
 	return granted, nil
 }
 
+// translateMixedStudiesInquiryOptions returns mixedStudiesInquiryOptions
+// with Name translated via the "subclasses" table's own content_translations
+// row (subclasses.name/description are TranslatableFields-listed, and every
+// SubclassSlug here IS a real subclasses row) rather than new locale JSON
+// keys — SubclassSlug (the only field ever matched against, in
+// mergeMixedStudiesFeatures and every caller below) is left untouched.
+func (s *server) translateMixedStudiesInquiryOptions(locale string) ([]mixedStudiesInquiryOption, error) {
+	slugs := make([]string, len(mixedStudiesInquiryOptions))
+	for i, o := range mixedStudiesInquiryOptions {
+		slugs[i] = o.SubclassSlug
+	}
+	translated, err := i18n.Batch(s.rulesDB, locale, "subclasses", slugs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]mixedStudiesInquiryOption, len(mixedStudiesInquiryOptions))
+	for i, o := range mixedStudiesInquiryOptions {
+		name := o.Name
+		if tr := translated[o.SubclassSlug]; tr["name"] != "" {
+			name = tr["name"]
+		}
+		out[i] = mixedStudiesInquiryOption{SubclassSlug: o.SubclassSlug, Name: name, FeatureSlugs: o.FeatureSlugs}
+	}
+	return out, nil
+}
+
 // mixedStudiesInquiryDescription builds the Mixed Studies picker's own
 // rollover-tooltip text for one Inquiry option — both of its own 3rd Level
 // features' names and full body text, read live from rules.db rather than
 // hand-transcribed (same restraint this file's own header doc already
-// applies to the Scientific Ninja Tools catalog). Also reused by
-// handleScienceNinSubclassPickDetail's "mixed-studies" branch
-// (science_nin_subclasses.go) for the click-to-open popup, so the tooltip
-// and the popup never drift apart.
-func (s *server) mixedStudiesInquiryDescription(opt mixedStudiesInquiryOption) string {
+// applies to the Scientific Ninja Tools catalog), overlaid with
+// subclass_features' own content_translations row the same way
+// snb.go's loadSNBReference reads the identical v_subclass_features shape.
+// Also reused by handleScienceNinSubclassPickDetail's "mixed-studies"
+// branch (science_nin_subclasses.go) for the click-to-open popup, so the
+// tooltip and the popup never drift apart.
+func (s *server) mixedStudiesInquiryDescription(locale string, opt mixedStudiesInquiryOption) string {
 	var parts []string
 	for _, slug := range opt.FeatureSlugs {
 		var name, description string
 		if err := s.rulesDB.QueryRow(`SELECT name, description FROM v_subclass_features WHERE slug = ?`, slug).Scan(&name, &description); err != nil {
 			continue
+		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "subclass_features", slug); err == nil {
+			if tr["name"] != "" {
+				name = tr["name"]
+			}
+			if tr["description"] != "" {
+				description = tr["description"]
+			}
 		}
 		parts = append(parts, name+": "+description)
 	}
@@ -903,12 +949,13 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 	// ensureAetherConnectorGranted yet still sees it, just under Available
 	// instead of Known — Cost 0 keeps it unconditionally affordable there.
 	if hasFeature(granted, scienceNinBeyondTheVeilFeatureSlug) {
+		aetherName, aetherDescription := translateAetherConnector(locale)
 		catalog = append(catalog, scienceNinToolOption{
 			Slug:        scienceNinAetherConnectorToolSlug,
-			Name:        "Aether Connector",
+			Name:        aetherName,
 			Tier:        "Innate",
 			Cost:        0,
-			Description: scienceNinAetherConnectorDescription,
+			Description: aetherDescription,
 		})
 	}
 	picks, err := charstore.ListScienceNinTools(s.charDB, characterID)
@@ -999,7 +1046,11 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 		if len(msPicks) > 0 {
 			pickedSlug = msPicks[0].OptionSlug
 		}
-		for _, opt := range mixedStudiesInquiryOptions {
+		translatedInquiries, err := s.translateMixedStudiesInquiryOptions(locale)
+		if err != nil {
+			return nil, err
+		}
+		for _, opt := range translatedInquiries {
 			if opt.SubclassSlug == nativeSlug {
 				continue // "You cannot select the one you chose at 3rd Level"
 			}
@@ -1011,7 +1062,7 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 			ms.Available = append(ms.Available, scienceNinSubclassOption{
 				Slug:        opt.SubclassSlug,
 				Name:        opt.Name,
-				Description: s.mixedStudiesInquiryDescription(opt),
+				Description: s.mixedStudiesInquiryDescription(locale, opt),
 			})
 		}
 		data.MixedStudies = ms
@@ -1111,13 +1162,15 @@ func (s *server) handleScienceNinToolDelete(w http.ResponseWriter, r *http.Reque
 // character-scoped — the catalog is static rules content.
 func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
+	locale := localeFromContext(r.Context())
 
 	// The Aether Connector has no class_option_entries row to query below
 	// (scienceNinAetherConnectorToolSlug's own doc) — served from its own
-	// hardcoded constants instead of 404ing the way every real tool's
+	// locale-keyed constants instead of 404ing the way every real tool's
 	// detail popup would for an unrecognized slug.
 	if slug == scienceNinAetherConnectorToolSlug {
-		s.renderScienceNinToolDetailCard(w, r, "Aether Connector", scienceNinAetherConnectorDescription)
+		name, description := translateAetherConnector(locale)
+		s.renderScienceNinToolDetailCard(w, r, name, description)
 		return
 	}
 
@@ -1136,6 +1189,14 @@ func (s *server) handleScienceNinToolDetail(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin tool detail:", err)
 		return
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "class_option_entries", slug); err == nil {
+		if tr["name"] != "" {
+			name = tr["name"]
+		}
+		if tr["description"] != "" {
+			description = tr["description"]
+		}
 	}
 	s.renderScienceNinToolDetailCard(w, r, name, description)
 }

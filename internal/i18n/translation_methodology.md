@@ -851,6 +851,64 @@ before it's assigned into the response struct), never inside the loader itself.*
   translated — same shape as `nindog.go`'s own already-fixed Bite and `titan.go`'s own already-fixed
   Bash; fixed via a new `"snb.bite_name"` key (translated "Mordisco"/"Mordida", matching
   `nindog.bite.name`'s own precedent for the same word).
+- **`science_nin.go`** (2026-09-07): three genuine per-file display gaps, plus one large new
+  cross-cutting finding (below) that this file's own audit surfaced but does NOT fix. Fixed here:
+  (1) `mixedStudiesInquiryDescription`'s two `SELECT name, description FROM v_subclass_features`
+  reads (Mixed Studies' own rollover-tooltip text AND `handleScienceNinSubclassPickDetail`'s
+  "mixed-studies" popup branch, `science_nin_subclasses.go`) had zero `i18n.Row` overlay -- the
+  exact same query shape `snb.go`'s `loadSNBReference` already applies the overlay to; fixed by
+  threading `locale` through the function and adding the overlay (matched on
+  `subclass_features`/slug). (2) `mixedStudiesInquiryOption.Name` (the ten hand-curated Scientific
+  Inquiry names -- "Elemental Innovationist", "Grenadier", etc.) was hardcoded English, displayed
+  both in the Mixed Studies picker (`knownScienceNinPick.Name`) and as the popup's own title
+  (`o.Name` passed to `renderScienceNinSubclassPickDetail`) -- fixed via a new
+  `translateMixedStudiesInquiryOptions` wrapper that reuses the `subclasses` table's own
+  `content_translations` row (`i18n.Batch(s.rulesDB, locale, "subclasses", slugs)`) rather than new
+  locale JSON keys, since every `SubclassSlug` here IS a real, already-DeepL-translated `subclasses`
+  row -- `SubclassSlug` itself (the only field ever matched against, in `mergeMixedStudiesFeatures`
+  and every caller) is left untouched. (3) Beyond the Veil's synthetic Aether Connector catalog
+  entry (`scienceNinAetherConnectorToolSlug`, no `class_option_entries` row of its own) had a
+  hardcoded `Name: "Aether Connector"` in `loadScienceNinTabData` AND a hardcoded name +
+  `scienceNinAetherConnectorDescription` package const in `handleScienceNinToolDetail`'s special-case
+  branch -- fixed via new `"science_nin.aether_connector.name"`/`.description"` locale keys and a
+  `translateAetherConnector(locale)` helper, with `locale` newly threaded into
+  `handleScienceNinToolDetail` (which also had its OWN separate overlay gap: the real-tool branch's
+  `SELECT e.name, e.description FROM class_option_entries e ...` had no `i18n.Row` overlay either,
+  fixed alongside). `scienceNinToolOption.Tier`/`knownScienceNinTool.Tier` confirmed present in this
+  file too (already covered by the `Tier`-field cross-cutting bullet below, not fixed here).
+  `mergeMixedStudiesFeatures`'s own raw `v_subclass_features` query (a THIRD site with the same
+  missing-overlay shape) was deliberately left alone -- see the new cross-cutting finding below for
+  why fixing it in isolation here would be inconsistent.
+- **NEW cross-cutting finding, NOT fixed, surfaced while auditing `science_nin.go`**: the Core
+  sheet's Resistances/Senses/Advantages/Disadvantages/Notes panel renders a "Sources" rollover
+  tooltip (`character_sheet.html`'s five `.PassiveTraits.*` `{{range ... .Sources}}` blocks) built
+  directly from `grantedFeatureRow.Name`/`internal/features.GrantedFeatureRow.Name`
+  (`computePassiveTraits`, `passive_traits.go`) -- and `internal/features.LoadGrantedFeatures` (the
+  single function EVERY class/subclass/clan feature in the entire app funnels through, via
+  `loadGrantedFeatures`/`loadMergedGrantedFeatures`) has **zero i18n at all**: every `SELECT name,
+  ... FROM v_class_features`/`v_subclass_features`/clan-features query in that package returns raw,
+  untranslated English, with no `i18n.Row`/`i18n.Batch` overlay anywhere in the package. This is
+  NOT the already-documented `Tier`-field gap (a different field, a different display surface) -- it
+  is a brand-new, much larger gap: literally any class/subclass/clan feature that also has a
+  `passiveTraitGrants`/`senseGrants`/`advantageGrants`/`passiveNoteGrants` entry (`passive_traits.go`)
+  shows its own bare English `Name` in this tooltip, in EVERY locale, for EVERY class in the app --
+  confirmed by reading `internal/features/features.go` in full (no `i18n` import at all) and tracing
+  `f.Name` through `passive_traits.go`'s five `sources[...]`/`senseSources[...]`/`advSources[...]`/
+  `disadvSources[...]`/`noteSources[...]` builders into the template. Note that `grantedFeatureRow`'s
+  `Name`/`Description`/`SourceLabel` fields are NOT otherwise displayed anywhere (the Core tab's own
+  Features & Traits list was removed in favor of `reference.go`'s independently-translated Class
+  Reference popup -- confirmed via `characters.go`'s own comment at the `loadGrantedFeatures` call
+  site, "the Core tab no longer shows this list itself" -- and no template ranges over
+  `.Name`/`.Description` for this struct), so this Sources tooltip is the ONLY real display surface
+  for this data, but it genuinely is one. Given the scale (the single shared choke point for every
+  class in the app, not a per-file catalog), this needs its own dedicated pass -- add an
+  `i18n.Batch`/`Row` overlay inside `internal/features.LoadGrantedFeatures` itself (the function
+  would need a `locale` parameter threaded through both of its callers,
+  `loadGrantedFeatures`/`loadMergedGrantedFeatures` in `characters.go`) -- rather than being patched
+  file-by-file the way this sweep's per-file catalogs are. Until that lands, `mergeMixedStudiesFeatures`
+  (`science_nin.go`)'s own synthetic granted rows are deliberately left with the same raw-English
+  shape as every other `internal/features.LoadGrantedFeatures` row, for consistency, rather than
+  being fixed in isolation.
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -859,7 +917,10 @@ what was in scope to begin with, and this whole class of string structurally was
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
 `medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`,
-`titan.go`, `elemental_affinity.go`, and `snb.go` are closed; `wow_whelp.go` was audited
+`titan.go`, `elemental_affinity.go`, `snb.go`, and `science_nin.go` are closed (`science_nin.go`
+also surfaced its own new cross-cutting deferred item — the `internal/features.LoadGrantedFeatures`/
+Passive Traits "Sources" tooltip gap, see its own bullet above — same "don't count fully closed
+until the relevant cross-cutting pass lands" caveat applies to it too); `wow_whelp.go` was audited
 (2026-09-07) and found clean OF THIS PARTICULAR
 gap — its own translation gap is real but cross-cutting (see its own bullet above) and
 deliberately deferred rather than fixed in isolation, so don't re-audit it from scratch, but also
@@ -877,7 +938,7 @@ don't count it "closed" until the cross-cutting companion-auto-add pass lands; `
 share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
 `genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
 `medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
-gap and the GrantedHint gap); ~3 sibling files (`science_nin.go`, `puppet_tactics.go`,
+gap and the GrantedHint gap); ~2 sibling files (`puppet_tactics.go`,
 `full_metal_shinobi.go`) remain fully unaudited — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
