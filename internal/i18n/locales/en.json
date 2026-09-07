@@ -630,7 +630,7 @@
   "home.browse_stances": "Browse Fighting Stances →",
   "home.create_character": "+ Create a Character →",
   "home.my_characters": "My Characters →",
-  "home.patch_1": "Fixed more untranslated Spanish text on the Classes page: headers, tables, and option lists.",
+  "home.patch_1": "Added Spanish language support.",
   "home.patch_10": "Taijutsu's Iron Will and Untouchable effects are now tracked automatically.",
   "home.patch_2": "Panel dragging and resizing on character sheets is now much smoother, with grid-snap resize handles.",
   "home.patch_3": "Companion attacks now show their description on hover, and a detail card on click.",

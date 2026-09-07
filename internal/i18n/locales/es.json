@@ -630,7 +630,7 @@
   "home.browse_stances": "Explorar posturas de combate →",
   "home.create_character": "+ Crear un personaje →",
   "home.my_characters": "Mis personajes →",
-  "home.patch_1": "Se ha corregido más texto sin traducir al español en la página de Clases: encabezados, tablas y listas de opciones.",
+  "home.patch_1": "Se ha añadido soporte para el idioma español.",
   "home.patch_10": "Los efectos «Voluntad de hierro» y «Intocable» de Taijutsu ahora se registran automáticamente.",
   "home.patch_2": "Ahora, arrastrar y cambiar el tamaño de los paneles en las fichas de personajes resulta mucho más fluido, gracias a los controladores de ajuste a la cuadrícula.",
   "home.patch_3": "Ahora, al pasar el cursor por encima de los ataques de los compañeros, aparece su descripción, y al hacer clic, se muestra una ficha detallada.",
