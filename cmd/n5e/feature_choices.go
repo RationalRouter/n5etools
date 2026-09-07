@@ -13,6 +13,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // featureChoiceOption is one selectable value in a pending choice's <select>.
@@ -70,13 +71,6 @@ var puppetUpgradeEntryChoiceLabels = map[string]string{
 	"class/puppet-master/option/interwoven-upgrades/wood-tier/entry/thread-weapon":          "Thread Weapon",
 }
 
-// symphonyBranchChoiceLabels: display names for Symphony of Puppetry's own
-// fixed 2-value branch pick.
-var symphonyBranchChoiceLabels = map[string]string{
-	"expansion":   "Expansion — gain the Expanded Puppetry Upgrade for free (or a Bronze tier or lower Upgrade, once already taken twice)",
-	"enhancement": "Enhancement — double the max HP, and +2 to one ability score, of the two Puppets you started with",
-}
-
 // buildPendingFeatureChoiceRows turns Sheet.PendingFeatureChoices into the
 // display shape sheet_feature_choices needs — resolving each slot's real
 // option list. internal/features can't import charsheet.SkillAbility itself
@@ -85,7 +79,8 @@ var symphonyBranchChoiceLabels = map[string]string{
 // carries its fixed ability-code options straight from the slot. A method
 // (not a plain function) because ChoiceArmorProperty's own options come
 // from rules.db's armor_properties table, which only this layer can reach.
-func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]pendingFeatureChoiceRow, error) {
+func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot, locale string) ([]pendingFeatureChoiceRow, error) {
+	tr := i18n.Translator(locale)
 	skillNames := make([]string, 0, len(charsheet.SkillAbility))
 	for name := range charsheet.SkillAbility {
 		skillNames = append(skillNames, name)
@@ -104,41 +99,49 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 		switch slot.Kind {
 		case features.ChoiceSkillProficiency:
 			for _, name := range skillNames {
-				row.Options = append(row.Options, featureChoiceOption{Value: name, Label: name})
+				row.Options = append(row.Options, featureChoiceOption{Value: name, Label: skillDisplayName(locale, name)})
 			}
 		case features.ChoiceSavingThrowProficiency:
 			for _, ab := range slot.Options {
-				row.Options = append(row.Options, featureChoiceOption{Value: ab, Label: abilityLabels[ab] + " Saving Throw"})
+				row.Options = append(row.Options, featureChoiceOption{Value: ab, Label: abilityLabelTr(tr, ab) + " " + tr("sheet.saving_throw_word")})
 			}
 		case features.ChoiceAbilityScoreIncrease:
 			row.IsAbilityScore = true
 			for _, ab := range slot.Options {
+				label := abilityLabelTr(tr, ab)
 				row.Options = append(row.Options, featureChoiceOption{
-					Value: ab,
-					Label: fmt.Sprintf("%s (+%d)", abilityLabels[ab], slot.Amount),
-					Description: fmt.Sprintf(
-						"Permanently increases your %s score by +%d. This pick cannot be changed later.",
-						abilityLabels[ab], slot.Amount),
+					Value:       ab,
+					Label:       fmt.Sprintf("%s (+%d)", label, slot.Amount),
+					Description: tr("sheet.ability_increase_permanent_desc", label, slot.Amount),
 				})
 			}
 		case features.ChoiceUpgradeEntry:
 			for _, entrySlug := range slot.Options {
-				var description string
-				if err := s.rulesDB.QueryRow(`SELECT description FROM class_option_entries WHERE slug = ?`, entrySlug).Scan(&description); err != nil && err != sql.ErrNoRows {
+				var name, description string
+				if err := s.rulesDB.QueryRow(`SELECT name, description FROM class_option_entries WHERE slug = ?`, entrySlug).Scan(&name, &description); err != nil && err != sql.ErrNoRows {
 					return nil, err
 				}
+				tred, err := i18n.Row(s.rulesDB, locale, "class_option_entries", entrySlug)
+				if err != nil {
+					return nil, err
+				}
+				if v, ok := tred["name"]; ok {
+					name = v
+				}
+				if v, ok := tred["description"]; ok {
+					description = v
+				}
 				row.Options = append(row.Options, featureChoiceOption{
-					Value: entrySlug, Label: puppetUpgradeEntryChoiceLabels[entrySlug], Description: description,
+					Value: entrySlug, Label: name, Description: description,
 				})
 			}
 		case features.ChoiceCompanionAbilityScoreIncrease:
 			for _, ab := range slot.Options {
+				label := abilityLabelTr(tr, ab)
 				row.Options = append(row.Options, featureChoiceOption{
-					Value: ab,
-					Label: fmt.Sprintf("%s (+%d)", abilityLabels[ab], slot.Amount),
-					Description: fmt.Sprintf(
-						"Increases every Puppet Tool you possess's %s score by +%d (max %d). This pick cannot be changed later.",
-						abilityLabels[ab], slot.Amount, slot.Cap),
+					Value:       ab,
+					Label:       fmt.Sprintf("%s (+%d)", label, slot.Amount),
+					Description: tr("sheet.ability_increase_capped_desc", label, slot.Amount, slot.Cap),
 				})
 			}
 		case features.ChoiceNamedJutsuGrant:
@@ -147,6 +150,16 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 				if err := s.rulesDB.QueryRow(`SELECT name, description FROM jutsu WHERE slug = ?`, jutsuSlug).Scan(&name, &description); err != nil && err != sql.ErrNoRows {
 					return nil, err
 				}
+				tred, err := i18n.Row(s.rulesDB, locale, "jutsu", jutsuSlug)
+				if err != nil {
+					return nil, err
+				}
+				if v, ok := tred["name"]; ok {
+					name = v
+				}
+				if v, ok := tred["description"]; ok {
+					description = v
+				}
 				row.Options = append(row.Options, featureChoiceOption{
 					Value: jutsuSlug, Label: name, Description: description,
 				})
@@ -154,7 +167,7 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 		case features.ChoiceArmorProperty:
 			if !armorPropertiesLoaded {
 				var err error
-				armorProperties, err = s.armorPropertyChoiceOptions()
+				armorProperties, err = s.armorPropertyChoiceOptions(locale)
 				if err != nil {
 					return nil, err
 				}
@@ -163,7 +176,7 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 			row.Options = armorProperties
 		case features.ChoiceSymphonyBranch:
 			for _, branch := range slot.Options {
-				row.Options = append(row.Options, featureChoiceOption{Value: branch, Label: symphonyBranchChoiceLabels[branch]})
+				row.Options = append(row.Options, featureChoiceOption{Value: branch, Label: tr("sheet.symphony_branch_" + branch)})
 			}
 		}
 		rows = append(rows, row)
@@ -176,21 +189,40 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot) ([]p
 // buildPendingFeatureChoiceRows (at most one ChoiceArmorProperty feature
 // exists today, Nearly Perfected Architecture's own 2 slots, so this never
 // runs more than twice per render).
-func (s *server) armorPropertyChoiceOptions() ([]featureChoiceOption, error) {
+func (s *server) armorPropertyChoiceOptions(locale string) ([]featureChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name, description FROM armor_properties ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []featureChoiceOption
+	var slugs []string
 	for rows.Next() {
 		var o featureChoiceOption
 		if err := rows.Scan(&o.Value, &o.Label, &o.Description); err != nil {
 			return nil, err
 		}
 		out = append(out, o)
+		slugs = append(slugs, o.Value)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "armor_properties", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tred, ok := translations[out[i].Value]; ok {
+			if v, ok := tred["name"]; ok {
+				out[i].Label = v
+			}
+			if v, ok := tred["description"]; ok {
+				out[i].Description = v
+			}
+		}
+	}
+	return out, nil
 }
 
 // armorPropertyValid reports whether slug is a real armor_properties row —
@@ -336,10 +368,11 @@ type featOptionWithDescription struct {
 // applies (buildFeatCharacter + parseFeatPrereq + Meets, see
 // loadSheetFeatLibrary), so a feat this picker offers is always one the
 // Feats tab would also consider the character qualifies for.
-func (s *server) buildPendingASIRows(characterID int64, slots []features.ASISlot, sheet *charsheet.Sheet) ([]pendingASIRow, error) {
+func (s *server) buildPendingASIRows(characterID int64, slots []features.ASISlot, sheet *charsheet.Sheet, locale string) ([]pendingASIRow, error) {
 	if len(slots) == 0 {
 		return nil, nil
 	}
+	tr := i18n.Translator(locale)
 	characterFeats, err := s.loadCharacterFeats(characterID)
 	if err != nil {
 		return nil, err
@@ -352,23 +385,24 @@ func (s *server) buildPendingASIRows(characterID int64, slots []features.ASISlot
 	if err != nil {
 		return nil, err
 	}
-	featOptions, err := s.eligibleFeatOptions(owned, featChar)
+	featOptions, err := s.eligibleFeatOptions(owned, featChar, locale)
 	if err != nil {
 		return nil, err
 	}
 
 	rows := make([]pendingASIRow, 0, len(slots))
 	for _, slot := range slots {
-		row := pendingASIRow{Ref: slot.Ref, ClassName: s.className(slot.ClassSlug), Level: slot.Level, FeatOptions: featOptions}
+		row := pendingASIRow{Ref: slot.Ref, ClassName: s.className(slot.ClassSlug, locale), Level: slot.Level, FeatOptions: featOptions}
 		for _, ab := range charsheet.Abilities {
 			score := sheet.Abilities[ab].Score
 			max := sheet.AbilityMax[ab]
 			if max == 0 {
 				max = 20
 			}
-			labelText := fmt.Sprintf("%s (%d)", abilityLabels[ab], score)
+			abilityName := abilityLabelTr(tr, ab)
+			labelText := fmt.Sprintf("%s (%d)", abilityName, score)
 			if max != 20 {
-				labelText = fmt.Sprintf("%s (%d, max %d)", abilityLabels[ab], score, max)
+				labelText = fmt.Sprintf("%s (%d, max %d)", abilityName, score, max)
 			}
 			label := featureChoiceOption{Value: ab, Label: labelText}
 			if score < max-1 {
@@ -390,7 +424,7 @@ func (s *server) buildPendingASIRows(characterID int64, slots []features.ASISlot
 // for" — feats named in one another's prerequisites still need the full
 // knownFeats set built first, same reasoning as that function's own doc
 // comment.
-func (s *server) eligibleFeatOptions(owned map[string]bool, character featCharacter) ([]featOptionWithDescription, error) {
+func (s *server) eligibleFeatOptions(owned map[string]bool, character featCharacter, locale string) ([]featOptionWithDescription, error) {
 	knownClasses, err := s.knownClassNames()
 	if err != nil {
 		return nil, err
@@ -422,14 +456,34 @@ func (s *server) eligibleFeatOptions(owned map[string]bool, character featCharac
 	}
 
 	var out []featOptionWithDescription
+	var slugs []string
 	for _, f := range featRows {
 		if owned[f.slug] {
 			continue
 		}
+		// Matched against the RAW English prerequisites/name text above —
+		// only the display Name/Description below get the translation
+		// overlay, so a translated feat name can never desync from what
+		// parseFeatPrereq actually parsed it against.
 		if f.prerequisites != "" && !character.Meets(parseFeatPrereq(f.prerequisites, character.AllSkills, knownFeats, knownClasses, knownClans)) {
 			continue
 		}
 		out = append(out, featOptionWithDescription{Slug: f.slug, Name: f.name, Description: f.description, Highlight: featIsClanOrClassCategory(f.category)})
+		slugs = append(slugs, f.slug)
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "feats", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tred, ok := translations[out[i].Slug]; ok {
+			if v, ok := tred["name"]; ok {
+				out[i].Name = v
+			}
+			if v, ok := tred["description"]; ok {
+				out[i].Description = v
+			}
+		}
 	}
 	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Name) < sortKey(out[k].Name) })
 	return out, nil
@@ -542,7 +596,7 @@ func (s *server) handleSheetASI(w http.ResponseWriter, r *http.Request) {
 			log.Println("build feat eligibility context for asi feat pick:", err)
 			return
 		}
-		eligible, err := s.eligibleFeatOptions(owned, featChar)
+		eligible, err := s.eligibleFeatOptions(owned, featChar, "")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load eligible feats for asi feat pick:", err)

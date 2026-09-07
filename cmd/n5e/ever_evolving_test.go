@@ -85,7 +85,7 @@ func loadEverEvolvingData(t *testing.T, s *server, characterID int64) *scienceNi
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadScienceNinTabData(characterID, sheet)
+	data, err := s.loadScienceNinTabData(characterID, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestEverEvolvingSealCatalogNoTierFilter(t *testing.T) {
 	s := testServer(t)
 	seedEverEvolvingRules(t, s, 14, 20)
 
-	catalog, err := s.loadEverEvolvingSealCatalog()
+	catalog, err := s.loadEverEvolvingSealCatalog("")
 	if err != nil {
 		t.Fatal(err)
 	}

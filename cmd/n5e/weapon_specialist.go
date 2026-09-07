@@ -10,6 +10,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Weapon Specialist's Weapon Focus feature (class_features, level 1) is the
@@ -230,6 +231,29 @@ func (s *server) loadWeaponFocusCatalog() ([]weaponFocusOption, error) {
 	return out, rows.Err()
 }
 
+// translateWeaponFocusOptions overlays Spanish name onto opts in place,
+// keyed by slug — called only after loadWeaponFocusTabData's "(Two Hands)"
+// dedup filter has already run against the raw English Name, since
+// translating first would break that string match.
+func (s *server) translateWeaponFocusOptions(locale string, opts []weaponFocusOption) error {
+	slugs := make([]string, len(opts))
+	for i, o := range opts {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return err
+	}
+	for i := range opts {
+		if tr := translations[opts[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				opts[i].Name = v
+			}
+		}
+	}
+	return nil
+}
+
 // weaponFocusTabData is the sheet_weapon_focus box's full data.
 type weaponFocusTabData struct {
 	Cap       int
@@ -311,7 +335,7 @@ func weaponFocusTotalBonus(totalSlots int) int {
 // Specialist levels AND no feat-granted Weapon Focus slot — the template
 // gates the whole box's existence on this being non-nil, same treatment
 // MartialTechniques gets.
-func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Sheet) (*weaponFocusTabData, error) {
+func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*weaponFocusTabData, error) {
 	level, err := s.weaponSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -357,6 +381,13 @@ func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Shee
 		available = append(available, o)
 	}
 
+	if err := s.translateWeaponFocusOptions(locale, known); err != nil {
+		return nil, err
+	}
+	if err := s.translateWeaponFocusOptions(locale, available); err != nil {
+		return nil, err
+	}
+
 	data := &weaponFocusTabData{
 		Cap:       totalSlots,
 		Used:      len(known),
@@ -371,7 +402,7 @@ func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Shee
 		if err != nil {
 			return nil, err
 		}
-		stanceOptions, err := s.loadStanceOptionsByType("bukijutsu")
+		stanceOptions, err := s.loadStanceOptionsByType(locale, "bukijutsu")
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +521,7 @@ func (s *server) handleWeaponFocusAdd(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for weapon focus add:", err)
 		return
 	}
-	data, err := s.loadWeaponFocusTabData(id, sheet)
+	data, err := s.loadWeaponFocusTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon focus for add:", err)
@@ -577,7 +608,7 @@ func (s *server) handleWeaponStance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "character has not reached Weapon Stance yet", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadStanceOptionsByType("bukijutsu")
+	options, err := s.loadStanceOptionsByType("", "bukijutsu")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon stance options:", err)

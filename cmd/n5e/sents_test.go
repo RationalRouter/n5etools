@@ -103,7 +103,7 @@ func makeTechnobiCharacter(t *testing.T, s *server, id int64, level int, withTec
 func TestLoadSENTWeaponCatalog(t *testing.T) {
 	s := testServer(t)
 	seedSENTResources(t, s)
-	catalog, err := s.loadSENTWeaponCatalog()
+	catalog, err := s.loadSENTWeaponCatalog("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestBuildAttacksSENTOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}

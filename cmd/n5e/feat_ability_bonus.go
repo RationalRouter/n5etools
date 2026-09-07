@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // featAbilityIncreaseRe matches the common "Increase your/the X [ability]
@@ -175,7 +176,8 @@ type pendingFeatAbilityChoiceRow struct {
 // caller's already-loaded s.loadCharacterFeats result — both existing
 // sheet-render call sites already have it for the Feats tab, so this avoids
 // a second identical query.
-func (s *server) buildPendingFeatAbilityChoiceRows(characterID int64, characterFeats []characterFeat) ([]pendingFeatAbilityChoiceRow, error) {
+func (s *server) buildPendingFeatAbilityChoiceRows(characterID int64, characterFeats []characterFeat, locale string) ([]pendingFeatAbilityChoiceRow, error) {
+	tr := i18n.Translator(locale)
 	resolved := make(map[string]bool)
 	rows, err := s.charDB.Query(
 		`SELECT source_ref FROM character_ability_bonuses WHERE character_id = ? AND source_kind = 'feat'`,
@@ -209,10 +211,8 @@ func (s *server) buildPendingFeatAbilityChoiceRows(characterID int64, characterF
 		for _, ab := range abilities {
 			row.Options = append(row.Options, featureChoiceOption{
 				Value: ab,
-				Label: fmt.Sprintf("%s (+%d)", abilityLabels[ab], amount),
-				Description: fmt.Sprintf(
-					"Permanently increases your %s score by +%d. This pick cannot be changed later.",
-					abilityLabels[ab], amount),
+				Label: fmt.Sprintf("%s (+%d)", abilityLabelTr(tr, ab), amount),
+				Description: tr("sheet.ability_increase_permanent_desc", abilityLabelTr(tr, ab), amount),
 			})
 		}
 		out = append(out, row)
@@ -249,7 +249,7 @@ func (s *server) handleSheetFeatAbilityChoice(w http.ResponseWriter, r *http.Req
 		log.Println("load character feats for feat ability choice:", err)
 		return
 	}
-	pending, err := s.buildPendingFeatAbilityChoiceRows(id, characterFeats)
+	pending, err := s.buildPendingFeatAbilityChoiceRows(id, characterFeats, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending feat ability choice rows:", err)

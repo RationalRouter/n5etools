@@ -47,7 +47,7 @@ func (s *server) handleSNBUpgradesPopup(w http.ResponseWriter, r *http.Request) 
 		log.Println("compute sheet for snb upgrades popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for snb upgrades popup:", err)
@@ -122,7 +122,7 @@ func snbUpgradesSection(characterID int64, snb *scienceNinSNBSpecialistData, cre
 			// struct's own doc), only the pre-formatted Epithet text above,
 			// so the numeric comparison against the shared budget has to
 			// re-parse the same raw stat line rather than read a field.
-			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			cost := o.Cost
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
 				Disabled: creationPointsUsed+cost > creationPointsCap,
@@ -212,7 +212,7 @@ func (s *server) handleSNBUpgradesPermanentAdd(w http.ResponseWriter, r *http.Re
 		log.Println("compute sheet for snb upgrade permanent add:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for snb upgrade permanent add:", err)

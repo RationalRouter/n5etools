@@ -55,7 +55,7 @@ func (s *server) handleCombatMedicPopup(w http.ResponseWriter, r *http.Request) 
 		log.Println("compute sheet for combat medic popup:", err)
 		return
 	}
-	data, err := s.loadMedicalNinTabData(id, sheet)
+	data, err := s.loadMedicalNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load medical-nin for combat medic popup:", err)

@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -1683,13 +1684,14 @@ func localeFromContext(ctx context.Context) string {
 	return "en"
 }
 
-// handleSetLocale is the target of every language-switcher button on the
-// home page (see home.html) -- a plain form POST, no JS required, matching
-// the rest of the app's no-JS-required navigation. Only reachable from the
-// home page by design (the switcher UI itself only renders there), but the
+// handleSetLocale is the target of every language-switcher button in the
+// shared nav (see layout.html's #lang-switcher) -- a plain form POST, no JS
+// required, matching the rest of the app's no-JS-required navigation. The
 // cookie it sets is read by resolveLocale on every subsequent request
-// site-wide, so the effect is immediate and global despite the switcher's
-// own visibility being restricted to one page.
+// site-wide, so the effect is immediate and global. Each form also carries a
+// hidden "return_to" field (layout.html's currentPath template func) so
+// switching languages lands back on whatever page the switcher was opened
+// from rather than always bouncing to the home page.
 func (s *server) handleSetLocale(w http.ResponseWriter, r *http.Request) {
 	locale := r.FormValue("locale")
 	if !i18n.IsSupported(locale) {
@@ -1703,11 +1705,29 @@ func (s *server) handleSetLocale(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, safeReturnPath(r.FormValue("return_to")), http.StatusSeeOther)
+}
+
+// safeReturnPath validates the language switcher's own hidden "return_to"
+// field before handing it to http.Redirect. return_to is an ordinary POST
+// body value on an unauthenticated route, so it's attacker-controllable --
+// without this check, a value like "//evil.example" or "https://evil.example"
+// would have net/http's Redirect send the browser off-site straight from a
+// same-origin form submission. Only a path starting with exactly one "/" is
+// accepted; anything else (empty, absolute URL, protocol-relative URL) falls
+// back to "/".
+func safeReturnPath(path string) string {
+	if path == "" || path[0] != '/' || strings.HasPrefix(path, "//") {
+		return "/"
+	}
+	if u, err := url.Parse(path); err != nil || u.IsAbs() || u.Host != "" {
+		return "/"
+	}
+	return path
 }
 
 func (s *server) handleHome(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, "home.html", map[string]any{"Title": "Home", "Locale": localeFromContext(r.Context())})
+	s.render(w, r, "home.html", map[string]any{"Title": "Home"})
 }
 
 type clanRow struct {
@@ -2243,6 +2263,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, page string, dat
 		return
 	}
 	tmpl = tmpl.Funcs(localeTemplateFuncs(localeFromContext(r.Context())))
+	tmpl = tmpl.Funcs(requestTemplateFuncs(r))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
 		log.Println("render", page, ":", err)

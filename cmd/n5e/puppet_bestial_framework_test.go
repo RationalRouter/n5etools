@@ -86,7 +86,7 @@ func bestialFrameworkTestSetup(t *testing.T, level int) (s *server, companionID,
 func TestBestialFrameworkSubChoiceOptionsAbility(t *testing.T) {
 	s, companionID, _ := bestialFrameworkTestSetup(t, 2)
 	for _, slot := range []int{0, 1} {
-		opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, slot)
+		opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, slot, "")
 		if err != nil {
 			t.Fatalf("slot %d: %v", slot, err)
 		}
@@ -105,7 +105,7 @@ func TestBestialFrameworkSubChoiceOptionsAbility(t *testing.T) {
 // summon_tribes row, prefixed "tribe:".
 func TestBestialFrameworkSubChoiceOptionsTribe(t *testing.T) {
 	s, companionID, _ := bestialFrameworkTestSetup(t, 2)
-	opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 2)
+	opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 2, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestBestialFrameworkSubChoiceOptionsTraitGating(t *testing.T) {
 				t.Fatal(err)
 			}
 			for slot, want := range []bool{c.want3, c.want4, c.want5} {
-				opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 3+slot)
+				opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 3+slot, "")
 				if err != nil {
 					t.Fatalf("level %d slot %d: %v", c.level, 3+slot, err)
 				}
@@ -154,7 +154,7 @@ func TestBestialFrameworkSubChoiceOptionsTraitGating(t *testing.T) {
 // nothing until a tribe is on file to filter by.
 func TestBestialFrameworkSubChoiceOptionsTraitNoTribeYet(t *testing.T) {
 	s, companionID, _ := bestialFrameworkTestSetup(t, 17)
-	opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 3)
+	opts, err := bestialFrameworkSubChoiceOptions(s, 1, companionID, 3, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestBestialFrameworkReferenceTraits(t *testing.T) {
 	}
 
 	unresolved := puppetFoundationPick{Entry: entry}
-	got, err := s.bestialFrameworkReferenceTraits(unresolved)
+	got, err := s.bestialFrameworkReferenceTraits(unresolved, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestBestialFrameworkReferenceTraits(t *testing.T) {
 			{ID: 2, ChoiceSlug: "trait:summon/bear/feature/kuma-flex"},
 		},
 	}
-	got, err = s.bestialFrameworkReferenceTraits(resolved)
+	got, err = s.bestialFrameworkReferenceTraits(resolved, "")
 	if err != nil {
 		t.Fatal(err)
 	}

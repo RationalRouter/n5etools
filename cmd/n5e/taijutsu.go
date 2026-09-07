@@ -13,6 +13,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Taijutsu Specialist's Martial Dice economy: Martial Adept (class_features,
@@ -711,7 +712,7 @@ func (s *server) storeFightingStanceChoice(characterID int64, featureSlug string
 // offers both Taijutsu Stance and Weapon Stance, per its own text: "between
 // Taijutsu Stance and Weapon Stance") can reuse the same loader instead of a
 // third, near-duplicate query.
-func (s *server) loadStanceOptionsByType(stanceTypes ...string) ([]stanceOption, error) {
+func (s *server) loadStanceOptionsByType(locale string, stanceTypes ...string) ([]stanceOption, error) {
 	placeholders := make([]string, len(stanceTypes))
 	args := make([]any, len(stanceTypes))
 	for i, t := range stanceTypes {
@@ -733,14 +734,34 @@ func (s *server) loadStanceOptionsByType(stanceTypes ...string) ([]stanceOption,
 		}
 		options = append(options, o)
 	}
-	return options, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(options))
+	for i, o := range options {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "fighting_stances", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range options {
+		tr := translations[options[i].Slug]
+		if v, ok := tr["name"]; ok {
+			options[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			options[i].Description = v
+		}
+	}
+	return options, nil
 }
 
 // loadTaijutsuStanceOptions catalogs the 9 Taijutsu Stances only — Taijutsu
 // Specialist's Unarmed Technique and Medical-Nin's Martial Competency both
 // only ever offer a Taijutsu Stance pick, never a Weapon Stance.
-func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
-	return s.loadStanceOptionsByType("taijutsu")
+func (s *server) loadTaijutsuStanceOptions(locale string) ([]stanceOption, error) {
+	return s.loadStanceOptionsByType(locale, "taijutsu")
 }
 
 // loadMartialTechniquesTabData returns nil for a character with no Taijutsu
@@ -759,7 +780,7 @@ func (s *server) loadTaijutsuStanceOptions() ([]stanceOption, error) {
 // sees the rest of the box — Martial Dice, if any other archetype feat also
 // applies, and the class-wide technique picker), it just grants none of its
 // own bespoke techniques yet.
-func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charsheet.Sheet) (*martialTechniquesTabData, error) {
+func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*martialTechniquesTabData, error) {
 	taijutsuLevel, err := s.taijutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -838,7 +859,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 		return nil, err
 	}
 
-	stanceOptions, err := s.loadTaijutsuStanceOptions()
+	stanceOptions, err := s.loadTaijutsuStanceOptions(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -922,7 +943,7 @@ func (s *server) handleMartialTechniqueAdd(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for martial technique add:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for add:", err)
@@ -1012,7 +1033,7 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for fighting stance:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for fighting stance:", err)
@@ -1028,7 +1049,7 @@ func (s *server) handleFightingStance(w http.ResponseWriter, r *http.Request) {
 		log.Println("load taijutsu level for fighting stance:", err)
 		return
 	}
-	options, err := s.loadTaijutsuStanceOptions()
+	options, err := s.loadTaijutsuStanceOptions("")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load taijutsu stance options:", err)
@@ -1059,7 +1080,7 @@ func (s *server) setStancerMixedMartialArtsStance(id int64, slug string) (int, s
 		log.Println("compute sheet for mixed martial arts stance:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	data, err := s.loadMartialTechniquesTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load martial techniques for mixed martial arts stance:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1067,7 +1088,7 @@ func (s *server) setStancerMixedMartialArtsStance(id int64, slug string) (int, s
 	if data == nil || data.StancerMixedMartialArts == nil {
 		return http.StatusBadRequest, "character has no Mixed Martial Arts stance choice available"
 	}
-	options, err := s.loadTaijutsuStanceOptions()
+	options, err := s.loadTaijutsuStanceOptions("")
 	if err != nil {
 		log.Println("load taijutsu stance options:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1114,7 +1135,7 @@ func (s *server) setStancerStanceBlendingStance(id int64, slug string) (int, str
 		log.Println("compute sheet for stance blending stance:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	data, err := s.loadMartialTechniquesTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load martial techniques for stance blending stance:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1122,7 +1143,7 @@ func (s *server) setStancerStanceBlendingStance(id int64, slug string) (int, str
 	if data == nil || data.StancerStanceBlending == nil {
 		return http.StatusBadRequest, "character has no Stance Blending stance choice available"
 	}
-	options, err := s.loadTaijutsuStanceOptions()
+	options, err := s.loadTaijutsuStanceOptions("")
 	if err != nil {
 		log.Println("load taijutsu stance options:", err)
 		return http.StatusInternalServerError, "database error"

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -256,6 +257,17 @@ var templateFuncs = template.FuncMap{
 	// Content fields (.Description etc.) never go through T — those come
 	// from content_translations, not the UI catalog.
 	"T": i18n.Translator("en"),
+	// currentLocale: which locale's forms/labels the #lang-switcher (see
+	// layout.html) should mark active. Same placeholder-then-rebind
+	// pattern as T -- render/renderCard bind the real per-request value
+	// via localeTemplateFuncs.
+	"currentLocale": func() string { return "en" },
+	// currentPath: the request's own path+query, embedded as the
+	// #lang-switcher forms' hidden "return_to" field (layout.html) so
+	// switching languages lands back on the page the switcher was opened
+	// from. Placeholder here for the same reason as T/currentLocale above;
+	// render/renderCard bind the real value via requestTemplateFuncs.
+	"currentPath": func() string { return "/" },
 }
 
 // localeTemplateFuncs returns the per-request override for templateFuncs'
@@ -263,8 +275,22 @@ var templateFuncs = template.FuncMap{
 // render/renderCard right before Execute — see those functions' own
 // comments for why Clone is required first.
 func localeTemplateFuncs(locale string) template.FuncMap {
+	tr := i18n.Translator(locale)
 	return template.FuncMap{
-		"T": i18n.Translator(locale),
+		"T":             tr,
+		"abilityLabel":  func(ab string) string { return abilityLabelTr(tr, ab) },
+		"currentLocale": func() string { return locale },
+	}
+}
+
+// requestTemplateFuncs returns the per-request override for currentPath —
+// separate from localeTemplateFuncs since it depends on the request, not
+// the locale, but bound the same way (Template.Clone().Funcs(...) in
+// render/renderCard right before Execute).
+func requestTemplateFuncs(r *http.Request) template.FuncMap {
+	path := r.URL.RequestURI()
+	return template.FuncMap{
+		"currentPath": func() string { return path },
 	}
 }
 

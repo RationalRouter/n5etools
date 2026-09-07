@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/sergio/n5e/internal/i18n"
+
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/puppetupgrades"
@@ -188,7 +190,7 @@ var puppetFrameworkJutsuMinLevelBySlot = [3]int{0, 10, 17}
 // dropdown. Queries v_jutsu (not the raw jutsu table) so a rank_override
 // row is filtered on its effective rank, same as every other jutsu listing
 // in this app (see cmd/n5e/jutsu.go's own loadJutsuList/loadJutsuDetail).
-func puppetFrameworkJutsuOptions(s *server, characterID int64, pickIndex int, classification string) ([]puppetUpgradeSubChoiceOption, error) {
+func puppetFrameworkJutsuOptions(s *server, characterID int64, pickIndex int, classification string, locale string) ([]puppetUpgradeSubChoiceOption, error) {
 	if pickIndex < 0 || pickIndex >= len(puppetFrameworkJutsuRankBySlot) {
 		return nil, nil
 	}
@@ -216,7 +218,27 @@ func puppetFrameworkJutsuOptions(s *server, characterID int64, pickIndex int, cl
 		o.DetailHref = "/jutsu/" + o.Slug
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "jutsu", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // shadeFrameworkJutsuEntrySlug/spellbladeFrameworkJutsuEntrySlug: the two
@@ -228,12 +250,12 @@ func puppetFrameworkJutsuOptions(s *server, characterID int64, pickIndex int, cl
 const shadeFrameworkJutsuEntrySlug = "class/puppet-master/option/puppet-frameworks/shade-framework"
 const spellbladeFrameworkJutsuEntrySlug = "class/puppet-master/option/puppet-frameworks/spellblade-framework"
 
-func shadeFrameworkJutsuOptions(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error) {
-	return puppetFrameworkJutsuOptions(s, characterID, pickIndex, "Genjutsu")
+func shadeFrameworkJutsuOptions(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error) {
+	return puppetFrameworkJutsuOptions(s, characterID, pickIndex, "Genjutsu", locale)
 }
 
-func spellbladeFrameworkJutsuOptions(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error) {
-	return puppetFrameworkJutsuOptions(s, characterID, pickIndex, "Ninjutsu")
+func spellbladeFrameworkJutsuOptions(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error) {
+	return puppetFrameworkJutsuOptions(s, characterID, pickIndex, "Ninjutsu", locale)
 }
 
 func init() {

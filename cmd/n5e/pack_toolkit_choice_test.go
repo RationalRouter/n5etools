@@ -392,7 +392,7 @@ func TestHandleSheetPackToolkitChoiceEndToEnd(t *testing.T) {
 		t.Fatalf("resolve status = %d, body:\n%s", resolveW.Code, resolveW.Body.String())
 	}
 
-	inventory, err := s.loadCharacterInventory(id)
+	inventory, err := s.loadCharacterInventory(id, "")
 	if err != nil {
 		t.Fatal(err)
 	}

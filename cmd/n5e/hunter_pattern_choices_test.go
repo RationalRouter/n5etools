@@ -236,7 +236,7 @@ func TestHunterPracticedCombatantStance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	data, err := s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +260,7 @@ func TestHunterPracticedCombatantStance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err = s.loadHunterTechniquesTabData(id, sheet)
+	data, err = s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestHunterPracticedCombatantStance(t *testing.T) {
 		t.Fatalf("set practiced combatant stance: status %d, body %q", w.Code, w.Body.String())
 	}
 
-	data, err = s.loadHunterTechniquesTabData(id, sheet)
+	data, err = s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

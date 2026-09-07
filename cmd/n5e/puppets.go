@@ -13,6 +13,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 	"github.com/sergio/n5e/internal/puppetupgrades"
 )
 
@@ -51,7 +52,9 @@ type puppetToolStatBlock struct {
 	WeaponProficiency   string
 }
 
-func (s *server) loadPuppetToolStatBlock() (*puppetToolStatBlock, error) {
+const puppetToolStatBlockClassSlug = "class/puppet-master"
+
+func (s *server) loadPuppetToolStatBlock(locale string) (*puppetToolStatBlock, error) {
 	var sb puppetToolStatBlock
 	err := s.rulesDB.QueryRow(`
 		SELECT creature_type, proficiency_rule_text, hp_base, hp_con_bonus_add, speed,
@@ -60,7 +63,7 @@ func (s *server) loadPuppetToolStatBlock() (*puppetToolStatBlock, error) {
 		       COALESCE(ac_base, 10), COALESCE(saving_throws_text, ''),
 		       COALESCE(damage_resistance_text, ''), COALESCE(damage_immunity_text, ''),
 		       COALESCE(condition_immunity_text, ''), COALESCE(weapon_proficiency_text, '')
-		FROM puppet_tool_stat_block WHERE class_slug = 'class/puppet-master'`,
+		FROM puppet_tool_stat_block WHERE class_slug = ?`, puppetToolStatBlockClassSlug,
 	).Scan(&sb.CreatureType, &sb.ProficiencyRuleText, &sb.HPBase, &sb.HPConBonusAdd, &sb.Speed,
 		&sb.Str, &sb.Dex, &sb.Con, &sb.Int, &sb.Wis, &sb.Cha, &sb.PassivePerception, &sb.TraitsText,
 		&sb.ACBase, &sb.SavingThrowsText, &sb.DamageResistance, &sb.DamageImmunity,
@@ -70,6 +73,31 @@ func (s *server) loadPuppetToolStatBlock() (*puppetToolStatBlock, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	tr, err := i18n.Row(s.rulesDB, locale, "puppet_tool_stat_block", puppetToolStatBlockClassSlug)
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := tr["proficiency_rule_text"]; ok {
+		sb.ProficiencyRuleText = v
+	}
+	if v, ok := tr["traits_text"]; ok {
+		sb.TraitsText = v
+	}
+	if v, ok := tr["saving_throws_text"]; ok {
+		sb.SavingThrowsText = v
+	}
+	if v, ok := tr["damage_resistance_text"]; ok {
+		sb.DamageResistance = v
+	}
+	if v, ok := tr["damage_immunity_text"]; ok {
+		sb.DamageImmunity = v
+	}
+	if v, ok := tr["condition_immunity_text"]; ok {
+		sb.ConditionImmunity = v
+	}
+	if v, ok := tr["weapon_proficiency_text"]; ok {
+		sb.WeaponProficiency = v
 	}
 	return &sb, nil
 }
@@ -209,7 +237,7 @@ var puppetArmorChassisTokenRe = regexp.MustCompile(`^(.*?)\s*\(([^)]*)\)\s*$`)
 // loadPuppetArmorChassisOptions loads every chassis option, each with its
 // own properties resolved to tooltip text — shared by every puppet card on
 // the tab, so loaded once rather than per-companion.
-func (s *server) loadPuppetArmorChassisOptions() ([]puppetArmorChassis, error) {
+func (s *server) loadPuppetArmorChassisOptions(locale string) ([]puppetArmorChassis, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description, armor_type, ac_bonus, dex_bonus_mode, bulk, properties_text
 		FROM puppet_armor_chassis ORDER BY sort_order`)
@@ -219,11 +247,16 @@ func (s *server) loadPuppetArmorChassisOptions() ([]puppetArmorChassis, error) {
 	defer rows.Close()
 
 	var out []puppetArmorChassis
+	var slugs []string
 	for rows.Next() {
 		var c puppetArmorChassis
 		if err := rows.Scan(&c.Slug, &c.Name, &c.Description, &c.ArmorType, &c.ACBonus, &c.DexBonusMode, &c.Bulk, &c.PropertiesText); err != nil {
 			return nil, err
 		}
+		// PropertiesText is deliberately parsed BEFORE any translation
+		// overlay — its own tokens must still match puppet_armor_chassis_
+		// property/armor_properties by their English name (see
+		// TranslatableFields' own exclusion comment for this column).
 		for _, token := range strings.Split(c.PropertiesText, ",") {
 			name := strings.TrimSpace(token)
 			prop := puppetArmorChassisProperty{}
@@ -239,18 +272,35 @@ func (s *server) loadPuppetArmorChassisOptions() ([]puppetArmorChassis, error) {
 			if name == "" {
 				continue
 			}
-			desc, err := s.lookupArmorPropertyDescription(name)
+			dispName, desc, err := s.lookupArmorPropertyDescription(name, locale)
 			if err != nil {
 				return nil, err
 			}
 			if desc != "" {
-				prop.Name, prop.Description = name, desc
+				prop.Name, prop.Description = dispName, desc
 				c.PropertyTooltips = append(c.PropertyTooltips, prop)
 			}
 		}
+		slugs = append(slugs, c.Slug)
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "puppet_armor_chassis", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i, slug := range slugs {
+		tr := translations[slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // lookupArmorPropertyDescription checks the puppet-specific property table
@@ -258,24 +308,48 @@ func (s *server) loadPuppetArmorChassisOptions() ([]puppetArmorChassis, error) {
 // catalog by name — see puppetArmorChassisProperty's doc for why both.
 // Returns "" (not an error) if neither table has this name, so an
 // unexpected future property still renders, just without a tooltip.
-func (s *server) lookupArmorPropertyDescription(name string) (string, error) {
-	var desc string
-	err := s.rulesDB.QueryRow(
-		`SELECT description FROM puppet_armor_chassis_property WHERE name = ?`, name,
-	).Scan(&desc)
+func (s *server) lookupArmorPropertyDescription(name string, locale string) (dispName, desc string, err error) {
+	dispName = name
+	var slug string
+	err = s.rulesDB.QueryRow(
+		`SELECT slug, description FROM puppet_armor_chassis_property WHERE name = ?`, name,
+	).Scan(&slug, &desc)
 	if err == nil {
-		return desc, nil
+		tr, err := i18n.Row(s.rulesDB, locale, "puppet_armor_chassis_property", slug)
+		if err != nil {
+			return "", "", err
+		}
+		if v, ok := tr["name"]; ok {
+			dispName = v
+		}
+		if v, ok := tr["description"]; ok {
+			desc = v
+		}
+		return dispName, desc, nil
 	}
 	if err != sql.ErrNoRows {
-		return "", err
+		return "", "", err
 	}
 	err = s.rulesDB.QueryRow(
-		`SELECT description FROM armor_properties WHERE name = ?`, name,
-	).Scan(&desc)
+		`SELECT slug, description FROM armor_properties WHERE name = ?`, name,
+	).Scan(&slug, &desc)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return name, "", nil
 	}
-	return desc, err
+	if err != nil {
+		return "", "", err
+	}
+	tr, err := i18n.Row(s.rulesDB, locale, "armor_properties", slug)
+	if err != nil {
+		return "", "", err
+	}
+	if v, ok := tr["name"]; ok {
+		dispName = v
+	}
+	if v, ok := tr["description"]; ok {
+		desc = v
+	}
+	return dispName, desc, nil
 }
 
 // puppetArmorChassisAC computes the AC a chassis's own formula gives at a
@@ -512,7 +586,7 @@ type puppetUpgradeSubChoiceSpec struct {
 	// trait slots use it to read back which Sage Creature THIS companion
 	// already picked, since that (unlike everything else DynamicOptions
 	// backs so far) varies per companion, not just per character.
-	DynamicOptions func(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error)
+	DynamicOptions func(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error)
 }
 
 // elementalReactorEntrySlug: Purple Technique's Wood Tier "Elemental
@@ -734,7 +808,7 @@ func (s *server) puppetEntryTotalPicksAcrossCompanions(characterID int64, entryS
 // character-state-gated, every one of the 21 stances is always offered.
 // Every stance is offered at every slot, so pickIndex/companionID (see
 // DynamicOptions' own doc) are unused here.
-func fightingStanceOptions(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error) {
+func fightingStanceOptions(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name, description FROM fighting_stances ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -753,7 +827,28 @@ func fightingStanceOptions(s *server, characterID, companionID int64, pickIndex 
 		o.DetailHref = "/stances/" + o.Slug
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "fighting_stances", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				out[i].Description = v
+			}
+		}
+	}
+	return out, nil
 }
 
 // battleReadyArmorEntrySlug: Purple Technique's Silver Tier "Battle Ready
@@ -781,7 +876,7 @@ const battleReadyArmorEntrySlug = "class/puppet-master/option/armorers-upgrades/
 // puppet-specific, so they follow the core book's own level convention.
 // Every slot offers the same rank-gated list, so pickIndex/companionID (see
 // DynamicOptions' own doc) are unused here.
-func battleReadyArmorSealOptions(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error) {
+func battleReadyArmorSealOptions(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error) {
 	qualifyingRank := jutsuRankOrder[highestRankForLevel(s.characterLevel(characterID))]
 	rows, err := s.rulesDB.Query(
 		`SELECT slug, name, COALESCE(description, ''), seal_rank FROM equipment
@@ -802,7 +897,27 @@ func battleReadyArmorSealOptions(s *server, characterID, companionID int64, pick
 			out = append(out, o)
 		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // puppetSealOption is one Armor or Weapon seal a puppet's own Chakra
@@ -835,7 +950,7 @@ func puppetSealSlotCap(proficiencyBonus int) int {
 // highestRankForLevel gate battleReadyArmorSealOptions already uses, since
 // this is the same core-book mechanic, just no longer restricted to Armor
 // seals or gated behind taking a specific Upgrade first.
-func (s *server) loadPuppetSealOptions(characterID int64) ([]puppetSealOption, error) {
+func (s *server) loadPuppetSealOptions(characterID int64, locale string) ([]puppetSealOption, error) {
 	qualifyingRank := jutsuRankOrder[highestRankForLevel(s.characterLevel(characterID))]
 	rows, err := s.rulesDB.Query(
 		`SELECT slug, name, COALESCE(description, ''), seal_rank, seal_applies_to FROM equipment
@@ -855,14 +970,34 @@ func (s *server) loadPuppetSealOptions(characterID int64) ([]puppetSealOption, e
 			out = append(out, o)
 		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // loadCompanionSeals resolves a companion's own equipped seals to their
 // full rules.db rows, dropping any whose slug no longer resolves (a
 // removed/renamed seal) rather than erroring the whole sheet render over
 // one stale row.
-func (s *server) loadCompanionSeals(characterID, companionID int64) ([]puppetSealPick, error) {
+func (s *server) loadCompanionSeals(characterID, companionID int64, locale string) ([]puppetSealPick, error) {
 	picks, err := charstore.ListCompanionSeals(s.charDB, characterID, companionID)
 	if err != nil {
 		return nil, err
@@ -870,7 +1005,7 @@ func (s *server) loadCompanionSeals(characterID, companionID int64) ([]puppetSea
 	if len(picks) == 0 {
 		return nil, nil
 	}
-	options, err := s.loadPuppetSealOptions(characterID)
+	options, err := s.loadPuppetSealOptions(characterID, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -946,7 +1081,7 @@ func (s *server) handlePuppetSealAdd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing seal selection", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadPuppetSealOptions(id)
+	options, err := s.loadPuppetSealOptions(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load seal options for seal add:", err)
@@ -1081,7 +1216,7 @@ func groupPuppetUpgradeTiers(tiers []puppetUpgradeTier) []puppetUpgradeList {
 // loadPuppetUpgradeSubChoiceOptions resolves a repeatable upgrade's own
 // backing equipment slugs (see puppetUpgradeSubChoiceSpecs) to real
 // name/description rows from rules.db's equipment table.
-func (s *server) loadPuppetUpgradeSubChoiceOptions(equipmentSlugs []string) ([]puppetUpgradeSubChoiceOption, error) {
+func (s *server) loadPuppetUpgradeSubChoiceOptions(equipmentSlugs []string, locale string) ([]puppetUpgradeSubChoiceOption, error) {
 	if len(equipmentSlugs) == 0 {
 		return nil, nil
 	}
@@ -1105,7 +1240,23 @@ func (s *server) loadPuppetUpgradeSubChoiceOptions(equipmentSlugs []string) ([]p
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", equipmentSlugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // handlePuppetUpgradeChoiceAdd records one sub-pick under an already-taken
@@ -1611,7 +1762,7 @@ func (s *server) classOptionNamesBySlug(picks []charstore.CompanionUpgrade) (map
 // either class-wide (subclass_slug NULL) or belongs to the character's own
 // chosen Puppet Master subclass, each resolved to its slot cap, current
 // pooled usage, full pickable option list, and this companion's own picks.
-func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMasterLevel int, subclassSlug, armorChassis string) ([]puppetUpgradeTier, error) {
+func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMasterLevel int, subclassSlug, armorChassis string, locale string) ([]puppetUpgradeTier, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, list_name, name, COALESCE(prerequisites, ''), subclass_slug
 		FROM class_options
@@ -1649,6 +1800,26 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 	// ("Upgrades of War"/"Upgrades of the Theatre" sort AFTER "Puppet
 	// Master Upgrades", the other four subclass lists sort before it).
 	optRows := append(subclassOptRows, classWideOptRows...)
+
+	if len(optRows) > 0 {
+		optSlugs := make([]string, len(optRows))
+		for i, o := range optRows {
+			optSlugs[i] = o.slug
+		}
+		optTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", optSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range optRows {
+			tr := optTranslations[optRows[i].slug]
+			if v, ok := tr["name"]; ok {
+				optRows[i].name = v
+			}
+			if v, ok := tr["prerequisites"]; ok {
+				optRows[i].prereq = v
+			}
+		}
+	}
 
 	picks, err := charstore.ListCompanionUpgrades(s.charDB, characterID, companionID)
 	if err != nil {
@@ -1722,10 +1893,46 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 		if err := entryRows.Err(); err != nil {
 			return nil, err
 		}
+
+		entrySlugs := make([]string, 0, len(entryBySlug))
+		for slug := range entryBySlug {
+			entrySlugs = append(entrySlugs, slug)
+		}
+		entryTranslations, err := i18n.Batch(s.rulesDB, locale, "class_option_entries", entrySlugs)
+		if err != nil {
+			return nil, err
+		}
+		for optionSlug, entries := range entriesByOption {
+			for i := range entries {
+				tr := entryTranslations[entries[i].Slug]
+				if v, ok := tr["name"]; ok {
+					entries[i].Name = v
+				}
+				if v, ok := tr["description"]; ok {
+					entries[i].Description = v
+				}
+			}
+			entriesByOption[optionSlug] = entries
+		}
+		for slug, e := range entryBySlug {
+			tr := entryTranslations[slug]
+			if v, ok := tr["name"]; ok {
+				e.Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				e.Description = v
+			}
+			entryBySlug[slug] = e
+			entryNameBySlug[slug] = e.Name
+		}
+		allEntryNames = allEntryNames[:0]
+		for _, e := range entryBySlug {
+			allEntryNames = append(allEntryNames, e.Name)
+		}
 	}
 	sortedUpgradeNames := puppetUpgradeSortedNames(allEntryNames)
 
-	chassisOptions, err := s.loadPuppetArmorChassisOptions()
+	chassisOptions, err := s.loadPuppetArmorChassisOptions(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -2016,7 +2223,7 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 				switch {
 				case spec.DynamicOptions != nil:
 					var err error
-					subOptions, err = spec.DynamicOptions(s, characterID, companionID, pickIndex)
+					subOptions, err = spec.DynamicOptions(s, characterID, companionID, pickIndex, locale)
 					if err != nil {
 						return nil, err
 					}
@@ -2025,7 +2232,7 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 						if i == pickIndex {
 							continue
 						}
-						opts, err := spec.DynamicOptions(s, characterID, companionID, i)
+						opts, err := spec.DynamicOptions(s, characterID, companionID, i, locale)
 						if err != nil {
 							return nil, err
 						}
@@ -2036,7 +2243,7 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 					lookupOptions = subOptions
 				default:
 					var err error
-					subOptions, err = s.loadPuppetUpgradeSubChoiceOptions(spec.EquipmentSlugs)
+					subOptions, err = s.loadPuppetUpgradeSubChoiceOptions(spec.EquipmentSlugs, locale)
 					if err != nil {
 						return nil, err
 					}
@@ -2429,7 +2636,7 @@ const blueTechniqueProficiencyFeatureSlug = "class/puppet-master/group/puppet-te
 // own doc for why this differs from taijutsu.go's loadTaijutsuStanceOptions
 // (which deliberately filters to stance_type='taijutsu' for Unarmed
 // Technique's own narrower grant).
-func (s *server) loadFightingStanceOptions() ([]stanceOption, error) {
+func (s *server) loadFightingStanceOptions(locale string) ([]stanceOption, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name, description FROM fighting_stances ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -2443,7 +2650,27 @@ func (s *server) loadFightingStanceOptions() ([]stanceOption, error) {
 		}
 		options = append(options, o)
 	}
-	return options, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(options))
+	for i, o := range options {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "fighting_stances", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range options {
+		tr := translations[options[i].Slug]
+		if v, ok := tr["name"]; ok {
+			options[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			options[i].Description = v
+		}
+	}
+	return options, nil
 }
 
 // transformerWeaponTypeFeatureSlug is Blue Technique Warmaster's own L14
@@ -2629,7 +2856,7 @@ func (s *server) loadGreenTechniqueJutsuOptions(characterID int64) ([]puppetJuts
 // or Bonus Action" — have no queryable rules-db column to filter on (custom
 // jutsu doubly so), so they're left as player-enforced text in the picker's
 // own label rather than silently mis-filtering the list.
-func (s *server) loadThreadSavantJutsuOptions(characterID int64) ([]puppetJutsuChoiceOption, error) {
+func (s *server) loadThreadSavantJutsuOptions(characterID int64, locale string) ([]puppetJutsuChoiceOption, error) {
 	rows, err := s.charDB.Query(
 		`SELECT id, jutsu_slug, custom_jutsu_id FROM character_jutsu WHERE character_id = ?`, characterID)
 	if err != nil {
@@ -2667,6 +2894,16 @@ func (s *server) loadThreadSavantJutsuOptions(characterID int64) ([]puppetJutsuC
 			}
 			if err != nil {
 				return nil, err
+			}
+			tr, err := i18n.Row(s.rulesDB, locale, "jutsu", p.jutsuSlug.String)
+			if err != nil {
+				return nil, err
+			}
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
 			}
 		case p.customID.Valid:
 			err := s.charDB.QueryRow(
@@ -2859,8 +3096,10 @@ type puppetsTabData struct {
 	GeneralizedSkillPicks []generalizedSkillPickRow
 	// AllSkillNames feeds the Generalized Skill picker's own <select> —
 	// every named skill not already chosen, in charsheet.SkillAbility's own
-	// grouping order (matches the Core tab's own Skills box layout).
-	AllSkillNames []string
+	// grouping order (matches the Core tab's own Skills box layout). Value
+	// is the raw name posted back and matched against charsheet.SkillAbility
+	// by handleGeneralizedSkillAdd; Label is the translated display text.
+	AllSkillNames []skillSelectOption
 	// BaseTraits: the Puppet Tool's baseline Saving Throws/Damage
 	// Resistance/Damage Immunity/Condition Immunities/Weapon Proficiencies/
 	// Senses/traits — universal to every Puppet Master subclass (see
@@ -2898,7 +3137,7 @@ type puppetsTabData struct {
 	MendingHealDie string
 }
 
-func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (puppetsTabData, error) {
+func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, locale string) (puppetsTabData, error) {
 	var data puppetsTabData
 
 	level, err := s.puppetMasterClassLevel(characterID)
@@ -2933,7 +3172,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		if sheet != nil {
 			mod, _ = charsheet.SkillModifier(sheet, name)
 		}
-		data.GeneralizedSkillPicks[i] = generalizedSkillPickRow{Name: name, Modifier: mod}
+		data.GeneralizedSkillPicks[i] = generalizedSkillPickRow{Name: name, DisplayName: skillDisplayName(locale, name), Modifier: mod}
 	}
 	data.GeneralizedSkillUsed = len(generalizedPicks)
 	data.GeneralizedSkillCap = puppetGeneralizedSkillCap(sheet, level, subclassColor)
@@ -2943,7 +3182,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	}
 	for _, sk := range sheet.Skills {
 		if !picked[sk.Name] {
-			data.AllSkillNames = append(data.AllSkillNames, sk.Name)
+			data.AllSkillNames = append(data.AllSkillNames, skillSelectOption{Value: sk.Name, Label: skillDisplayName(locale, sk.Name)})
 		}
 	}
 
@@ -2951,7 +3190,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	if err != nil {
 		return data, err
 	}
-	baseline, err := s.loadPuppetToolStatBlock()
+	baseline, err := s.loadPuppetToolStatBlock(locale)
 	if err != nil {
 		return data, err
 	}
@@ -2974,7 +3213,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	var chassisOptions []puppetArmorChassis
 	chassisByName := map[string]puppetArmorChassis{}
 	if subclassColor == "Purple" {
-		chassisOptions, err = s.loadPuppetArmorChassisOptions()
+		chassisOptions, err = s.loadPuppetArmorChassisOptions(locale)
 		if err != nil {
 			return data, err
 		}
@@ -3001,7 +3240,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	}
 
 	if subclassColor == "Blue" {
-		stanceOptions, err := s.loadFightingStanceOptions()
+		stanceOptions, err := s.loadFightingStanceOptions(locale)
 		if err != nil {
 			return data, err
 		}
@@ -3075,7 +3314,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 	// stay fully manual/narrated — only which known jutsu is currently
 	// selected (and its full-rest re-selectability) is tracked.
 	if subclassColor == "White" && level >= 14 {
-		jutsuOptions, err := s.loadThreadSavantJutsuOptions(characterID)
+		jutsuOptions, err := s.loadThreadSavantJutsuOptions(characterID, locale)
 		if err != nil {
 			return data, err
 		}
@@ -3107,7 +3346,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 
 	if subclassColor == "Red" && level >= 10 {
 		swarm := puppetSwarmStats(allCompanions, level)
-		refText, err := s.loadPuppetSwarmReferenceText()
+		refText, err := s.loadPuppetSwarmReferenceText(locale)
 		if err != nil {
 			return data, err
 		}
@@ -3300,7 +3539,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 				foundationTraits = append(foundationTraits, entry.NaturalWeapon.CritText)
 			}
 			if entry.SageCreatureFramework {
-				bestialTraits, err := s.bestialFrameworkReferenceTraits(fp)
+				bestialTraits, err := s.bestialFrameworkReferenceTraits(fp, locale)
 				if err != nil {
 					return data, err
 				}
@@ -3458,7 +3697,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 			view.ChassisProperties = adjustChassisReinforced(ch.PropertyTooltips,
 				puppetupgrades.ChassisReinforcedBonus(subclassColor, picksByCompanion[c.ID][puppetupgrades.EnhancedDurabilityEntrySlug] > 0))
 		}
-		tiers, err := s.loadPuppetUpgradeTiers(characterID, c.ID, level, subclassSlug, c.ArmorChassis)
+		tiers, err := s.loadPuppetUpgradeTiers(characterID, c.ID, level, subclassSlug, c.ArmorChassis, locale)
 		if err != nil {
 			return data, err
 		}
@@ -3485,7 +3724,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 				upgradeSlugs = append(upgradeSlugs, grantedSlug)
 			}
 		}
-		view.PuppetSkills = resolvePuppetSkills(sheet, c, generalizedPicks, upgradeSlugs, skillAbilityOverride)
+		view.PuppetSkills = resolvePuppetSkills(sheet, c, generalizedPicks, upgradeSlugs, skillAbilityOverride, locale)
 
 		view.Attacks = append(view.Attacks, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices)...)
 		for _, fp := range foundationPicks {
@@ -3516,13 +3755,13 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet) (
 		// is represented here at all), so that branch never applies.
 		if level >= 3 {
 			view.SealCap = puppetSealSlotCap(ownerProfBonus)
-			seals, err := s.loadCompanionSeals(characterID, c.ID)
+			seals, err := s.loadCompanionSeals(characterID, c.ID, locale)
 			if err != nil {
 				return data, err
 			}
 			view.Seals = seals
 			if len(seals) < view.SealCap {
-				options, err := s.loadPuppetSealOptions(characterID)
+				options, err := s.loadPuppetSealOptions(characterID, locale)
 				if err != nil {
 					return data, err
 				}
@@ -3950,7 +4189,7 @@ func (s *server) puppetUpgradeEntryPrereqMet(characterID, companionID int64, upg
 		return false, err
 	}
 
-	chassisOptions, err := s.loadPuppetArmorChassisOptions()
+	chassisOptions, err := s.loadPuppetArmorChassisOptions("")
 	if err != nil {
 		return false, err
 	}
@@ -4038,7 +4277,7 @@ func (s *server) handlePuppetFightingStance(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "character is not a Blue Technique Warmaster", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadFightingStanceOptions()
+	options, err := s.loadFightingStanceOptions("")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load stance options for puppet fighting stance:", err)
@@ -4224,7 +4463,7 @@ func (s *server) handlePuppetThreadSavantJutsu(w http.ResponseWriter, r *http.Re
 		http.Error(w, "character has not reached Thread Savant (14th level) yet", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadThreadSavantJutsuOptions(id)
+	options, err := s.loadThreadSavantJutsuOptions(id, "")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load jutsu options for thread savant:", err)

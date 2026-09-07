@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>{{T "stances.title"}}</h1>
 {{range .Groups}}
-<h2>{{.Label}}</h2>
+<h2>{{T .LabelKey}}</h2>
 <div class="entry-list">
   {{range .Stances}}
   <div class="entry">

@@ -78,7 +78,7 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 		log.Println("compute sheet for scouting technique popup:", err)
 		return
 	}
-	data, err := s.loadScoutNinTabData(id, sheet)
+	data, err := s.loadScoutNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load scout-nin for scouting technique popup:", err)

@@ -35,7 +35,7 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for spyware popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for spyware popup:", err)
@@ -85,7 +85,7 @@ func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creatio
 			if o.Epithet != "" {
 				epithet += " · " + o.Epithet
 			}
-			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			cost := o.Cost
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
 				Disabled: creationPointsUsed+cost > creationPointsCap,

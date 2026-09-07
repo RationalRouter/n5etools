@@ -47,7 +47,7 @@ func TestWeaponCategoriesArePopulated(t *testing.T) {
 	srv := testServer(t)
 
 	for _, category := range []string{"simple", "martial", "exotic"} {
-		options, err := srv.loadWeaponOptions(category)
+		options, err := srv.loadWeaponOptions(category, "")
 		if err != nil {
 			t.Fatalf("loadWeaponOptions(%q): %v", category, err)
 		}
@@ -64,7 +64,7 @@ func TestWeaponCategoriesArePopulated(t *testing.T) {
 	// The versatile-grip duplicates are the same object as the weapon they
 	// duplicate, so offering both as separate picks would read as two
 	// different weapons.
-	simple, err := srv.loadWeaponOptions("simple")
+	simple, err := srv.loadWeaponOptions("simple", "")
 	if err != nil {
 		t.Fatal(err)
 	}

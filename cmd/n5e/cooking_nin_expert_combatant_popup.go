@@ -54,7 +54,7 @@ func (s *server) handleBattleCookExpertCombatantPopup(w http.ResponseWriter, r *
 		log.Println("compute sheet for expert combatant (battle cook) popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet)
+	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for expert combatant (battle cook) popup:", err)

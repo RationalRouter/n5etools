@@ -34,7 +34,7 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for grenadier popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for grenadier popup:", err)

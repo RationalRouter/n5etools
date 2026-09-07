@@ -40,7 +40,7 @@ func TestLoadWeaponFocusTabDataExcludesTwoHandsFromAvailable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := s.loadWeaponFocusTabData(1, &charsheet.Sheet{})
+	data, err := s.loadWeaponFocusTabData(1, &charsheet.Sheet{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestLoadWeaponFocusTabDataExcludesTwoHandsFromAvailable(t *testing.T) {
 	if err := charstore.AddWeaponFocus(s.charDB, 1, "weapon/tetsubo-two-hands"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadWeaponFocusTabData(1, &charsheet.Sheet{})
+	data, err = s.loadWeaponFocusTabData(1, &charsheet.Sheet{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestBuildAttacksEnhancedStrikes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}

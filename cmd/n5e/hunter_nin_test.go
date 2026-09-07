@@ -126,7 +126,7 @@ func TestLoadHunterTechniquesTabData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestLoadHunterTechniquesTabData(t *testing.T) {
 	if err := charstore.AddHunterNinPick(s.charDB, 1, charstore.HunterPickPattern, "class/hunter-nin/option/hunters-patterns/kleptomaniac"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadHunterTechniquesTabData(1, sheet)
+	data, err = s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestLoadHunterTechniquesTabDataArchetypeFeatsNoRealLevel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestLoadHunterTechniquesTabDataNoLevelNoFeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestLoadHunterTechniquesTabDataPrimaryTargetLevelGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestLoadHunterTechniquesTabDataPrimaryTargetPersists(t *testing.T) {
 		t.Errorf("sheet.HunterPrimaryTarget = %q, want %q", sheet.HunterPrimaryTarget, "Rogue Chunin")
 	}
 
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +551,7 @@ func TestLoadHunterTechniquesTabDataBladeWardenPicks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadHunterTechniquesTabData(1, sheet)
+	data, err := s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,7 +580,7 @@ func TestLoadHunterTechniquesTabDataBladeWardenPicks(t *testing.T) {
 	if err := charstore.AddHunterNinPick(s.charDB, 1, charstore.HunterPickWardenWeapon, "weapon/kunai"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadHunterTechniquesTabData(1, sheet)
+	data, err = s.loadHunterTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +632,7 @@ func TestBuildAttacksWardenWeaponBonuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -704,7 +704,7 @@ func TestBuildAttacksArsenalWeaponBonus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -85,7 +85,7 @@ func TestLoadPuppetsTabDataFoundationAbilityScores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadPuppetsTabData(1, sheet)
+	data, err := s.loadPuppetsTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestPuppetArmorChassisGatedToPurpleTechnique(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			data, err := s.loadPuppetsTabData(1, sheet)
+			data, err := s.loadPuppetsTabData(1, sheet, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -516,7 +516,7 @@ func TestBattleReadyArmorSealOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := battleReadyArmorSealOptions(s, 1, 1, 0)
+	got, err := battleReadyArmorSealOptions(s, 1, 1, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}

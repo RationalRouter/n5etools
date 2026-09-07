@@ -48,7 +48,7 @@ func (s *server) handleFastAndFuriousPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for fast and furious popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet)
+	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for fast and furious popup:", err)

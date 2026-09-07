@@ -38,6 +38,32 @@
       <div id="search-tooltip" hidden></div>
     </div>
   </nav>
+  {{/* Language switcher — shared across every page (unlike the old
+       home-page-only version), sitting in its own thin strip right under
+       the nav so it never competes with anything a page actually needs the
+       user to see. Base markup (no JS) is a plain, always-expanded row of
+       language forms — same no-JS-required convention as the rest of the
+       app's navigation, same as handleSetLocale's own doc comment.
+       lang-switcher.js is what collapses it down to just the globe button
+       and expands it back out on click; without that script this just
+       renders as a small always-visible language bar, which still works. */}}
+  <div class="lang-switcher-bar">
+    <div class="lang-switcher" id="lang-switcher">
+      <button type="button" class="lang-toggle" id="lang-toggle" aria-expanded="false" aria-label="{{T "nav.language_switcher"}}"><span aria-hidden="true">🌐</span></button>
+      <div class="lang-panel" id="lang-panel">
+        <form method="post" action="/settings/locale">
+          <input type="hidden" name="locale" value="en">
+          <input type="hidden" name="return_to" value="{{currentPath}}">
+          <button type="submit" class="lang-option{{if eq currentLocale "en"}} lang-option-active{{end}}">{{T "locale.name.en"}}</button>
+        </form>
+        <form method="post" action="/settings/locale">
+          <input type="hidden" name="locale" value="es">
+          <input type="hidden" name="return_to" value="{{currentPath}}">
+          <button type="submit" class="lang-option{{if eq currentLocale "es"}} lang-option-active{{end}}">{{T "locale.name.es"}}</button>
+        </form>
+      </div>
+    </div>
+  </div>
   <main class="content">
     {{template "content" .}}
   </main>
@@ -61,12 +87,24 @@
        fetch-and-swap submit handler further down can act on a form it
        needs to gate. */}}
   <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/lang-switcher.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/search.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/back-to-top.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/back-to-bottom.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/subclass-tabs.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/class-outline.js?v={{assetVersion}}" defer></script>
+  {{/* equipment-subfilter.js has no server-side templating of its own (it
+       builds the Weapons/Armor sub-filter checkboxes purely in JS from a
+       shared static GROUPS config) -- these are the same UI-catalog keys
+       items.go's translateEnumDisplay already uses for the item detail
+       card, exposed once here so the filter UI's labels match. Same
+       jsonify-a-script-tag pattern as #sheet-ui-state-data. */}}
+  <script type="application/json" id="n5e-subfilter-labels-data">{{jsonify (dict
+    "weapons" (T "item_kind.weapon") "armor" (T "item_kind.armor")
+    "simple" (T "weapon_category.simple") "martial" (T "weapon_category.martial") "exotic" (T "weapon_category.exotic")
+    "light" (T "armor_category.light") "medium" (T "armor_category.medium") "heavy" (T "armor_category.heavy")
+    "other" (T "items.subfilter.other"))}}</script>
   {{/* Before both of its callers (items-filter.js and sheet-library.js) —
        defer keeps execution in document order, and each of them reaches for
        window.n5eEquipmentSubfilters as it initialises. */}}

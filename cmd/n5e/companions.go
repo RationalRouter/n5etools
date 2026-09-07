@@ -11,6 +11,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // This file is the whole Puppet/Summon/custom companion feature: a small,
@@ -247,7 +248,7 @@ func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request)
 // own doc for why this can't reintroduce the whole-form-save/hp_current
 // regression.
 func (s *server) prefillPuppetStatDefaults(characterID, companionID int64) error {
-	baseline, err := s.loadPuppetToolStatBlock()
+	baseline, err := s.loadPuppetToolStatBlock("")
 	if err != nil || baseline == nil {
 		return err
 	}
@@ -497,7 +498,7 @@ type summonTribeReference struct {
 	ConditionImmunities string
 }
 
-func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) (*summonTribeReference, error) {
+func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int, locale string) (*summonTribeReference, error) {
 	var ref summonTribeReference
 	err := s.rulesDB.QueryRow(`
 		SELECT name, summon_type, COALESCE(description, ''), COALESCE(defensive_ability, ''),
@@ -512,6 +513,37 @@ func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) 
 	}
 	if err != nil {
 		return nil, err
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "summon_tribes", tribeSlug); err != nil {
+		return nil, err
+	} else {
+		if v, ok := tr["name"]; ok {
+			ref.Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			ref.Description = v
+		}
+		if v, ok := tr["defensive_ability"]; ok {
+			ref.DefensiveAbility = v
+		}
+		if v, ok := tr["saving_throws"]; ok {
+			ref.SavingThrows = v
+		}
+		if v, ok := tr["skills"]; ok {
+			ref.Skills = v
+		}
+		if v, ok := tr["senses"]; ok {
+			ref.Senses = v
+		}
+		if v, ok := tr["jutsu_save_dc_text"]; ok {
+			ref.JutsuSaveDCText = v
+		}
+		if v, ok := tr["jutsu_attack_bonus_text"]; ok {
+			ref.JutsuAttackBonusText = v
+		}
+		if v, ok := tr["jutsu_specialty_text"]; ok {
+			ref.JutsuSpecialtyText = v
+		}
 	}
 
 	currentOrder := summonRankOrder[highestRankForLevel(characterLevel)]
@@ -533,6 +565,19 @@ func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) 
 	if err := attackRows.Err(); err != nil {
 		return nil, err
 	}
+	for i := range ref.Attacks {
+		key := tribeSlug + i18n.KeySeparator + ref.Attacks[i].Name
+		tr, err := i18n.Row(s.rulesDB, locale, "summon_tribe_attacks", key)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := tr["name"]; ok {
+			ref.Attacks[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			ref.Attacks[i].Description = v
+		}
+	}
 
 	roleRows, err := s.rulesDB.Query(
 		`SELECT role_name, description FROM summon_tribe_roles WHERE tribe_slug = ? ORDER BY role_name`, tribeSlug)
@@ -551,24 +596,53 @@ func (s *server) loadSummonTribeReference(tribeSlug string, characterLevel int) 
 	if err := roleRows.Err(); err != nil {
 		return nil, err
 	}
+	for i := range ref.Roles {
+		key := tribeSlug + i18n.KeySeparator + ref.Roles[i].Name
+		tr, err := i18n.Row(s.rulesDB, locale, "summon_tribe_roles", key)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := tr["role_name"]; ok {
+			ref.Roles[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			ref.Roles[i].Description = v
+		}
+	}
 
 	featRows, err := s.rulesDB.Query(
-		`SELECT name, rank, description FROM summon_tribe_features WHERE tribe_slug = ? ORDER BY sort_order`, tribeSlug)
+		`SELECT slug, name, rank, description FROM summon_tribe_features WHERE tribe_slug = ? ORDER BY sort_order`, tribeSlug)
 	if err != nil {
 		return nil, err
 	}
+	var featSlugs []string
 	for featRows.Next() {
+		var slug string
 		var f companionFeatureRef
-		if err := featRows.Scan(&f.Name, &f.Rank, &f.Description); err != nil {
+		if err := featRows.Scan(&slug, &f.Name, &f.Rank, &f.Description); err != nil {
 			featRows.Close()
 			return nil, err
 		}
 		f.Locked = summonRankOrder[f.Rank] > currentOrder
+		featSlugs = append(featSlugs, slug)
 		ref.Features = append(ref.Features, f)
 	}
 	featRows.Close()
 	if err := featRows.Err(); err != nil {
 		return nil, err
+	}
+	featTranslations, err := i18n.Batch(s.rulesDB, locale, "summon_tribe_features", featSlugs)
+	if err != nil {
+		return nil, err
+	}
+	for i, slug := range featSlugs {
+		tr := featTranslations[slug]
+		if v, ok := tr["name"]; ok {
+			ref.Features[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			ref.Features[i].Description = v
+		}
 	}
 	ref.Resistances, ref.Immunities, ref.ConditionImmunities = summonTribeResistancesImmunities(tribeSlug, ref.Features)
 
@@ -758,7 +832,7 @@ type summonTribeOption struct {
 	Name string
 }
 
-func (s *server) loadSummonTribeOptions() ([]summonTribeOption, error) {
+func (s *server) loadSummonTribeOptions(locale string) ([]summonTribeOption, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name FROM summon_tribes ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -772,7 +846,26 @@ func (s *server) loadSummonTribeOptions() ([]summonTribeOption, error) {
 		}
 		out = append(out, t)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, t := range out {
+		slugs[i] = t.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "summon_tribes", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+		}
+	}
+	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Name) < sortKey(out[k].Name) })
+	return out, nil
 }
 
 // summonCompanionView is one companion (any kind) plus its own summon-tribe
@@ -836,9 +929,9 @@ type summonsTabData struct {
 	Collapsed map[int64]bool
 }
 
-func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (summonsTabData, error) {
+func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet, locale string) (summonsTabData, error) {
 	var data summonsTabData
-	tribes, err := s.loadSummonTribeOptions()
+	tribes, err := s.loadSummonTribeOptions(locale)
 	if err != nil {
 		return data, err
 	}
@@ -857,14 +950,14 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 	for _, c := range all {
 		view := summonCompanionView{Companion: c, Saves: companionSaves(c, sheet)}
 		if c.Kind == "summon" && c.SummonTribeSlug != "" {
-			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, sheet.Level)
+			ref, err := s.loadSummonTribeReference(c.SummonTribeSlug, sheet.Level, locale)
 			if err != nil {
 				return data, err
 			}
 			view.Reference = ref
 		}
 		if c.Kind == "nin-dog" {
-			ref, err := s.loadNinDogReference(characterID, c, sheet.Level)
+			ref, err := s.loadNinDogReference(characterID, c, sheet.Level, locale)
 			if err != nil {
 				return data, err
 			}
@@ -891,7 +984,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 				ninDogBiteAttack(c, sheet.ProficiencyBonus))
 		}
 		if c.Kind == "titan" {
-			ref, err := s.loadTitanReference(characterID, sheet, c)
+			ref, err := s.loadTitanReference(characterID, sheet, c, locale)
 			if err != nil {
 				return data, err
 			}
@@ -922,13 +1015,13 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			// titanSaveOnlyUpgradeAttacks: Shinobifall/Thermite Launcher/
 			// Critical Ejection's own NoAttackRoll damage-only rows.
 			view.Attacks = append(append(append(append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				titanBashAttack(c, ref, sheet.ProficiencyBonus)),
-				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus, c.IsDemonFoe)...),
-				titanSpecialWeaponUpgradeAttacks(ref, c, sheet, sheet.ProficiencyBonus, c.IsDemonFoe)...),
-				titanSaveOnlyUpgradeAttacks(ref, sheet, c.IsDemonFoe)...)
+				titanBashAttack(c, ref, sheet.ProficiencyBonus, locale)),
+				titanKnownWeaponUpgradeAttacks(ref, c, sheet.ProficiencyBonus, c.IsDemonFoe, locale)...),
+				titanSpecialWeaponUpgradeAttacks(ref, c, sheet, sheet.ProficiencyBonus, c.IsDemonFoe, locale)...),
+				titanSaveOnlyUpgradeAttacks(ref, sheet, c.IsDemonFoe, locale)...)
 		}
 		if c.Kind == "snb" {
-			ref, err := s.loadSNBReference(characterID, c, sheet)
+			ref, err := s.loadSNBReference(characterID, c, sheet, locale)
 			if err != nil {
 				return data, err
 			}
@@ -948,7 +1041,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet) (
 			}
 			playerIntMod := sheet.Abilities["int"].Modifier
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus))
+				snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus, locale))
 		}
 		if c.Kind == "void-soul" {
 			ref, err := s.loadVoidSoulReference(characterID, sheet, c)
@@ -1112,7 +1205,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		// after visiting the Puppets tab (the only way to reach it — see
 		// companion-popup.js) always sees the same fresh numbers the tab
 		// itself just wrote.
-		tabData, err := s.loadPuppetsTabData(id, sheet)
+		tabData, err := s.loadPuppetsTabData(id, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load puppets tab data for popup:", err)
@@ -1138,7 +1231,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			data["SymphonyEnhancement"] = view.SymphonyEnhancement
 		}
 	case "summon":
-		tribes, err := s.loadSummonTribeOptions()
+		tribes, err := s.loadSummonTribeOptions(localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load summon tribe options:", err)
@@ -1146,7 +1239,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["SummonTribes"] = tribes
 		if companion.SummonTribeSlug != "" {
-			ref, err := s.loadSummonTribeReference(companion.SummonTribeSlug, sheet.Level)
+			ref, err := s.loadSummonTribeReference(companion.SummonTribeSlug, sheet.Level, localeFromContext(r.Context()))
 			if err != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("load summon tribe reference:", err)
@@ -1205,7 +1298,8 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	case "snb":
-		ref, err := s.loadSNBReference(id, companion, sheet)
+		locale := localeFromContext(r.Context())
+		ref, err := s.loadSNBReference(id, companion, sheet, locale)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load snb reference:", err)
@@ -1237,9 +1331,9 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		}
 		playerIntMod := sheet.Abilities["int"].Modifier
 		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus))
+			snbBiteAttack(sheet.Level, playerIntMod, sheet.ProficiencyBonus, ref.AccuracyBonus, locale))
 	case "nin-dog":
-		ref, err := s.loadNinDogReference(id, companion, sheet.Level)
+		ref, err := s.loadNinDogReference(id, companion, sheet.Level, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load nin-dog reference:", err)
@@ -1269,7 +1363,8 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
 			ninDogBiteAttack(companion, sheet.ProficiencyBonus))
 	case "titan":
-		ref, err := s.loadTitanReference(id, sheet, companion)
+		locale := localeFromContext(r.Context())
+		ref, err := s.loadTitanReference(id, sheet, companion, locale)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load titan reference:", err)
@@ -1303,10 +1398,10 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		// folded into it. titanSaveOnlyUpgradeAttacks: Shinobifall/Thermite
 		// Launcher/Critical Ejection's own NoAttackRoll damage-only rows.
 		data["Attacks"] = append(append(append(append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			titanBashAttack(companion, ref, sheet.ProficiencyBonus)),
-			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
-			titanSpecialWeaponUpgradeAttacks(ref, companion, sheet, sheet.ProficiencyBonus, companion.IsDemonFoe)...),
-			titanSaveOnlyUpgradeAttacks(ref, sheet, companion.IsDemonFoe)...)
+			titanBashAttack(companion, ref, sheet.ProficiencyBonus, locale)),
+			titanKnownWeaponUpgradeAttacks(ref, companion, sheet.ProficiencyBonus, companion.IsDemonFoe, locale)...),
+			titanSpecialWeaponUpgradeAttacks(ref, companion, sheet, sheet.ProficiencyBonus, companion.IsDemonFoe, locale)...),
+			titanSaveOnlyUpgradeAttacks(ref, sheet, companion.IsDemonFoe, locale)...)
 	case "void-soul":
 		ref, err := s.loadVoidSoulReference(id, sheet, companion)
 		if err != nil {

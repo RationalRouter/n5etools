@@ -41,7 +41,7 @@
       <select name="choice_{{$row.Index}}_{{$slot}}" class="background-choice-select" required>
         <option value="">{{T "create_background.choose_placeholder"}}</option>
         {{range $pairs}}
-        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slotValue}}selected{{end}}>{{.Name}}{{if .Desc}}{{T "create_background.name_desc_dash" .Desc}}{{end}}</option>
+        <option value="{{.Name}}" data-slug="{{.Slug}}" {{if eq .Name $slotValue}}selected{{end}}>{{.Label}}{{if .Desc}}{{T "create_background.name_desc_dash" .Desc}}{{end}}</option>
         {{end}}
       </select>
       {{if eq $row.Kind "tool"}}

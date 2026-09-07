@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -12,6 +11,8 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
+	"github.com/sergio/n5e/internal/statlines"
 )
 
 // This file is the Titan stat block — Science-Nin's Mech Crafter subclass's
@@ -129,27 +130,51 @@ const titanBaseSpeed = 30 // ft. — titan_unit_card's own flat "Speed 30 ft.", 
 
 // titanSenses: titan_unit_card's own "Senses Darkvision(30 feet), Passive Perception(...)" line —
 // only the Darkvision half, since Passive Perception is already its own computed titanReference field.
-const titanSenses = "Darkvision (30 ft.)"
+// Translated via the UI catalog ("titan.senses") rather than read live — see
+// this file's header doc for why this hand-transcribed content isn't a
+// rules.db row at all.
+func titanSenses(locale string) string {
+	return i18n.Translator(locale)("titan.senses")
+}
+
+// titanBaseTraitKeys: the UI catalog key infix for each of the base stat
+// block's own named traits, in display order — pure display text (never
+// matched/persisted anywhere), so unlike titanSpecializationOption etc.
+// there's no separate Key/Name split needed, the same treatment
+// snbBaseTraitKeys (snb.go) already gives its own equivalent list.
+var titanBaseTraitKeys = []string{
+	"battery_powered_barrier", "extra_attack", "gradual_expansion",
+	"ninja_tool_integration", "steady_improvement", "titan_specialization",
+}
 
 // titanBaseTraits: the base stat block's own named traits, hand-transcribed
 // verbatim from titan_unit_card.raw_text (see this file's header doc for
 // why this can't be read live). Always shown, ungated beyond the whole box
 // requiring Ordnance Training — these describe every Titan, not something
 // leveled into.
-var titanBaseTraits = []companionFeatureRef{
-	{Name: "Battery Powered Barrier", Description: "All Titans are fitted with a barrier that protects the titan from damage. When a Titan is damaged, it subtracts hit points from its barrier first. The Battery Powered Barrier has a maximum number of hit points equal to twice your Science-Nin level, and on your turn, you can spend increments of 5 chakra from your CCD to replenish 10 of the barrier's hit points."},
-	{Name: "Extra Attack", Description: "Your Titan can attack twice with the attack action."},
-	{Name: "Gradual Expansion", Description: "Your Titan starts off as Large, becoming Huge at 14th level."},
-	{Name: "Ninja Tool Integration", Description: "The Titan's attacks are chakra enhanced."},
-	{Name: "Steady Improvement", Description: "The Titan gains an additional number of ASI points equal to 1 + your proficiency bonus. You distribute these points when you craft your Titan, and you can redistribute them during a long rest."},
-	{Name: "Titan Specialization", Description: "When you craft your Titan, you choose a Titan Specialization for it to following, picking between a Legion Titan, a Monarch Titan, or a Ronin Titan, which grant your Titan additional abilities."},
+func titanBaseTraits(locale string) []companionFeatureRef {
+	t := i18n.Translator(locale)
+	out := make([]companionFeatureRef, len(titanBaseTraitKeys))
+	for i, key := range titanBaseTraitKeys {
+		out[i] = companionFeatureRef{
+			Name:        t("titan.trait." + key + ".name"),
+			Description: t("titan.trait." + key + ".desc"),
+		}
+	}
+	return out
 }
 
 // titanBashAttackText: titan_unit_card's own built-in attack, verbatim.
 // "Any other upgrades you have with the Weapon Keyword" (the blob's own
 // trailing, mid-sentence cutoff) is garbage PDF-extraction fragment, not a
 // real rule — omitted here rather than reproduced as if it were complete.
-const titanBashAttackText = "Melee Weapon Attack: reach 10 ft., one target. Hit: 1d6 + Str + Dex in bludgeoning damage. This weapon can be used for the unarmed damage of Taijutsu."
+// Translated via "titan.bash_attack_text" — distinct from the shorter
+// "titan.bash_attack_row_description" key titanBashAttack (the rollable row)
+// uses, since that row states its own dice via structured fields instead of
+// repeating the "Hit: 1d6 + Str + Dex..." clause in prose.
+func titanBashAttackText(locale string) string {
+	return i18n.Translator(locale)("titan.bash_attack_text")
+}
 
 // titanMaxHP: "20+[2*Titan's Constitution Modifer x Science Nin level]" —
 // titan_unit_card's own verbatim HP formula.
@@ -349,7 +374,7 @@ func titanHasKnownUpgrade(ref *titanReference, name string) bool {
 // rather than a round trip through that string-based helper.
 var titanBashDamageSteps = map[int]int{4: 6, 6: 8, 8: 10, 10: 12, 12: 20}
 
-func titanBashAttack(companion charstore.Companion, ref *titanReference, ownerProfBonus int) companionAttackRow {
+func titanBashAttack(companion charstore.Companion, ref *titanReference, ownerProfBonus int, locale string) companionAttackRow {
 	strMod := titanEffectiveAbilityModifier(companion, "str")
 	dexMod := titanEffectiveAbilityModifier(companion, "dex")
 	critRange := 20
@@ -365,7 +390,7 @@ func titanBashAttack(companion charstore.Companion, ref *titanReference, ownerPr
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
 			Name:        "Bash",
-			Description: "Melee Weapon Attack: reach 10 ft., one target. This weapon can be used for the unarmed damage of Taijutsu.",
+			Description: i18n.Translator(locale)("titan.bash_attack_row_description"),
 			DamageCount: 1, DamageSides: damageSides, DamageType: "bludgeoning",
 		},
 		AttackTotal:        strMod + dexMod + ownerProfBonus,
@@ -402,11 +427,12 @@ var titanWeaponAttackClausePattern = regexp.MustCompile(
 // no matching clause (every Mech-keyword entry, and the 5 Weapon-keyword
 // entries with no standing weapon of their own — see
 // titanWeaponAttackClausePattern's own doc).
-func titanWeaponAttacksFromDescription(name, description string, companion charstore.Companion, ownerProfBonus int) []companionAttackRow {
+func titanWeaponAttacksFromDescription(name, description string, companion charstore.Companion, ownerProfBonus int, locale string) []companionAttackRow {
 	matches := titanWeaponAttackClausePattern.FindAllStringSubmatch(description, -1)
 	if matches == nil {
 		return nil
 	}
+	t := i18n.Translator(locale)
 	var out []companionAttackRow
 	for _, m := range matches {
 		isMelee := strings.EqualFold(m[1], "Melee")
@@ -422,12 +448,12 @@ func titanWeaponAttacksFromDescription(name, description string, companion chars
 		rowName := name
 		var desc string
 		if isMelee {
-			desc = fmt.Sprintf("Melee Weapon Attack: reach %s ft., one target.", strings.TrimSuffix(reachOrRange, "ft"))
+			desc = t("titan.weapon_attack_melee_desc", strings.TrimSuffix(reachOrRange, "ft"))
 			if len(matches) > 1 {
 				rowName = name + " (Melee)"
 			}
 		} else {
-			desc = fmt.Sprintf("Ranged Weapon Attack: range %s ft., one target.", reachOrRange)
+			desc = t("titan.weapon_attack_ranged_desc", reachOrRange)
 			if len(matches) > 1 {
 				rowName = name + " (Ranged)"
 			}
@@ -477,7 +503,7 @@ func titanApplyDemonFoeBonus(rows []companionAttackRow, isDemonFoe bool) []compa
 // foes" bonus (titanApplyDemonFoeBonus) — every row here already comes from
 // a Weapon-keyword upgrade (the k.Keyword != "weapon" guard below), matching
 // the source text's own "all weapons" scope exactly.
-func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, ownerProfBonus int, isDemonFoe bool) []companionAttackRow {
+func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, ownerProfBonus int, isDemonFoe bool, locale string) []companionAttackRow {
 	if ref == nil {
 		return nil
 	}
@@ -486,7 +512,7 @@ func titanKnownWeaponUpgradeAttacks(ref *titanReference, companion charstore.Com
 		if k.Keyword != "weapon" {
 			continue
 		}
-		out = append(out, titanWeaponAttacksFromDescription(k.Name, k.Description, companion, ownerProfBonus)...)
+		out = append(out, titanWeaponAttacksFromDescription(k.Name, k.Description, companion, ownerProfBonus, locale)...)
 	}
 	return titanApplyDemonFoeBonus(out, isDemonFoe)
 }
@@ -558,16 +584,12 @@ func titanProfBonusHalfRoundedUp(profBonus int) int {
 // Description rather than computed live — nothing on this sheet models a
 // transient in-combat stacking buff (this app has no turn-tracking state to
 // hang it on), so the player applies both by hand once triggered.
-func titanXo16GatlingAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+func titanXo16GatlingAttack(companion charstore.Companion, ownerProfBonus int, locale string) companionAttackRow {
 	dexMod := titanEffectiveAbilityModifier(companion, "dex")
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: "Xo-16 Gatling",
-			Description: "Ranged Weapon Attack: range 60 ft., one target. Action: spend the CCD Drain " +
-				"(5 CCD Chakra per attack, up to 5 attacks against the same target as part of the same " +
-				"action). Each hit after the first this activation adds a stacking +1 bonus to attack and " +
-				"damage rolls made with the Xo-16 Gatling until the start of your next turn — not reflected " +
-				"in the totals above, apply it by hand on a second or later hit.",
+			Name:        i18n.Translator(locale)("titan.xo16_gatling.name"),
+			Description: i18n.Translator(locale)("titan.xo16_gatling_desc"),
 			DamageCount: 1, DamageSides: 6, DamageType: "force",
 		},
 		AttackTotal: dexMod + ownerProfBonus,
@@ -603,16 +625,14 @@ func titanXo16GatlingAttack(companion charstore.Companion, ownerProfBonus int) c
 // Ninjutsu attack modifier this reads off already includes the full
 // proficiency bonus (see JutsuAttack's own doc comment), so adding one in
 // again here would double-count it.
-func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet) []companionAttackRow {
+func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet, locale string) []companionAttackRow {
 	modifier, _ := titanNinjutsuAttackStats(sheet)
-	const desc = "Bonus Action: spend the CCD Drain (10 CCD Chakra) and pick a single target within 60 " +
-		"feet — make 3 ranged Ninjutsu attacks against it. Each hit deals both this row's damage type AND " +
-		"the matching Greater Missile Racks row's (shown as two rows since one row can only track one " +
-		"damage type)."
+	t := i18n.Translator(locale)
+	desc := t("titan.greater_missile_racks_desc")
 	return []companionAttackRow{
 		{
 			CompanionAttack: charstore.CompanionAttack{
-				Name: "Greater Missile Racks (Fire)", Description: desc,
+				Name: t("titan.greater_missile_racks_fire.name"), Description: desc,
 				DamageCount: 1, DamageSides: 6, DamageType: "fire",
 			},
 			AttackTotal: modifier,
@@ -620,7 +640,7 @@ func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet) []companionAttackRo
 		},
 		{
 			CompanionAttack: charstore.CompanionAttack{
-				Name: "Greater Missile Racks (Force)", Description: desc,
+				Name: t("titan.greater_missile_racks_force.name"), Description: desc,
 				DamageCount: 1, DamageSides: 6, DamageType: "force",
 			},
 			AttackTotal: modifier,
@@ -638,16 +658,16 @@ func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet) []companionAttackRo
 // nil-safety against a character with no Ordnance Training (ref == nil).
 // isDemonFoe applies Bijuu Slayer's own +2-damage-dice bonus
 // (titanApplyDemonFoeBonus) — both upgrades here carry the Weapon keyword.
-func titanSpecialWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, sheet *charsheet.Sheet, ownerProfBonus int, isDemonFoe bool) []companionAttackRow {
+func titanSpecialWeaponUpgradeAttacks(ref *titanReference, companion charstore.Companion, sheet *charsheet.Sheet, ownerProfBonus int, isDemonFoe bool, locale string) []companionAttackRow {
 	if ref == nil {
 		return nil
 	}
 	var out []companionAttackRow
 	if titanHasKnownUpgrade(ref, "Xo-16 Gatling") {
-		out = append(out, titanXo16GatlingAttack(companion, ownerProfBonus))
+		out = append(out, titanXo16GatlingAttack(companion, ownerProfBonus, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Greater Missile Racks") {
-		out = append(out, titanGreaterMissileRacksAttacks(sheet)...)
+		out = append(out, titanGreaterMissileRacksAttacks(sheet, locale)...)
 	}
 	return titanApplyDemonFoeBonus(out, isDemonFoe)
 }
@@ -660,19 +680,19 @@ func titanSpecialWeaponUpgradeAttacks(ref *titanReference, companion charstore.C
 // already use for the Attack-roll-shaped upgrades. isDemonFoe is forwarded to
 // Thermite Grenade/Critical Ejection only (both Weapon keyword) — Shinobifall
 // is Mech keyword and never receives it, per titanShinobifallAttack's own doc.
-func titanSaveOnlyUpgradeAttacks(ref *titanReference, sheet *charsheet.Sheet, isDemonFoe bool) []companionAttackRow {
+func titanSaveOnlyUpgradeAttacks(ref *titanReference, sheet *charsheet.Sheet, isDemonFoe bool, locale string) []companionAttackRow {
 	if ref == nil {
 		return nil
 	}
 	var out []companionAttackRow
 	if titanHasKnownUpgrade(ref, "Shinobifall") {
-		out = append(out, titanShinobifallAttack(sheet, ref))
+		out = append(out, titanShinobifallAttack(sheet, ref, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
-		out = append(out, titanThermiteGrenadeAttack(sheet, isDemonFoe))
+		out = append(out, titanThermiteGrenadeAttack(sheet, isDemonFoe, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Critical Ejection") {
-		out = append(out, titanCriticalEjectionAttack(sheet, ref, isDemonFoe))
+		out = append(out, titanCriticalEjectionAttack(sheet, ref, isDemonFoe, locale))
 	}
 	return out
 }
@@ -696,16 +716,13 @@ func titanSaveOnlyUpgradeAttacks(ref *titanReference, sheet *charsheet.Sheet, is
 // would double the annotation once that same pass runs over already-
 // annotated text, so this deliberately leaves the averaging to that shared
 // mechanism rather than calling diceAverageText a second time.
-func titanThermiteLauncherGrenadeAbility(sheet *charsheet.Sheet) companionFeatureRef {
+func titanThermiteLauncherGrenadeAbility(sheet *charsheet.Sheet, locale string) companionFeatureRef {
 	x := titanProfBonusHalfRoundedUp(sheet.ProficiencyBonus)
 	_, saveDC := titanNinjutsuAttackStats(sheet)
+	t := i18n.Translator(locale)
 	return companionFeatureRef{
-		Name: "Thermite Grenade (Thermite Launcher)",
-		Description: fmt.Sprintf(
-			"As an action, you can spend the CCD Drain and shoot a Thermite Grenade at a space within 60 "+
-				"feet. Each creature within 15 feet of the grenade must make a DC %d Dexterity saving throw, "+
-				"taking %dd8 fire damage and becoming Burned on a failed save, or half as much on a success.",
-			saveDC, x),
+		Name:        t("titan.thermite_grenade_ability.name"),
+		Description: t("titan.thermite_grenade_ability_desc", saveDC, x),
 	}
 }
 
@@ -714,19 +731,17 @@ func titanThermiteLauncherGrenadeAbility(sheet *charsheet.Sheet) companionFeatur
 // damage titanThermiteLauncherGrenadeAbility's own reference text resolves.
 // Weapon keyword, so isDemonFoe adds Bijuu Slayer's own +2 damage dice —
 // see titanDemonFoeWeaponUpgrades' own doc.
-func titanThermiteGrenadeAttack(sheet *charsheet.Sheet, isDemonFoe bool) companionAttackRow {
+func titanThermiteGrenadeAttack(sheet *charsheet.Sheet, isDemonFoe bool, locale string) companionAttackRow {
 	x := titanProfBonusHalfRoundedUp(sheet.ProficiencyBonus)
 	_, saveDC := titanNinjutsuAttackStats(sheet)
 	if isDemonFoe {
 		x += 2
 	}
+	t := i18n.Translator(locale)
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: "Thermite Grenade",
-			Description: fmt.Sprintf(
-				"Action: spend the CCD Drain and shoot a grenade at a space within 60 feet. Each creature "+
-					"within 15 feet makes a DC %d Dexterity saving throw, taking this damage and becoming "+
-					"Burned on a failure, or half as much on a success.", saveDC),
+			Name:        t("titan.thermite_grenade_attack.name"),
+			Description: t("titan.thermite_grenade_attack_desc", saveDC),
 			DamageCount: x, DamageSides: 8, DamageType: "fire",
 		},
 		NoAttackRoll: true,
@@ -751,15 +766,12 @@ func titanThermiteGrenadeAttack(sheet *charsheet.Sheet, isDemonFoe bool) compani
 // unresolved "X" at all, so there is nothing to substitute besides the save
 // DC). DC is the player's own Ninjutsu save DC, same reasoning as
 // titanThermiteLauncherGrenadeAbility.
-func titanGreaterMissileRacksLineNote(sheet *charsheet.Sheet) companionFeatureRef {
+func titanGreaterMissileRacksLineNote(sheet *charsheet.Sheet, locale string) companionFeatureRef {
 	_, saveDC := titanNinjutsuAttackStats(sheet)
+	t := i18n.Translator(locale)
 	return companionFeatureRef{
-		Name: "Missile Barrage — Line (Greater Missile Racks)",
-		Description: fmt.Sprintf(
-			"As a bonus action, you can spend the CCD Drain and target creatures within a 60-foot-long, "+
-				"5-foot-wide line. Each creature in the line must make a DC %d Dexterity saving throw, taking "+
-				"3d6+3 fire damage and 3d6+3 force damage on a failed save, or half as much damage on a success.",
-			saveDC),
+		Name:        t("titan.greater_missile_racks_line.name"),
+		Description: t("titan.greater_missile_racks_line_desc", saveDC),
 	}
 }
 
@@ -775,17 +787,12 @@ func titanGreaterMissileRacksLineNote(sheet *charsheet.Sheet) companionFeatureRe
 // which this app never rolls on a creature's behalf); reference text is
 // therefore the correct final shape here, not a stepping stone toward a
 // rollable row.
-func titanCriticalEjectionAbility(sheet *charsheet.Sheet, ref *titanReference) companionFeatureRef {
+func titanCriticalEjectionAbility(sheet *charsheet.Sheet, ref *titanReference, locale string) companionFeatureRef {
 	_, saveDC := titanNinjutsuAttackStats(sheet)
+	t := i18n.Translator(locale)
 	return companionFeatureRef{
-		Name: "Critical Ejection",
-		Description: fmt.Sprintf(
-			"When your Titan reaches 0 hit points and you would eject from it, you can spend the CCD Drain "+
-				"to cause the Titan to explode instead — you are ejected 90 feet away from it rather than "+
-				"appearing where it stood. All creatures within a 30-foot radius of the Titan must make a "+
-				"DC %d Dexterity saving throw, taking %dd10 fire damage on a failed save, or half as much on "+
-				"a success.",
-			saveDC, ref.ProficiencyBonus),
+		Name:        t("titan.critical_ejection.name"),
+		Description: t("titan.critical_ejection_ability_desc", saveDC, ref.ProficiencyBonus),
 	}
 }
 
@@ -794,19 +801,17 @@ func titanCriticalEjectionAbility(sheet *charsheet.Sheet, ref *titanReference) c
 // damage titanCriticalEjectionAbility's own reference text resolves. Weapon
 // keyword, so isDemonFoe adds Bijuu Slayer's own +2 damage dice — see
 // titanDemonFoeWeaponUpgrades' own doc.
-func titanCriticalEjectionAttack(sheet *charsheet.Sheet, ref *titanReference, isDemonFoe bool) companionAttackRow {
+func titanCriticalEjectionAttack(sheet *charsheet.Sheet, ref *titanReference, isDemonFoe bool, locale string) companionAttackRow {
 	_, saveDC := titanNinjutsuAttackStats(sheet)
 	count := ref.ProficiencyBonus
 	if isDemonFoe {
 		count += 2
 	}
+	t := i18n.Translator(locale)
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: "Critical Ejection",
-			Description: fmt.Sprintf(
-				"Reaction, when your Titan hits 0 hit points: spend the CCD Drain to explode instead of "+
-					"ejecting normally. Creatures within 30 feet make a DC %d Dexterity saving throw, taking "+
-					"this damage, or half as much on a success.", saveDC),
+			Name:        t("titan.critical_ejection.name"),
+			Description: t("titan.critical_ejection_attack_desc", saveDC),
 			DamageCount: count, DamageSides: 10, DamageType: "fire",
 		},
 		NoAttackRoll: true,
@@ -844,18 +849,13 @@ func titanShinobifallDamageSides(ref *titanReference) int {
 // Ninjutsu save DC) for real numbers — see titanShinobifallDamageSides for
 // the die-size resolution. A rollable damage-only row for the same numbers
 // is also shown in Attacks — see titanShinobifallAttack.
-func titanShinobifallAbility(sheet *charsheet.Sheet, ref *titanReference) companionFeatureRef {
+func titanShinobifallAbility(sheet *charsheet.Sheet, ref *titanReference, locale string) companionFeatureRef {
 	_, saveDC := titanNinjutsuAttackStats(sheet)
 	sides := titanShinobifallDamageSides(ref)
+	t := i18n.Translator(locale)
 	return companionFeatureRef{
-		Name: "Shinobifall",
-		Description: fmt.Sprintf(
-			"When you would summon your Titan, you can spend 5 CCD chakra to instead have it appear 30 "+
-				"feet above you, in a space up to 30 feet away, and fall to earth at speed. Each creature "+
-				"underneath the Titan must make a DC %d Dexterity saving throw, taking %dd%d bludgeoning "+
-				"damage and falling prone on a failure, or half as much damage on a success. The Titan "+
-				"itself takes no fall damage.",
-			saveDC, ref.ProficiencyBonus, sides),
+		Name:        t("titan.shinobifall.name"),
+		Description: t("titan.shinobifall_ability_desc", saveDC, ref.ProficiencyBonus, sides),
 	}
 }
 
@@ -866,16 +866,14 @@ func titanShinobifallAbility(sheet *charsheet.Sheet, ref *titanReference) compan
 // roll instead of hand math. Mech keyword (not Weapon), so this deliberately
 // does NOT receive the Demon Foe bonus — see titanDemonFoeWeaponUpgrades'
 // own doc for why that bonus is scoped to Weapon-keyword upgrades only.
-func titanShinobifallAttack(sheet *charsheet.Sheet, ref *titanReference) companionAttackRow {
+func titanShinobifallAttack(sheet *charsheet.Sheet, ref *titanReference, locale string) companionAttackRow {
 	_, saveDC := titanNinjutsuAttackStats(sheet)
 	sides := titanShinobifallDamageSides(ref)
+	t := i18n.Translator(locale)
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: "Shinobifall",
-			Description: fmt.Sprintf(
-				"Spend 5 CCD chakra to summon your Titan falling from 30 feet up. Each creature underneath "+
-					"it makes a DC %d Dexterity saving throw, taking this damage and falling prone on a "+
-					"failure, or half as much on a success.", saveDC),
+			Name:        t("titan.shinobifall.name"),
+			Description: t("titan.shinobifall_attack_desc", saveDC),
 			DamageCount: ref.ProficiencyBonus, DamageSides: sides, DamageType: "bludgeoning",
 		},
 		NoAttackRoll: true,
@@ -898,16 +896,11 @@ func titanShinobifallAttack(sheet *charsheet.Sheet, ref *titanReference) compani
 // for companions, wiring an automatic TempHP set at that hook would be
 // preferable to this reference-text-only fix — see this file's own callers
 // for where that hook would need to live.
-func titanShinobiFortressNote(ref *titanReference) companionFeatureRef {
+func titanShinobiFortressNote(ref *titanReference, locale string) companionFeatureRef {
+	t := i18n.Translator(locale)
 	return companionFeatureRef{
-		Name: "Temp HP on Summon (Shinobi Fortress)",
-		Description: fmt.Sprintf(
-			"When your Titan is summoned, it gains %dd4 temporary hit points (not set automatically — "+
-				"this app has no on-summon trigger for a companion to hang that write on, see this field's "+
-				"own doc comment; enter it into Temp HP above by hand). If you also have the Battle Tower "+
-				"upgrade, you can choose to have your Titan take damage your mounted allies would've taken "+
-				"instead, while they're mounted on it.",
-			ref.ProficiencyBonus),
+		Name:        t("titan.shinobi_fortress.name"),
+		Description: t("titan.shinobi_fortress_desc", ref.ProficiencyBonus),
 	}
 }
 
@@ -922,22 +915,22 @@ func titanShinobiFortressNote(ref *titanReference) companionFeatureRef {
 // mode are deliberately absent from this list — they resolve to rollable
 // companionAttackRow entries instead (titanSpecialWeaponUpgradeAttacks),
 // shown in the sheet's own Attacks section rather than here.
-func titanResolvedUpgradeAbilities(ref *titanReference, sheet *charsheet.Sheet) []companionFeatureRef {
+func titanResolvedUpgradeAbilities(ref *titanReference, sheet *charsheet.Sheet, locale string) []companionFeatureRef {
 	var out []companionFeatureRef
 	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
-		out = append(out, titanThermiteLauncherGrenadeAbility(sheet))
+		out = append(out, titanThermiteLauncherGrenadeAbility(sheet, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Greater Missile Racks") {
-		out = append(out, titanGreaterMissileRacksLineNote(sheet))
+		out = append(out, titanGreaterMissileRacksLineNote(sheet, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Critical Ejection") {
-		out = append(out, titanCriticalEjectionAbility(sheet, ref))
+		out = append(out, titanCriticalEjectionAbility(sheet, ref, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Shinobifall") {
-		out = append(out, titanShinobifallAbility(sheet, ref))
+		out = append(out, titanShinobifallAbility(sheet, ref, locale))
 	}
 	if titanHasKnownUpgrade(ref, "Shinobi Fortress") {
-		out = append(out, titanShinobiFortressNote(ref))
+		out = append(out, titanShinobiFortressNote(ref, locale))
 	}
 	return out
 }
@@ -959,15 +952,16 @@ func titanResolvedUpgradeAbilities(ref *titanReference, sheet *charsheet.Sheet) 
 // for a companion). Every return value is "" when neither upgrade is known,
 // which the "titan_reference" template reads as "don't show this row at
 // all" (see its own {{if}} guards) rather than an empty dt/dd pair.
-func titanResistancesImmunities(ref *titanReference) (resistances, immunities, conditionImmunities, resistanceAdvantage string) {
+func titanResistancesImmunities(ref *titanReference, locale string) (resistances, immunities, conditionImmunities, resistanceAdvantage string) {
+	t := i18n.Translator(locale)
 	var resistanceParts, immunityParts, conditionParts []string
 	if titanHasKnownUpgrade(ref, "Thermite Launcher") {
-		resistanceParts = append(resistanceParts, "Fire", "Acid")
-		resistanceAdvantage = "Advantage on saving throws to resist the Burned and Corroded conditions (Thermite Launcher)."
+		resistanceParts = append(resistanceParts, t("titan.damage_type.fire"), t("titan.damage_type.acid"))
+		resistanceAdvantage = t("titan.thermite_resistance_advantage")
 	}
 	if titanHasKnownUpgrade(ref, "Hulking Strength") {
-		conditionParts = append(conditionParts, "Grappled", "Restrained")
-		immunityParts = append(immunityParts, "Movement Effects")
+		conditionParts = append(conditionParts, t("titan.condition.grappled"), t("titan.condition.restrained"))
+		immunityParts = append(immunityParts, t("titan.immunity.movement_effects"))
 	}
 	return strings.Join(resistanceParts, ", "), strings.Join(immunityParts, ", "), strings.Join(conditionParts, ", "), resistanceAdvantage
 }
@@ -1015,7 +1009,7 @@ type titanSpecializationOption struct {
 	Description string
 }
 
-func (s *server) loadTitanSpecializationOptions() ([]titanSpecializationOption, error) {
+func (s *server) loadTitanSpecializationOptions(locale string) ([]titanSpecializationOption, error) {
 	rows, err := s.rulesDB.Query(
 		`SELECT slug, name, description FROM class_options WHERE class_slug = ? AND list_name = ? ORDER BY sort_order`,
 		scienceNinSlug, titanSpecializationsListName)
@@ -1024,65 +1018,46 @@ func (s *server) loadTitanSpecializationOptions() ([]titanSpecializationOption, 
 	}
 	defer rows.Close()
 	var out []titanSpecializationOption
+	var slugs []string
 	for rows.Next() {
 		var o titanSpecializationOption
 		if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
 			return nil, err
 		}
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translated[out[i].Slug]
+		if tr["name"] != "" {
+			out[i].Name = tr["name"]
+		}
+		if tr["description"] != "" {
+			out[i].Description = tr["description"]
+		}
+	}
+	return out, nil
 }
 
-// titanUpgradeStatLinePattern peels a Titan Upgrades entry's own leading
+// parseTitanUpgradeStatLine parses a Titan Upgrades entry's own leading
 // "Cost: N Creation Points Keyword: Mech|Weapon (Drain: N CCD Chakra)?"
-// stat line off the front of its description — a different shape from
-// science_nin.go's scienceNinToolStatLinePattern (no catalog there needs to
-// parse a Keyword clause). Confirmed against every one of the 19 real Titan
-// Upgrades entries plus the Mastercraft tier's own bundled Bijuu Slayer
-// text before writing this pattern — Sturdy Frame is the one entry with no
-// Drain line at all (a passive upgrade with no CCD activation cost), which
-// is why that whole group is optional.
-//
-// Every run of literal spaces here is \s+, not a single space: the
-// Mastercraft tier's own bundled Bijuu Slayer text has a genuine
-// PDF-extraction double space ("Cost: 32  Creation Points") between the
-// number and "Creation" that the other 19 entries don't — confirmed via
-// sqlite3 directly against rules.db's class_options row. A single literal
-// space there silently failed to match this ONE entry, falling through to
-// parseTitanUpgradeStatLine's own idx<0 fallback (cost=0, keyword="",
-// rest=the full raw text unstripped) — which meant Bijuu Slayer displayed
-// with a blank Keyword and, far worse, was installable for 0 Creation
-// Points instead of its real cost of 32 (titanEffectiveUpgradeCost/
-// addTitanSlotPick both trust this catalog Cost unconditionally), and was
-// never disabled by the picker's own affordability check regardless of the
-// character's remaining budget.
-var titanUpgradeStatLinePattern = regexp.MustCompile(
-	`^Cost:\s+(\d+)\s+Creation Points?\s+Keyword:\s+(Mech|Weapon)(?:\s+Drain:\s+(\d+)\s+CCD Chakra)?\s*`)
-
-// parseTitanUpgradeStatLine locates the "Cost:" stat line within raw (which
-// for the Mastercraft tier's own bundled text is preceded by "BIJUU SLAYER
-// ", the item's own name folded into the description since it was never
-// split into its own class_option_entries row — for every other entry
-// nothing precedes "Cost:" at all) and parses it, returning the remaining
-// body text with the stat line stripped.
+// stat line — a thin wrapper over internal/statlines.ParseTitanUpgrade, the
+// single shared implementation cmd/n5e-i18n's export tool also uses to
+// strip this same stat line before it is ever sent to DeepL for
+// translation (see that package's header doc). Because the stat line never
+// reaches a translation, content_translations' own "description" value for
+// this table is already just the free-prose body — loadTitanUpgradeCatalog
+// (below) uses it directly with no separate "guess where the translated
+// stat line ends" step.
 func parseTitanUpgradeStatLine(raw string) (cost, drain int, keyword, rest string) {
-	idx := strings.Index(raw, "Cost:")
-	if idx < 0 {
-		return 0, 0, "", raw
-	}
-	trimmed := raw[idx:]
-	m := titanUpgradeStatLinePattern.FindStringSubmatch(trimmed)
-	if m == nil {
-		return 0, 0, "", raw
-	}
-	cost, _ = strconv.Atoi(m[1])
-	keyword = strings.ToLower(m[2])
-	if m[3] != "" {
-		drain, _ = strconv.Atoi(m[3])
-	}
-	rest = strings.TrimSpace(trimmed[len(m[0]):])
-	return cost, drain, keyword, rest
+	return statlines.ParseTitanUpgrade(raw)
 }
 
 // titanUpgradeOption is one individually named Titan Upgrades entry.
@@ -1101,7 +1076,7 @@ type titanUpgradeOption struct {
 // Tools' own tiers are) plus the Mastercraft tier's own single bundled item
 // (Bijuu Slayer, read directly off the tier's class_options row — see this
 // file's header doc for why it was never split).
-func (s *server) loadTitanUpgradeCatalog() ([]titanUpgradeOption, error) {
+func (s *server) loadTitanUpgradeCatalog(locale string) ([]titanUpgradeOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT e.slug, e.name, e.description, o.name
 		FROM class_option_entries e
@@ -1114,6 +1089,7 @@ func (s *server) loadTitanUpgradeCatalog() ([]titanUpgradeOption, error) {
 	defer rows.Close()
 
 	var out []titanUpgradeOption
+	var slugs []string
 	for rows.Next() {
 		var o titanUpgradeOption
 		var raw string
@@ -1122,23 +1098,53 @@ func (s *server) loadTitanUpgradeCatalog() ([]titanUpgradeOption, error) {
 		}
 		o.Cost, o.Drain, o.Keyword, o.Description = parseTitanUpgradeStatLine(raw)
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	var mastercraftSlug, mastercraftDesc string
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_option_entries", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translated[out[i].Slug]
+		if tr["name"] != "" {
+			out[i].Name = tr["name"]
+		}
+		if tr["description"] != "" {
+			// content_translations' own "description" value never contains
+			// the stat line at all -- cmd/n5e-i18n's export tool strips it
+			// (via internal/statlines.StripForTranslation) before the text
+			// is ever sent to DeepL, so this is already just the translated
+			// free-prose body, usable as-is. Cost/Drain/Keyword themselves
+			// are never re-derived from a translation regardless (parsed
+			// from raw above, before this loop).
+			out[i].Description = tr["description"]
+		}
+	}
+
+	var mastercraftSlug, mastercraftDescEN string
 	err = s.rulesDB.QueryRow(`
 		SELECT slug, description FROM class_options
 		WHERE class_slug = ? AND list_name = ? AND name = 'Mastercraft'`,
 		scienceNinSlug, titanUpgradesListName,
-	).Scan(&mastercraftSlug, &mastercraftDesc)
+	).Scan(&mastercraftSlug, &mastercraftDescEN)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	if err == nil {
 		o := titanUpgradeOption{Slug: mastercraftSlug, Name: "Bijuu Slayer", Tier: "Mastercraft"}
-		o.Cost, o.Drain, o.Keyword, o.Description = parseTitanUpgradeStatLine(mastercraftDesc)
+		// Cost/Drain/Keyword always come from the ENGLISH raw text -- never
+		// re-derive them from mastercraftDescEN after it's been overwritten
+		// with a translation below.
+		o.Cost, o.Drain, o.Keyword, o.Description = parseTitanUpgradeStatLine(mastercraftDescEN)
+		if tr, terr := i18n.Row(s.rulesDB, locale, "class_options", mastercraftSlug); terr == nil {
+			if v, ok := tr["description"]; ok && v != "" {
+				o.Description = v
+			}
+		}
 		out = append(out, o)
 	}
 	return out, nil
@@ -1247,7 +1253,9 @@ func (s *server) titanUpgradesCreationPointsSpend(characterID int64, granted []g
 		}
 	}
 
-	catalog, err := s.loadTitanUpgradeCatalog()
+	// Locale doesn't matter here: only Cost/Keyword are read below, never a
+	// display field.
+	catalog, err := s.loadTitanUpgradeCatalog("")
 	if err != nil {
 		return 0, err
 	}
@@ -1286,7 +1294,7 @@ func (s *server) titanUpgradesCreationPointsSpend(characterID int64, granted []g
 // Training granted — the template gates the whole Titan reference panel's
 // existence on this being non-nil (via loadTitanReference), same treatment
 // loadScienceNinTabData's own nil return gets.
-func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet) (*titanUpgradesData, error) {
+func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet, locale string) (*titanUpgradesData, error) {
 	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
 	if err != nil {
 		return nil, err
@@ -1299,7 +1307,9 @@ func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet
 		return nil, nil
 	}
 
-	scienceNinData, err := s.loadScienceNinTabData(characterID, sheet)
+	// Locale doesn't matter here: only the numeric CreationPoints fields
+	// are read below, never a display field.
+	scienceNinData, err := s.loadScienceNinTabData(characterID, sheet, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1327,7 +1337,7 @@ func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet
 		}
 	}
 
-	catalog, err := s.loadTitanUpgradeCatalog()
+	catalog, err := s.loadTitanUpgradeCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1531,8 +1541,8 @@ var titanFeatureDefs = []struct {
 // shows a short explanatory line instead of the whole panel in that case
 // (see the "titan_reference" template's own top guard), the same shape a
 // kind="nin-dog" companion falls back to before a breed is chosen.
-func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, companion charstore.Companion) (*titanReference, error) {
-	upgrades, err := s.loadTitanUpgradesData(characterID, sheet)
+func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, companion charstore.Companion, locale string) (*titanReference, error) {
+	upgrades, err := s.loadTitanUpgradesData(characterID, sheet, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1545,7 +1555,7 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		return nil, err
 	}
 
-	specOptions, err := s.loadTitanSpecializationOptions()
+	specOptions, err := s.loadTitanSpecializationOptions(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1559,11 +1569,22 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 
 	var features []companionFeatureRef
 	for _, fd := range titanFeatureDefs {
-		var desc string
-		if err := s.rulesDB.QueryRow(`SELECT description FROM v_subclass_features WHERE slug = ?`, fd.Slug).Scan(&desc); err != nil && err != sql.ErrNoRows {
+		var name, desc string
+		if err := s.rulesDB.QueryRow(`SELECT name, description FROM v_subclass_features WHERE slug = ?`, fd.Slug).Scan(&name, &desc); err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
-		features = append(features, companionFeatureRef{Name: fd.Name, Level: fd.Level, Description: desc, Locked: sheet.Level < fd.Level})
+		if tr, terr := i18n.Row(s.rulesDB, locale, "subclass_features", fd.Slug); terr == nil {
+			if v, ok := tr["name"]; ok && v != "" {
+				name = v
+			}
+			if v, ok := tr["description"]; ok && v != "" {
+				desc = v
+			}
+		}
+		if name == "" {
+			name = fd.Name
+		}
+		features = append(features, companionFeatureRef{Name: name, Level: fd.Level, Description: desc, Locked: sheet.Level < fd.Level})
 	}
 
 	legionAbility1, err := charstore.GetFeatureCompanionChoice(s.charDB, characterID, titanLegionAbilityBonusFeatureSlug, companion.ID, 0)
@@ -1647,12 +1668,12 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 		Level:                      sheet.Level,
 		Size:                       size,
 		ProficiencyBonus:           sheet.ProficiencyBonus,
-		Senses:                     titanSenses,
+		Senses:                     titanSenses(locale),
 		PassivePerception:          sheet.PassivePerception + intMod,
 		SteadyImprovementASIPoints: 1 + sheet.ProficiencyBonus,
 
-		BaseTraits:     titanBaseTraits,
-		BashAttackText: titanBashAttackText,
+		BaseTraits:     titanBaseTraits(locale),
+		BashAttackText: titanBashAttackText(locale),
 
 		HasBijuuSlayer: hasBijuuSlayer,
 
@@ -1686,8 +1707,8 @@ func (s *server) loadTitanReference(characterID int64, sheet *charsheet.Sheet, c
 	// named-upgrade effect in this file already uses (titanBashDamageSteps/
 	// applyTitanSturdyFrameSaves/the Bijuu Slayer size check above), instead
 	// of a fourth hand-rolled KnownUpgrades/ExoSuit.Known loop.
-	ref.Resistances, ref.Immunities, ref.ConditionImmunities, ref.ResistanceAdvantageText = titanResistancesImmunities(ref)
-	ref.UpgradeAbilities = titanResolvedUpgradeAbilities(ref, sheet)
+	ref.Resistances, ref.Immunities, ref.ConditionImmunities, ref.ResistanceAdvantageText = titanResistancesImmunities(ref, locale)
+	ref.UpgradeAbilities = titanResolvedUpgradeAbilities(ref, sheet, locale)
 
 	return ref, nil
 }
@@ -1717,7 +1738,9 @@ func (s *server) prefillTitanStatDefaults(characterID, companionID int64) error 
 	if err != nil {
 		return err
 	}
-	ref, err := s.loadTitanReference(characterID, sheet, companion)
+	// Locale doesn't matter here: only the numeric Expected* fields are read
+	// below, never a display field.
+	ref, err := s.loadTitanReference(characterID, sheet, companion, "")
 	if err != nil || ref == nil {
 		return err
 	}
@@ -1797,7 +1820,7 @@ func (s *server) addTitanSlotPick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for titan upgrade add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadTitanUpgradesData(id, sheet)
+	data, err := s.loadTitanUpgradesData(id, sheet, "")
 	if err != nil {
 		log.Println("load titan upgrades for add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1865,7 +1888,7 @@ func (s *server) addTitanExoSuitPick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for titan exo-suit upgrade add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadTitanUpgradesData(id, sheet)
+	data, err := s.loadTitanUpgradesData(id, sheet, "")
 	if err != nil {
 		log.Println("load titan upgrades for exo-suit add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -2012,7 +2035,7 @@ func (s *server) handleTitanSpecialistCraftingKeywordSet(w http.ResponseWriter, 
 // catalog is static rules content.
 func (s *server) handleTitanUpgradeDetail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	catalog, err := s.loadTitanUpgradeCatalog()
+	catalog, err := s.loadTitanUpgradeCatalog(localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load titan upgrade catalog for detail:", err)

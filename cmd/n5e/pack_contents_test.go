@@ -141,7 +141,7 @@ func TestUnpackInventoryItem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	inventory, err := srv.loadCharacterInventory(1)
+	inventory, err := srv.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}

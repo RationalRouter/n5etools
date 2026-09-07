@@ -129,7 +129,7 @@ func TestLoadCookingToolInfusionView(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	view, err := s.loadCookingToolInfusionView(1, 1)
+	view, err := s.loadCookingToolInfusionView(1, 1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestLoadCookingToolInfusionView(t *testing.T) {
 		t.Errorf("at 1st level neither the 6th nor 11th property row should be available: %+v", view)
 	}
 
-	view, err = s.loadCookingToolInfusionView(1, 6)
+	view, err = s.loadCookingToolInfusionView(1, 6, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestLoadCookingToolInfusionView(t *testing.T) {
 		t.Errorf("at 6th level only the 6th property row should be available: %+v", view)
 	}
 
-	view, err = s.loadCookingToolInfusionView(1, 11)
+	view, err = s.loadCookingToolInfusionView(1, 11, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestHandleCookingToolImplementEquipsInventory(t *testing.T) {
 	if err := s.syncCookingToolInfusionInventory(1, "weapon/cooking-tool-frying-pan"); err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestHandleCookingToolImplementEquipsInventory(t *testing.T) {
 	if err := s.syncCookingToolInfusionInventory(1, "weapon/cooking-tool-ladle"); err != nil {
 		t.Fatal(err)
 	}
-	inv, err = s.loadCharacterInventory(1)
+	inv, err = s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestHandleCookingToolImplementEquipsInventory(t *testing.T) {
 	if err := s.syncCookingToolInfusionInventory(1, ""); err != nil {
 		t.Fatal(err)
 	}
-	inv, err = s.loadCharacterInventory(1)
+	inv, err = s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestBuildAttacksCookingToolInfusionOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestCookingToolInfusionPipeGating(t *testing.T) {
 	if level != 3 {
 		t.Fatalf("level 3 Herbalist: effective level = %d, want 3 (granted)", level)
 	}
-	view, err := s.loadCookingToolInfusionPipeView(2, level)
+	view, err := s.loadCookingToolInfusionPipeView(2, level, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestCookingToolInfusionPipeGating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err = s.loadCookingToolInfusionPipeView(3, level)
+	view, err = s.loadCookingToolInfusionPipeView(3, level, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +477,7 @@ func TestCookingToolInfusionPipeGating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err = s.loadCookingToolInfusionPipeView(4, level)
+	view, err = s.loadCookingToolInfusionPipeView(4, level, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,7 +525,7 @@ func TestBuildAttacksCookingToolInfusionPipeOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -579,19 +579,19 @@ func TestCookingNinFoodForTheSoulAdvantageEntry(t *testing.T) {
 	}
 
 	t.Run("no pick yet yields nil", func(t *testing.T) {
-		if entry := cookingNinFoodForTheSoulAdvantageEntry(granted, ""); entry != nil {
+		if entry := cookingNinFoodForTheSoulAdvantageEntry(granted, "", ""); entry != nil {
 			t.Errorf("entry = %+v, want nil for an unmade pick", entry)
 		}
 	})
 
 	t.Run("feature not granted yields nil even with a stale pick", func(t *testing.T) {
-		if entry := cookingNinFoodForTheSoulAdvantageEntry(nil, "str"); entry != nil {
+		if entry := cookingNinFoodForTheSoulAdvantageEntry(nil, "str", ""); entry != nil {
 			t.Errorf("entry = %+v, want nil when the character hasn't reached the feature", entry)
 		}
 	})
 
 	t.Run("a made pick resolves to the full ability label", func(t *testing.T) {
-		entry := cookingNinFoodForTheSoulAdvantageEntry(granted, "wis")
+		entry := cookingNinFoodForTheSoulAdvantageEntry(granted, "wis", "")
 		if entry == nil {
 			t.Fatalf("entry = nil, want a resolved Advantage entry")
 		}
@@ -611,7 +611,7 @@ func TestCookingNinFoodForTheSoulAdvantageEntry(t *testing.T) {
 		if len(traits.Advantages) != 0 {
 			t.Fatalf("Advantages before merge = %+v, want none (not a static advantageGrants entry)", traits.Advantages)
 		}
-		traits = mergePassiveAdvantage(traits, cookingNinFoodForTheSoulAdvantageEntry(granted, "str"))
+		traits = mergePassiveAdvantage(traits, cookingNinFoodForTheSoulAdvantageEntry(granted, "str", ""))
 		if len(traits.Advantages) != 1 {
 			t.Fatalf("Advantages after merge = %+v, want exactly 1 entry", traits.Advantages)
 		}

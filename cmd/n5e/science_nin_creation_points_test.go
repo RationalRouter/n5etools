@@ -111,7 +111,7 @@ func loadScienceNinCPData(t *testing.T, s *server, characterID int64) *scienceNi
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadScienceNinTabData(characterID, sheet)
+	data, err := s.loadScienceNinTabData(characterID, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func loadTitanCPData(t *testing.T, s *server, characterID int64) *titanUpgradesD
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadTitanUpgradesData(characterID, sheet)
+	data, err := s.loadTitanUpgradesData(characterID, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

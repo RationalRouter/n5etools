@@ -229,7 +229,7 @@ func TestPuppetFrameworkJutsuOptionsLevelGating(t *testing.T) {
 			seedFrameworkJutsu(t, s, "jutsu/test-genjutsu-c", "Genjutsu", "C")
 			seedFrameworkJutsu(t, s, "jutsu/test-genjutsu-b", "Genjutsu", "B")
 			for slot, want := range []bool{c.wantD, c.wantC, c.wantB} {
-				opts, err := shadeFrameworkJutsuOptions(s, 1, 1, slot)
+				opts, err := shadeFrameworkJutsuOptions(s, 1, 1, slot, "")
 				if err != nil {
 					t.Fatalf("shadeFrameworkJutsuOptions(slot %d): %v", slot, err)
 				}
@@ -259,7 +259,7 @@ func TestPuppetFrameworkJutsuOptionsClassification(t *testing.T) {
 	seedFrameworkJutsu(t, s, "jutsu/test-ninjutsu-d", "Ninjutsu", "D")
 	seedFrameworkJutsu(t, s, "jutsu/test-taijutsu-d", "Taijutsu", "D")
 
-	shadeOpts, err := shadeFrameworkJutsuOptions(s, 1, 1, 0)
+	shadeOpts, err := shadeFrameworkJutsuOptions(s, 1, 1, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +276,7 @@ func TestPuppetFrameworkJutsuOptionsClassification(t *testing.T) {
 		}
 	}
 
-	spellbladeOpts, err := spellbladeFrameworkJutsuOptions(s, 1, 1, 0)
+	spellbladeOpts, err := spellbladeFrameworkJutsuOptions(s, 1, 1, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestPuppetFrameworkJutsuOptionsOutOfRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, slot := range []int{-1, 3, 4} {
-		opts, err := shadeFrameworkJutsuOptions(s, 1, 1, slot)
+		opts, err := shadeFrameworkJutsuOptions(s, 1, 1, slot, "")
 		if err != nil {
 			t.Fatalf("slot %d: %v", slot, err)
 		}

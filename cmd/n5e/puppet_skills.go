@@ -59,8 +59,12 @@ var puppetFlatSkillGrants = map[string][]string{
 // companion) — resolvePuppetSkills is still what each companion card's own
 // list uses to show its own, possibly-higher, per-companion number.
 type generalizedSkillPickRow struct {
-	Name     string
-	Modifier int
+	// Name is the raw skill name, matched by handleGeneralizedSkillDelete's
+	// own URL path against charstore.RemoveGeneralizedSkill — kept in
+	// English regardless of locale. DisplayName is the translated label.
+	Name        string
+	DisplayName string
+	Modifier    int
 }
 
 // puppetGeneralizedSkillCap returns how many skills a character can have
@@ -100,7 +104,8 @@ func puppetGeneralizedSkillCap(sheet *charsheet.Sheet, level int, subclassColor 
 // make, alongside its Puppet Master — same shape as charsheet.SkillEntry
 // (Name/Ability/Proficient/Modifier) so the Puppet Skills box can be laid
 // out exactly like the Core tab's own Skills box, grouped by ability with
-// the same proficiency-dot styling.
+// the same proficiency-dot styling. Name is display-only here — nothing
+// reads it back from a form — so it carries the translated label directly.
 type puppetSkillRow struct {
 	Name       string
 	Ability    string
@@ -169,7 +174,7 @@ func groupPuppetSkillsByAbility(skills []puppetSkillRow) []puppetSkillGroupRow {
 // matching sheet.Skills' own ability-then-name order groupPuppetSkillsByAbility
 // assumes); only the modifier itself is recomputed from the overridden
 // ability. nil/empty is the common case (no override at all).
-func resolvePuppetSkills(sheet *charsheet.Sheet, companion charstore.Companion, globalPicks, upgradeSlugs []string, abilityOverride map[string]string) []puppetSkillGroupRow {
+func resolvePuppetSkills(sheet *charsheet.Sheet, companion charstore.Companion, globalPicks, upgradeSlugs []string, abilityOverride map[string]string, locale string) []puppetSkillGroupRow {
 	if sheet == nil || len(sheet.Skills) == 0 {
 		return nil
 	}
@@ -197,7 +202,7 @@ func resolvePuppetSkills(sheet *charsheet.Sheet, companion charstore.Companion, 
 				modifier += sheet.ProficiencyBonus
 			}
 		}
-		row := puppetSkillRow{Name: sk.Name, Ability: sk.Ability, Proficient: sk.Proficient, Modifier: modifier}
+		row := puppetSkillRow{Name: skillDisplayName(locale, sk.Name), Ability: sk.Ability, Proficient: sk.Proficient, Modifier: modifier}
 		if flatGrantedNames[sk.Name] && !row.Proficient {
 			row.Proficient = true
 			row.Modifier = charsheet.CheckModifier(sheet.Abilities[readAbility].Modifier, sheet.ProficiencyBonus, true)

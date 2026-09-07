@@ -71,7 +71,7 @@ func TestPuppetSwarmStatsNoPuppets(t *testing.T) {
 
 func TestLoadPuppetSwarmReferenceTextMissingRow(t *testing.T) {
 	s := testServer(t)
-	got, err := s.loadPuppetSwarmReferenceText()
+	got, err := s.loadPuppetSwarmReferenceText("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestLoadPuppetSwarmReferenceTextFound(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.loadPuppetSwarmReferenceText()
+	got, err := s.loadPuppetSwarmReferenceText("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestLoadPuppetsTabDataPuppetSwarmGating(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			data, err := s.loadPuppetsTabData(1, sheet)
+			data, err := s.loadPuppetsTabData(1, sheet, "")
 			if err != nil {
 				t.Fatal(err)
 			}

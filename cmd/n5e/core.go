@@ -250,6 +250,21 @@ type stanceRow struct {
 	Description   string
 }
 
+// overlayStanceTranslation applies a content_translations overlay onto a
+// stance row in place. tr may be nil/empty (no translation yet, or English
+// locale) -- every field left untouched keeps its English value.
+func overlayStanceTranslation(st *stanceRow, tr map[string]string) {
+	if v, ok := tr["name"]; ok {
+		st.Name = v
+	}
+	if v, ok := tr["prerequisites"]; ok {
+		st.Prerequisites = sql.NullString{String: v, Valid: true}
+	}
+	if v, ok := tr["description"]; ok {
+		st.Description = v
+	}
+}
+
 func (s *server) handleStances(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, stance_type, prerequisites, description FROM fighting_stances`)
@@ -277,21 +292,41 @@ func (s *server) handleStances(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := localeFromContext(r.Context())
+	var allSlugs []string
+	for _, stances := range byType {
+		for _, st := range stances {
+			allSlugs = append(allSlugs, st.Slug)
+		}
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "fighting_stances", allSlugs)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("translate stances:", err)
+		return
+	}
+	for kind, stances := range byType {
+		for i := range stances {
+			overlayStanceTranslation(&stances[i], translations[stances[i].Slug])
+		}
+		byType[kind] = stances
+	}
+
 	type stanceGroup struct {
-		Label   string
-		Stances []stanceRow
+		LabelKey string
+		Stances  []stanceRow
 	}
 	var groups []stanceGroup
-	for _, g := range []struct{ kind, label string }{
-		{"taijutsu", "Taijutsu Stances"},
-		{"bukijutsu", "Bukijutsu Stances"},
+	for _, g := range []struct{ kind, labelKey string }{
+		{"taijutsu", "stances.group_taijutsu"},
+		{"bukijutsu", "stances.group_bukijutsu"},
 	} {
 		stances := byType[g.kind]
 		if len(stances) == 0 {
 			continue
 		}
 		sort.Slice(stances, func(i, k int) bool { return sortKey(stances[i].Name) < sortKey(stances[k].Name) })
-		groups = append(groups, stanceGroup{Label: g.label, Stances: stances})
+		groups = append(groups, stanceGroup{LabelKey: g.labelKey, Stances: stances})
 	}
 
 	s.render(w, r, "stances.html", map[string]any{"Title": "Fighting Stances", "Groups": groups})
@@ -315,13 +350,16 @@ func (s *server) handleStanceDetail(w http.ResponseWriter, r *http.Request) {
 		log.Println("query stance detail:", err)
 		return
 	}
-
-	label := "Taijutsu Stance"
-	if stanceType.String == "bukijutsu" {
-		label = "Bukijutsu Stance"
+	if tr, err := i18n.Row(s.rulesDB, localeFromContext(r.Context()), "fighting_stances", st.Slug); err == nil {
+		overlayStanceTranslation(&st, tr)
 	}
 
-	s.render(w, r, "stance_detail.html", map[string]any{"Title": st.Name, "Stance": st, "TypeLabel": label})
+	labelKey := "stance_detail.type_taijutsu"
+	if stanceType.String == "bukijutsu" {
+		labelKey = "stance_detail.type_bukijutsu"
+	}
+
+	s.render(w, r, "stance_detail.html", map[string]any{"Title": st.Name, "Stance": st, "TypeLabelKey": labelKey})
 }
 
 // ---- Feats ----------------------------------------------------------------
@@ -544,6 +582,26 @@ func (s *server) handleSeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sealSlugs := make([]string, len(seals))
+	for i, sw := range seals {
+		sealSlugs[i] = sw.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, localeFromContext(r.Context()), "equipment", sealSlugs)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("translate seals:", err)
+		return
+	}
+	for i := range seals {
+		tr := translations[seals[i].Slug]
+		if v, ok := tr["name"]; ok {
+			seals[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			seals[i].Description = sql.NullString{String: v, Valid: true}
+		}
+	}
+
 	sort.Slice(seals, func(i, k int) bool {
 		if seals[i].AppliesTo != seals[k].AppliesTo {
 			return seals[i].AppliesTo < seals[k].AppliesTo
@@ -592,6 +650,14 @@ func (s *server) handleSealDetail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("query seal detail:", err)
 		return
+	}
+	if tr, err := i18n.Row(s.rulesDB, localeFromContext(r.Context()), "equipment", sw.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			sw.Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			sw.Description = sql.NullString{String: v, Valid: true}
+		}
 	}
 
 	appliesToLabel := ""

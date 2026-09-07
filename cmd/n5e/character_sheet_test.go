@@ -948,7 +948,7 @@ func TestSheetWeaponAttackOptions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		inv, err := s.loadCharacterInventory(1)
+		inv, err := s.loadCharacterInventory(1, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1052,7 +1052,7 @@ func TestBuildAttacksIncludesExplosiveTagsAndBombs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.loadCharacterInventory(1)
+	inv, err := s.loadCharacterInventory(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4026,7 +4026,7 @@ func TestLoadClassSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := s.loadClassSummary(1)
+	rows, err := s.loadClassSummary(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}

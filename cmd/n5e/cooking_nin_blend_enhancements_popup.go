@@ -53,7 +53,7 @@ func (s *server) handleBlendEnhancementsPopup(w http.ResponseWriter, r *http.Req
 		log.Println("compute sheet for blend enhancements popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet)
+	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for blend enhancements popup:", err)

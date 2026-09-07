@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 type itemPropertyRow struct {
@@ -20,33 +21,37 @@ type itemPropertyRow struct {
 }
 
 type itemRow struct {
-	Slug           string
-	Name           string
-	Kind           string
-	KindLabel      string
-	CostRyo        sql.NullFloat64
-	WeightLb       sql.NullFloat64
-	Description    sql.NullString
-	DamageDice     sql.NullString
-	DamageType     sql.NullString
-	WeaponCategory sql.NullString
-	AmmoDie        sql.NullString
-	ACBonus        sql.NullInt64
-	ArmorCategory  sql.NullString
-	ArmorAbility1  sql.NullString
-	ArmorAbility2  sql.NullString
-	ArmorMaxMod    sql.NullFloat64
-	StrengthReq    sql.NullInt64
-	StealthDisadv  sql.NullInt64
-	Bulk           sql.NullFloat64
-	Charges        sql.NullInt64
-	CraftDC        sql.NullInt64
-	HealAmount     sql.NullString
-	RegainType     sql.NullString
-	Uses           sql.NullInt64
-	BonusEffect    sql.NullString
-	SaveDC         sql.NullInt64
-	Properties     []itemPropertyRow
+	Slug                  string
+	Name                  string
+	Kind                  string
+	KindLabel             string
+	CostRyo               sql.NullFloat64
+	WeightLb              sql.NullFloat64
+	Description           sql.NullString
+	DamageDice            sql.NullString
+	DamageType            sql.NullString
+	DamageTypeDisplay     string
+	WeaponCategory        sql.NullString
+	WeaponCategoryDisplay string
+	AmmoDie               sql.NullString
+	ACBonus               sql.NullInt64
+	ArmorCategory         sql.NullString
+	ArmorCategoryDisplay  string
+	HealTextDisplay       string
+	ArmorAbility1         sql.NullString
+	ArmorAbility2         sql.NullString
+	ArmorMaxMod           sql.NullFloat64
+	StrengthReq           sql.NullInt64
+	StealthDisadv         sql.NullInt64
+	Bulk                  sql.NullFloat64
+	Charges               sql.NullInt64
+	CraftDC               sql.NullInt64
+	HealAmount            sql.NullString
+	RegainType            sql.NullString
+	Uses                  sql.NullInt64
+	BonusEffect           sql.NullString
+	SaveDC                sql.NullInt64
+	Properties            []itemPropertyRow
 
 	// Custom-only fields, from the local item library (custom_items in
 	// characters.db — see charstore.CustomItem and loadCustomItem). Zero for
@@ -67,23 +72,37 @@ type itemRow struct {
 	BaseDescription string
 }
 
-// HealText renders heal_amount/regain_type as one plain-English string —
+// computeHealText renders heal_amount/regain_type as one translated string —
 // e.g. "2d6+5 HP", "2d6+2 Chakra", "2d10+5 Temp HP & Chakra" — so the
 // template can pass it straight through diceAvg like every other
 // dice-notation field. Returns "" (falsy in a template {{if}}) when the
 // item doesn't grant a heal/regain at all (most gear/tools don't).
-func (it itemRow) HealText() string {
+func computeHealText(tr i18n.TranslateFunc, it itemRow) string {
 	if !it.HealAmount.Valid {
 		return ""
 	}
-	label := "HP"
+	label := tr("sheet.hp_word")
 	switch it.RegainType.String {
 	case "chakra":
-		label = "Chakra"
+		label = tr("sheet.chakra_word")
 	case "temp_hp_chakra":
-		label = "Temp HP & Chakra"
+		label = tr("partial_item_detail.temp_hp_and_chakra")
 	}
 	return it.HealAmount.String + " " + label
+}
+
+// applyItemDisplayFields fills in the tr-derived display fields (KindLabel,
+// WeaponCategoryDisplay, ArmorCategoryDisplay, DamageTypeDisplay,
+// HealTextDisplay) on an already-scanned row -- the enum columns themselves
+// are deliberately excluded from content_translations (see
+// internal/i18n/fields.go's equipment comment), so they're translated
+// through the UI catalog here instead, at load time, once tr is available.
+func applyItemDisplayFields(tr i18n.TranslateFunc, it *itemRow) {
+	it.KindLabel = itemKindLabel(tr, it.Kind)
+	it.WeaponCategoryDisplay = translateEnumDisplay(tr, weaponCategoryCatalogKey, it.WeaponCategory.String)
+	it.ArmorCategoryDisplay = translateEnumDisplay(tr, armorCategoryCatalogKey, it.ArmorCategory.String)
+	it.DamageTypeDisplay = translateEnumDisplay(tr, damageTypeCatalogKey, it.DamageType.String)
+	it.HealTextDisplay = computeHealText(tr, *it)
 }
 
 // ArmorAbilityText renders the armor's ability-derived AC term(s) in plain
@@ -148,22 +167,26 @@ func (it itemRow) ArmorFilterCategory() string {
 	return equipmentFilterCategory(it.Kind, "armor", it.ArmorCategory.String)
 }
 
-// itemKindLabels fixes the section order (Weapons before Armor) and display
-// name — enhancement seals keep their own dedicated /seals page (bespoke
-// rank/applies-to grouping) and aren't folded in here.
-var itemKindLabels = []struct{ kind, label string }{
-	{"weapon", "Weapons"},
-	{"armor", "Armor"},
-	{"gear", "Gear"},
-	{"tool", "Tools"},
-	{"toolkit", "Toolkits"},
-	{"scroll", "Scrolls"},
+// itemKindLabels fixes the section order (Weapons before Armor) and the
+// UI-catalog key for its display name — enhancement seals keep their own
+// dedicated /seals page (bespoke rank/applies-to grouping) and aren't
+// folded in here.
+var itemKindLabels = []struct{ kind, catalogKey string }{
+	{"weapon", "item_kind.weapon"},
+	{"armor", "item_kind.armor"},
+	{"gear", "item_kind.gear"},
+	{"tool", "item_kind.tool"},
+	{"toolkit", "item_kind.toolkit"},
+	{"scroll", "item_kind.scroll"},
 }
 
-func itemKindLabel(kind string) string {
+// itemKindLabel translates kind's display name via tr, falling back to the
+// raw kind string for anything not in itemKindLabels (shouldn't happen for
+// a catalogue row, but keeps this total rather than panicking).
+func itemKindLabel(tr i18n.TranslateFunc, kind string) string {
 	for _, k := range itemKindLabels {
 		if k.kind == kind {
-			return k.label
+			return tr(k.catalogKey)
 		}
 	}
 	return kind
@@ -178,6 +201,44 @@ func kindSortOrder(kind string) int {
 	return len(itemKindLabels)
 }
 
+// weaponCategoryCatalogKey/armorCategoryCatalogKey/damageTypeCatalogKey map
+// a content table's raw enum value (weapon_category/armor_category/
+// damage_type — internal/i18n/fields.go deliberately excludes these from
+// content_translations since they're machine-parsed enums, not prose) to
+// its UI-catalog key. A value with no entry (a custom item's freeform
+// typed text, or a future enum member this map hasn't been taught) passes
+// through unchanged rather than showing a raw catalog key.
+var weaponCategoryCatalogKey = map[string]string{
+	"simple": "weapon_category.simple", "martial": "weapon_category.martial", "exotic": "weapon_category.exotic",
+}
+
+var armorCategoryCatalogKey = map[string]string{
+	"light": "armor_category.light", "medium": "armor_category.medium", "heavy": "armor_category.heavy",
+}
+
+var damageTypeCatalogKey = map[string]string{
+	"Slashing": "damage_type.slashing", "Piercing": "damage_type.piercing", "Bludgeoning": "damage_type.bludgeoning",
+	"Fire": "damage_type.fire", "Cold": "damage_type.cold", "Lightning": "damage_type.lightning", "Variable": "damage_type.variable",
+}
+
+// translateEnumDisplay looks up value in catalog (case-insensitively for
+// weapon/armor category, which the DB stores lowercase) and translates it
+// via tr; a compound value like damage_type's "Slashing/Piercing" is split
+// on "/" and each half translated independently, then rejoined. Falls back
+// to the original value for anything catalog doesn't recognize.
+func translateEnumDisplay(tr i18n.TranslateFunc, catalog map[string]string, value string) string {
+	if value == "" {
+		return value
+	}
+	parts := strings.Split(value, "/")
+	for i, p := range parts {
+		if key, ok := catalog[p]; ok {
+			parts[i] = tr(key)
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
 // loadItemProperties fills in it.Properties for a single already-scanned
 // row — weapon and armor properties are normalized into separate
 // tables/junctions (equipment_properties/weapon_properties vs.
@@ -189,14 +250,16 @@ func kindSortOrder(kind string) int {
 // properties appear here automatically the moment that gap is closed, no
 // code change needed — same "no code needed once data exists" pattern
 // properties.go already established for the two property kinds.
-func loadItemProperties(rulesDB *sql.DB, it *itemRow) error {
-	var query string
+func loadItemProperties(rulesDB *sql.DB, it *itemRow, locale string) error {
+	var query, table string
 	switch it.Kind {
 	case "weapon":
+		table = "weapon_properties"
 		query = `SELECT wp.slug, wp.name, ep.detail, wp.description
 			FROM equipment_properties ep JOIN weapon_properties wp ON wp.slug = ep.property_slug
 			WHERE ep.equipment_slug = ? ORDER BY wp.name`
 	case "armor":
+		table = "armor_properties"
 		query = `SELECT ap.slug, ap.name, eap.detail, ap.description
 			FROM equipment_armor_properties eap JOIN armor_properties ap ON ap.slug = eap.property_slug
 			WHERE eap.equipment_slug = ? ORDER BY ap.name`
@@ -215,7 +278,31 @@ func loadItemProperties(rulesDB *sql.DB, it *itemRow) error {
 		}
 		it.Properties = append(it.Properties, p)
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if len(it.Properties) == 0 {
+		return nil
+	}
+	slugs := make([]string, len(it.Properties))
+	for i, p := range it.Properties {
+		slugs[i] = p.Slug
+	}
+	translations, err := i18n.Batch(rulesDB, locale, table, slugs)
+	if err != nil {
+		return err
+	}
+	for i := range it.Properties {
+		tr := translations[it.Properties[i].Slug]
+		if v, ok := tr["name"]; ok {
+			it.Properties[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			it.Properties[i].Description = v
+		}
+	}
+	return nil
 }
 
 const itemSelectColumns = `slug, name, kind, cost_ryo, weight_lb, description,
@@ -231,7 +318,6 @@ func scanItemRow(scan func(dest ...any) error) (itemRow, error) {
 		&it.ACBonus, &it.ArmorCategory, &it.ArmorAbility1, &it.ArmorAbility2, &it.ArmorMaxMod,
 		&it.StrengthReq, &it.StealthDisadv, &it.Bulk,
 		&it.Charges, &it.CraftDC, &it.HealAmount, &it.RegainType, &it.Uses, &it.BonusEffect, &it.SaveDC)
-	it.KindLabel = itemKindLabel(it.Kind)
 	return it, err
 }
 
@@ -239,7 +325,7 @@ func scanItemRow(scan func(dest ...any) error) (itemRow, error) {
 // are loaded per-row (71 weapons + 32 armor today — consistent with the
 // app's existing N+1-at-this-scale tolerance, see e.g. classes.go's
 // per-level resource loop).
-func loadItems(rulesDB *sql.DB) ([]itemRow, error) {
+func loadItems(rulesDB *sql.DB, locale string) ([]itemRow, error) {
 	rows, err := rulesDB.Query(`SELECT ` + itemSelectColumns + ` FROM v_equipment
 		WHERE kind IN ('weapon','armor','gear','tool','toolkit','scroll')`)
 	if err != nil {
@@ -259,8 +345,32 @@ func loadItems(rulesDB *sql.DB) ([]itemRow, error) {
 		return nil, err
 	}
 
+	slugs := make([]string, len(items))
+	for i, it := range items {
+		slugs[i] = it.Slug
+	}
+	translations, err := i18n.Batch(rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	tr := i18n.Translator(locale)
+
+	// Overlay name/description before expandKitReference: its "See X."
+	// pattern is English-only and matches against whatever's in Description
+	// at the time it runs, so translating first makes it correctly no-op
+	// (leaving the full translated text alone) for locales where the
+	// pattern can't match, instead of splitting an English-only pattern out
+	// of already-translated prose.
 	for i := range items {
-		if err := loadItemProperties(rulesDB, &items[i]); err != nil {
+		trRow := translations[items[i].Slug]
+		if v, ok := trRow["name"]; ok {
+			items[i].Name = v
+		}
+		if v, ok := trRow["description"]; ok {
+			items[i].Description = sql.NullString{String: v, Valid: true}
+		}
+		applyItemDisplayFields(tr, &items[i])
+		if err := loadItemProperties(rulesDB, &items[i], locale); err != nil {
 			return nil, err
 		}
 		if err := expandKitReference(rulesDB, &items[i]); err != nil {
@@ -336,7 +446,7 @@ func expandKitReference(rulesDB *sql.DB, it *itemRow) error {
 // lookup rather than filtering loadItems' full result, since
 // items-filter.js calls this on every list click and there's no reason to
 // re-scan and re-sort ~250 rows just to find one.
-func loadItem(rulesDB *sql.DB, slug string) (*itemRow, error) {
+func loadItem(rulesDB *sql.DB, slug string, locale string) (*itemRow, error) {
 	row := rulesDB.QueryRow(`SELECT `+itemSelectColumns+` FROM v_equipment
 		WHERE slug = ? AND kind IN ('weapon','armor','gear','tool','toolkit','scroll')`, slug)
 	it, err := scanItemRow(row.Scan)
@@ -346,7 +456,16 @@ func loadItem(rulesDB *sql.DB, slug string) (*itemRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := loadItemProperties(rulesDB, &it); err != nil {
+	if trRow, err := i18n.Row(rulesDB, locale, "equipment", it.Slug); err == nil {
+		if v, ok := trRow["name"]; ok {
+			it.Name = v
+		}
+		if v, ok := trRow["description"]; ok {
+			it.Description = sql.NullString{String: v, Valid: true}
+		}
+	}
+	applyItemDisplayFields(i18n.Translator(locale), &it)
+	if err := loadItemProperties(rulesDB, &it, locale); err != nil {
 		return nil, err
 	}
 	if err := expandKitReference(rulesDB, &it); err != nil {
@@ -361,7 +480,7 @@ func loadItem(rulesDB *sql.DB, slug string) (*itemRow, error) {
 // item_detail_card template renders it exactly like a catalogue item, plus
 // the handful of custom-only fields the card's own "Edit this item" block
 // uses.
-func (s *server) loadCustomItem(slug string) (*itemRow, error) {
+func (s *server) loadCustomItem(slug string, locale string) (*itemRow, error) {
 	item, err := charstore.GetCustomItemBySlug(s.charDB, slug)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -370,7 +489,7 @@ func (s *server) loadCustomItem(slug string) (*itemRow, error) {
 		return nil, err
 	}
 	it := itemRow{
-		Slug: item.Slug, Name: item.Name, Kind: item.Kind, KindLabel: itemKindLabel(item.Kind),
+		Slug: item.Slug, Name: item.Name, Kind: item.Kind, KindLabel: itemKindLabel(i18n.Translator(locale), item.Kind),
 		Bulk:           item.Bulk,
 		DamageType:     sql.NullString{String: item.DamageType, Valid: item.DamageType != ""},
 		Description:    sql.NullString{String: item.Description, Valid: item.Description != ""},
@@ -388,6 +507,7 @@ func (s *server) loadCustomItem(slug string) (*itemRow, error) {
 		it.DamageCount, it.DamageSides = count, sides
 		it.DamageDice = sql.NullString{String: item.DamageDice, Valid: true}
 	}
+	it.DamageTypeDisplay = translateEnumDisplay(i18n.Translator(locale), damageTypeCatalogKey, it.DamageType.String)
 	return &it, nil
 }
 
@@ -396,7 +516,7 @@ type itemGroup struct {
 	Items []itemRow
 }
 
-func groupItems(items []itemRow) []itemGroup {
+func groupItems(tr i18n.TranslateFunc, items []itemRow) []itemGroup {
 	var groups []itemGroup
 	for _, k := range itemKindLabels {
 		var inKind []itemRow
@@ -408,7 +528,7 @@ func groupItems(items []itemRow) []itemGroup {
 		if len(inKind) == 0 {
 			continue
 		}
-		groups = append(groups, itemGroup{Label: k.label, Items: inKind})
+		groups = append(groups, itemGroup{Label: tr(k.catalogKey), Items: inKind})
 	}
 	return groups
 }
@@ -421,13 +541,14 @@ func groupItems(items []itemRow) []itemGroup {
 // exact same Go template the standalone detail page and this initial
 // render both use, instead of duplicating the card markup in JS.
 func (s *server) handleItems(w http.ResponseWriter, r *http.Request) {
-	items, err := loadItems(s.rulesDB)
+	locale := localeFromContext(r.Context())
+	items, err := loadItems(s.rulesDB, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load items:", err)
 		return
 	}
-	groups := groupItems(items)
+	groups := groupItems(i18n.Translator(locale), items)
 
 	var selected *itemRow
 	if len(groups) > 0 && len(groups[0].Items) > 0 {
@@ -450,12 +571,13 @@ func (s *server) handleItemDetail(w http.ResponseWriter, r *http.Request) {
 	// never a rules.db row — see loadCustomItem and CustomItem's doc
 	// comment. Same "slug prefix picks the table" dispatch inventoryRow.
 	// DetailHref and lookupCarriedItem already use for this.
+	locale := localeFromContext(r.Context())
 	var item *itemRow
 	var err error
 	if strings.HasPrefix(slug, "custom/") {
-		item, err = s.loadCustomItem(slug)
+		item, err = s.loadCustomItem(slug, locale)
 	} else {
-		item, err = loadItem(s.rulesDB, slug)
+		item, err = loadItem(s.rulesDB, slug, locale)
 	}
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)

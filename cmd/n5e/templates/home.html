@@ -1,23 +1,6 @@
 {{define "content"}}
 <div class="home-layout">
   <section class="hero">
-    {{/* Only visible here, not in the shared nav — the switcher's own
-         markup lives solely in this page, so it naturally never renders
-         anywhere else. Plain form POSTs (no JS) to /settings/locale, same
-         no-JS-required convention as the rest of the app's navigation;
-         the cookie it sets is read by every page via resolveLocale, so
-         switching here changes the whole site's language even though the
-         buttons themselves are home-page-only. */}}
-    <div class="locale-switcher">
-      <form method="post" action="/settings/locale">
-        <input type="hidden" name="locale" value="en">
-        <button type="submit" class="locale-btn{{if eq .Locale "en"}} locale-btn-active{{end}}">{{T "locale.name.en"}}</button>
-      </form>
-      <form method="post" action="/settings/locale">
-        <input type="hidden" name="locale" value="es">
-        <button type="submit" class="locale-btn{{if eq .Locale "es"}} locale-btn-active{{end}}">{{T "locale.name.es"}}</button>
-      </form>
-    </div>
     <h1>N5etools</h1>
     <p>{{T "home.tagline"}}</p>
     <p class="hero-actions">
@@ -36,11 +19,11 @@
     <h2>{{T "home.patch_notes_heading"}}</h2>
     <p class="page-subtitle">{{T "home.patch_notes_subtitle"}}</p>
     <ul>
-      <li><span class="patch-date">Sep 02, 2026</span>{{T "home.patch_1"}}</li>
-      <li><span class="patch-date">Aug 30, 2026</span>{{T "home.patch_2"}}</li>
+      <li><span class="patch-date">Sep 07, 2026</span>{{T "home.patch_1"}}</li>
+      <li><span class="patch-date">Sep 02, 2026</span>{{T "home.patch_2"}}</li>
       <li><span class="patch-date">Aug 30, 2026</span>{{T "home.patch_3"}}</li>
       <li><span class="patch-date">Aug 30, 2026</span>{{T "home.patch_4"}}</li>
-      <li><span class="patch-date">Aug 26, 2026</span>{{T "home.patch_5"}}</li>
+      <li><span class="patch-date">Aug 30, 2026</span>{{T "home.patch_5"}}</li>
       <li><span class="patch-date">Aug 26, 2026</span>{{T "home.patch_6"}}</li>
       <li><span class="patch-date">Aug 26, 2026</span>{{T "home.patch_7"}}</li>
       <li><span class="patch-date">Aug 26, 2026</span>{{T "home.patch_8"}}</li>

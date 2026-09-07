@@ -14,7 +14,7 @@
       {{range .Groups}}
       <h3 class="browse-group-heading" data-kind-heading>{{.Label}}</h3>
       {{range .Items}}
-      <a class="browse-row" href="/items/{{.Slug}}" data-slug="{{.Slug}}" data-kind="{{.Kind}}" data-name="{{.Name}}"
+      <a class="browse-row" href="/items/{{.Slug}}" data-slug="{{.Slug}}" data-kind="{{.Kind}}" data-kind-label="{{.KindLabel}}" data-name="{{.Name}}"
          {{with .WeaponFilterCategory}}data-weapon-category="{{.}}"{{end}}{{with .ArmorFilterCategory}}data-armor-category="{{.}}"{{end}}>
         <span class="browse-row-name">{{.Name}}</span>
         {{if .CostRyo.Valid}}<span class="browse-row-meta">{{T "items.cost_ryo" .CostRyo.Float64}}</span>{{end}}

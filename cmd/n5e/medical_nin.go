@@ -10,6 +10,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Medical-Nin's own mechanics, closing the base-class-wide gaps
@@ -450,7 +451,7 @@ func medicalDoctrineCap(level int) int {
 // their own level, medicalDoctrineCap handles that) rather than
 // hand-transcribing their names/text, mirroring
 // loadGenjutsuConversionCatalog's identical shape.
-func (s *server) loadMedicalDoctrineCatalog() ([]medicalDoctrineOption, error) {
+func (s *server) loadMedicalDoctrineCatalog(locale string) ([]medicalDoctrineOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_features
 		WHERE class_slug = ? AND slug IN (?, ?, ?, ?)
@@ -468,6 +469,26 @@ func (s *server) loadMedicalDoctrineCatalog() ([]medicalDoctrineOption, error) {
 			return nil, err
 		}
 		out = append(out, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_features", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
 	}
 	return out, rows.Err()
 }
@@ -673,7 +694,7 @@ type medicalNinTabData struct {
 // loadMedicalNinTabData returns nil for a character with no Medical-Nin
 // levels and none of the 3 archetype-training feats — mirrors
 // loadHunterTechniquesTabData's identical widened gate.
-func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet) (*medicalNinTabData, error) {
+func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*medicalNinTabData, error) {
 	level, err := s.medicalNinClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -710,7 +731,7 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 
 	data.DoctrineCap = medicalDoctrineCap(level) + arch.doctrineBonus()
 	if data.DoctrineCap > 0 {
-		catalog, err := s.loadMedicalDoctrineCatalog()
+		catalog, err := s.loadMedicalDoctrineCatalog(locale)
 		if err != nil {
 			return nil, err
 		}
@@ -733,7 +754,7 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 		if err != nil {
 			return nil, err
 		}
-		stanceOptions, err := s.loadTaijutsuStanceOptions()
+		stanceOptions, err := s.loadTaijutsuStanceOptions(locale)
 		if err != nil {
 			return nil, err
 		}
@@ -793,7 +814,7 @@ func (s *server) handleMedicalDoctrineAdd(w http.ResponseWriter, r *http.Request
 		log.Println("compute sheet for medical doctrine add:", err)
 		return
 	}
-	data, err := s.loadMedicalNinTabData(id, sheet)
+	data, err := s.loadMedicalNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load medical-nin for doctrine add:", err)
@@ -878,7 +899,7 @@ func (s *server) setMedicalNinFightingStance(id int64, slug string) (int, string
 	if level < 2 || subclassSlug != combatMedicSubclassSlug {
 		return http.StatusBadRequest, "character has no Martial Competency stance choice available"
 	}
-	options, err := s.loadTaijutsuStanceOptions()
+	options, err := s.loadTaijutsuStanceOptions("")
 	if err != nil {
 		log.Println("load taijutsu stance options:", err)
 		return http.StatusInternalServerError, "database error"
@@ -928,7 +949,7 @@ func (s *server) addExpertCombatantPick(id int64, jutsuID int64) (int, string) {
 		log.Println("compute sheet for expert combatant add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadMedicalNinTabData(id, sheet)
+	data, err := s.loadMedicalNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load medical-nin for expert combatant add:", err)
 		return http.StatusInternalServerError, "database error"

@@ -9,6 +9,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Ninjaneer's own weapon designations — WHICH specific owned weapon (a
@@ -101,8 +102,8 @@ var (
 // eligible to be designated an Enhanced/Legendary/Perfected Weapon. A
 // custom item qualifies the same way it does for the Attacks & Jutsu table
 // itself (buildAttacks): RollableKind == "weapon", not its free-text Kind.
-func (s *server) loadNinjaneerCandidateWeapons(characterID int64) ([]ninjaneerWeaponOption, error) {
-	inventory, err := s.loadCharacterInventory(characterID)
+func (s *server) loadNinjaneerCandidateWeapons(characterID int64, locale string) ([]ninjaneerWeaponOption, error) {
+	inventory, err := s.loadCharacterInventory(characterID, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +134,11 @@ func (s *server) loadNinjaneerCandidateWeapons(characterID int64) ([]ninjaneerWe
 				return nil, err
 			}
 			description = d.String
+			if tr, err := i18n.Row(s.rulesDB, locale, "equipment", item.Slug); err == nil {
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
 		}
 		out = append(out, ninjaneerWeaponOption{InventoryID: item.ID, Name: item.Name, ItemHref: item.DetailHref(), Description: description})
 	}
@@ -388,7 +394,9 @@ func (s *server) addNinjaneerWeaponDesignation(tier ninjaneerWeaponDesignationTi
 	if len(existing) > 0 {
 		return http.StatusBadRequest, "a weapon is already designated — clear it first"
 	}
-	candidates, err := s.loadNinjaneerCandidateWeapons(id)
+	// Locale doesn't matter here: only InventoryID is checked, never a
+	// display field.
+	candidates, err := s.loadNinjaneerCandidateWeapons(id, "")
 	if err != nil {
 		log.Println("load ninjaneer candidate weapons:", err)
 		return http.StatusInternalServerError, "database error"

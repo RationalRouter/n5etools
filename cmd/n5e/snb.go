@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // This file is the S.N.B (Scientific Ninja Beast) stat block — Science-Nin's
@@ -116,21 +117,42 @@ const snbBaseSpeed = 30 // ft. — flat, no stated progression (unlike Nin-Dog's
 // place, corrected here to "Condition Immunities", the header that
 // actually belongs in front of a condition list in every other creature
 // stat block in rules.db.
+// English fallback values for the const-shaped fields below — kept as
+// plain Go constants (not just catalog entries) so every non-template
+// caller (tests, the "en"/"" locale fast path) still compiles against a
+// real string, and so TestNoOrphanKeys-style catalog auditing has an
+// obvious English source of truth to check the catalog against. The
+// TRANSLATED text a request actually renders comes from the "snb.*" UI
+// catalog keys (locales/*.json) via the small helpers just below —
+// see this file's header doc for why this content lives in the UI
+// catalog rather than a rules.db table: it was never ingested as
+// individually addressable rows in the first place (hand-transcribed
+// from a run-on PDF-extraction blob, the same treatment titanBaseTraits
+// documents for Titan's own equivalent text).
 const (
-	snbDamageImmunities    = "Psychic, Poison"
-	snbDamageResistances   = "Acid"
-	snbConditionImmunities = "Charmed, Exhaustion, Frightened, Poisoned"
-	snbSenses              = "Darkvision (30 feet)"
+	snbDamageImmunitiesEN    = "Psychic, Poison"
+	snbDamageResistancesEN   = "Acid"
+	snbConditionImmunitiesEN = "Charmed, Exhaustion, Frightened, Poisoned"
+	snbSensesEN              = "Darkvision (30 feet)"
 )
 
-// snbBiteDescription: "Melee Weapon Attack: Your Intelligence modifier +
+// snbBiteDescriptionEN: "Melee Weapon Attack: Your Intelligence modifier +
 // Your Prof Bonus to hit, reach 5 ft., one target. Hit: 1d6 + Your
 // Intelligence modifier piercing damage. The damage die for this attack
 // increases to a d8 at Level 9 and then a d10 at Level 14." — shown
 // verbatim as reference text; the rollable Attacks row itself (
 // snbBiteAttack) computes the CURRENT die size fresh every render instead
-// of re-parsing this string.
-const snbBiteDescription = "Melee Weapon Attack: Your Intelligence modifier + Your Prof Bonus to hit, reach 5 ft., one target. Hit: 1d6 + Your Intelligence modifier piercing damage. The damage die for this attack increases to a d8 at Level 9 and then a d10 at Level 14."
+// of re-parsing this string. See the const block above for why this is an
+// "EN" constant, translated via the UI catalog ("snb.bite_description")
+// rather than read live.
+const snbBiteDescriptionEN = "Melee Weapon Attack: Your Intelligence modifier + Your Prof Bonus to hit, reach 5 ft., one target. Hit: 1d6 + Your Intelligence modifier piercing damage. The damage die for this attack increases to a d8 at Level 9 and then a d10 at Level 14."
+
+// snbBiteDescription returns the locale-appropriate Bite reference text —
+// snbBiteAttack (the rollable row) also calls this so both surfaces render
+// the exact same translated sentence.
+func snbBiteDescription(locale string) string {
+	return i18n.Translator(locale)("snb.bite_description")
+}
 
 // snbBaseTraits: the base stat block's own named traits, hand-transcribed
 // verbatim from the same run-on description text this file's header doc
@@ -142,10 +164,22 @@ const snbBiteDescription = "Melee Weapon Attack: Your Intelligence modifier + Yo
 // inline as prose within its own entry instead of split into a separate
 // Feature, the same "embedded level check inside the trait text itself"
 // treatment titanBaseTraits gives Steady Improvement's own bonus-ASI math).
-var snbBaseTraits = []companionFeatureRef{
-	{Name: "Artificial Intelligence", Description: "The Scientific Ninja Beast is programmed to respond only to its creator; however, it can still perform basic functions when not commanded. If the Scientific Ninja Beast has not received any commands on a turn, it will take the Dodge action. If its master is incapacitated in any way, it will choose an ally of theirs who can now use their bonus action to direct the Scientific Ninja Beast."},
-	{Name: "Bio-Organic Identifier", Description: "Your S.N.B can spend 1 minute analyzing a sample of a substance that is organic in nature; it can identify what the substance is, its regional origin, and how old it is. Beginning at 15th level, you have connected your S.N.B to a DNA database. At DM discretion, when your S.N.B successfully identifies a substance as blood, it may be able to determine who the blood belongs to, if your S.N.B has successfully hit the creature with a melee Bite attack and has dealt damage to the target's Hit Points."},
-	{Name: "Internal Radio Link", Description: "You can issue orders to your S.N.B as long as you are within 1 mile of it."},
+// snbBaseTraitKeys: the UI catalog key infix for each trait, in display
+// order — pure display text (never matched/persisted anywhere), so unlike
+// snbCombatProgrammingOptions below there's no separate Key/Name split to
+// make here.
+var snbBaseTraitKeys = []string{"artificial_intelligence", "bio_organic_identifier", "internal_radio_link"}
+
+func snbBaseTraits(locale string) []companionFeatureRef {
+	t := i18n.Translator(locale)
+	out := make([]companionFeatureRef, len(snbBaseTraitKeys))
+	for i, key := range snbBaseTraitKeys {
+		out[i] = companionFeatureRef{
+			Name:        t("snb.trait." + key + ".name"),
+			Description: t("snb.trait." + key + ".desc"),
+		}
+	}
+	return out
 }
 
 // snbFeatureDefs: S.N.B Specialist's own subclass features that are plain
@@ -173,11 +207,48 @@ var snbFeatureDefs = []struct {
 // unlike every other Science-Nin subclass's own cap+catalog picks
 // (science_nin_subclasses.go), since the whole feature is one bundled
 // prose block rather than a real ingested list_name.
-var snbCombatProgrammingOptions = []companionFeatureRef{
-	{Name: "Striker", Description: "Your S.N.B gains the Multiattack trait, allowing it to make two attacks using its natural weapons."},
-	{Name: "Caster", Description: "Your S.N.B gains the ability to learn jutsu and a number of Jutsu Slots equal to 1/4th your Science-Nin level (rounded down). You can spend 3 Weeks of downtime programming a jutsu into your S.N.B, and it can learn a number of jutsu equal to half your proficiency bonus. The highest ranked jutsu your S.N.B can learn is always one rank lower than your current highest rank jutsu known, as indicated by your class table."},
-	{Name: "Defensive", Description: "Your S.N.B gains a bonus to its AC equal to 1/3rd your Proficiency Bonus (rounded down)."},
-	{Name: "Lurker", Description: "Your S.N.B gains the Lethal Attack trait. Once per turn, your S.N.B can deal extra damage to one creature it hits with an attack if another enemy of the target is within 5 feet of it. This extra damage is Xd8 (X = half your Science-Nin level)."},
+// snbCombatProgrammingOption pairs a stable, English, lowercase Key (the
+// value actually submitted by the picker form and persisted via
+// SetFeatureCompanionChoice/read back by GetFeatureCompanionChoice) with a
+// translated display Name/Description — the same "value vs. label" split
+// characters.go's translateBackgroundProfOptions establishes for the
+// background Skill/Toolkit picker, needed here for the identical reason:
+// the submitted <input value> round-trips into character_feature_companion_choices
+// and is later compared bare in snbAC ("Defensive" -> now "defensive"), so
+// it can never be the translated text.
+//
+// Backward compatible with rows persisted before this split existed (the
+// exact English Name, e.g. "Defensive"): every key here is that same name
+// lowercased with no other transformation, so strings.ToLower on an old
+// value normalizes to the identical key — see snbCombatProgrammingKey.
+type snbCombatProgrammingOption struct {
+	Key         string
+	Name        string
+	Description string
+}
+
+var snbCombatProgrammingKeys = []string{"striker", "caster", "defensive", "lurker"}
+
+func snbCombatProgrammingOptions(locale string) []snbCombatProgrammingOption {
+	t := i18n.Translator(locale)
+	out := make([]snbCombatProgrammingOption, len(snbCombatProgrammingKeys))
+	for i, key := range snbCombatProgrammingKeys {
+		out[i] = snbCombatProgrammingOption{
+			Key:         key,
+			Name:        t("snb.combat_programming." + key + ".name"),
+			Description: t("snb.combat_programming." + key + ".desc"),
+		}
+	}
+	return out
+}
+
+// snbCombatProgrammingKey normalizes a Combat Programming pick — either a
+// key already stored post-fix ("defensive") or a pre-fix English Name
+// ("Defensive") — to its stable lowercase key. See
+// snbCombatProgrammingOption's own doc for why this makes both forms
+// equivalent with no migration needed.
+func snbCombatProgrammingKey(pick string) string {
+	return strings.ToLower(pick)
 }
 
 // snbEffectiveAbilityModifier resolves one ability's modifier for a fixed
@@ -235,7 +306,7 @@ func snbAC(proficiencyBonus, level int, combatProgrammingPick string, hasArmored
 		}
 	}
 	ac := base + proficiencyBonus
-	if combatProgrammingPick == "Defensive" {
+	if snbCombatProgrammingKey(combatProgrammingPick) == "defensive" {
 		ac += proficiencyBonus / 3
 	}
 	return ac
@@ -315,11 +386,11 @@ func snbBiteDieForLevel(level int) int {
 // read as the PLAYER's own, same reasoning as snbMaxHP's own doc.
 // accuracyBonus is Improved Accuracy's own to-hit bonus (0 when not known;
 // see snbImprovedAccuracyBonus).
-func snbBiteAttack(level, playerIntMod, ownerProfBonus, accuracyBonus int) companionAttackRow {
+func snbBiteAttack(level, playerIntMod, ownerProfBonus, accuracyBonus int, locale string) companionAttackRow {
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
 			Name:        "Bite",
-			Description: snbBiteDescription,
+			Description: snbBiteDescription(locale),
 			DamageCount: 1,
 			DamageSides: snbBiteDieForLevel(level),
 			DamageType:  "piercing",
@@ -354,8 +425,12 @@ type snbReference struct {
 	Features []companionFeatureRef // Combo Attack/Improved Servos/Artificial Sentience/Regenerative Armor/Future of Shinobi: S.N.B, Locked by level
 
 	CombatProgrammingUnlocked bool
-	CombatProgrammingOptions  []companionFeatureRef // Striker/Caster/Defensive/Lurker
-	CombatProgrammingPick     string
+	CombatProgrammingOptions  []snbCombatProgrammingOption // Striker/Caster/Defensive/Lurker
+	// CombatProgrammingPick is the stable lowercase Key (see
+	// snbCombatProgrammingOption's own doc), never the translated Name —
+	// callers compare it to a Key, and the "already picked" template branch
+	// matches it against .Key, not .Name.
+	CombatProgrammingPick string
 
 	// KnownUpgrades: every known S.N.B Upgrade with its own full
 	// description text, shown on the companion sheet itself — most of these
@@ -413,7 +488,7 @@ func snbReferenceOrZero(ref *snbReference) snbReference {
 // granting class, so this computes purely from the character's own total
 // level/ability scores/proficiency bonus, the same "any companion of this
 // kind gets its reference panel" shape loadNinDogReference already uses.
-func (s *server) loadSNBReference(characterID int64, companion charstore.Companion, sheet *charsheet.Sheet) (*snbReference, error) {
+func (s *server) loadSNBReference(characterID int64, companion charstore.Companion, sheet *charsheet.Sheet, locale string) (*snbReference, error) {
 	level := sheet.Level
 	profBonus := sheet.ProficiencyBonus
 	playerIntMod := sheet.Abilities["int"].Modifier
@@ -422,6 +497,7 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 	if err != nil {
 		return nil, err
 	}
+	pick = snbCombatProgrammingKey(pick) // normalizes both post-fix keys and pre-fix English Names — see its own doc
 
 	var features []companionFeatureRef
 	for _, fd := range snbFeatureDefs {
@@ -429,14 +505,25 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 		if err := s.rulesDB.QueryRow(`SELECT description FROM v_subclass_features WHERE slug = ?`, fd.Slug).Scan(&desc); err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
-		features = append(features, companionFeatureRef{Name: fd.Name, Level: fd.Level, Description: desc, Locked: level < fd.Level})
+		name := fd.Name
+		if tr, err := i18n.Row(s.rulesDB, locale, "subclass_features", fd.Slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				desc = v
+			}
+		} else {
+			return nil, err
+		}
+		features = append(features, companionFeatureRef{Name: name, Level: fd.Level, Description: desc, Locked: level < fd.Level})
 	}
 
 	// Known S.N.B Upgrades — see this file's own header doc and
 	// snbReference.KnownUpgrades' own doc for why every known upgrade is
 	// listed here (full text) while only a few are also folded into the
 	// Expected* numeric fields below.
-	upgradeCatalog, err := s.loadScienceNinEntryCatalog("S.N.B Upgrades", false)
+	upgradeCatalog, err := s.loadScienceNinEntryCatalog("S.N.B Upgrades", false, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -512,23 +599,24 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 		return nil, err
 	}
 
+	t := i18n.Translator(locale)
 	return &snbReference{
 		Level:               level,
 		ProficiencyBonus:    profBonus,
 		Size:                size,
-		Senses:              snbSenses,
-		Immunities:          snbDamageImmunities,
-		Resistances:         snbDamageResistances,
-		ConditionImmunities: snbConditionImmunities,
+		Senses:              t("snb.senses"),
+		Immunities:          t("snb.damage_immunities"),
+		Resistances:         t("snb.damage_resistances"),
+		ConditionImmunities: t("snb.condition_immunities"),
 		PassivePerception:   10 + snbEffectiveAbilityModifier(companion, "wis"),
 		HitDiceMax:          level,
-		BiteDescription:     snbBiteDescription,
+		BiteDescription:     snbBiteDescription(locale),
 
-		Traits:   snbBaseTraits,
+		Traits:   snbBaseTraits(locale),
 		Features: features,
 
 		CombatProgrammingUnlocked: level >= 6,
-		CombatProgrammingOptions:  snbCombatProgrammingOptions,
+		CombatProgrammingOptions:  snbCombatProgrammingOptions(locale),
 		CombatProgrammingPick:     pick,
 
 		KnownUpgrades: knownUpgrades,
@@ -568,7 +656,7 @@ func (s *server) prefillSNBStatDefaults(characterID, companionID int64) error {
 	if err != nil {
 		return err
 	}
-	ref, err := s.loadSNBReference(characterID, companion, sheet)
+	ref, err := s.loadSNBReference(characterID, companion, sheet, "") // numeric fields only — text fields are never read here
 	if err != nil || ref == nil {
 		return err
 	}
@@ -621,10 +709,10 @@ func (s *server) handleSNBCombatProgrammingPick(w http.ResponseWriter, r *http.R
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	optionName := strings.TrimSpace(r.FormValue("option_name"))
+	optionKey := strings.TrimSpace(r.FormValue("option_key"))
 	valid := false
-	for _, o := range snbCombatProgrammingOptions {
-		if o.Name == optionName {
+	for _, key := range snbCombatProgrammingKeys {
+		if key == optionKey {
 			valid = true
 		}
 	}
@@ -633,7 +721,7 @@ func (s *server) handleSNBCombatProgrammingPick(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := charstore.SetFeatureCompanionChoice(s.charDB, id, snbCombatProgrammingFeatureSlug, cid, 0, optionName); err != nil {
+	if err := charstore.SetFeatureCompanionChoice(s.charDB, id, snbCombatProgrammingFeatureSlug, cid, 0, optionKey); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("set snb combat programming pick:", err)
 		return

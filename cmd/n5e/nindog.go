@@ -10,6 +10,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // This file is the Nin-Dog stat block — the Inuzuka clan's Beast Master
@@ -415,9 +416,9 @@ func (s *server) loadNinDogFeaturePicks(characterID, companionID int64) (map[int
 // Special Features (summon_tribe_features, tribe_slug="summon/dog-wolf") —
 // the same catalog summonTribeReference already reads for an ordinary
 // kind="summon" companion, reused here as the picker's own option list.
-func (s *server) loadNinDogSpecialFeatures() ([]companionFeatureRef, error) {
+func (s *server) loadNinDogSpecialFeatures(locale string) ([]companionFeatureRef, error) {
 	rows, err := s.rulesDB.Query(
-		`SELECT name, rank, description FROM summon_tribe_features WHERE tribe_slug = ? ORDER BY sort_order`,
+		`SELECT slug, name, rank, description FROM summon_tribe_features WHERE tribe_slug = ? ORDER BY sort_order`,
 		ninDogDogWolfTribeSlug,
 	)
 	if err != nil {
@@ -425,14 +426,33 @@ func (s *server) loadNinDogSpecialFeatures() ([]companionFeatureRef, error) {
 	}
 	defer rows.Close()
 	var out []companionFeatureRef
+	var slugs []string
 	for rows.Next() {
+		var slug string
 		var f companionFeatureRef
-		if err := rows.Scan(&f.Name, &f.Rank, &f.Description); err != nil {
+		if err := rows.Scan(&slug, &f.Name, &f.Rank, &f.Description); err != nil {
 			return nil, err
 		}
+		slugs = append(slugs, slug)
 		out = append(out, f)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "summon_tribe_features", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i, slug := range slugs {
+		tr := translations[slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // ninDogKnownHijutsu returns the character's own known Inuzuka Clan
@@ -582,11 +602,11 @@ func ninDogReferenceOrZero(ref *ninDogReference) ninDogReference {
 	return *ref
 }
 
-func (s *server) loadNinDogReference(characterID int64, companion charstore.Companion, characterLevel int) (*ninDogReference, error) {
+func (s *server) loadNinDogReference(characterID int64, companion charstore.Companion, characterLevel int, locale string) (*ninDogReference, error) {
 	rank := ninDogRankForLevel(characterLevel)
 	currentOrder := summonRankOrder[rank]
 
-	features, err := s.loadNinDogSpecialFeatures()
+	features, err := s.loadNinDogSpecialFeatures(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -623,10 +643,20 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 	).Scan(&jutsuSpecialtyText); err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "summon_tribes", ninDogDogWolfTribeSlug); err != nil {
+		return nil, err
+	} else if v, ok := tr["jutsu_specialty_text"]; ok {
+		jutsuSpecialtyText = v
+	}
 	if err := s.rulesDB.QueryRow(
 		`SELECT description FROM summon_tribe_attacks WHERE tribe_slug = ? AND name = 'Bite'`, ninDogDogWolfTribeSlug,
 	).Scan(&biteDescription); err != nil && err != sql.ErrNoRows {
 		return nil, err
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "summon_tribe_attacks", ninDogDogWolfTribeSlug+i18n.KeySeparator+"Bite"); err != nil {
+		return nil, err
+	} else if v, ok := tr["description"]; ok {
+		biteDescription = v
 	}
 
 	// overrides: this Nin-Dog's own manual pins (companionOverrideFields),
@@ -791,7 +821,7 @@ func (s *server) prefillNinDogStatDefaults(characterID, companionID int64) error
 	if err != nil {
 		return err
 	}
-	ref, err := s.loadNinDogReference(characterID, companion, sheet.Level)
+	ref, err := s.loadNinDogReference(characterID, companion, sheet.Level, "")
 	if err != nil || ref == nil {
 		return err
 	}
@@ -861,7 +891,7 @@ func (s *server) handleNinDogFeaturePick(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	features, err := s.loadNinDogSpecialFeatures()
+	features, err := s.loadNinDogSpecialFeatures("")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load nin-dog special features:", err)

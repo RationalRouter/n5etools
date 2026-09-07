@@ -11,6 +11,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Superiority Dice is base-class-wide (all 9 subclasses grant their own
@@ -731,7 +732,7 @@ type knownScoutNinPick struct {
 // loadMedicalDoctrineCatalog's identical shape, generalized to take any
 // slug list since Scout-Nin has two of these (Shinobi Adept, Jack of All)
 // rather than Medical-Nin's one.
-func (s *server) loadScoutNinFeatureCatalog(slugs []string) ([]scoutNinPickOption, error) {
+func (s *server) loadScoutNinFeatureCatalog(locale string, slugs []string) ([]scoutNinPickOption, error) {
 	placeholders := make([]string, len(slugs))
 	args := make([]any, 0, len(slugs)+1)
 	args = append(args, scoutNinSlug)
@@ -755,7 +756,38 @@ func (s *server) loadScoutNinFeatureCatalog(slugs []string) ([]scoutNinPickOptio
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return translateScoutNinPickOptions(s.rulesDB, locale, "class_features", out)
+}
+
+// translateScoutNinPickOptions overlays i18n translations onto a catalog's
+// Name/Description, keyed by slug — shared by every Scout-Nin catalog
+// loader so each only needs to name its own source table. Callers whose
+// catalog also feeds keyword-based English text matching (e.g.
+// loadScoutNinManeuverCatalog's "Keyword: Tactical"/"Keyword: Specialized"
+// markers) must run that matching BEFORE translating, never after —
+// translated prose can't be relied on to still contain the English marker.
+func translateScoutNinPickOptions(db *sql.DB, locale, table string, in []scoutNinPickOption) ([]scoutNinPickOption, error) {
+	slugs := make([]string, len(in))
+	for i, o := range in {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(db, locale, table, slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range in {
+		tr := translations[in[i].Slug]
+		if v, ok := tr["name"]; ok {
+			in[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			in[i].Description = v
+		}
+	}
+	return in, nil
 }
 
 // loadScoutNinManeuverCatalog reads one subclass's own Maneuvers catalog —
@@ -797,7 +829,7 @@ func (s *server) loadScoutNinManeuverCatalog(subclassSlug string) ([]scoutNinPic
 // "Keyword: Specialized" marker per that feature's own "If the Maneuver has
 // the Specialized keyword, you cannot take it" restriction. No list_name is
 // returned since results span more than one subclass's own named catalog.
-func (s *server) loadScoutNinManeuverCatalogForSubclasses(subclassSlugs []string) ([]scoutNinPickOption, error) {
+func (s *server) loadScoutNinManeuverCatalogForSubclasses(locale string, subclassSlugs []string) ([]scoutNinPickOption, error) {
 	placeholders := make([]string, len(subclassSlugs))
 	args := make([]any, 0, len(subclassSlugs)+1)
 	args = append(args, scoutNinSlug)
@@ -823,7 +855,10 @@ func (s *server) loadScoutNinManeuverCatalogForSubclasses(subclassSlugs []string
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return translateScoutNinPickOptions(s.rulesDB, locale, "class_options", out)
 }
 
 // filterScoutNinManeuversByKeyword returns the subset of a Maneuvers
@@ -844,7 +879,7 @@ func filterScoutNinManeuversByKeyword(catalog []scoutNinPickOption, keyword stri
 // live from the jutsu table — mirrors loadScoutNinFeatureCatalog's shape,
 // against a different table since these options are jutsu, not
 // class_features rows.
-func (s *server) loadScoutNinMobileSavantCatalog() ([]scoutNinPickOption, error) {
+func (s *server) loadScoutNinMobileSavantCatalog(locale string) ([]scoutNinPickOption, error) {
 	placeholders := make([]string, len(mobileSavantJutsuSlugs))
 	args := make([]any, len(mobileSavantJutsuSlugs))
 	for i, slug := range mobileSavantJutsuSlugs {
@@ -865,7 +900,10 @@ func (s *server) loadScoutNinMobileSavantCatalog() ([]scoutNinPickOption, error)
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return translateScoutNinPickOptions(s.rulesDB, locale, "jutsu", out)
 }
 
 // scoutNinMobileSavantGrantedJutsu returns the character's own Mobile
@@ -900,8 +938,8 @@ func (s *server) scoutNinMobileSavantGrantedJutsu(characterID int64) (map[string
 // (published or custom jutsu alike, via character_jutsu), filtered further
 // by masterOfGreenTechniqueMaxRank's own "B-Rank or lower" ceiling rather
 // than duplicating that query here.
-func (s *server) loadSignatureJutsuOptions(characterID int64) ([]puppetJutsuChoiceOption, error) {
-	options, err := s.loadThreadSavantJutsuOptions(characterID)
+func (s *server) loadSignatureJutsuOptions(characterID int64, locale string) ([]puppetJutsuChoiceOption, error) {
+	options, err := s.loadThreadSavantJutsuOptions(characterID, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -966,6 +1004,30 @@ func buildSignatureJutsuSlots(choices map[features.ChoiceKey]string, jutsuOption
 
 // splitScoutNinPicks classifies a catalog against a character's stored
 // picks — mirrors splitMedicalDoctrinePicks/splitHunterPicks.
+// translateScoutNinKnownPicks is translateScoutNinPickOptions' counterpart
+// for the parallel knownScoutNinPick shape splitScoutNinPicks' Known half
+// returns.
+func translateScoutNinKnownPicks(db *sql.DB, locale, table string, in []knownScoutNinPick) ([]knownScoutNinPick, error) {
+	slugs := make([]string, len(in))
+	for i, o := range in {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(db, locale, table, slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range in {
+		tr := translations[in[i].Slug]
+		if v, ok := tr["name"]; ok {
+			in[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			in[i].Description = v
+		}
+	}
+	return in, nil
+}
+
 func splitScoutNinPicks(catalog []scoutNinPickOption, picked map[string]bool) (known []knownScoutNinPick, available []scoutNinPickOption) {
 	for _, o := range catalog {
 		if picked[o.Slug] {
@@ -1092,7 +1154,7 @@ type scoutNinTabData struct {
 // loadScoutNinTabData returns nil for a character with no Scout-Nin
 // levels — the template gates the whole box's existence on this being
 // non-nil, same treatment HunterTechniques/MedicalNin already establish.
-func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) (*scoutNinTabData, error) {
+func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*scoutNinTabData, error) {
 	scoutNinLevel, err := s.scoutNinClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -1113,7 +1175,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data.ShinobiAdeptCap = shinobiAdeptCap(scoutNinLevel)
 	if data.ShinobiAdeptCap > 0 {
-		catalog, err := s.loadScoutNinFeatureCatalog(shinobiAdeptSlugs)
+		catalog, err := s.loadScoutNinFeatureCatalog(locale, shinobiAdeptSlugs)
 		if err != nil {
 			return nil, err
 		}
@@ -1131,7 +1193,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data.JackOfAllCap = jackOfAllCap(scoutNinLevel, grantedFeatures)
 	if data.JackOfAllCap > 0 {
-		catalog, err := s.loadScoutNinFeatureCatalog(jackOfAllSlugs)
+		catalog, err := s.loadScoutNinFeatureCatalog(locale, jackOfAllSlugs)
 		if err != nil {
 			return nil, err
 		}
@@ -1149,7 +1211,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data.SignatureTechniqueCap = signatureTechniqueCap(scoutNinLevel, grantedFeatures)
 	if data.SignatureTechniqueCap > 0 {
-		catalog, err := s.loadScoutNinFeatureCatalog(signatureTechniqueSlugs)
+		catalog, err := s.loadScoutNinFeatureCatalog(locale, signatureTechniqueSlugs)
 		if err != nil {
 			return nil, err
 		}
@@ -1259,7 +1321,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 		if subclassSlug == tacticalScoutSubclassSlug {
 			data.TacticalSuperiorityCap = tacticalSuperiorityCap(scoutNinLevel)
 			if data.TacticalSuperiorityCap > 0 {
-				catalog, err := s.loadScoutNinManeuverCatalogForSubclasses(tacticalSuperiorityCatalogSubclassSlugs)
+				catalog, err := s.loadScoutNinManeuverCatalogForSubclasses(locale, tacticalSuperiorityCatalogSubclassSlugs)
 				if err != nil {
 					return nil, err
 				}
@@ -1280,7 +1342,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 		if subclassSlug == pathfinderScoutSubclassSlug {
 			data.MobileSavantCap = mobileSavantCap(scoutNinLevel)
 			if data.MobileSavantCap > 0 {
-				catalog, err := s.loadScoutNinMobileSavantCatalog()
+				catalog, err := s.loadScoutNinMobileSavantCatalog(locale)
 				if err != nil {
 					return nil, err
 				}
@@ -1302,7 +1364,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 	if err != nil {
 		return nil, err
 	}
-	stanceOptions, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+	stanceOptions, err := s.loadStanceOptionsByType(locale, "taijutsu", "bukijutsu")
 	if err != nil {
 		return nil, err
 	}
@@ -1324,15 +1386,51 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data.SignatureJutsuCap = signatureJutsuCap(scoutNinLevel, grantedFeatures)
 	if data.SignatureJutsuCap > 0 {
-		jutsuOptions, err := s.loadSignatureJutsuOptions(characterID)
+		jutsuOptions, err := s.loadSignatureJutsuOptions(characterID, locale)
 		if err != nil {
 			return nil, err
 		}
-		effectOptions, err := s.loadScoutNinFeatureCatalog(signatureJutsuEffectSlugs)
+		effectOptions, err := s.loadScoutNinFeatureCatalog(locale, signatureJutsuEffectSlugs)
 		if err != nil {
 			return nil, err
 		}
 		data.SignatureJutsu = buildSignatureJutsuSlots(choices, jutsuOptions, effectOptions, data.SignatureJutsuCap)
+	}
+
+	// Maneuvers/SignatureManeuver/SupremeClones all trace back to
+	// loadScoutNinManeuverCatalog's raw English catalog, deliberately left
+	// untranslated at the source since its own "Keyword: Tactical"/
+	// "Keyword: Specialized" markers still need to be found by
+	// filterScoutNinManeuversByKeyword/strings.Contains above — a
+	// translated description can't be relied on to still contain the
+	// English marker. Now that every keyword decision has already been
+	// made, translate each derived display list for real, keyed by slug.
+	if data.ManeuversCap > 0 {
+		var err error
+		if data.KnownManeuvers, err = translateScoutNinKnownPicks(s.rulesDB, locale, "class_options", data.KnownManeuvers); err != nil {
+			return nil, err
+		}
+		if data.AvailableManeuvers, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableManeuvers); err != nil {
+			return nil, err
+		}
+	}
+	if data.SignatureManeuverCap > 0 {
+		var err error
+		if data.KnownSignatureManeuver, err = translateScoutNinKnownPicks(s.rulesDB, locale, "class_options", data.KnownSignatureManeuver); err != nil {
+			return nil, err
+		}
+		if data.AvailableSignatureManeuver, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableSignatureManeuver); err != nil {
+			return nil, err
+		}
+	}
+	if data.SupremeClonesCap > 0 {
+		var err error
+		if data.KnownSupremeClones, err = translateScoutNinKnownPicks(s.rulesDB, locale, "class_options", data.KnownSupremeClones); err != nil {
+			return nil, err
+		}
+		if data.AvailableSupremeClones, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableSupremeClones); err != nil {
+			return nil, err
+		}
 	}
 
 	return data, nil
@@ -1361,7 +1459,7 @@ func (s *server) scoutNinPickAddCore(
 		log.Println("compute sheet for scout-nin pick add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScoutNinTabData(id, sheet)
+	data, err := s.loadScoutNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load scout-nin for add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1501,7 +1599,7 @@ func (s *server) handleScoutNinFightingStance(w http.ResponseWriter, r *http.Req
 		http.Error(w, "character has no levels in Scout-Nin", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+	options, err := s.loadStanceOptionsByType("", "taijutsu", "bukijutsu")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load scout-nin stance options:", err)
@@ -1702,7 +1800,7 @@ func (s *server) handleSignatureJutsuSlot(w http.ResponseWriter, r *http.Request
 		log.Println("compute sheet for signature jutsu:", err)
 		return
 	}
-	data, err := s.loadScoutNinTabData(id, sheet)
+	data, err := s.loadScoutNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load scout-nin for signature jutsu:", err)

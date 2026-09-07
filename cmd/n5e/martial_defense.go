@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Martial Defense (class/taijutsu-specialist/feature/martial-defense) is one
@@ -86,7 +87,7 @@ type guardSealOption struct {
 // tier-capped guard slots (loadGuardSealCatalog) and Shinobi-Ware's Ever
 // Evolving (loadEverEvolvingSealCatalog, ever_evolving.go), whose own text
 // places no level-gated tier ceiling, build on.
-func (s *server) loadArmorSealCatalog() ([]guardSealOption, error) {
+func (s *server) loadArmorSealCatalog(locale string) ([]guardSealOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(description, ''), seal_rank FROM equipment
 		WHERE kind = 'enhancement_seal' AND seal_applies_to = 'armor' ORDER BY name`)
@@ -105,7 +106,28 @@ func (s *server) loadArmorSealCatalog() ([]guardSealOption, error) {
 		o.DetailHref = "/seals/" + o.Slug
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // loadGuardSealCatalog lists every armor seal the character currently
@@ -115,11 +137,11 @@ func (s *server) loadArmorSealCatalog() ([]guardSealOption, error) {
 // level formula, since Martial Defense's own text ties each tier to its own
 // specific class level rather than the standard D/C/B/A/S-by-character-
 // level table.
-func (s *server) loadGuardSealCatalog(tierCap string) ([]guardSealOption, error) {
+func (s *server) loadGuardSealCatalog(tierCap string, locale string) ([]guardSealOption, error) {
 	if tierCap == "" {
 		return nil, nil
 	}
-	all, err := s.loadArmorSealCatalog()
+	all, err := s.loadArmorSealCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +168,7 @@ type martialDefenseTabData struct {
 // Specialist levels, or one below 5th level in it — the template gates the
 // whole box's existence on this being non-nil, same treatment
 // WeaponFocus/MartialTechniques get.
-func (s *server) loadMartialDefenseTabData(characterID int64) (*martialDefenseTabData, error) {
+func (s *server) loadMartialDefenseTabData(characterID int64, locale string) (*martialDefenseTabData, error) {
 	level, err := s.taijutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -157,7 +179,7 @@ func (s *server) loadMartialDefenseTabData(characterID int64) (*martialDefenseTa
 	}
 	tierCap := guardSealTierCap(level)
 
-	catalog, err := s.loadGuardSealCatalog(tierCap)
+	catalog, err := s.loadGuardSealCatalog(tierCap, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +236,7 @@ func (s *server) handleMartialDefenseSealAdd(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "missing seal", http.StatusBadRequest)
 		return
 	}
-	data, err := s.loadMartialDefenseTabData(id)
+	data, err := s.loadMartialDefenseTabData(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial defense for add:", err)

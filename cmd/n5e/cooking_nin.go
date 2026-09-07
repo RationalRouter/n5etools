@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Cooking-Nin's own mechanics, closing the base-class-wide gaps
@@ -123,13 +125,24 @@ func (a cookingArchetypeFeats) dieSize() string {
 // re-pickable ability score (the same "dynamic, not static" shape
 // scoutNinElementalResistanceEntry/mergePassiveResistance already handle for
 // Elemental Resistance's Target).
-var foodForTheSoulOptions = []featureChoiceOption{
-	{Value: "str", Label: "Strength", Description: "Allied creatures gain Advantage on their first Strength Ability Check and Strength saving throw before your next rest."},
-	{Value: "dex", Label: "Dexterity", Description: "Allied creatures gain Advantage on their first Dexterity Ability Check and Dexterity saving throw before your next rest."},
-	{Value: "con", Label: "Constitution", Description: "Allied creatures gain Advantage on their first Constitution Ability Check and Constitution saving throw before your next rest."},
-	{Value: "int", Label: "Intelligence", Description: "Allied creatures gain Advantage on their first Intelligence Ability Check and Intelligence saving throw before your next rest."},
-	{Value: "wis", Label: "Wisdom", Description: "Allied creatures gain Advantage on their first Wisdom Ability Check and Wisdom saving throw before your next rest."},
-	{Value: "cha", Label: "Charisma", Description: "Allied creatures gain Advantage on their first Charisma Ability Check and Charisma saving throw before your next rest."},
+// foodForTheSoulAbilityCodes is the fixed option order every locale shares.
+var foodForTheSoulAbilityCodes = []string{"str", "dex", "con", "int", "wis", "cha"}
+
+// foodForTheSoulOptionsFor builds foodForTheSoulOptions' display shape in
+// tr's locale — Value stays the raw ability code (form-submitted and
+// matched verbatim by handleFoodForTheSoul), only Label/Description are
+// translated.
+func foodForTheSoulOptionsFor(tr i18n.TranslateFunc) []featureChoiceOption {
+	out := make([]featureChoiceOption, 0, len(foodForTheSoulAbilityCodes))
+	for _, ab := range foodForTheSoulAbilityCodes {
+		label := abilityLabelTr(tr, ab)
+		out = append(out, featureChoiceOption{
+			Value:       ab,
+			Label:       label,
+			Description: tr("sheet.food_for_the_soul_option_desc", label, label),
+		})
+	}
+	return out
 }
 
 // cookingNinFoodForTheSoulAdvantageEntry resolves Food For the Soul's own
@@ -148,19 +161,17 @@ var foodForTheSoulOptions = []featureChoiceOption{
 // the same reason scoutNinElementalResistanceEntry exists outside the
 // static passiveTraitGrants table for Elemental Resistance's own
 // player-picked Target.
-func cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures []grantedFeatureRow, currentPick string) *AdvantageEntry {
+func cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures []grantedFeatureRow, currentPick string, locale string) *AdvantageEntry {
 	if currentPick == "" {
 		return nil
 	}
 	if !hasGrantedFeature(grantedFeatures, foodForTheSoulFeatureSlug) {
 		return nil
 	}
-	label := abilityLabels[currentPick]
-	if label == "" {
-		label = currentPick
-	}
+	tr := i18n.Translator(locale)
+	label := abilityLabelTr(tr, currentPick)
 	return &AdvantageEntry{
-		RollType: label + " Ability Checks and saving throws made by willing allied creatures (until your next rest)",
+		RollType: tr("sheet.food_for_the_soul_roll_type", label),
 		Sources:  []string{"Food For the Soul"},
 	}
 }
@@ -480,7 +491,7 @@ func cookingToolInfusionLevel(level int, arch cookingArchetypeFeats) int {
 // prefix instead of weapon_category (Cooking Tool implements have no
 // weapon_category of their own — they aren't a purchasable starting-gear
 // weapon type).
-func (s *server) loadCookingToolImplementCatalog() ([]featureChoiceOption, error) {
+func (s *server) loadCookingToolImplementCatalog(locale string) ([]featureChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(description, '')
 		FROM equipment WHERE slug LIKE 'weapon/cooking-tool-%' ORDER BY name`)
@@ -496,7 +507,29 @@ func (s *server) loadCookingToolImplementCatalog() ([]featureChoiceOption, error
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Value
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Value]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Label = v
+			}
+			if v, ok := tr["description"]; ok {
+				out[i].Description = v
+			}
+		}
+	}
+	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Label) < sortKey(out[k].Label) })
+	return out, nil
 }
 
 // cookingToolInfusionView is the Cooking Tool Infusion box's own sub-panel
@@ -535,8 +568,8 @@ type cookingToolInfusionView struct {
 // lists the sheet's picker forms need — toolLevel is the value
 // cookingToolInfusionLevel already resolved (0 means "don't call this at
 // all", enforced by the caller).
-func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int) (*cookingToolInfusionView, error) {
-	catalog, err := s.loadCookingToolImplementCatalog()
+func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int, locale string) (*cookingToolInfusionView, error) {
+	catalog, err := s.loadCookingToolImplementCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -752,7 +785,7 @@ var cookingToolPipePropertyL11Options = []featureChoiceOption{
 // loadCookingToolImplementCatalog and syncCookingToolInfusionInventory
 // match by LIKE 'weapon/cooking-tool-%', which would wrongly catch a Pipe
 // slug nested under that same prefix).
-func (s *server) loadCookingToolPipeImplementCatalog() ([]featureChoiceOption, error) {
+func (s *server) loadCookingToolPipeImplementCatalog(locale string) ([]featureChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(description, '')
 		FROM equipment WHERE slug LIKE 'weapon/cooking-pipe-%' ORDER BY name`)
@@ -768,7 +801,29 @@ func (s *server) loadCookingToolPipeImplementCatalog() ([]featureChoiceOption, e
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Value
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Value]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Label = v
+			}
+			if v, ok := tr["description"]; ok {
+				out[i].Description = v
+			}
+		}
+	}
+	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Label) < sortKey(out[k].Label) })
+	return out, nil
 }
 
 // cookingToolInfusionPipeView is the Bonus Tool Infusion: Pipe box's own
@@ -804,8 +859,8 @@ type cookingToolInfusionPipeView struct {
 // real Cooking-Nin class level, used only to gate the 6th/11th property
 // tiers (the caller already confirmed the feature itself is granted before
 // reaching here, via cookingToolInfusionPipeEffectiveLevel).
-func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel int) (*cookingToolInfusionPipeView, error) {
-	catalog, err := s.loadCookingToolPipeImplementCatalog()
+func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel int, locale string) (*cookingToolInfusionPipeView, error) {
+	catalog, err := s.loadCookingToolPipeImplementCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -945,7 +1000,7 @@ const expertCombatantFeatureSlug = "class/cooking-nin/group/cooking-focus/battle
 // hand-transcribe it" shape loadWardenWeaponCatalog (hunter_nin.go) and
 // loadCookingToolImplementCatalog above already establish. Exotic weapons
 // are excluded — the feature's own text names only martial and simple.
-func (s *server) loadExpertCombatantWeaponCatalog() ([]featureChoiceOption, error) {
+func (s *server) loadExpertCombatantWeaponCatalog(locale string) ([]featureChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(damage_dice, ''), COALESCE(damage_type, ''), COALESCE(properties, '')
 		FROM equipment
@@ -965,7 +1020,26 @@ func (s *server) loadExpertCombatantWeaponCatalog() ([]featureChoiceOption, erro
 		o.Description = strings.TrimSpace(damageDice + " " + damageType + ". " + properties)
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Value
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Value]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Label = v
+			}
+		}
+	}
+	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Label) < sortKey(out[k].Label) })
+	return out, nil
 }
 
 // expertCombatantView holds Battle Cook's own Expert Combatant weapon pick
@@ -983,8 +1057,8 @@ type expertCombatantView struct {
 
 // loadExpertCombatantView loads the current pick plus the catalog the
 // sheet's picker form needs.
-func (s *server) loadExpertCombatantView(characterID int64) (*expertCombatantView, error) {
-	catalog, err := s.loadExpertCombatantWeaponCatalog()
+func (s *server) loadExpertCombatantView(characterID int64, locale string) (*expertCombatantView, error) {
+	catalog, err := s.loadExpertCombatantWeaponCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,7 +1256,7 @@ type cookingNinTabData struct {
 // levels and none of the 3 archetype-training feats — the template gates
 // the whole box's existence on this being non-nil, same treatment
 // HunterTechniques gets for its own archetype feats.
-func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet) (*cookingNinTabData, error) {
+func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*cookingNinTabData, error) {
 	level, err := s.cookingNinClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -1211,14 +1285,14 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 	data := &cookingNinTabData{CookingDieSize: dieSize}
 
 	if toolLevel := cookingToolInfusionLevel(level, arch); toolLevel > 0 {
-		data.CookingToolInfusion, err = s.loadCookingToolInfusionView(characterID, toolLevel)
+		data.CookingToolInfusion, err = s.loadCookingToolInfusionView(characterID, toolLevel, locale)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if hasGrantedFeature(grantedFeatures, bonusToolInfusionPipeFeatureSlug) {
-		data.BonusToolInfusionPipe, err = s.loadCookingToolInfusionPipeView(characterID, level)
+		data.BonusToolInfusionPipe, err = s.loadCookingToolInfusionPipeView(characterID, level, locale)
 		if err != nil {
 			return nil, err
 		}
@@ -1231,12 +1305,12 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 		}
 		data.FoodForTheSoul = &foodForTheSoulView{
 			Current: choices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}],
-			Options: foodForTheSoulOptions,
+			Options: foodForTheSoulOptionsFor(i18n.Translator(locale)),
 		}
 	}
 
 	if hasGrantedFeature(grantedFeatures, expertCombatantFeatureSlug) {
-		data.ExpertCombatant, err = s.loadExpertCombatantView(characterID)
+		data.ExpertCombatant, err = s.loadExpertCombatantView(characterID, locale)
 		if err != nil {
 			return nil, err
 		}
@@ -1314,8 +1388,8 @@ func (s *server) handleFoodForTheSoul(w http.ResponseWriter, r *http.Request) {
 	}
 	value := strings.TrimSpace(r.FormValue("value"))
 	valid := false
-	for _, o := range foodForTheSoulOptions {
-		if o.Value == value {
+	for _, ab := range foodForTheSoulAbilityCodes {
+		if ab == value {
 			valid = true
 			break
 		}
@@ -1493,7 +1567,7 @@ func (s *server) handleCookingToolImplement(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if value != "" {
-		catalog, err := s.loadCookingToolImplementCatalog()
+		catalog, err := s.loadCookingToolImplementCatalog("")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load cooking tool implement catalog:", err)
@@ -1853,7 +1927,7 @@ func (s *server) setCookingToolPipeImplement(id int64, value string) (int, strin
 		return http.StatusBadRequest, "Pipe implement is already chosen and cannot be changed"
 	}
 	if value != "" {
-		catalog, err := s.loadCookingToolPipeImplementCatalog()
+		catalog, err := s.loadCookingToolPipeImplementCatalog("")
 		if err != nil {
 			log.Println("load cooking tool pipe implement catalog:", err)
 			return http.StatusInternalServerError, "database error"
@@ -2228,7 +2302,7 @@ func (s *server) setBattleCookExpertCombatantWeapon(id int64, value string) (int
 		return http.StatusBadRequest, "Expert Combatant weapon is already chosen and cannot be changed"
 	}
 	if value != "" {
-		catalog, err := s.loadExpertCombatantWeaponCatalog()
+		catalog, err := s.loadExpertCombatantWeaponCatalog("")
 		if err != nil {
 			log.Println("load expert combatant weapon catalog:", err)
 			return http.StatusInternalServerError, "database error"
@@ -2302,7 +2376,7 @@ func (s *server) addCookingNinBlendEnhancementPick(id int64, jutsuID int64, enha
 		log.Println("compute sheet for blend enhancement add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadCookingNinTabData(id, sheet)
+	data, err := s.loadCookingNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load cooking-nin for blend enhancement add:", err)
 		return http.StatusInternalServerError, "database error"

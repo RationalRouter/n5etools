@@ -88,7 +88,7 @@ func loadGrenadierData(t *testing.T, s *server, characterID int64) *scienceNinGr
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadScienceNinTabData(characterID, sheet)
+	data, err := s.loadScienceNinTabData(characterID, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestScienceNinInversionSerumUnaffectedByBIMChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

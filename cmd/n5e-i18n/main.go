@@ -66,6 +66,7 @@ import (
 
 	"github.com/sergio/n5e/internal/i18n"
 	"github.com/sergio/n5e/internal/schema"
+	"github.com/sergio/n5e/internal/statlines"
 )
 
 func main() {
@@ -432,12 +433,34 @@ func loadEnglishValues(db *sql.DB, table string) ([]rowValues, error) {
 		for i, f := range fields {
 			v := vals[len(keyCols)+i]
 			if v.Valid && strings.TrimSpace(v.String) != "" {
-				rv.Fields[f] = v.String
+				rv.Fields[f] = normalizeForTranslation(table, f, v.String)
 			}
 		}
 		out = append(out, rv)
 	}
 	return out, rows.Err()
+}
+
+// normalizeForTranslation strips a machine-parsed stat line (Cost/Drain/
+// Keyword/Prerequisite) off a class_option_entries/class_options
+// description BEFORE it is ever exported for translation, so DeepL never
+// sees it at all and no runtime code ever has to guess where a translated
+// stat line ends -- see internal/statlines' header doc. This is the single
+// choke point both cmdExport (what gets hashed and sent to DeepL) and
+// cmdReport (what staleness is compared against) read through, so both
+// always agree on what "the English text" is for these two fields. Every
+// other table/field is returned unchanged -- the stat-line shape only ever
+// appears in these two tables, and the vast majority of their own rows
+// carry no stat line either (statlines.StripForTranslation no-ops for
+// ordinary prose).
+func normalizeForTranslation(table, field, text string) string {
+	if field != "description" {
+		return text
+	}
+	if table != "class_option_entries" && table != "class_options" {
+		return text
+	}
+	return statlines.StripForTranslation(text)
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }

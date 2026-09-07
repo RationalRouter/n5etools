@@ -19,7 +19,15 @@
   // DOM order here is the same sort order that produced that selection.
   rows[0].classList.add("active");
 
-  const kinds = [...new Set([...rows].map((r) => r.dataset.kind))];
+  // kind (raw, e.g. "weapon") drives filtering/matching; kindLabel (server-
+  // translated via items.go's applyItemDisplayFields) is what the checkbox
+  // actually displays, so this list reads correctly in every locale instead
+  // of just capitalizing the raw English kind string.
+  const kindLabels = new Map();
+  for (const row of rows) {
+    if (!kindLabels.has(row.dataset.kind)) kindLabels.set(row.dataset.kind, row.dataset.kindLabel || row.dataset.kind);
+  }
+  const kinds = [...kindLabels.keys()];
   const checked = new Set(kinds);
 
   for (const kind of kinds) {
@@ -33,7 +41,7 @@
       apply();
     });
     label.appendChild(cb);
-    label.append(" " + kind.charAt(0).toUpperCase() + kind.slice(1));
+    label.append(" " + kindLabels.get(kind));
     kindFilters.appendChild(label);
   }
 

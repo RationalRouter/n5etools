@@ -5,7 +5,10 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
+
+const puppetSwarmStatBlockClassSlug = "class/puppet-master"
 
 // This file covers Red Technique's Performance of 10 Puppets (L10) and its
 // L20 escalation, Master of the Red Technique's Performance of 100 Puppets
@@ -22,16 +25,23 @@ import (
 // loadPuppetSwarmReferenceText reads back puppet_swarm_stat_block's own
 // raw_text — "" if the row is missing (a fresh/test rulesDB with no
 // migration-time seed data for 'class/puppet-master').
-func (s *server) loadPuppetSwarmReferenceText() (string, error) {
+func (s *server) loadPuppetSwarmReferenceText(locale string) (string, error) {
 	var raw string
 	err := s.rulesDB.QueryRow(
-		`SELECT raw_text FROM puppet_swarm_stat_block WHERE class_slug = 'class/puppet-master'`,
+		`SELECT raw_text FROM puppet_swarm_stat_block WHERE class_slug = ?`, puppetSwarmStatBlockClassSlug,
 	).Scan(&raw)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
 	if err != nil {
 		return "", err
+	}
+	tr, err := i18n.Row(s.rulesDB, locale, "puppet_swarm_stat_block", puppetSwarmStatBlockClassSlug)
+	if err != nil {
+		return "", err
+	}
+	if v, ok := tr["raw_text"]; ok {
+		raw = v
 	}
 	return raw, nil
 }

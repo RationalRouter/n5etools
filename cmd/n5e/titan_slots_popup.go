@@ -52,7 +52,7 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for titan slots popup:", err)
 		return
 	}
-	data, err := s.loadTitanUpgradesData(id, sheet)
+	data, err := s.loadTitanUpgradesData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load titan upgrades for titan slots popup:", err)

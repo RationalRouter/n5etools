@@ -14,8 +14,13 @@ import (
 // masteryEntryRow is one Mastery pick as shown on the sheet — see migration
 // 0026_mastery.sql for the book rule this backs.
 type masteryEntryRow struct {
-	ID   int64
-	Name string
+	ID int64
+	// Name is the stored skill/toolkit name, matched against elsewhere
+	// (charstore.RemoveMastery, the delete form's own URL) — kept in
+	// English regardless of locale. DisplayName is the translated label
+	// shown to the player.
+	Name        string
+	DisplayName string
 	// Rank is what actually applies right now; StoredRank is the rank the
 	// player picked. They differ only when a level edit has dropped the
 	// character below the rank they had (charsheet.EffectiveMasteryRank),
@@ -45,10 +50,10 @@ type masteryData struct {
 	// existing proficiency data rather than accepting arbitrary free text,
 	// same "pick from what's already real" precedent Chakra Enhanced
 	// Retrofit's seal picker uses.
-	AvailableNames []string
+	AvailableNames []skillSelectOption
 }
 
-func (s *server) loadMasteryData(characterID int64, sheet *charsheet.Sheet) (masteryData, error) {
+func (s *server) loadMasteryData(characterID int64, sheet *charsheet.Sheet, locale string) (masteryData, error) {
 	var data masteryData
 	data.Cap = charsheet.MasteryRankCap(sheet.Level)
 	for r := 1; r <= data.Cap; r++ {
@@ -68,7 +73,8 @@ func (s *server) loadMasteryData(characterID int64, sheet *charsheet.Sheet) (mas
 		assigned[e.SkillName] = true
 		rank := charsheet.EffectiveMasteryRank(e.Rank, sheet.Level)
 		data.Entries = append(data.Entries, masteryEntryRow{
-			ID: e.ID, Name: e.SkillName, Rank: rank, StoredRank: e.Rank,
+			ID: e.ID, Name: e.SkillName, DisplayName: skillDisplayName(locale, e.SkillName),
+			Rank: rank, StoredRank: e.Rank,
 			Capped:    rank < e.Rank,
 			Bonus:     charsheet.MasteryBonus(rank),
 			RankLabel: charsheet.MasteryRankLabel(rank, proficient[e.SkillName]),
@@ -82,7 +88,7 @@ func (s *server) loadMasteryData(characterID int64, sheet *charsheet.Sheet) (mas
 	}
 	for _, n := range names {
 		if !assigned[n] {
-			data.AvailableNames = append(data.AvailableNames, n)
+			data.AvailableNames = append(data.AvailableNames, skillSelectOption{Value: n, Label: skillDisplayName(locale, n)})
 		}
 	}
 	return data, nil

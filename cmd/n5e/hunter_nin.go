@@ -5,12 +5,14 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Hunter-Nin's own mechanics, closing the base-class-wide gaps
@@ -1026,7 +1028,7 @@ type knownHunterPick struct {
 
 // loadHunterOptionCatalog reads one of Hunter-Nin's two DB-backed catalogs
 // (list_name "Hunters Patterns" or "Hunters Exploits") in full.
-func (s *server) loadHunterOptionCatalog(listName string) ([]hunterPickOption, error) {
+func (s *server) loadHunterOptionCatalog(locale, listName string) ([]hunterPickOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_options
 		WHERE class_slug = ? AND list_name = ? ORDER BY name`, hunterNinSlug, listName)
@@ -1042,7 +1044,27 @@ func (s *server) loadHunterOptionCatalog(listName string) ([]hunterPickOption, e
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // loadWardenWeaponCatalog reads Blade Warden's own Warden Weapon TYPE
@@ -1055,7 +1077,7 @@ func (s *server) loadHunterOptionCatalog(listName string) ([]hunterPickOption, e
 // Description is composed from the weapon's own damage dice/type/
 // properties rather than left blank, so the picker still gets a real
 // rollover tooltip.
-func (s *server) loadWardenWeaponCatalog() ([]hunterPickOption, error) {
+func (s *server) loadWardenWeaponCatalog(locale string) ([]hunterPickOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, COALESCE(damage_dice, ''), COALESCE(damage_type, ''), COALESCE(properties, '')
 		FROM equipment
@@ -1077,7 +1099,26 @@ func (s *server) loadWardenWeaponCatalog() ([]hunterPickOption, error) {
 			Description: strings.TrimSpace(damageDice + " " + damageType + ". " + properties),
 		})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+		}
+	}
+	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Name) < sortKey(out[k].Name) })
+	return out, nil
 }
 
 // splitHunterPicks classifies a catalog against a character's stored picks
@@ -1223,7 +1264,7 @@ type hunterTechniquesTabData struct {
 // Hunter-Nin has Lethal Attack but neither Patterns nor Exploits yet; an
 // archetype-feat-only character has Lethal Attack and Exploits but never
 // Patterns or Defensive Tactics, which none of the 4 feats touch).
-func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet.Sheet) (*hunterTechniquesTabData, error) {
+func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*hunterTechniquesTabData, error) {
 	hunterLevel, err := s.hunterNinClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -1277,7 +1318,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 
 	data.PatternsCap = huntersPatternsCap(hunterLevel)
 	if data.PatternsCap > 0 {
-		catalog, err := s.loadHunterOptionCatalog("Hunters Patterns")
+		catalog, err := s.loadHunterOptionCatalog(locale, "Hunters Patterns")
 		if err != nil {
 			return nil, err
 		}
@@ -1297,7 +1338,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 			if err != nil {
 				return nil, err
 			}
-			stanceOptions, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+			stanceOptions, err := s.loadStanceOptionsByType(locale, "taijutsu", "bukijutsu")
 			if err != nil {
 				return nil, err
 			}
@@ -1311,7 +1352,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 	}
 	data.ExploitsCap = huntersExploitsCap(hunterLevel) + archetypeExploitSlots + exploitingExploitsBonus
 	if data.ExploitsCap > 0 {
-		catalog, err := s.loadHunterOptionCatalog("Hunters Exploits")
+		catalog, err := s.loadHunterOptionCatalog(locale, "Hunters Exploits")
 		if err != nil {
 			return nil, err
 		}
@@ -1369,7 +1410,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 	case bladeWardenSubclassSlug:
 		data.WardenWeaponCap = wardenWeaponCap(hunterLevel)
 		if data.WardenWeaponCap > 0 {
-			catalog, err := s.loadWardenWeaponCatalog()
+			catalog, err := s.loadWardenWeaponCatalog(locale)
 			if err != nil {
 				return nil, err
 			}
@@ -1536,7 +1577,7 @@ func (s *server) hunterPickAddCore(
 		log.Println("compute sheet for hunter pick add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	data, err := s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load hunter techniques for add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1651,7 +1692,7 @@ func (s *server) hunterArsenalItemAddCore(id int64, rawSlug string) (int, string
 		log.Println("compute sheet for arsenal item add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	data, err := s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load hunter techniques for arsenal item add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1717,7 +1758,7 @@ func (s *server) hunterWolfTechniqueAddCore(id int64, rawSlug string) (int, stri
 		log.Println("compute sheet for wolf technique add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet)
+	data, err := s.loadHunterTechniquesTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load hunter techniques for wolf technique add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1829,7 +1870,7 @@ func (s *server) handleHunterPracticedCombatantStance(w http.ResponseWriter, r *
 		http.Error(w, "Practiced Combatant has not been picked", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadStanceOptionsByType("taijutsu", "bukijutsu")
+	options, err := s.loadStanceOptionsByType("", "taijutsu", "bukijutsu")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load practiced combatant stance options:", err)
@@ -1863,6 +1904,7 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 	category := r.PathValue("category")
 	slug := r.PathValue("slug")
 
+	locale := localeFromContext(r.Context())
 	var name, description string
 	switch category {
 	case "pattern":
@@ -1880,6 +1922,14 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			log.Println("load hunter pattern detail:", err)
 			return
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_options", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
 	case "exploit":
 		err := s.rulesDB.QueryRow(`
 			SELECT name, description FROM class_options
@@ -1894,6 +1944,14 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load hunter exploit detail:", err)
 			return
+		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_options", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
 		}
 	case "defensive-tactic":
 		var found bool
@@ -1929,6 +1987,11 @@ func (s *server) handleHunterPickDetail(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		description = strings.TrimSpace(damageDice + " " + damageType + ". " + properties)
+		if tr, err := i18n.Row(s.rulesDB, locale, "equipment", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+		}
 	case "warden-weapon-property":
 		var found bool
 		name, description, found = lookupHunterPickOption(wardenWeaponPropertyOptions, slug)

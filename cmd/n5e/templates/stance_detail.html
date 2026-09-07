@@ -2,7 +2,7 @@
 {{with .Stance}}
 <p><a href="/stances">{{T "stance_detail.back_link"}}</a></p>
 <h1>{{.Name}}</h1>
-<p class="card-epithet">{{$.TypeLabel}}</p>
+<p class="card-epithet">{{T $.TypeLabelKey}}</p>
 
 {{if .Prerequisites.Valid}}
 <dl class="fact-list">

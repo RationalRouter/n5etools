@@ -87,7 +87,7 @@ func (s *server) handleCharacters(w http.ResponseWriter, r *http.Request) {
 	// class's chosen subclass — if any — shows here too, not just on the
 	// sheet's own header.
 	for i := range characters {
-		classes, err := s.loadClassSummary(characters[i].ID)
+		classes, err := s.loadClassSummary(characters[i].ID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("query character class summary:", err)
@@ -225,7 +225,7 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := s.buildCreationHubData(id)
+	data, err := s.buildCreationHubData(id, localeFromContext(r.Context()))
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -242,7 +242,7 @@ func (s *server) handleCreationHub(w http.ResponseWriter, r *http.Request) {
 // handleCreationHub so handleCreateFinish's own subclass gate (below) can
 // re-render the same page with an added "Error" message instead of
 // duplicating the steps/summary-building logic.
-func (s *server) buildCreationHubData(id int64) (map[string]any, error) {
+func (s *server) buildCreationHubData(id int64, locale string) (map[string]any, error) {
 	var name, creationStatus string
 	var str, dex, con, intel, wis, cha int
 	var clanSlug, backgroundSlug sql.NullString
@@ -271,7 +271,7 @@ func (s *server) buildCreationHubData(id int64) (map[string]any, error) {
 	// (the step stays freely revisitable either way), just imprecise.
 	abilitiesDone := str != 10 || dex != 10 || con != 10 || intel != 10 || wis != 10 || cha != 10
 
-	classSummary, err := s.loadClassSummary(id)
+	classSummary, err := s.loadClassSummary(id, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (s *server) buildCreationHubData(id int64) (map[string]any, error) {
 // the subclass gate's own "can't finish yet" path, same "rebuild the page,
 // add Error" shape handleCreateClan already uses for its own step.
 func (s *server) renderCreationHubError(w http.ResponseWriter, r *http.Request, id int64, message string) {
-	data, err := s.buildCreationHubData(id)
+	data, err := s.buildCreationHubData(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build creation hub data for error:", err)
@@ -335,7 +335,7 @@ func (s *server) handleCreateFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	classSummary, err := s.loadClassSummary(id)
+	classSummary, err := s.loadClassSummary(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load class summary for finish gate:", err)
@@ -1207,7 +1207,7 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, 
 	// Every class the character already has, not just the primary — the
 	// "Your Classes" summary block and the picker's "already yours"
 	// highlighting/gating both need the full set once multiclassing exists.
-	yourClasses, err := s.loadClassSummary(characterID)
+	yourClasses, err := s.loadClassSummary(characterID, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1261,7 +1261,7 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, 
 		data["ChosenSkill"] = ""
 		data["ChosenToolkit"] = ""
 		data["ChosenWeapon"] = ""
-		fields, err := s.loadClassAddGrantFields(characterID, focus)
+		fields, err := s.loadClassAddGrantFields(characterID, focus, locale)
 		if err != nil {
 			return nil, err
 		}
@@ -1283,7 +1283,7 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, 
 			unmet := charstore.UnmetMulticlassClasses(scores, checkSlugs)
 			unmetNames := make([]string, len(unmet))
 			for i, slug := range unmet {
-				unmetNames[i] = s.className(slug)
+				unmetNames[i] = s.className(slug, locale)
 			}
 			data["UnmetPrereqClasses"] = unmetNames
 		}
@@ -1358,8 +1358,12 @@ func (s *server) buildClassStepData(characterID int64, currentClassSlug, focus, 
 		if err != nil {
 			return nil, err
 		}
+		toolkitOptions, err := s.translateToolkitOptions(locale, excludeHeldOptions(toolkits, heldElsewhere))
+		if err != nil {
+			return nil, err
+		}
 		data["ToolkitChoices"] = slots
-		data["Toolkits"] = excludeHeldOptions(toolkits, heldElsewhere)
+		data["Toolkits"] = toolkitOptions
 	}
 	return data, nil
 }
@@ -1596,6 +1600,18 @@ type backgroundProfRow struct {
 	Options     []string
 	OptionDescs []string // parallel to Options; "" where Kind isn't "skill" or no blurb exists
 	OptionSlugs []string // parallel to Options; "" where Kind isn't "tool" or no catalog match exists
+	// OptionLabels is the TRANSLATED display text parallel to Options —
+	// Options itself must stay the untranslated English name: it round-trips
+	// as the submitted <option value>, is compared against alreadyChosen/
+	// heldTools (both keyed by the English name character_proficiencies.value
+	// always stores), and becomes that stored value verbatim on submit.
+	// Translating Options in place would submit Spanish text as the pick,
+	// silently corrupting future English-keyed lookups — see this file's own
+	// "translate after filter/match, keyed by slug" precedent
+	// (translateToolkitOptions). OptionLabels carries the same information
+	// purely for display; falls back to the matching Options entry when no
+	// translation exists (locale is English, or nothing's translated yet).
+	OptionLabels []string
 	// SlotValues is exactly ChooseN long — SlotValues[slot] is the
 	// already-saved pick for that dropdown slot on revisit, or "" if that
 	// slot was never filled. Distributing already-chosen names across
@@ -1611,9 +1627,10 @@ type backgroundProfRow struct {
 // template's dropdown rendering — Go templates can't zip parallel slices
 // by index on their own.
 type backgroundSkillOption struct {
-	Name string
-	Desc string
-	Slug string // toolkit catalog slug for "View stats", "" for skill options
+	Name  string // submitted <option value> and match key — always English, see backgroundProfRow.OptionLabels' doc
+	Label string // translated display text — falls back to Name
+	Desc  string
+	Slug  string // toolkit catalog slug for "View stats", "" for skill options
 }
 
 // loadCharacterBackgroundChoices returns which (kind,value) pairs are
@@ -1654,7 +1671,7 @@ func (s *server) loadCharacterBackgroundChoices(characterID int64, backgroundSlu
 // earlier step — see characterProficiencyValues' own doc for why; nil (the
 // POST validation path, which re-derives the real set separately) offers
 // everything, same as before this filtering existed.
-func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChosen map[string]bool, toolkits []toolkitOption, heldTools map[string]bool) ([]backgroundProfRow, error) {
+func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChosen map[string]bool, toolkits []toolkitOption, heldTools map[string]bool, locale string) ([]backgroundProfRow, error) {
 	toolkitSlugByName := make(map[string]string, len(toolkits))
 	for _, t := range toolkits {
 		toolkitSlugByName[strings.ToLower(t.Name)] = t.Slug
@@ -1676,7 +1693,110 @@ func classifyBackgroundProfs(rulesDB *sql.DB, backgroundSlug string, alreadyChos
 			out = append(out, classifyBackgroundProfValue(kind, part, len(out), alreadyChosen, toolkits, toolkitSlugByName, heldTools))
 		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := translateBackgroundProfOptions(rulesDB, locale, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// skillCatalogKey maps a skill's canonical English name (SkillDescriptions'
+// own keys) to the UI catalog key infix used for its translated name/
+// description ("skill.<key>.name"/"skill.<key>.desc", locales/*.json) — a
+// fixed map rather than a slugify function, since "Sleight of Hand"/
+// "Chakra Control"/"Animal Handling"/"Martial Arts" all need a specific
+// underscored form, not a generic transform.
+var skillCatalogKey = map[string]string{
+	"Athletics": "athletics", "Martial Arts": "martial_arts", "Acrobatics": "acrobatics",
+	"Sleight of Hand": "sleight_of_hand", "Stealth": "stealth", "Chakra Control": "chakra_control",
+	"Crafting": "crafting", "History": "history", "Investigation": "investigation",
+	"Nature": "nature", "Ninshou": "ninshou", "Animal Handling": "animal_handling",
+	"Illusions": "illusions", "Insight": "insight", "Medicine": "medicine",
+	"Perception": "perception", "Survival": "survival", "Deception": "deception",
+	"Intimidation": "intimidation", "Performance": "performance", "Persuasion": "persuasion",
+}
+
+// translateBackgroundProfOptions fills OptionLabels (translated display
+// name) and overwrites OptionDescs (translated blurb — safe to translate in
+// place, unlike Options/OptionLabels, since a description is pure display,
+// never matched against anything) across every row, in place. Tool options
+// translate via the equipment table (batched by slug, one query for every
+// row); skill options translate via the UI catalog's fixed "skill.*" keys
+// (see skillCatalogKey) — skills aren't a rules.db table, so there is no
+// content_translations row for them to overlay.
+func translateBackgroundProfOptions(rulesDB *sql.DB, locale string, rows []backgroundProfRow) error {
+	var toolSlugs []string
+	for _, row := range rows {
+		if row.Kind != "tool" {
+			continue
+		}
+		for _, slug := range row.OptionSlugs {
+			if slug != "" {
+				toolSlugs = append(toolSlugs, slug)
+			}
+		}
+	}
+	toolTranslations, err := i18n.Batch(rulesDB, locale, "equipment", toolSlugs)
+	if err != nil {
+		return err
+	}
+	t := i18n.Translator(locale)
+	for i := range rows {
+		row := &rows[i]
+		if len(row.Options) == 0 {
+			continue
+		}
+		row.OptionLabels = make([]string, len(row.Options))
+		for j, name := range row.Options {
+			row.OptionLabels[j] = name
+			switch row.Kind {
+			case "tool":
+				if j < len(row.OptionSlugs) && row.OptionSlugs[j] != "" {
+					tr := toolTranslations[row.OptionSlugs[j]]
+					if v, ok := tr["name"]; ok {
+						row.OptionLabels[j] = v
+					}
+					if v, ok := tr["description"]; ok && j < len(row.OptionDescs) {
+						row.OptionDescs[j] = v
+					}
+				}
+			case "skill":
+				if key, ok := skillCatalogKey[name]; ok {
+					row.OptionLabels[j] = t("skill." + key + ".name")
+					if j < len(row.OptionDescs) {
+						row.OptionDescs[j] = t("skill." + key + ".desc")
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// skillSelectOption is one <option> in a skill-name <select> — Value is the
+// raw name posted back and matched against charsheet.SkillAbility or a
+// character's own proficiency rows, Label is the translated display text
+// (skillDisplayName), used by any picker that needs both (Mastery's "add an
+// entry" dropdown, Puppet Master's Generalized Skill picker).
+type skillSelectOption struct {
+	Value string
+	Label string
+}
+
+// skillDisplayName translates a skill's canonical English name via the UI
+// catalog's "skill.<key>.name" keys (skillCatalogKey), for any display site
+// that shows a skill name outside the background-proficiency-choice form
+// translateBackgroundProfOptions already covers. Names that aren't one of
+// the 21 real skills (a toolkit, a player-typed custom skill) pass through
+// unchanged — there is no catalog entry to translate them against.
+func skillDisplayName(locale, name string) string {
+	key, ok := skillCatalogKey[name]
+	if !ok {
+		return name
+	}
+	return i18n.Translator(locale)("skill." + key + ".name")
 }
 
 // splitCompoundGrant breaks a background_proficiencies value that mixes an
@@ -1768,14 +1888,17 @@ func classifyBackgroundProfValue(kind, value string, index int, alreadyChosen ma
 func skillOptionPairs(row backgroundProfRow) []backgroundSkillOption {
 	pairs := make([]backgroundSkillOption, len(row.Options))
 	for i, name := range row.Options {
-		desc, slug := "", ""
+		desc, slug, label := "", "", name
 		if i < len(row.OptionDescs) {
 			desc = row.OptionDescs[i]
 		}
 		if i < len(row.OptionSlugs) {
 			slug = row.OptionSlugs[i]
 		}
-		pairs[i] = backgroundSkillOption{Name: name, Desc: desc, Slug: slug}
+		if i < len(row.OptionLabels) {
+			label = row.OptionLabels[i]
+		}
+		pairs[i] = backgroundSkillOption{Name: name, Label: label, Desc: desc, Slug: slug}
 	}
 	return pairs
 }
@@ -1812,7 +1935,7 @@ func (s *server) handleCreateBackground(w http.ResponseWriter, r *http.Request) 
 			log.Println("load held toolkits:", err)
 			return
 		}
-		profs, err := classifyBackgroundProfs(s.rulesDB, backgroundSlug, nil, toolkits, heldTools) // validation only — hydration doesn't matter here
+		profs, err := classifyBackgroundProfs(s.rulesDB, backgroundSlug, nil, toolkits, heldTools, "") // validation only — matches on English Options regardless of locale
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("classify background profs:", err)
@@ -1986,7 +2109,7 @@ func (s *server) buildBackgroundStepData(characterID int64, focus, locale string
 	if err != nil {
 		return nil, err
 	}
-	profs, err := classifyBackgroundProfs(s.rulesDB, focus, alreadyChosen, toolkits, heldTools)
+	profs, err := classifyBackgroundProfs(s.rulesDB, focus, alreadyChosen, toolkits, heldTools, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -2096,7 +2219,7 @@ func weaponChoiceOption(desc string) (category string, count int, ok bool) {
 // second object (migration 0021's header spells this out). Offering both
 // "Spear" and "Spear (Two Hands)" as separate picks would read as two
 // different weapons when the character is choosing one spear.
-func (s *server) loadWeaponOptions(category string) ([]toolkitOption, error) {
+func (s *server) loadWeaponOptions(category, locale string) ([]toolkitOption, error) {
 	rows, err := s.rulesDB.Query(
 		`SELECT slug, name FROM equipment WHERE kind = 'weapon' AND weapon_category = ?`, category)
 	if err != nil {
@@ -2109,6 +2232,8 @@ func (s *server) loadWeaponOptions(category string) ([]toolkitOption, error) {
 		if err := rows.Scan(&w.Slug, &w.Name); err != nil {
 			return nil, err
 		}
+		// Filtered on the raw English name before translation: DeepL is not
+		// guaranteed to keep the literal "(Two Hands)" suffix in Spanish.
 		if strings.HasSuffix(w.Name, "(Two Hands)") {
 			continue
 		}
@@ -2116,6 +2241,21 @@ func (s *server) loadWeaponOptions(category string) ([]toolkitOption, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, w := range out {
+		slugs[i] = w.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+		}
 	}
 	sort.Slice(out, func(i, k int) bool { return sortKey(out[i].Name) < sortKey(out[k].Name) })
 	return out, nil
@@ -2175,14 +2315,14 @@ func (s *server) savedCreationWeapons(characterID int64) (map[string][]string, e
 // template's dropdowns render from, one query per distinct category the
 // class's options actually ask for — Weapon Specialist grants four weapon
 // choices across two categories, so that is two queries rather than four.
-func (s *server) weaponChoiceLists(groups []equipmentChoiceGroup) (map[string][]toolkitOption, error) {
+func (s *server) weaponChoiceLists(groups []equipmentChoiceGroup, locale string) (map[string][]toolkitOption, error) {
 	weapons := map[string][]toolkitOption{}
 	for _, g := range groups {
 		for _, opt := range g.Options {
 			if opt.WeaponCategory == "" || weapons[opt.WeaponCategory] != nil {
 				continue
 			}
-			list, err := s.loadWeaponOptions(opt.WeaponCategory)
+			list, err := s.loadWeaponOptions(opt.WeaponCategory, locale)
 			if err != nil {
 				return nil, err
 			}
@@ -2193,9 +2333,11 @@ func (s *server) weaponChoiceLists(groups []equipmentChoiceGroup) (map[string][]
 }
 
 // weaponNamesByCategory is loadWeaponOptions keyed by slug, for validating a
-// submitted dropdown value against the list it was rendered from.
+// submitted dropdown value against the list it was rendered from — kept in
+// the untranslated English name, since callers compare it against
+// heldTools/dupTools sets built from the same source.
 func (s *server) weaponNamesByCategory(category string) (map[string]string, error) {
-	options, err := s.loadWeaponOptions(category)
+	options, err := s.loadWeaponOptions(category, "")
 	if err != nil {
 		return nil, err
 	}
@@ -2323,6 +2465,34 @@ func (s *server) loadToolkitOptions() ([]toolkitOption, error) {
 	return out, nil
 }
 
+// translateToolkitOptions overlays Spanish name/description onto opts, keyed
+// by slug — called only after excludeHeldOptions has already filtered by the
+// untranslated English Name against character_proficiencies.value (which is
+// always stored in English at grant time), since translating first would
+// break that comparison and show a toolkit the character already holds.
+func (s *server) translateToolkitOptions(locale string, opts []toolkitOption) ([]toolkitOption, error) {
+	slugs := make([]string, len(opts))
+	for i, o := range opts {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range opts {
+		if tr := translations[opts[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				opts[i].Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				opts[i].Description = v
+			}
+		}
+	}
+	sort.Slice(opts, func(i, k int) bool { return sortKey(opts[i].Name) < sortKey(opts[k].Name) })
+	return opts, nil
+}
+
 // loadMartialWeaponOptions backs Scout-Nin's multiclass "One Martial
 // Weapon" choice — every weapon the catalog tags weapon_category='martial',
 // unlike toolkits there is no Greater/Superior/Supreme tiering to filter
@@ -2353,7 +2523,7 @@ func (s *server) loadMartialWeaponOptions() ([]toolkitOption, error) {
 // total-level-20 cap (charstore.TotalClassLevels). Shared by the creation
 // flow's Class step and the sheet's Add a Class page — the two forms differ
 // only in chrome, not in what they ask for.
-func (s *server) loadClassAddGrantFields(characterID int64, classSlug string) (map[string]any, error) {
+func (s *server) loadClassAddGrantFields(characterID int64, classSlug, locale string) (map[string]any, error) {
 	fields := map[string]any{}
 	for _, choice := range charstore.MulticlassGrantChoices(classSlug) {
 		switch choice {
@@ -2390,8 +2560,12 @@ func (s *server) loadClassAddGrantFields(characterID int64, classSlug string) (m
 			if err != nil {
 				return nil, err
 			}
+			toolkitOptions, err := s.translateToolkitOptions(locale, excludeHeldOptions(toolkits, heldTools))
+			if err != nil {
+				return nil, err
+			}
 			fields["NeedsToolkit"] = true
-			fields["ToolkitOptions"] = excludeHeldOptions(toolkits, heldTools)
+			fields["ToolkitOptions"] = toolkitOptions
 		case charstore.ChoiceMartialWeapon:
 			weapons, err := s.loadMartialWeaponOptions()
 			if err != nil {
@@ -2401,8 +2575,12 @@ func (s *server) loadClassAddGrantFields(characterID int64, classSlug string) (m
 			if err != nil {
 				return nil, err
 			}
+			weaponOptions, err := s.translateToolkitOptions(locale, excludeHeldOptions(weapons, heldWeapons))
+			if err != nil {
+				return nil, err
+			}
 			fields["NeedsWeapon"] = true
-			fields["WeaponOptions"] = excludeHeldOptions(weapons, heldWeapons)
+			fields["WeaponOptions"] = weaponOptions
 		}
 	}
 	total, err := charstore.TotalClassLevels(s.charDB, characterID, "")
@@ -2416,10 +2594,15 @@ func (s *server) loadClassAddGrantFields(characterID int64, classSlug string) (m
 // className looks up a class's display name, falling back to the slug
 // itself on a stale/unrecognized value — same tolerance every other
 // class-name lookup in this file already applies.
-func (s *server) className(classSlug string) string {
+func (s *server) className(classSlug, locale string) string {
 	var name string
 	if err := s.rulesDB.QueryRow(`SELECT name FROM classes WHERE slug = ?`, classSlug).Scan(&name); err != nil {
 		return classSlug
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "classes", classSlug); err == nil {
+		if v, ok := tr["name"]; ok {
+			name = v
+		}
 	}
 	return name
 }
@@ -2483,12 +2666,12 @@ func (s *server) submitMulticlassAdd(r *http.Request, characterID int64, classSl
 	if unmet := charstore.UnmetMulticlassClasses(scores, checkSlugs); len(unmet) > 0 {
 		names := make([]string, len(unmet))
 		for i, slug := range unmet {
-			names[i] = s.className(slug)
+			names[i] = s.className(slug, localeFromContext(r.Context()))
 		}
 		return false, "Ability score prerequisites not met for: " + strings.Join(names, ", ") + ".", nil
 	}
 
-	fields, err := s.loadClassAddGrantFields(characterID, classSlug)
+	fields, err := s.loadClassAddGrantFields(characterID, classSlug, localeFromContext(r.Context()))
 	if err != nil {
 		return false, "", err
 	}
@@ -2836,15 +3019,21 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 				log.Println("hydrate equipment selections:", err)
 				return
 			}
-			weapons, err := s.weaponChoiceLists(groups)
+			weapons, err := s.weaponChoiceLists(groups, localeFromContext(r.Context()))
 			if err != nil {
 				http.Error(w, "database error", http.StatusInternalServerError)
 				log.Println("load weapon options:", err)
 				return
 			}
+			toolkitOptions, err := s.translateToolkitOptions(localeFromContext(r.Context()), excludeHeldOptions(toolkits, heldTools))
+			if err != nil {
+				http.Error(w, "database error", http.StatusInternalServerError)
+				log.Println("translate toolkit options:", err)
+				return
+			}
 			data := map[string]any{
 				"Title": "Starting Equipment", "ID": id, "Groups": groups,
-				"Toolkits": excludeHeldOptions(toolkits, heldTools), "Weapons": weapons, "Error": kitErr,
+				"Toolkits": toolkitOptions, "Weapons": weapons, "Error": kitErr,
 			}
 			if backgroundSlug.Valid {
 				s.addBackgroundEquipmentData(data, id, backgroundSlug.String)
@@ -2948,8 +3137,14 @@ func (s *server) handleCreateEquipment(w http.ResponseWriter, r *http.Request) {
 			log.Println("load held toolkits for equipment step:", err)
 			return
 		}
-		data["Toolkits"] = excludeHeldOptions(toolkits, heldTools)
-		weapons, err := s.weaponChoiceLists(groups)
+		toolkitOptions, err := s.translateToolkitOptions(localeFromContext(r.Context()), excludeHeldOptions(toolkits, heldTools))
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("translate toolkit options:", err)
+			return
+		}
+		data["Toolkits"] = toolkitOptions
+		weapons, err := s.weaponChoiceLists(groups, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load weapon options:", err)
@@ -3929,23 +4124,40 @@ var equipmentKindOrder = []string{"weapon", "armor", "gear", "tool", "toolkit", 
 // than searched over the wire: this is a local, offline app, the whole
 // list is a few tens of kilobytes of markup, and a plain <select> the
 // browser can type-ahead through needs no JavaScript at all.
-func (s *server) loadEquipmentOptions() ([]equipmentOptionGroup, error) {
+func (s *server) loadEquipmentOptions(locale string) ([]equipmentOptionGroup, error) {
 	rows, err := s.rulesDB.Query(`SELECT slug, name, kind FROM equipment ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	byKind := map[string][]equipmentOption{}
+	var all []equipmentOption
 	for rows.Next() {
 		var opt equipmentOption
 		if err := rows.Scan(&opt.Slug, &opt.Name, &opt.Kind); err != nil {
 			return nil, err
 		}
-		byKind[opt.Kind] = append(byKind[opt.Kind], opt)
+		all = append(all, opt)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	slugs := make([]string, len(all))
+	for i, o := range all {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	byKind := map[string][]equipmentOption{}
+	for _, o := range all {
+		if tr := translations[o.Slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				o.Name = v
+			}
+		}
+		byKind[o.Kind] = append(byKind[o.Kind], o)
 	}
 
 	var out []equipmentOptionGroup
@@ -4827,7 +5039,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("ensure science-nin auto grants:", err)
 		return
 	}
-	inventory, err := s.loadCharacterInventory(id)
+	inventory, err := s.loadCharacterInventory(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load character inventory:", err)
@@ -4953,7 +5165,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load all language names:", err)
 		return
 	}
-	classSummary, err := s.loadClassSummary(id)
+	classSummary, err := s.loadClassSummary(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load class summary:", err)
@@ -4965,7 +5177,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load companions:", err)
 		return
 	}
-	puppetsTab, err := s.loadPuppetsTabData(id, sheet)
+	puppetsTab, err := s.loadPuppetsTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load puppets tab:", err)
@@ -4977,19 +5189,19 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load puppet tactics:", err)
 		return
 	}
-	mastery, err := s.loadMasteryData(id, sheet)
+	mastery, err := s.loadMasteryData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load mastery:", err)
 		return
 	}
-	summonsTab, err := s.loadSummonsTabData(id, sheet)
+	summonsTab, err := s.loadSummonsTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load summons tab:", err)
 		return
 	}
-	equipmentOptions, err := s.loadEquipmentOptions()
+	equipmentOptions, err := s.loadEquipmentOptions(localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load equipment options:", err)
@@ -5039,13 +5251,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load martial dice:", err)
 		return
 	}
-	martialTechniques, err := s.loadMartialTechniquesTabData(id, sheet)
+	martialTechniques, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques:", err)
 		return
 	}
-	weaponFocus, err := s.loadWeaponFocusTabData(id, sheet)
+	weaponFocus, err := s.loadWeaponFocusTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon focus:", err)
@@ -5057,19 +5269,19 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load weapon form:", err)
 		return
 	}
-	martialDefense, err := s.loadMartialDefenseTabData(id)
+	martialDefense, err := s.loadMartialDefenseTabData(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial defense:", err)
 		return
 	}
-	hunterTechniques, err := s.loadHunterTechniquesTabData(id, sheet)
+	hunterTechniques, err := s.loadHunterTechniquesTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load hunter techniques:", err)
 		return
 	}
-	cookingNin, err := s.loadCookingNinTabData(id, sheet)
+	cookingNin, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin:", err)
@@ -5081,13 +5293,13 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load genjutsu:", err)
 		return
 	}
-	medicalNin, err := s.loadMedicalNinTabData(id, sheet)
+	medicalNin, err := s.loadMedicalNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load medical-nin:", err)
 		return
 	}
-	scoutNin, err := s.loadScoutNinTabData(id, sheet)
+	scoutNin, err := s.loadScoutNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load scout-nin:", err)
@@ -5105,7 +5317,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load ninjutsu specialist:", err)
 		return
 	}
-	scienceNin, err := s.loadScienceNinTabData(id, sheet)
+	scienceNin, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin:", err)
@@ -5249,7 +5461,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	passiveTraits = mergePassiveAdvantage(passiveTraits,
-		cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}]))
+		cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}], localeFromContext(r.Context())))
 	affinitySet := map[string]bool{}
 	for _, a := range elementalAffinities {
 		affinitySet[a.Element] = true
@@ -5283,21 +5495,21 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pendingASI, err := s.buildPendingASIRows(id, sheet.PendingASISlots, sheet)
+	pendingASI, err := s.buildPendingASIRows(id, sheet.PendingASISlots, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending ASI rows:", err)
 		return
 	}
 
-	pendingFeatureChoices, err := s.buildPendingFeatureChoiceRows(sheet.PendingFeatureChoices)
+	pendingFeatureChoices, err := s.buildPendingFeatureChoiceRows(sheet.PendingFeatureChoices, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending feature choice rows:", err)
 		return
 	}
 
-	pendingFeatAbilityChoices, err := s.buildPendingFeatAbilityChoiceRows(id, characterFeats)
+	pendingFeatAbilityChoices, err := s.buildPendingFeatAbilityChoiceRows(id, characterFeats, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending feat ability choice rows:", err)
@@ -5397,7 +5609,7 @@ func groupSkillsByAbility(skills []charsheet.SkillEntry) []skillGroupRow {
 // loadCharacterInventory joins to equipment where a real item_slug is set
 // (for the /items/{slug} link) and falls back to custom_name otherwise —
 // same either-or shape character_inventory's own CHECK constraint enforces.
-func (s *server) loadCharacterInventory(characterID int64) ([]inventoryRow, error) {
+func (s *server) loadCharacterInventory(characterID int64, locale string) ([]inventoryRow, error) {
 	// Every row carries a real item_slug now — a custom row's slug points
 	// into the local custom_items library instead of rules.db (see
 	// lookupCarriedItem), rather than storing its name/kind/bulk/description
@@ -5421,7 +5633,7 @@ func (s *server) loadCharacterInventory(characterID int64) ([]inventoryRow, erro
 			return nil, err
 		}
 		row := inventoryRow{ID: id, Quantity: quantity, Equipped: equipped, Slug: itemSlug.String}
-		if err := s.lookupCarriedItem(&row); err != nil {
+		if err := s.lookupCarriedItem(&row, locale); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -5442,23 +5654,25 @@ func (s *server) loadCharacterInventory(characterID int64) ([]inventoryRow, erro
 var carriedItemKinds = []struct {
 	prefix string
 	kind   string
+	table  string
 	query  string
 }{
-	{"poison/", "Poison", `SELECT name, bulk FROM poisons WHERE slug = ?`},
+	{"poison/", "Poison", "poisons", `SELECT name, bulk FROM poisons WHERE slug = ?`},
 	// Traps have no bulk column at all — they are built in place, not
 	// carried — so the query supplies a NULL to keep one scan shape.
-	{"trap/", "Trap", `SELECT name, NULL FROM trap_templates WHERE slug = ?`},
+	{"trap/", "Trap", "trap_templates", `SELECT name, NULL FROM trap_templates WHERE slug = ?`},
 }
 
 // lookupCarriedItem fills in an inventory row's name, kind and bulk from
 // whichever rules table its slug belongs to. A slug that resolves nowhere
 // (a stale reference after a rules update) keeps the slug as its name rather
 // than vanishing, the same graceful degrade this function has always had.
-func (s *server) lookupCarriedItem(row *inventoryRow) error {
+func (s *server) lookupCarriedItem(row *inventoryRow, locale string) error {
 	// A custom/ slug points at the local library (custom_items in
 	// characters.db, see 0013_custom_items.sql), never at rules.db — the
 	// same "slug prefix picks the table" dispatch carriedItemKinds does
-	// below, just against a different database.
+	// below, just against a different database. Custom rows are
+	// player-authored, not source content, so they're never translated.
 	if strings.HasPrefix(row.Slug, "custom/") {
 		item, err := charstore.GetCustomItemBySlug(s.charDB, row.Slug)
 		if err == sql.ErrNoRows {
@@ -5484,6 +5698,11 @@ func (s *server) lookupCarriedItem(row *inventoryRow) error {
 			return err
 		}
 		row.Kind = source.kind
+		if tr, err := i18n.Row(s.rulesDB, locale, source.table, row.Slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				row.Name = v
+			}
+		}
 		return nil
 	}
 	var description sql.NullString
@@ -5495,6 +5714,11 @@ func (s *server) lookupCarriedItem(row *inventoryRow) error {
 		}
 		row.Name = row.Slug
 		return nil
+	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "equipment", row.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			row.Name = v
+		}
 	}
 	// Read straight off the description rather than from a list of pack
 	// slugs, so a rules update that adds a sixth pack gets an Unpack button
@@ -6319,7 +6543,7 @@ type classSummaryRow struct {
 // subclass_groups.class_slug is what ties a chosen subclass back to the
 // class it belongs to — character_subclasses itself only stores the
 // subclass slug, not which class it modifies.
-func (s *server) loadClassSummary(characterID int64) ([]classSummaryRow, error) {
+func (s *server) loadClassSummary(characterID int64, locale string) ([]classSummaryRow, error) {
 	rows, err := s.charDB.Query(
 		`SELECT class_slug, levels FROM character_classes WHERE character_id = ? ORDER BY order_index`, characterID)
 	if err != nil {
@@ -6373,6 +6597,11 @@ func (s *server) loadClassSummary(characterID int64) ([]classSummaryRow, error) 
 		).Scan(&name, &classSlug); err != nil {
 			continue // a stale/removed subclass slug just shows no subclass
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "subclasses", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+		}
 		subclassNameByClass[classSlug] = name
 		subclassSlugByClass[classSlug] = slug
 	}
@@ -6385,6 +6614,11 @@ func (s *server) loadClassSummary(characterID int64) ([]classSummaryRow, error) 
 		}
 		if err := s.rulesDB.QueryRow(`SELECT name FROM classes WHERE slug = ?`, slug).Scan(&row.ClassName); err != nil {
 			row.ClassName = slug
+		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "classes", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				row.ClassName = v
+			}
 		}
 		options, err := s.loadSubclassOptions(slug)
 		if err != nil {
@@ -6682,7 +6916,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("ensure science-nin auto grants for fragment:", err)
 			return
 		}
-		inventory, err := s.loadCharacterInventory(characterID)
+		inventory, err := s.loadCharacterInventory(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load inventory for fragment:", err)
@@ -6717,7 +6951,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["CustomItemAttacks"] = composeCustomAttacks(customItemAttacks, sheet, 0)
 	case "sheet_inventory", "sheet_inventory_full":
-		inventory, err := s.loadCharacterInventory(characterID)
+		inventory, err := s.loadCharacterInventory(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load inventory for "+name+" fragment:", err)
@@ -6771,7 +7005,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["PuppetTactics"] = tactics
 	case "sheet_martial_techniques":
-		martialTechniques, err := s.loadMartialTechniquesTabData(characterID, sheet)
+		martialTechniques, err := s.loadMartialTechniquesTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load martial techniques for fragment:", err)
@@ -6779,7 +7013,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["MartialTechniques"] = martialTechniques
 	case "sheet_weapon_focus":
-		weaponFocus, err := s.loadWeaponFocusTabData(characterID, sheet)
+		weaponFocus, err := s.loadWeaponFocusTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load weapon focus for fragment:", err)
@@ -6795,7 +7029,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["WeaponForm"] = weaponForm
 	case "sheet_martial_defense":
-		martialDefense, err := s.loadMartialDefenseTabData(characterID)
+		martialDefense, err := s.loadMartialDefenseTabData(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load martial defense for fragment:", err)
@@ -6803,7 +7037,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["MartialDefense"] = martialDefense
 	case "sheet_hunter_techniques":
-		hunterTechniques, err := s.loadHunterTechniquesTabData(characterID, sheet)
+		hunterTechniques, err := s.loadHunterTechniquesTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load hunter techniques for fragment:", err)
@@ -6811,7 +7045,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["HunterTechniques"] = hunterTechniques
 	case "sheet_cooking_nin":
-		cookingNin, err := s.loadCookingNinTabData(characterID, sheet)
+		cookingNin, err := s.loadCookingNinTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load cooking-nin for fragment:", err)
@@ -6827,7 +7061,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Genjutsu"] = genjutsu
 	case "sheet_medical_nin":
-		medicalNin, err := s.loadMedicalNinTabData(characterID, sheet)
+		medicalNin, err := s.loadMedicalNinTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load medical-nin for fragment:", err)
@@ -6835,7 +7069,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["MedicalNin"] = medicalNin
 	case "sheet_scout_nin":
-		scoutNin, err := s.loadScoutNinTabData(characterID, sheet)
+		scoutNin, err := s.loadScoutNinTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load scout-nin for fragment:", err)
@@ -6859,7 +7093,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["NinjutsuSpecialist"] = ninjutsuSpecialist
 	case "sheet_science_nin":
-		scienceNin, err := s.loadScienceNinTabData(characterID, sheet)
+		scienceNin, err := s.loadScienceNinTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load science-nin for fragment:", err)
@@ -6867,7 +7101,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["ScienceNin"] = scienceNin
 	case "sheet_mastery":
-		mastery, err := s.loadMasteryData(characterID, sheet)
+		mastery, err := s.loadMasteryData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load mastery for fragment:", err)
@@ -6875,13 +7109,13 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Mastery"] = mastery
 	case "sheet_feature_choices":
-		pendingASI, err := s.buildPendingASIRows(characterID, sheet.PendingASISlots, sheet)
+		pendingASI, err := s.buildPendingASIRows(characterID, sheet.PendingASISlots, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build pending ASI rows for fragment:", err)
 			return
 		}
-		pendingFeatureChoices, err := s.buildPendingFeatureChoiceRows(sheet.PendingFeatureChoices)
+		pendingFeatureChoices, err := s.buildPendingFeatureChoiceRows(sheet.PendingFeatureChoices, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build pending feature choice rows for fragment:", err)
@@ -6893,7 +7127,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load character feats for feature choices fragment:", err)
 			return
 		}
-		pendingFeatAbilityChoices, err := s.buildPendingFeatAbilityChoiceRows(characterID, characterFeats)
+		pendingFeatAbilityChoices, err := s.buildPendingFeatAbilityChoiceRows(characterID, characterFeats, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build pending feat ability choice rows for fragment:", err)
@@ -6932,7 +7166,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Companions"] = companions
 	case "sheet_puppet_tab":
-		puppetsTab, err := s.loadPuppetsTabData(characterID, sheet)
+		puppetsTab, err := s.loadPuppetsTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load puppets tab for fragment:", err)
@@ -6940,7 +7174,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["PuppetsTab"] = puppetsTab
 	case "sheet_summon_tab":
-		summonsTab, err := s.loadSummonsTabData(characterID, sheet)
+		summonsTab, err := s.loadSummonsTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load summons tab for fragment:", err)
@@ -6995,7 +7229,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			return
 		}
 		traits = mergePassiveAdvantage(traits,
-			cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}]))
+			cookingNinFoodForTheSoulAdvantageEntry(grantedFeatures, foodForTheSoulChoices[features.ChoiceKey{FeatureSlug: foodForTheSoulFeatureSlug, ChoiceIndex: 0}], localeFromContext(r.Context())))
 		data["PassiveTraits"] = traits
 	case "sheet_feats":
 		characterFeats, err := s.loadCharacterFeats(characterID)
@@ -7014,7 +7248,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Drive"], data["Goal"], data["Fear"] = drive, goal, fear
 	case "sheet_level_row":
-		classSummary, err := s.loadClassSummary(characterID)
+		classSummary, err := s.loadClassSummary(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load class summary for fragment:", err)

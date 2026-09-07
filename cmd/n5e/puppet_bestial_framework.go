@@ -5,6 +5,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // This file wires Green Technique's own Bestial Framework catalog pick
@@ -55,7 +56,7 @@ var puppetFoundationRepeatableSubChoiceKinds = map[string]map[string]bool{
 // implementation, covering all 6 of its sub-choice slots (see this file's
 // header comment for why one entry needs one combined function rather than
 // the generic per-field auto-builder).
-func bestialFrameworkSubChoiceOptions(s *server, characterID, companionID int64, pickIndex int) ([]puppetUpgradeSubChoiceOption, error) {
+func bestialFrameworkSubChoiceOptions(s *server, characterID, companionID int64, pickIndex int, locale string) ([]puppetUpgradeSubChoiceOption, error) {
 	switch pickIndex {
 	case 0, 1:
 		return puppetFoundationAbilityOptions(charsheet.Abilities, "ability:"), nil
@@ -66,15 +67,33 @@ func bestialFrameworkSubChoiceOptions(s *server, characterID, companionID int64,
 		}
 		defer rows.Close()
 		var out []puppetUpgradeSubChoiceOption
+		var rawSlugs []string
 		for rows.Next() {
 			var o puppetUpgradeSubChoiceOption
 			if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
 				return nil, err
 			}
+			rawSlugs = append(rawSlugs, o.Slug)
 			o.Slug = "tribe:" + o.Slug
 			out = append(out, o)
 		}
-		return out, rows.Err()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		translations, err := i18n.Batch(s.rulesDB, locale, "summon_tribes", rawSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i, raw := range rawSlugs {
+			tr := translations[raw]
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				out[i].Description = v
+			}
+		}
+		return out, nil
 	case 3, 4, 5:
 		slot := pickIndex - 3
 		level, err := s.puppetMasterClassLevel(characterID)
@@ -99,15 +118,33 @@ func bestialFrameworkSubChoiceOptions(s *server, characterID, companionID int64,
 		}
 		defer rows.Close()
 		var out []puppetUpgradeSubChoiceOption
+		var rawSlugs []string
 		for rows.Next() {
 			var o puppetUpgradeSubChoiceOption
 			if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
 				return nil, err
 			}
+			rawSlugs = append(rawSlugs, o.Slug)
 			o.Slug = "trait:" + o.Slug
 			out = append(out, o)
 		}
-		return out, rows.Err()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		translations, err := i18n.Batch(s.rulesDB, locale, "summon_tribe_features", rawSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i, raw := range rawSlugs {
+			tr := translations[raw]
+			if v, ok := tr["name"]; ok {
+				out[i].Name = v
+			}
+			if v, ok := tr["description"]; ok {
+				out[i].Description = v
+			}
+		}
+		return out, nil
 	default:
 		return nil, nil
 	}
@@ -158,7 +195,7 @@ func (s *server) bestialFrameworkTribeSlug(characterID, companionID int64) (stri
 // name/description, not just the stored slug). Folded into the SAME
 // FoundationTraits list every other entry's ReferenceTraits/RoleEffect text
 // already renders through — no new template block needed.
-func (s *server) bestialFrameworkReferenceTraits(fp puppetFoundationPick) ([]string, error) {
+func (s *server) bestialFrameworkReferenceTraits(fp puppetFoundationPick, locale string) ([]string, error) {
 	var tribeSlug string
 	var traitSlugs []string
 	for _, ch := range fp.SubChoices {
@@ -176,6 +213,11 @@ func (s *server) bestialFrameworkReferenceTraits(fp puppetFoundationPick) ([]str
 	if err := s.rulesDB.QueryRow(`SELECT name FROM summon_tribes WHERE slug = ?`, tribeSlug).Scan(&tribeName); err != nil {
 		return nil, err
 	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "summon_tribes", tribeSlug); err != nil {
+		return nil, err
+	} else if v, ok := tr["name"]; ok {
+		tribeName = v
+	}
 	out := []string{"Sage Creature: " + tribeName}
 
 	attackRows, err := s.rulesDB.Query(
@@ -183,17 +225,32 @@ func (s *server) bestialFrameworkReferenceTraits(fp puppetFoundationPick) ([]str
 	if err != nil {
 		return nil, err
 	}
+	var attacks []summonNamedText
 	for attackRows.Next() {
-		var name, desc string
-		if err := attackRows.Scan(&name, &desc); err != nil {
+		var t summonNamedText
+		if err := attackRows.Scan(&t.Name, &t.Description); err != nil {
 			attackRows.Close()
 			return nil, err
 		}
-		out = append(out, "Natural Weapon — "+name+": "+desc)
+		attacks = append(attacks, t)
 	}
 	attackRows.Close()
 	if err := attackRows.Err(); err != nil {
 		return nil, err
+	}
+	for i := range attacks {
+		key := tribeSlug + i18n.KeySeparator + attacks[i].Name
+		tr, err := i18n.Row(s.rulesDB, locale, "summon_tribe_attacks", key)
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := tr["name"]; ok {
+			attacks[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			attacks[i].Description = v
+		}
+		out = append(out, "Natural Weapon — "+attacks[i].Name+": "+attacks[i].Description)
 	}
 
 	for _, slug := range traitSlugs {
@@ -201,6 +258,14 @@ func (s *server) bestialFrameworkReferenceTraits(fp puppetFoundationPick) ([]str
 		err := s.rulesDB.QueryRow(`SELECT name, description FROM summon_tribe_features WHERE slug = ?`, slug).Scan(&name, &desc)
 		if err != nil {
 			continue // a stale/removed trait slug just isn't shown
+		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "summon_tribe_features", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				desc = v
+			}
 		}
 		out = append(out, "D-Rank Trait — "+name+": "+desc)
 	}

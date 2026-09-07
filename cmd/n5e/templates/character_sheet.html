@@ -1852,14 +1852,14 @@
     {{range .PuppetsTab.GeneralizedSkillPicks}}
     <li class="puppet-upgrade-pick">
       <form method="post" action="/characters/{{$.ID}}/sheet/generalized-skill/{{.Name}}/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
-        <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_verb"}}">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_named" .DisplayName}}" title="{{T "sheet.remove_verb"}}">&times;</button>
       </form>
       {{/* Rollable with the CHARACTER's own modifier for this skill — each
            companion's own card may show a higher number if its own
            statistics beat this one (resolvePuppetSkills), but this picker
            isn't scoped to any one companion. */}}
-      <span class="puppet-upgrade-pick-name rollable" data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_check_label" .Name}}" tabindex="0" role="button">
-        {{.Name}} <span class="sheet-skill-mod">{{signed .Modifier}}</span>
+      <span class="puppet-upgrade-pick-name rollable" data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_check_label" .DisplayName}}" tabindex="0" role="button">
+        {{.DisplayName}} <span class="sheet-skill-mod">{{signed .Modifier}}</span>
       </span>
     </li>
     {{end}}
@@ -1868,8 +1868,8 @@
   {{if lt .PuppetsTab.GeneralizedSkillUsed .PuppetsTab.GeneralizedSkillCap}}
   <form method="post" action="/characters/{{$.ID}}/sheet/generalized-skill" class="sheet-inline-form sheet-fetch-form" data-target="sheet-puppet-tab">
     <select name="skill_name" required>
-      <option value="">— choose a skill —</option>
-      {{range .PuppetsTab.AllSkillNames}}<option value="{{.}}">{{.}}</option>{{end}}
+      <option value="">{{T "sheet.choose_skill"}}</option>
+      {{range .PuppetsTab.AllSkillNames}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
     </select>
     <button type="submit">{{T "sheet.add_button"}}</button>
   </form>
@@ -3892,9 +3892,9 @@
     {{range .Mastery.Entries}}
     <li class="puppet-upgrade-pick">
       <form method="post" action="/characters/{{$.ID}}/sheet/mastery/{{pathEscape .Name}}/delete" class="sheet-inline-form sheet-fetch-form" data-target="sheet-mastery" data-also-refresh="sheet-skills sheet-tools-skills">
-        <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_mastery_in" .Name}}" title="{{T "sheet.remove_verb"}}">&times;</button>
+        <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_mastery_in" .DisplayName}}" title="{{T "sheet.remove_verb"}}">&times;</button>
       </form>
-      <span class="puppet-upgrade-pick-name">{{.Name}} <span class="option-picker-epithet">{{T "sheet.mastery_rank_bonus" .Rank (signed .Bonus) .RankLabel}}</span></span>
+      <span class="puppet-upgrade-pick-name">{{.DisplayName}} <span class="option-picker-epithet">{{T "sheet.mastery_rank_bonus" .Rank (signed .Bonus) .RankLabel}}</span></span>
       {{/* A rank above what the character's current level supports is kept
            as stored and shown as reduced, rather than being rewritten or
            hidden — the pick is still theirs the moment they level back up. */}}
@@ -3907,7 +3907,7 @@
   <form method="post" action="/characters/{{.ID}}/sheet/mastery" class="sheet-inline-form sheet-fetch-form" data-target="sheet-mastery" data-also-refresh="sheet-skills sheet-tools-skills">
     <select name="skill_name" required>
       <option value="">{{T "sheet.choose_skill_or_toolkit"}}</option>
-      {{range .Mastery.AvailableNames}}<option value="{{.}}">{{.}}</option>{{end}}
+      {{range .Mastery.AvailableNames}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
     </select>
     <select name="rank" required>
       <option value="">{{T "sheet.choose_rank"}}</option>

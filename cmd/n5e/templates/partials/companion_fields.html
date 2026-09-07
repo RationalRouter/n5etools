@@ -1554,7 +1554,7 @@
   <h3>{{T "companion_fields.combat_programming_heading"}}</h3>
   {{if .Ref.CombatProgrammingPick}}
   {{range .Ref.CombatProgrammingOptions}}
-  {{if eq .Name $.Ref.CombatProgrammingPick}}
+  {{if eq .Key $.Ref.CombatProgrammingPick}}
   <p><strong>{{.Name}}</strong> {{formatDescription .Description}}</p>
   {{end}}
   {{end}}
@@ -1567,7 +1567,7 @@
       {{range .Ref.CombatProgrammingOptions}}
       <li>
         <label class="puppet-upgrade-option tooltip">
-          <input type="radio" name="option_name" value="{{.Name}}" required> {{.Name}}
+          <input type="radio" name="option_key" value="{{.Key}}" required> {{.Name}}
           <span class="tooltip-content">{{formatDescription .Description}}</span>
         </label>
       </li>

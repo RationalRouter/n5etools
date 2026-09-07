@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/i18n"
@@ -57,13 +58,35 @@ var abilityLabels = map[string]string{
 	"int": "Intelligence", "wis": "Wisdom", "cha": "Charisma",
 }
 
-var classProfLabels = []struct{ kind, label string }{
-	{"armor", "Armor"},
-	{"weapon", "Weapons"},
-	{"tool", "Tools"},
-	{"saving_throw", "Saving Throws"},
-	{"skill", "Skills"},
-	{"skill_choice", "Skill Choices"},
+// abilityCatalogKeys maps a 3-letter ability code to its UI-catalog key —
+// the same full names already translated for create_abilities.html's own
+// ability-score labels, reused here rather than a second copy.
+var abilityCatalogKeys = map[string]string{
+	"str": "create_abilities.strength", "dex": "create_abilities.dexterity", "con": "create_abilities.constitution",
+	"int": "create_abilities.intelligence", "wis": "create_abilities.wisdom", "cha": "create_abilities.charisma",
+}
+
+// abilityLabelTr expands a 3-letter ability code to its full name in tr's
+// locale, falling back to the raw code for anything not in
+// abilityCatalogKeys (e.g. already-invalid input).
+func abilityLabelTr(tr i18n.TranslateFunc, ab string) string {
+	if key, ok := abilityCatalogKeys[ab]; ok {
+		return tr(key)
+	}
+	return ab
+}
+
+// classProfLabels' catalogKey reuses the items page's item_kind.* labels for
+// armor/weapon/tool (same English words, already translated) and the
+// character sheet's own saving_throws/skills_heading keys, rather than a
+// second copy of any of them.
+var classProfLabels = []struct{ kind, catalogKey string }{
+	{"armor", "item_kind.armor"},
+	{"weapon", "item_kind.weapon"},
+	{"tool", "item_kind.tool"},
+	{"saving_throw", "sheet.saving_throws"},
+	{"skill", "sheet.skills_heading"},
+	{"skill_choice", "partial_class_detail.skill_choices_kind"},
 }
 
 type castingRow struct {
@@ -194,8 +217,19 @@ func (s *server) loadClassDetail(locale, slug string) (*classDetail, error) {
 	if err != nil {
 		return nil, err
 	}
+	if tr, err := i18n.Row(s.rulesDB, locale, "classes", c.Slug); err == nil {
+		if v, ok := tr["name"]; ok {
+			c.Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			c.Description = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["quick_build"]; ok {
+			c.QuickBuild = sql.NullString{String: v, Valid: true}
+		}
+	}
 
-	if err := s.loadClassCasting(&c); err != nil {
+	if err := s.loadClassCasting(&c, locale); err != nil {
 		return nil, fmt.Errorf("load class casting: %w", err)
 	}
 	if err := s.loadClassProficiencies(&c); err != nil {
@@ -253,7 +287,8 @@ func (s *server) handleClassDetail(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "class_detail.html", map[string]any{"Title": c.Name, "Class": c})
 }
 
-func (s *server) loadClassCasting(c *classDetail) error {
+func (s *server) loadClassCasting(c *classDetail, locale string) error {
+	tr := i18n.Translator(locale)
 	rows, err := s.rulesDB.Query(`
 		SELECT discipline, ability FROM class_casting WHERE class_slug = ? ORDER BY discipline`, c.Slug)
 	if err != nil {
@@ -265,10 +300,7 @@ func (s *server) loadClassCasting(c *classDetail) error {
 		if err := rows.Scan(&discipline, &ability); err != nil {
 			return err
 		}
-		label := abilityLabels[ability]
-		if label == "" {
-			label = ability
-		}
+		label := abilityLabelTr(tr, ability)
 		c.Casting = append(c.Casting, castingRow{
 			Discipline: strings.ToUpper(discipline[:1]) + discipline[1:],
 			Ability:    label,
@@ -284,53 +316,110 @@ func (s *server) loadClassProficiencies(c *classDetail) error {
 		return err
 	}
 	defer rows.Close()
-	byKind := map[string][]string{}
+	type profRow struct{ kind, value string }
+	var raw []profRow
 	for rows.Next() {
 		var kind, value string
 		var chooseN sql.NullInt64
 		if err := rows.Scan(&kind, &value, &chooseN); err != nil {
 			return err
 		}
-		byKind[kind] = append(byKind[kind], value)
+		raw = append(raw, profRow{kind, value})
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
+
+	keys := make([]string, len(raw))
+	for i, r := range raw {
+		keys[i] = c.Slug + i18n.KeySeparator + r.kind + i18n.KeySeparator + r.value
+	}
+	translations, err := i18n.Batch(s.rulesDB, c.Locale, "class_proficiencies", keys)
+	if err != nil {
+		return err
+	}
+	byKind := map[string][]string{}
+	for i, r := range raw {
+		value := r.value
+		if tr, ok := translations[keys[i]]; ok {
+			if v, ok := tr["value"]; ok {
+				value = v
+			}
+		}
+		byKind[r.kind] = append(byKind[r.kind], value)
+	}
+	tr := i18n.Translator(c.Locale)
 	for _, k := range classProfLabels {
 		values := byKind[k.kind]
 		if len(values) == 0 {
 			continue
 		}
 		sort.Strings(values)
-		c.Proficiencies = append(c.Proficiencies, profGroup{Kind: k.label, Values: values})
+		c.Proficiencies = append(c.Proficiencies, profGroup{Kind: tr(k.catalogKey), Values: values})
 	}
 	return nil
 }
 
 func (s *server) loadClassEquipment(c *classDetail) error {
 	rows, err := s.rulesDB.Query(`
-		SELECT group_idx, description FROM class_equipment_options
+		SELECT group_idx, choice_idx, description FROM class_equipment_options
 		WHERE class_slug = ? ORDER BY group_idx, choice_idx`, c.Slug)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	var lastGroup = -1
+	type equipRow struct {
+		groupIdx, choiceIdx int
+		description         string
+	}
+	var raw []equipRow
 	for rows.Next() {
-		var groupIdx int
-		var description string
-		if err := rows.Scan(&groupIdx, &description); err != nil {
+		var r equipRow
+		if err := rows.Scan(&r.groupIdx, &r.choiceIdx, &r.description); err != nil {
 			return err
 		}
-		if groupIdx != lastGroup {
+		raw = append(raw, r)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	keys := make([]string, len(raw))
+	for i, r := range raw {
+		keys[i] = c.Slug + i18n.KeySeparator + strconv.Itoa(r.groupIdx) + i18n.KeySeparator + strconv.Itoa(r.choiceIdx)
+	}
+	translations, err := i18n.Batch(s.rulesDB, c.Locale, "class_equipment_options", keys)
+	if err != nil {
+		return err
+	}
+
+	var lastGroup = -1
+	for i, r := range raw {
+		description := r.description
+		if tr, ok := translations[keys[i]]; ok {
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
+		if r.groupIdx != lastGroup {
 			c.Equipment = append(c.Equipment, equipmentGroup{})
-			lastGroup = groupIdx
+			lastGroup = r.groupIdx
 		}
 		g := &c.Equipment[len(c.Equipment)-1]
 		g.Choices = append(g.Choices, description)
 	}
-	return rows.Err()
+	return nil
 }
+
+// classResourceCol pairs a v_class_level_resources.resource_name value (name
+// -- unavoidably English, since it's the DB lookup key, and this table isn't
+// itself registered as translatable content) with the UI-catalog key its
+// column header displays as. Some reuse a label already translated
+// elsewhere (Creation Points, Malleable Mirages, Martial Techniques, Refined
+// Ninjutsu all have their own catalog key from the character sheet/subclass
+// popups already), the rest live under the class_resource_col.* namespace
+// added specifically for this table.
+type classResourceCol struct{ name, catalogKey string }
 
 // classResourceColumns gives each class's named resource columns (e.g.
 // Genjutsu Specialist's "Malleable Mirages", Puppet Master's five-tier
@@ -340,17 +429,25 @@ func (s *server) loadClassEquipment(c *classDetail) error {
 // here — verified directly against each class's page in the Orochimaru
 // Observation Compendium (2026-07-19). Note book order is not always
 // alphabetical: Weapon Specialist prints "Styles Known" before "Flurry Die".
-var classResourceColumns = map[string][]string{
-	"class/cooking-nin":            {"Cooking Die"},
-	"class/genjutsu-specialist":    {"Malleable Mirages"},
-	"class/hunter-nin":             {"Lethal Attack"},
-	"class/intelligence-operative": {"Plans Known", "Brave Orders"},
-	"class/medical-nin":            {"Channeled Healing", "Chakra Scalpel Charges", "Chakra Scalpel damage"},
-	"class/ninjutsu-specialist":    {"Refined Ninjutsu", "Efficient Moldings"},
-	"class/science-nin":            {"Creation Points"},
-	"class/taijutsu-specialist":    {"Martial Die", "Martial Techniques"},
-	"class/weapon-specialist":      {"Styles Known", "Flurry Die"},
-	"class/puppet-master":          {"Wood Tier", "Bronze Tier", "Silver Tier", "Gold Tier", "Platinum Tier"},
+var classResourceColumns = map[string][]classResourceCol{
+	"class/cooking-nin":            {{"Cooking Die", "class_resource_col.cooking_die"}},
+	"class/genjutsu-specialist":    {{"Malleable Mirages", "sheet.malleable_mirages"}},
+	"class/hunter-nin":             {{"Lethal Attack", "class_resource_col.lethal_attack"}},
+	"class/intelligence-operative": {{"Plans Known", "class_resource_col.plans_known"}, {"Brave Orders", "class_resource_col.brave_orders"}},
+	"class/medical-nin": {
+		{"Channeled Healing", "class_resource_col.channeled_healing"},
+		{"Chakra Scalpel Charges", "class_resource_col.chakra_scalpel_charges"},
+		{"Chakra Scalpel damage", "class_resource_col.chakra_scalpel_damage"},
+	},
+	"class/ninjutsu-specialist": {{"Refined Ninjutsu", "sheet.refined_ninjutsu"}, {"Efficient Moldings", "class_resource_col.efficient_moldings"}},
+	"class/science-nin":         {{"Creation Points", "science_nin_creation_points.label"}},
+	"class/taijutsu-specialist": {{"Martial Die", "class_resource_col.martial_die"}, {"Martial Techniques", "sheet.martial_techniques"}},
+	"class/weapon-specialist":   {{"Styles Known", "class_resource_col.styles_known"}, {"Flurry Die", "class_resource_col.flurry_die"}},
+	"class/puppet-master": {
+		{"Wood Tier", "class_resource_col.wood_tier"}, {"Bronze Tier", "class_resource_col.bronze_tier"},
+		{"Silver Tier", "class_resource_col.silver_tier"}, {"Gold Tier", "class_resource_col.gold_tier"},
+		{"Platinum Tier", "class_resource_col.platinum_tier"},
+	},
 }
 
 func (s *server) loadClassLevels(c *classDetail) error {
@@ -374,12 +471,33 @@ func (s *server) loadClassLevels(c *classDetail) error {
 		return err
 	}
 
-	c.ResourceColumns = classResourceColumns[c.Slug]
+	levelKeys := make([]string, len(levels))
+	for i, lr := range levels {
+		levelKeys[i] = c.Slug + i18n.KeySeparator + strconv.Itoa(lr.Level)
+	}
+	levelTranslations, err := i18n.Batch(s.rulesDB, c.Locale, "class_levels", levelKeys)
+	if err != nil {
+		return err
+	}
+	for i := range levels {
+		if tr, ok := levelTranslations[levelKeys[i]]; ok {
+			if v, ok := tr["features_text"]; ok {
+				levels[i].Features = sql.NullString{String: v, Valid: true}
+			}
+		}
+	}
+
+	resCols := classResourceColumns[c.Slug]
+	resTr := i18n.Translator(c.Locale)
+	c.ResourceColumns = make([]string, len(resCols))
+	for i, col := range resCols {
+		c.ResourceColumns[i] = resTr(col.catalogKey)
+	}
 
 	// One query per level for resources, same N+1 shape internal/export uses
 	// for its ClassChartMaster CSV (20 levels max — not worth batching).
 	for i := range levels {
-		if len(c.ResourceColumns) == 0 {
+		if len(resCols) == 0 {
 			continue
 		}
 		resRows, err := s.rulesDB.Query(`
@@ -401,9 +519,9 @@ func (s *server) loadClassLevels(c *classDetail) error {
 		if err := resRows.Err(); err != nil {
 			return err
 		}
-		levels[i].ResourceValues = make([]string, len(c.ResourceColumns))
-		for k, col := range c.ResourceColumns {
-			levels[i].ResourceValues[k] = byName[col]
+		levels[i].ResourceValues = make([]string, len(resCols))
+		for k, col := range resCols {
+			levels[i].ResourceValues[k] = byName[col.name]
 		}
 	}
 	c.Levels = levels
@@ -669,6 +787,13 @@ func (s *server) loadClassOptions(c *classDetail) error {
 	if err != nil {
 		return err
 	}
+	// listNameTr canonicalizes each list's translated heading by its raw
+	// English name: DeepL translated list_name per option row rather than
+	// once per list, so rows sharing one English list name can carry
+	// slightly different Spanish wording. Using the first translation seen
+	// for a given English name keeps every row in that list under one
+	// heading instead of splintering it by wording variance.
+	listNameTr := map[string]string{}
 	for i := range raw {
 		tr := translations[raw[i].opt.Slug]
 		if v, ok := tr["name"]; ok {
@@ -679,6 +804,14 @@ func (s *server) loadClassOptions(c *classDetail) error {
 		}
 		if v, ok := tr["description"]; ok {
 			raw[i].opt.Description = v
+		}
+		if v, ok := tr["list_name"]; ok {
+			if canon, ok := listNameTr[raw[i].listName]; ok {
+				v = canon
+			} else {
+				listNameTr[raw[i].listName] = v
+			}
+			raw[i].listName = v
 		}
 	}
 
@@ -726,6 +859,28 @@ func (s *server) loadClassFeats(c *classDetail) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+
+	slugs := make([]string, len(c.Feats))
+	for i, f := range c.Feats {
+		slugs[i] = f.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, c.Locale, "feats", slugs)
+	if err != nil {
+		return err
+	}
+	for i := range c.Feats {
+		tr := translations[c.Feats[i].Slug]
+		if v, ok := tr["name"]; ok {
+			c.Feats[i].Name = v
+		}
+		if v, ok := tr["prerequisites"]; ok {
+			c.Feats[i].Prerequisites = sql.NullString{String: v, Valid: true}
+		}
+		if v, ok := tr["description"]; ok {
+			c.Feats[i].Description = v
+		}
+	}
+
 	sort.Slice(c.Feats, func(i, k int) bool { return sortKey(c.Feats[i].Name) < sortKey(c.Feats[k].Name) })
 	return nil
 }
@@ -741,6 +896,17 @@ func (s *server) loadMulticlassRules(c *classDetail) error {
 	}
 	if err != nil {
 		return fmt.Errorf("query multiclass rules: %w", err)
+	}
+	if tr, err := i18n.Row(s.rulesDB, c.Locale, "class_multiclass_rules", c.Slug); err == nil {
+		if v, ok := tr["ability_prereq_text"]; ok {
+			m.AbilityPrereqText = v
+		}
+		if v, ok := tr["proficiencies_text"]; ok {
+			m.ProficienciesText = v
+		}
+		if v, ok := tr["jutsu_per_level_text"]; ok {
+			m.JutsuPerLevelText = v
+		}
 	}
 	c.MulticlassRules = &m
 	return nil

@@ -155,7 +155,7 @@ func TestSNBBiteDieForLevel(t *testing.T) {
 // snbMaxHP's doc), not the S.N.B's own fixed -1 Int baseline, plus Improved
 // Accuracy's own to-hit bonus once known.
 func TestSNBBiteAttack(t *testing.T) {
-	row := snbBiteAttack(9, 3, 4, 0)
+	row := snbBiteAttack(9, 3, 4, 0, "")
 	if row.Name != "Bite" {
 		t.Errorf("Name = %q, want Bite", row.Name)
 	}
@@ -172,7 +172,7 @@ func TestSNBBiteAttack(t *testing.T) {
 		t.Errorf("DamageType = %q, want piercing", row.DamageType)
 	}
 
-	withAccuracy := snbBiteAttack(9, 3, 4, 2)
+	withAccuracy := snbBiteAttack(9, 3, 4, 2, "")
 	if withAccuracy.AttackTotal != 3+4+2 {
 		t.Errorf("AttackTotal with Improved Accuracy = %d, want 9 (player int mod + prof + accuracy bonus)", withAccuracy.AttackTotal)
 	}
@@ -307,7 +307,7 @@ func TestLoadSNBReferenceFeatureLocking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := s.loadSNBReference(1, companion, sheet)
+	ref, err := s.loadSNBReference(1, companion, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ func TestLoadSNBReferenceFeatureLocking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refLow, err := s.loadSNBReference(1, companion, sheetLow)
+	refLow, err := s.loadSNBReference(1, companion, sheetLow, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +404,7 @@ func TestSNBAttacksIncludeComputedBite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tab, err := s.loadSummonsTabData(1, sheet)
+	tab, err := s.loadSummonsTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestSNBCombatProgrammingPick(t *testing.T) {
 
 	post := func(optionName string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/characters/1/companions/"+cid+"/snb-combat-programming",
-			strings.NewReader(url.Values{"option_name": {optionName}}.Encode()))
+			strings.NewReader(url.Values{"option_key": {optionName}}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("X-Requested-With", "fetch")
 		req.SetPathValue("id", "1")
@@ -473,7 +473,7 @@ func TestSNBCombatProgrammingPick(t *testing.T) {
 		t.Errorf("invalid option: status %d, want 400", w.Code)
 	}
 
-	if w := post("Defensive"); w.Code != http.StatusOK {
+	if w := post("defensive"); w.Code != http.StatusOK {
 		t.Fatalf("valid option: status %d, body %s", w.Code, w.Body.String())
 	}
 
@@ -481,8 +481,8 @@ func TestSNBCombatProgrammingPick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pick != "Defensive" {
-		t.Errorf("persisted pick = %q, want Defensive", pick)
+	if pick != "defensive" {
+		t.Errorf("persisted pick = %q, want defensive", pick)
 	}
 
 	companion, err := charstore.GetCompanion(s.charDB, 1, companionID)
@@ -493,11 +493,11 @@ func TestSNBCombatProgrammingPick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := s.loadSNBReference(1, companion, sheet)
+	ref, err := s.loadSNBReference(1, companion, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ref.CombatProgrammingPick != "Defensive" {
+	if ref.CombatProgrammingPick != "defensive" {
 		t.Errorf("ref.CombatProgrammingPick = %q, want Defensive", ref.CombatProgrammingPick)
 	}
 	wantAC := snbAC(sheet.ProficiencyBonus, sheet.Level, "Defensive", false)

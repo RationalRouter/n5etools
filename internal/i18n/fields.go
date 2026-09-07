@@ -44,11 +44,20 @@ var TranslatableFields = map[string][]string{
 		"name", "description", "feature_name", "feature_text", "asi_text",
 		"equipment_text", "equipment_pack_text",
 	},
-	"subclasses":        {"name", "description"},
-	"subclass_groups":   {"display_name", "description"},
-	"subclass_features": {"name", "description"},
+	"classes": {"name", "description", "quick_build"},
+	// value covers every proficiency kind (armor/weapon/tool prose,
+	// saving-throw/skill names alike) uniformly rather than routing skill
+	// names through the UI catalog's separate skill.*.name keys -- one
+	// mechanism for the whole table, same as every other content table.
+	"class_proficiencies":     {"value"},
+	"class_equipment_options": {"description"},
+	"class_levels":            {"features_text"},
+	"class_multiclass_rules":  {"ability_prereq_text", "proficiencies_text", "jutsu_per_level_text"},
+	"subclasses":              {"name", "description"},
+	"subclass_groups":         {"display_name", "description"},
+	"subclass_features":       {"name", "description"},
 	"class_options": {
-		"name", "prerequisites", "description",
+		"name", "prerequisites", "description", "list_name",
 		"stat_block_ac_formula_text", "stat_block_hp_formula_text",
 		"stat_block_saving_throws_text", "stat_block_resistances",
 		"stat_block_immunities", "stat_block_condition_immunities",
@@ -73,10 +82,19 @@ var TranslatableFields = map[string][]string{
 		"damage_resistance_text", "damage_immunity_text",
 		"condition_immunity_text", "weapon_proficiency_text",
 	},
-	"puppet_armor_chassis":          {"name", "description", "properties_text"},
+	// properties_text is deliberately excluded: cmd/n5e/puppets.go's
+	// loadPuppetArmorChassisOptions parses it at runtime (splitting on
+	// commas, matching each token's name against puppet_armor_chassis_property/
+	// armor_properties by name) to build each chassis's property tooltips —
+	// the same "machine-parsed, must stay in the source language" exclusion
+	// as equipment.properties above.
+	"puppet_armor_chassis":          {"name", "description"},
 	"puppet_armor_chassis_property": {"name", "description"},
 	"puppet_swarm_stat_block":       {"raw_text"},
 	"titan_unit_card":               {"raw_text"},
+	"fighting_stances": {
+		"name", "prerequisites", "description",
+	},
 	// jutsu.components is deliberately excluded: cmd/n5e/jutsu_filters.go
 	// parses it at runtime (componentCodes/componentNames) to power the
 	// jutsu filter chips. Translating it per-row would break filtering
@@ -110,6 +128,10 @@ var KeyColumns = map[string][]string{
 	"puppet_tool_stat_block":  {"class_slug"},
 	"puppet_swarm_stat_block": {"class_slug"},
 	"titan_unit_card":         {"class_slug"},
+	"class_proficiencies":     {"class_slug", "kind", "value"},
+	"class_equipment_options": {"class_slug", "group_idx", "choice_idx"},
+	"class_levels":            {"class_slug", "level"},
+	"class_multiclass_rules":  {"class_slug"},
 }
 
 // KeySeparator joins multi-column keys (see KeyColumns) into the single

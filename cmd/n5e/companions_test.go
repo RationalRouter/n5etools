@@ -129,7 +129,7 @@ func TestSummonCustomAttacksLoadStructured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tab, err := s.loadSummonsTabData(1, sheet)
+	tab, err := s.loadSummonsTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestLoadCharacterReferenceNoClass(t *testing.T) {
 	if _, err := s.charDB.Exec(`INSERT INTO characters (name) VALUES ('No Class')`); err != nil {
 		t.Fatal(err)
 	}
-	ref, err := s.loadCharacterReference(1, "")
+	ref, err := s.loadCharacterReference(1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestLoadCharacterReferenceNoSubclassYet(t *testing.T) {
 		VALUES (1, 'class/puppet-master', 1, 0)`); err != nil {
 		t.Fatal(err)
 	}
-	ref, err := s.loadCharacterReference(1, "")
+	ref, err := s.loadCharacterReference(1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestLoadCharacterReferenceLevelGating(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ref, err := s.loadCharacterReference(1, "")
+	ref, err := s.loadCharacterReference(1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestLoadCharacterReferenceLevelGating(t *testing.T) {
 	if _, err := s.charDB.Exec(`UPDATE character_classes SET levels = 14 WHERE character_id = 1`); err != nil {
 		t.Fatal(err)
 	}
-	ref, err = s.loadCharacterReference(1, "")
+	ref, err = s.loadCharacterReference(1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +351,7 @@ func TestLoadSummonTribeReferenceRankGating(t *testing.T) {
 	seedBearTribeRules(t, s)
 
 	// Character level 3 -> highestRankForLevel D: only Claw Flex unlocked.
-	ref, err := s.loadSummonTribeReference("summon/bear", 3)
+	ref, err := s.loadSummonTribeReference("summon/bear", 3, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestLoadSummonTribeReferenceRankGating(t *testing.T) {
 	}
 
 	// Character level 15 -> highestRankForLevel A: both unlocked.
-	ref, err = s.loadSummonTribeReference("summon/bear", 15)
+	ref, err = s.loadSummonTribeReference("summon/bear", 15, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestLoadSummonTribeReferenceRankGating(t *testing.T) {
 func TestLoadSummonTribeReferenceUnknownSlug(t *testing.T) {
 	s := testServer(t)
 	seedBearTribeRules(t, s)
-	ref, err := s.loadSummonTribeReference("summon/does-not-exist", 5)
+	ref, err := s.loadSummonTribeReference("summon/does-not-exist", 5, "")
 	if err != nil {
 		t.Fatal(err)
 	}

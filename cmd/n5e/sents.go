@@ -8,6 +8,7 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Technobi's S.E.N.Ts (3rd level): "During a Short Rest you can work on a
@@ -46,7 +47,7 @@ var scienceNinSENTWeaponSlugs = []string{
 // it" shape loadCookingToolImplementCatalog already establishes, just
 // filtered by an explicit slug list instead of a shared prefix (these 8
 // weapons share no slug pattern of their own).
-func (s *server) loadSENTWeaponCatalog() ([]featureChoiceOption, error) {
+func (s *server) loadSENTWeaponCatalog(locale string) ([]featureChoiceOption, error) {
 	placeholders := make([]string, len(scienceNinSENTWeaponSlugs))
 	args := make([]any, len(scienceNinSENTWeaponSlugs))
 	for i, slug := range scienceNinSENTWeaponSlugs {
@@ -69,7 +70,28 @@ func (s *server) loadSENTWeaponCatalog() ([]featureChoiceOption, error) {
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Value
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "equipment", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Value]
+		if v, ok := tr["name"]; ok {
+			out[i].Label = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // sentChoiceKey is the single ChoiceIndex slot S.E.N.T's pick lives under —
@@ -140,7 +162,9 @@ func (s *server) setSENTPick(id int64, value string) (int, string) {
 	if !hasGrantedFeature(grantedFeatures, scienceNinSENTsFeatureSlug) {
 		return http.StatusBadRequest, "character does not have S.E.N.Ts"
 	}
-	catalog, err := s.loadSENTWeaponCatalog()
+	// Locale doesn't matter here: only Value is checked, never a display
+	// field.
+	catalog, err := s.loadSENTWeaponCatalog("")
 	if err != nil {
 		log.Println("load sent weapon catalog:", err)
 		return http.StatusInternalServerError, "database error"

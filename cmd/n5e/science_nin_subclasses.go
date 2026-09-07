@@ -10,6 +10,8 @@ import (
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
+	"github.com/sergio/n5e/internal/statlines"
 )
 
 // Eight of Science-Nin's ten subclasses' own cap+catalog picks — Elemental
@@ -415,6 +417,12 @@ type scienceNinSubclassOption struct {
 	Tier        string
 	Epithet     string
 	Description string
+	// Cost/Drain: parsed once from the entry's own RAW ENGLISH description
+	// (internal/statlines.ParseScienceNinTool) -- never re-derived from
+	// Description itself, which has its stat line already stripped (see
+	// loadScienceNinEntryCatalog's own doc). Downstream code that needs
+	// Cost reads this field directly instead of re-parsing Description.
+	Cost, Drain int
 	// FixedPool is Inversion Serums only ("mending"/"maiming" when the
 	// entry's own Drain line names one CCD half specifically, "" for a
 	// dual-effect serum the player may pay from either half).
@@ -505,7 +513,7 @@ func inversionSerumFixedPool(description string) string {
 // whole class of bug in one pass" shape loadTitanUpgradeCatalog (titan.go)
 // already applies to Titan Upgrades' own Mastercraft/Bijuu Slayer row —
 // this is the general form of that same special case.
-func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bool) ([]scienceNinSubclassOption, error) {
+func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bool, locale string) ([]scienceNinSubclassOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT e.slug, e.name, e.description, o.name
 		FROM class_option_entries e
@@ -518,33 +526,47 @@ func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bo
 	defer rows.Close()
 
 	var out []scienceNinSubclassOption
+	var slugs []string
 	for rows.Next() {
 		var o scienceNinSubclassOption
 		var description string
 		if err := rows.Scan(&o.Slug, &o.Name, &description, &o.Tier); err != nil {
 			return nil, err
 		}
+		// Epithet's own badge (Cost/Drain, if this entry's shape carries
+		// them) is built from the RAW English text -- resolveSerumPool's own
+		// FixedPool below reads the same raw text for the identical reason.
 		o.Epithet, _ = splitLeadingStatLine(description)
-		o.Description = description
 		if resolveSerumPool {
 			o.FixedPool = inversionSerumFixedPool(description)
 		}
+		o.Cost, o.Drain, _, o.Description = statlines.ParseScienceNinTool(description)
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	childless, err := s.loadScienceNinChildlessTierOptions(listName)
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_option_entries", slugs)
 	if err != nil {
 		return nil, err
 	}
-	for _, o := range childless {
-		if resolveSerumPool {
-			o.FixedPool = inversionSerumFixedPool(o.Description)
+	for i := range out {
+		tr := translated[out[i].Slug]
+		if tr["name"] != "" {
+			out[i].Name = tr["name"]
 		}
-		out = append(out, o)
+		if tr["description"] != "" {
+			out[i].Description = tr["description"]
+		}
 	}
+
+	childless, err := s.loadScienceNinChildlessTierOptions(listName, resolveSerumPool, locale)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, childless...)
 	return out, nil
 }
 
@@ -555,7 +577,7 @@ func (s *server) loadScienceNinEntryCatalog(listName string, resolveSerumPool bo
 // Slug is the class_options row's own slug (there is no
 // class_option_entries row to point at); Name/Description are split off
 // the tier's raw class_options.description via splitScienceNinSoloTierItem.
-func (s *server) loadScienceNinChildlessTierOptions(listName string) ([]scienceNinSubclassOption, error) {
+func (s *server) loadScienceNinChildlessTierOptions(listName string, resolveSerumPool bool, locale string) ([]scienceNinSubclassOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT o.slug, o.name, o.description
 		FROM class_options o
@@ -568,6 +590,7 @@ func (s *server) loadScienceNinChildlessTierOptions(listName string) ([]scienceN
 	defer rows.Close()
 
 	var out []scienceNinSubclassOption
+	var slugs []string
 	for rows.Next() {
 		var slug, tier, description string
 		if err := rows.Scan(&slug, &tier, &description); err != nil {
@@ -576,8 +599,29 @@ func (s *server) loadScienceNinChildlessTierOptions(listName string) ([]scienceN
 		name, body := splitScienceNinSoloTierItem(tier, description)
 		o := scienceNinSubclassOption{Slug: slug, Name: name, Tier: tier}
 		o.Epithet, _ = splitLeadingStatLine(body)
-		o.Description = body
+		if resolveSerumPool {
+			o.FixedPool = inversionSerumFixedPool(body)
+		}
+		o.Cost, o.Drain, _, o.Description = statlines.ParseScienceNinTool(body)
 		out = append(out, o)
+		slugs = append(slugs, slug)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// This tier's own class_options row (not class_option_entries) is what
+	// was translated -- content_translations' own "description" value
+	// already has the stat line stripped (cmd/n5e-i18n's export tool), so
+	// it's usable directly as the translated body text.
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if v := translated[out[i].Slug]["description"]; v != "" {
+			out[i].Description = v
+		}
 	}
 	return out, rows.Err()
 }
@@ -684,6 +728,21 @@ func scienceNinDescBySlug(catalog []scienceNinSubclassOption) map[string]string 
 	m := make(map[string]string, len(catalog))
 	for _, o := range catalog {
 		m[o.Slug] = o.Description
+	}
+	return m
+}
+
+// scienceNinOptionBySlug indexes a catalog by slug so a "Designated"
+// picker synthesizing its own scienceNinSubclassOption literal (Perma
+// Perk, BIM Specialist, Ascended WoW, the Sheep and the Shepherd) can copy
+// Epithet/Description forward from the already-resolved catalog entry
+// instead of re-deriving them — Epithet in particular carries this shape's
+// own Cost/Drain badge (splitLeadingStatLine), which the synthesized
+// literal would otherwise show nowhere at all.
+func scienceNinOptionBySlug(catalog []scienceNinSubclassOption) map[string]scienceNinSubclassOption {
+	m := make(map[string]scienceNinSubclassOption, len(catalog))
+	for _, o := range catalog {
+		m[o.Slug] = o
 	}
 	return m
 }
@@ -1027,7 +1086,7 @@ type scienceNinSNBSpecialistData struct {
 // granting features the character actually has. Called from
 // loadScienceNinTabData once the base Scientific Ninja Tools budget is
 // already resolved.
-func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.Sheet, level int, granted []grantedFeatureRow, data *scienceNinToolsTabData) error {
+func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.Sheet, level int, granted []grantedFeatureRow, data *scienceNinToolsTabData, locale string) error {
 	has := make(map[string]bool, len(granted))
 	for _, f := range granted {
 		has[f.Slug] = true
@@ -1040,7 +1099,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 		if has[scienceNinEIPFeatureSlug] {
 			ei.EIPCap = eipCap(level)
-			catalog, err := s.loadScienceNinEntryCatalog("E.I.Ps", false)
+			catalog, err := s.loadScienceNinEntryCatalog("E.I.Ps", false, locale)
 			if err != nil {
 				return err
 			}
@@ -1056,7 +1115,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			// Spyware's Quick Hack or S.N.B's permanent picks do.
 			costBySlug := make(map[string]int, len(catalog))
 			for _, o := range catalog {
-				cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+				cost := o.Cost
 				costBySlug[o.Slug] = cost
 			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickEIP)
@@ -1101,14 +1160,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				for _, p := range designatedPicks {
 					designatedSet[p.OptionSlug] = true
 				}
-				descBySlug := scienceNinDescBySlug(catalog)
+				optBySlug := scienceNinOptionBySlug(catalog)
 				for _, k := range ei.KnownWOW {
 					if designatedSet[k.Slug] {
 						pick := k
 						ei.DesignatedWoW = &pick
 						continue
 					}
-					ei.AvailableDesignatedWoW = append(ei.AvailableDesignatedWoW, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+					ei.AvailableDesignatedWoW = append(ei.AvailableDesignatedWoW, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 				}
 			}
 		}
@@ -1122,11 +1181,11 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range permaPicks {
 				permaSet[p.OptionSlug] = true
 			}
-			eipCatalog, err := s.loadScienceNinEntryCatalog("E.I.Ps", false)
+			eipCatalog, err := s.loadScienceNinEntryCatalog("E.I.Ps", false, locale)
 			if err != nil {
 				return err
 			}
-			descBySlug := scienceNinDescBySlug(eipCatalog)
+			optBySlug := scienceNinOptionBySlug(eipCatalog)
 			for _, k := range ei.KnownEIPs {
 				if permaSet[k.Slug] {
 					pick := k
@@ -1136,7 +1195,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 				if strings.EqualFold(k.Name, "Wonder E.I.P") {
 					continue // Perma Perk explicitly cannot be Wonder E.I.P
 				}
-				ei.AvailablePermaPerk = append(ei.AvailablePermaPerk, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+				ei.AvailablePermaPerk = append(ei.AvailablePermaPerk, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 			}
 		}
 
@@ -1145,7 +1204,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinBIMFeatureSlug] {
 		gr := &scienceNinGrenadierData{BIMCap: bimCap(proficiencyBonus)}
-		catalog, err := s.loadScienceNinEntryCatalog("Explosive Modifications", false)
+		catalog, err := s.loadScienceNinEntryCatalog("Explosive Modifications", false, locale)
 		if err != nil {
 			return err
 		}
@@ -1167,14 +1226,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range designatedPicks {
 				designatedSet[p.OptionSlug] = true
 			}
-			descBySlug := scienceNinDescBySlug(catalog)
+			optBySlug := scienceNinOptionBySlug(catalog)
 			for _, k := range gr.KnownBIM {
 				if designatedSet[k.Slug] {
 					pick := k
 					gr.DesignatedBIM = &pick
 					continue
 				}
-				gr.AvailableDesignatedBIM = append(gr.AvailableDesignatedBIM, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+				gr.AvailableDesignatedBIM = append(gr.AvailableDesignatedBIM, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 			}
 		}
 
@@ -1183,7 +1242,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinInversionSerumsFeatureSlug] {
 		ms := &scienceNinMadScientistData{SerumCap: inversionSerumCap(intMod)}
-		catalog, err := s.loadScienceNinEntryCatalog("Inversion Serums", true)
+		catalog, err := s.loadScienceNinEntryCatalog("Inversion Serums", true, locale)
 		if err != nil {
 			return err
 		}
@@ -1215,7 +1274,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range designatedPicks {
 				designatedSet[p.OptionSlug] = true
 			}
-			descBySlug := scienceNinDescBySlug(catalog)
+			optBySlug := scienceNinOptionBySlug(catalog)
 			for _, k := range ms.KnownSerums {
 				if fixedPoolBySlug[k.Slug] != "" {
 					continue // The Sheep and the Shepherd requires a dual-effect Serum (FixedPool == "")
@@ -1225,7 +1284,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 					ms.DesignatedSerum = &pick
 					continue
 				}
-				ms.AvailableDesignatedSerum = append(ms.AvailableDesignatedSerum, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+				ms.AvailableDesignatedSerum = append(ms.AvailableDesignatedSerum, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 			}
 		}
 
@@ -1234,7 +1293,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinArsenalFeatureSlug] || has[scienceNinPerfectedWeaponFeatureSlug] {
 		nj := &scienceNinNinjaneerData{}
-		catalog, err := s.loadScienceNinEntryCatalog("Arsenal Modifications", false)
+		catalog, err := s.loadScienceNinEntryCatalog("Arsenal Modifications", false, locale)
 		if err != nil {
 			return err
 		}
@@ -1243,7 +1302,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		// designations below (Enhanced/Legendary/Perfected) — loaded once
 		// per request rather than per tier, since all three draw from the
 		// same "character's own weapon-kind inventory rows" set.
-		candidateWeapons, err := s.loadNinjaneerCandidateWeapons(characterID)
+		candidateWeapons, err := s.loadNinjaneerCandidateWeapons(characterID, locale)
 		if err != nil {
 			return err
 		}
@@ -1320,7 +1379,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinEdgeRunnerFeatureSlug] || has[scienceNinGloriousEvolutionFeatureSlug] || has[scienceNinEverEvolvingFeatureSlug] {
 		sw := &scienceNinShinobiWareData{}
-		catalog, err := s.loadScienceNinEntryCatalog("Shinobi-Ware Upgrades", false)
+		catalog, err := s.loadScienceNinEntryCatalog("Shinobi-Ware Upgrades", false, locale)
 		if err != nil {
 			return err
 		}
@@ -1412,7 +1471,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		}
 
 		if has[scienceNinEverEvolvingFeatureSlug] {
-			sealCatalog, err := s.loadEverEvolvingSealCatalog()
+			sealCatalog, err := s.loadEverEvolvingSealCatalog(locale)
 			if err != nil {
 				return err
 			}
@@ -1448,7 +1507,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 		if has[scienceNinCruelAngelsThesisFeatureSlug] {
 			sp.ProgramCap = spywareProgramCap(proficiencyBonus)
-			catalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false)
+			catalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false, locale)
 			if err != nil {
 				return err
 			}
@@ -1461,7 +1520,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			// file's other exception (see this file's header doc).
 			costBySlug := make(map[string]int, len(catalog))
 			for _, o := range catalog {
-				cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+				cost := o.Cost
 				costBySlug[o.Slug] = cost
 			}
 			picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickSpywareProgram)
@@ -1486,18 +1545,18 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range quickHackPicks {
 				quickHackSet[p.OptionSlug] = true
 			}
-			programCatalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false)
+			programCatalog, err := s.loadScienceNinEntryCatalog("Spyware Programs", false, locale)
 			if err != nil {
 				return err
 			}
-			descBySlug := scienceNinDescBySlug(programCatalog)
+			optBySlug := scienceNinOptionBySlug(programCatalog)
 			for _, k := range sp.KnownPrograms {
 				if quickHackSet[k.Slug] {
 					pick := k
 					sp.QuickHack = &pick
 					continue
 				}
-				sp.AvailableQuickHack = append(sp.AvailableQuickHack, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+				sp.AvailableQuickHack = append(sp.AvailableQuickHack, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 			}
 		}
 
@@ -1546,7 +1605,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			// Enhancement picks alongside the correct, separate King's Road
 			// section below — filtered out here by tier so this catalog
 			// only ever offers Minor through Mastercraft.
-			catalog, err := s.loadScienceNinEntryCatalog("Air Treck Enhancements", false)
+			catalog, err := s.loadScienceNinEntryCatalog("Air Treck Enhancements", false, locale)
 			if err != nil {
 				return err
 			}
@@ -1594,7 +1653,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinBestLaidTrapFeatureSlug] {
 		tb := &scienceNinTechnobiData{MechanizationCap: technobiMechanizationCap(proficiencyBonus)}
-		catalog, err := s.loadScienceNinEntryCatalog("Technobi Mechanizations", false)
+		catalog, err := s.loadScienceNinEntryCatalog("Technobi Mechanizations", false, locale)
 		if err != nil {
 			return err
 		}
@@ -1610,7 +1669,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		tb.KnownMechanizations, tb.AvailableMechanizations = splitScienceNinPicks(catalog, pickedSet)
 
 		if has[scienceNinSENTsFeatureSlug] {
-			sentCatalog, err := s.loadSENTWeaponCatalog()
+			sentCatalog, err := s.loadSENTWeaponCatalog(locale)
 			if err != nil {
 				return err
 			}
@@ -1627,7 +1686,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 	if has[scienceNinSNBUpgradesFeatureSlug] {
 		snb := &scienceNinSNBSpecialistData{UpgradeCap: snbUpgradeCap(proficiencyBonus)}
-		catalog, err := s.loadScienceNinEntryCatalog("S.N.B Upgrades", false)
+		catalog, err := s.loadScienceNinEntryCatalog("S.N.B Upgrades", false, locale)
 		if err != nil {
 			return err
 		}
@@ -1640,7 +1699,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 		// pick's own display Cost and for the running Creation Points total.
 		costBySlug := make(map[string]int, len(catalog))
 		for _, o := range catalog {
-			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			cost := o.Cost
 			costBySlug[o.Slug] = cost
 		}
 
@@ -1668,14 +1727,14 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range permPicks {
 				permanentSlugs[p.OptionSlug] = true
 			}
-			descBySlug := scienceNinDescBySlug(catalog)
+			optBySlug := scienceNinOptionBySlug(catalog)
 			for _, k := range snb.KnownUpgrades {
 				if permanentSlugs[k.Slug] {
 					pick := k
 					snb.KnownPermanent = append(snb.KnownPermanent, pick)
 					continue
 				}
-				snb.AvailablePermanent = append(snb.AvailablePermanent, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Description: descBySlug[k.Slug]})
+				snb.AvailablePermanent = append(snb.AvailablePermanent, scienceNinSubclassOption{Slug: k.Slug, Name: k.Name, Tier: k.Tier, Epithet: optBySlug[k.Slug].Epithet, Description: optBySlug[k.Slug].Description, Cost: optBySlug[k.Slug].Cost, Drain: optBySlug[k.Slug].Drain})
 			}
 			snb.PermanentUsed = len(snb.KnownPermanent)
 		}
@@ -1723,7 +1782,7 @@ func (s *server) addSNBUpgradePick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for snb upgrade add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load science-nin for snb upgrade add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1745,7 +1804,7 @@ func (s *server) addSNBUpgradePick(id int64, slug string) (int, string) {
 	if picked == nil {
 		return http.StatusBadRequest, "not a valid upgrade"
 	}
-	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	cost := picked.Cost
 	if data.CreationPointsUsed+cost > data.CreationPointsCap {
 		return http.StatusBadRequest, "not enough Creation Points remaining"
 	}
@@ -1800,7 +1859,7 @@ func (s *server) addSpywareProgramPick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for spyware program add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load science-nin for spyware program add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1822,7 +1881,7 @@ func (s *server) addSpywareProgramPick(id int64, slug string) (int, string) {
 	if picked == nil {
 		return http.StatusBadRequest, "not a valid program"
 	}
-	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	cost := picked.Cost
 	if data.CreationPointsUsed+cost > data.CreationPointsCap {
 		return http.StatusBadRequest, "not enough Creation Points remaining"
 	}
@@ -2009,7 +2068,7 @@ func (s *server) addEIPPick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for eip add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load science-nin for eip add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -2031,7 +2090,7 @@ func (s *server) addEIPPick(id int64, slug string) (int, string) {
 	if picked == nil {
 		return http.StatusBadRequest, "not a valid perk"
 	}
-	cost, _, _, _ := parseScienceNinToolStatLine(picked.Description)
+	cost := picked.Cost
 	if data.CreationPointsUsed+cost > data.CreationPointsCap {
 		return http.StatusBadRequest, "not enough Creation Points remaining"
 	}
@@ -2300,7 +2359,7 @@ func (s *server) scienceNinSubclassPickAddCore(
 		log.Println("compute sheet for science-nin subclass pick add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load science-nin for subclass pick add:", err)
 		return http.StatusInternalServerError, "database error"

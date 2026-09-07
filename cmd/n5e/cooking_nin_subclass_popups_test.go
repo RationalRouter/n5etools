@@ -174,7 +174,7 @@ func TestPipePopupRenderSetRoundTrip(t *testing.T) {
 		}
 	}
 
-	view, err := s.loadCookingToolInfusionPipeView(id, 11)
+	view, err := s.loadCookingToolInfusionPipeView(id, 11, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestBattleCookExpertCombatantPopupRenderSet(t *testing.T) {
 		t.Fatalf("set: status %d, body %q", w.Code, w.Body.String())
 	}
 
-	view, err := s.loadExpertCombatantView(id)
+	view, err := s.loadExpertCombatantView(id, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestFastAndFuriousPopupRenderSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := s.loadCookingNinTabData(id, sheet)
+	data, err := s.loadCookingNinTabData(id, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

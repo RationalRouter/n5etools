@@ -83,7 +83,7 @@ func TestResolvePuppetSkills(t *testing.T) {
 	// Companion's own Dex score of 18 (+4) beats the character's own +1.
 	companion := charstore.Companion{Dex: sql.NullInt64{Int64: 18, Valid: true}}
 
-	groups := resolvePuppetSkills(sheet, companion, []string{"Stealth"}, nil, nil)
+	groups := resolvePuppetSkills(sheet, companion, []string{"Stealth"}, nil, nil, "")
 	sk := firstSkill(groups)
 	if sk.Name != "Stealth" {
 		t.Fatalf("resolvePuppetSkills() = %+v, want a Stealth row", groups)
@@ -100,7 +100,7 @@ func TestResolvePuppetSkills(t *testing.T) {
 
 	// Flat-grant upgrades make the companion proficient using the
 	// CHARACTER's own ability score (dex mod +1) plus Proficiency Bonus.
-	groups = resolvePuppetSkills(sheet, companion, nil, []string{"class/puppet-master/option/puppet-master-upgrades/wood-tier/entry/ghillie-coating"}, nil)
+	groups = resolvePuppetSkills(sheet, companion, nil, []string{"class/puppet-master/option/puppet-master-upgrades/wood-tier/entry/ghillie-coating"}, nil, "")
 	sk = firstSkill(groups)
 	if sk.Name != "Stealth" || !sk.Proficient {
 		t.Fatalf("resolvePuppetSkills() with Ghillie Coating = %+v, want a proficient Stealth row", groups)
@@ -112,7 +112,7 @@ func TestResolvePuppetSkills(t *testing.T) {
 	// Both together: flat grant makes it proficient, THEN Generalized Skill
 	// compares against the companion's own Dex mod WITH prof bonus (now
 	// that it's proficient) — 4+2=6 beats the flat-grant-only 1+2=3.
-	groups = resolvePuppetSkills(sheet, companion, []string{"Stealth"}, []string{"class/puppet-master/option/puppet-master-upgrades/wood-tier/entry/ghillie-coating"}, nil)
+	groups = resolvePuppetSkills(sheet, companion, []string{"Stealth"}, []string{"class/puppet-master/option/puppet-master-upgrades/wood-tier/entry/ghillie-coating"}, nil, "")
 	sk = firstSkill(groups)
 	if want := 4 + 2; sk.Modifier != want {
 		t.Errorf("Stealth modifier with both = %d, want %d", sk.Modifier, want)
@@ -120,7 +120,7 @@ func TestResolvePuppetSkills(t *testing.T) {
 }
 
 func TestResolvePuppetSkillsNilSheet(t *testing.T) {
-	if got := resolvePuppetSkills(nil, charstore.Companion{}, nil, nil, nil); got != nil {
+	if got := resolvePuppetSkills(nil, charstore.Companion{}, nil, nil, nil, ""); got != nil {
 		t.Errorf("resolvePuppetSkills(nil, ...) = %+v, want nil", got)
 	}
 }

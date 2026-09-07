@@ -65,8 +65,8 @@ type everEvolvingSealOption struct {
 // (martial_defense.go), but with no tier-cap filter: Ever Evolving's own
 // text places no level-gated ceiling on which rank is reachable, only a
 // Creation Points cost that scales with it.
-func (s *server) loadEverEvolvingSealCatalog() ([]everEvolvingSealOption, error) {
-	all, err := s.loadArmorSealCatalog()
+func (s *server) loadEverEvolvingSealCatalog(locale string) ([]everEvolvingSealOption, error) {
+	all, err := s.loadArmorSealCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (s *server) addEverEvolvingSealPick(id int64, slug string) (int, string) {
 		log.Println("compute sheet for ever evolving seal add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load science-nin for ever evolving seal add:", err)
 		return http.StatusInternalServerError, "database error"

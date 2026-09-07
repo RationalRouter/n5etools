@@ -39,7 +39,7 @@ func (s *server) handleRuinPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for ruin popup:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet)
+	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for ruin popup:", err)

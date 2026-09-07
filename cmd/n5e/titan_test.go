@@ -551,7 +551,7 @@ func TestTitanBashAttack(t *testing.T) {
 		Str: sql.NullInt64{Int64: 17, Valid: true}, // +3
 		Dex: sql.NullInt64{Int64: 15, Valid: true}, // +2
 	}
-	row := titanBashAttack(companion, nil, 4)
+	row := titanBashAttack(companion, nil, 4, "")
 	if row.Name != "Bash" {
 		t.Errorf("Name = %q, want Bash", row.Name)
 	}
@@ -572,7 +572,7 @@ func TestTitanBashAttack(t *testing.T) {
 	}
 
 	companion.TitanSpecialization = "option/titan/ronin-specialization"
-	row = titanBashAttack(companion, nil, 4)
+	row = titanBashAttack(companion, nil, 4, "")
 	if row.CritRangeThreshold != 19 {
 		t.Errorf("Ronin CritRangeThreshold = %d, want 19", row.CritRangeThreshold)
 	}
@@ -590,7 +590,7 @@ func TestTitanBashAttackHulkingStrength(t *testing.T) {
 	ref := &titanReference{titanUpgradesData: &titanUpgradesData{
 		KnownUpgrades: []knownTitanUpgrade{{Name: "Hulking Strength", Keyword: "mech"}},
 	}}
-	row := titanBashAttack(companion, ref, 4)
+	row := titanBashAttack(companion, ref, 4, "")
 	if row.DamageDice() != "1d8" {
 		t.Errorf("DamageDice() = %q, want 1d8 (Hulking Strength)", row.DamageDice())
 	}
@@ -684,7 +684,7 @@ func TestTitanWeaponAttacksFromDescription(t *testing.T) {
 
 	t.Run("Ion Sword", func(t *testing.T) {
 		desc := "A large katana-like blade made industrialized steel. It is a Melee Blade Weapon with a Reach of 10ft and deals: 1d8 + Dex in slashing damage on a hit. On your turn, you can spend the CCD Drain and send an arc of electricity through the blade."
-		rows := titanWeaponAttacksFromDescription("Ion Sword", desc, companion, prof)
+		rows := titanWeaponAttacksFromDescription("Ion Sword", desc, companion, prof, "")
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
 		}
@@ -702,7 +702,7 @@ func TestTitanWeaponAttacksFromDescription(t *testing.T) {
 
 	t.Run("Predator Cannon", func(t *testing.T) {
 		desc := "A large rotary cannon with multiple barrels that fire piercing rounds to devastate foes. It is a Ranged Ammunition Weapon with a Range of (90/180), and deals 1d10 + Str in piercing damage. Its Ammunition die starts as a d10."
-		rows := titanWeaponAttacksFromDescription("Predator Cannon", desc, companion, prof)
+		rows := titanWeaponAttacksFromDescription("Predator Cannon", desc, companion, prof, "")
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
 		}
@@ -720,7 +720,7 @@ func TestTitanWeaponAttacksFromDescription(t *testing.T) {
 
 	t.Run("Quad Rocket", func(t *testing.T) {
 		desc := "A large platform with 4 chambers capable of firing rockets together or alone. It is a Ranged Ammunition Weapon with a Range of (60/120), and deals 2d4 + Str in force damage on a hit. Its Ammunition die starts as a d10."
-		rows := titanWeaponAttacksFromDescription("Quad Rocket", desc, companion, prof)
+		rows := titanWeaponAttacksFromDescription("Quad Rocket", desc, companion, prof, "")
 		if len(rows) != 1 {
 			t.Fatalf("got %d rows, want 1: %+v", len(rows), rows)
 		}
@@ -731,7 +731,7 @@ func TestTitanWeaponAttacksFromDescription(t *testing.T) {
 
 	t.Run("Leadwall dual mode", func(t *testing.T) {
 		desc := "A large cartridge trench gun that has two firing modes and a bayonet attachment. It is a both a Melee Blade Weapon with a Reach of 10ft and deals: 1d6 + Dex in piercing damage on a hit and a Ranged Ammunition Weapon with a Range of (15/30), and deals 2d6 + Dex in bludgeoning damage on a hit. Its Ammunition die starts as a d8."
-		rows := titanWeaponAttacksFromDescription("Leadwall", desc, companion, prof)
+		rows := titanWeaponAttacksFromDescription("Leadwall", desc, companion, prof, "")
 		if len(rows) != 2 {
 			t.Fatalf("got %d rows, want 2: %+v", len(rows), rows)
 		}
@@ -756,7 +756,7 @@ func TestTitanWeaponAttacksFromDescription(t *testing.T) {
 	}
 	for name, desc := range noWeaponClause {
 		t.Run(name, func(t *testing.T) {
-			if rows := titanWeaponAttacksFromDescription(name, desc, companion, prof); rows != nil {
+			if rows := titanWeaponAttacksFromDescription(name, desc, companion, prof, ""); rows != nil {
 				t.Errorf("got %d rows, want nil: %+v", len(rows), rows)
 			}
 		})

@@ -37,7 +37,7 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 		log.Println("compute sheet for elemental innovationist popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for elemental innovationist popup:", err)
@@ -116,7 +116,7 @@ func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, cre
 			if o.Epithet != "" {
 				epithet += " · " + o.Epithet
 			}
-			cost, _, _, _ := parseScienceNinToolStatLine(o.Description)
+			cost := o.Cost
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name, Epithet: epithet, Description: o.Description,
 				Disabled: creationPointsUsed+cost > creationPointsCap,

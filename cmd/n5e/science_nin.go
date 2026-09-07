@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
+	"github.com/sergio/n5e/internal/statlines"
 )
 
 // Science-Nin's own mechanics, starting with the base class's Scientific
@@ -563,40 +563,16 @@ func (s *server) scienceNinAdaptiveMovementJutsuGrantsForCharacter(characterID i
 	return out, nil
 }
 
-// scienceNinToolStatLinePattern peels a Scientific Ninja Tools entry's own
-// leading "(Prerequisite: <name> )?Cost: <n> Creation Points?(Drain: <n>
-// CCD Chakra)?" stat line off the front of its class_option_entries
-// description — the same PDF text-extraction shape splitLeadingStatLine
-// (format.go) already parses for RENDER-time display, but resolved here
-// into real Cost/Drain integers and a Prerequisite string a picker can
-// gate on, not just a display string. Confirmed against every one of the
-// 33 real Scientific Ninja Tools entries in rules.db before writing this
-// pattern — "Cost: 2 Creation Point" (singular, Minor tier only) vs "Cost:
-// 4 Creation Points" (plural, every other tier) is why the unit word is
-// optional-plural rather than assumed always-plural, and Superior tier's
-// own "Secondary Chakra Containment Device" has no Drain line at all,
-// which is why that whole group is optional too.
-var scienceNinToolStatLinePattern = regexp.MustCompile(
-	`^(?:Prerequisite: (.+?) )?Cost: (\d+)(?:-\d+)? Creation Points?(?: Drain: (\d+) CCD Chakra)?\s*`)
-
-// parseScienceNinToolStatLine splits one entry's raw description into its
-// parsed Cost/Drain/Prerequisite plus the remaining prose (everything after
-// the stat line) — cost is 0 and rest is the untouched original string when
-// the description doesn't start with a recognized stat line at all (not
-// observed in the live catalog, but a parse failure should degrade to
-// "always affordable, no gate" rather than silently vanishing the entry).
+// parseScienceNinToolStatLine parses one entry's raw (ENGLISH) description
+// into its Cost/Drain/Prerequisite plus the remaining prose — a thin
+// wrapper over internal/statlines.ParseScienceNinTool, the single shared
+// implementation cmd/n5e-i18n's export tool also uses to strip this same
+// stat line before it is ever sent to DeepL for translation (see that
+// package's header doc). Because the stat line never reaches a
+// translation, content_translations' own "description" value for this
+// table is already just the free-prose body.
 func parseScienceNinToolStatLine(description string) (cost, drain int, prereq, rest string) {
-	m := scienceNinToolStatLinePattern.FindStringSubmatch(description)
-	if m == nil {
-		return 0, 0, "", description
-	}
-	prereq = strings.TrimSpace(m[1])
-	cost, _ = strconv.Atoi(m[2])
-	if m[3] != "" {
-		drain, _ = strconv.Atoi(m[3])
-	}
-	rest = strings.TrimSpace(description[len(m[0]):])
-	return cost, drain, prereq, rest
+	return statlines.ParseScienceNinTool(description)
 }
 
 // scienceNinToolOption is one individually named Scientific Ninja Tools
@@ -642,8 +618,16 @@ type knownScienceNinTool struct {
 
 // loadScientificNinjaToolCatalog reads every Scientific Ninja Tools entry
 // (all 6 tiers) in catalog (tier, then in-tier) order, parsing each one's
-// own Cost/Drain/Prerequisite out of its class_option_entries description.
-func (s *server) loadScientificNinjaToolCatalog() ([]scienceNinToolOption, error) {
+// own Cost/Drain/Prerequisite out of its RAW ENGLISH class_option_entries
+// description (never re-derived from a translation -- see
+// internal/statlines' header doc), then overlaying the locale's own
+// translated Name/Description. content_translations' own "description"
+// value here is already just the free-prose body with no stat line at
+// all -- cmd/n5e-i18n's export tool strips it before ever sending the text
+// to DeepL -- so it's usable directly, with no separate "guess where the
+// translated stat line ends" step (contrast loadTitanUpgradeCatalog's own
+// header doc on the older heuristic this same fix replaced there).
+func (s *server) loadScientificNinjaToolCatalog(locale string) ([]scienceNinToolOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT e.slug, e.name, e.description, o.name
 		FROM class_option_entries e
@@ -656,6 +640,7 @@ func (s *server) loadScientificNinjaToolCatalog() ([]scienceNinToolOption, error
 	defer rows.Close()
 
 	var out []scienceNinToolOption
+	var slugs []string
 	byName := map[string]int{} // lowercased name -> index into out, for prereq resolution below
 	for rows.Next() {
 		var o scienceNinToolOption
@@ -666,9 +651,24 @@ func (s *server) loadScientificNinjaToolCatalog() ([]scienceNinToolOption, error
 		o.Cost, o.Drain, o.Prereq, o.Description = parseScienceNinToolStatLine(rawDescription)
 		byName[strings.ToLower(o.Name)] = len(out)
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_option_entries", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translated[out[i].Slug]
+		if tr["name"] != "" {
+			out[i].Name = tr["name"]
+		}
+		if tr["description"] != "" {
+			out[i].Description = tr["description"]
+		}
 	}
 
 	for i := range out {
@@ -787,7 +787,7 @@ type scienceNinMixedStudiesData struct {
 // first level class_level_resources charts a Creation Points value) — the
 // template gates the whole box's existence on this being non-nil, same
 // treatment MartialDefense gets.
-func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet) (*scienceNinToolsTabData, error) {
+func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*scienceNinToolsTabData, error) {
 	level, err := s.scienceNinClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -868,7 +868,7 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 	// Scientific Ninja Tools budget above and S.N.B Upgrades share the
 	// identical pool, the same way Titan Upgrades do for Mech Crafter
 	// (below).
-	if err := s.loadScienceNinSubclassData(characterID, sheet, level, granted, data); err != nil {
+	if err := s.loadScienceNinSubclassData(characterID, sheet, level, granted, data, locale); err != nil {
 		return nil, err
 	}
 
@@ -889,7 +889,7 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 	}
 	data.CreationPointsUsed += titanSpend
 
-	catalog, err := s.loadScientificNinjaToolCatalog()
+	catalog, err := s.loadScientificNinjaToolCatalog(locale)
 	if err != nil {
 		return nil, err
 	}
@@ -1046,7 +1046,7 @@ func (s *server) handleScienceNinToolAdd(w http.ResponseWriter, r *http.Request)
 		log.Println("compute sheet for science-nin tool add:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet)
+	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for tool add:", err)

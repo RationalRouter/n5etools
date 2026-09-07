@@ -298,7 +298,7 @@ func TestLoadMartialTechniquesTabData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := s.loadMartialTechniquesTabData(1, sheet)
+	data, err := s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +348,7 @@ func TestLoadMartialTechniquesTabData(t *testing.T) {
 	if err := charstore.SetFeatureChoice(s.charDB, 1, unarmedTechniqueFeatureSlug, 0, "stance/iron-fist-stance"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadMartialTechniquesTabData(1, sheet)
+	data, err = s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestLoadMartialTechniquesTabData(t *testing.T) {
 	if err := charstore.AddMartialTechnique(s.charDB, 1, "class/taijutsu-specialist/option/martial-techniques/brutal-taijutsu"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadMartialTechniquesTabData(1, sheet)
+	data, err = s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func TestLoadMartialTechniquesTabDataArchetypeFeatsNoRealLevel(t *testing.T) {
 		t.Errorf("Martial Dice Max = %d, want 2 (1 from Training + 1 from Expert)", dice.Max)
 	}
 
-	data, err := s.loadMartialTechniquesTabData(1, sheet)
+	data, err := s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +451,7 @@ func TestLoadMartialTechniquesTabDataArchetypeFeatsNoRealLevel(t *testing.T) {
 	if err := charstore.SetFeatureChoice(s.charDB, 1, martialArtsTrainingFeatSlug, 0, "stance/iron-fist-stance"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadMartialTechniquesTabData(1, sheet)
+	data, err = s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,7 @@ func TestLoadMartialTechniquesTabDataNoLevelNoFeat(t *testing.T) {
 		t.Errorf("loadMartialDice = %+v, want nil for a character with no levels and no archetype feat", dice)
 	}
 
-	data, err := s.loadMartialTechniquesTabData(1, sheet)
+	data, err := s.loadMartialTechniquesTabData(1, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

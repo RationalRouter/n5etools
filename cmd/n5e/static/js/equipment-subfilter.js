@@ -24,18 +24,42 @@
 //   cfg.onChange   called after any box is toggled
 //   cfg.initial    previously saved state() output, or null
 (function () {
+  // Populated from #n5e-subfilter-labels-data (layout.html), which sources
+  // these from the same UI-catalog keys items.go's translateEnumDisplay
+  // uses server-side -- the English literals here are only the fallback if
+  // that element is ever missing.
+  const L = (() => {
+    const el = document.getElementById("n5e-subfilter-labels-data");
+    if (!el) return {};
+    try {
+      return JSON.parse(el.textContent);
+    } catch {
+      return {};
+    }
+  })();
+
   const GROUPS = [
     {
       attr: "weaponCategory",
-      label: "Weapons",
+      label: L.weapons || "Weapons",
       order: ["simple", "martial", "exotic", "other"],
-      labels: { simple: "Simple", martial: "Martial", exotic: "Exotic", other: "Other" },
+      labels: {
+        simple: L.simple || "Simple",
+        martial: L.martial || "Martial",
+        exotic: L.exotic || "Exotic",
+        other: L.other || "Other",
+      },
     },
     {
       attr: "armorCategory",
-      label: "Armor",
+      label: L.armor || "Armor",
       order: ["light", "medium", "heavy", "other"],
-      labels: { light: "Light", medium: "Medium", heavy: "Heavy", other: "Other" },
+      labels: {
+        light: L.light || "Light",
+        medium: L.medium || "Medium",
+        heavy: L.heavy || "Heavy",
+        other: L.other || "Other",
+      },
     },
   ];
 

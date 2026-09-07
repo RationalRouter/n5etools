@@ -728,6 +728,11 @@ dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin:
 .callout p { margin: 0 0 0.5rem; }
 .callout p:last-child { margin-bottom: 0; }
 .callout strong { color: var(--text); }
+/* .callout has no bottom margin of its own (its top margin is tuned for
+   sitting under a heading) -- when an .entry-list immediately follows one
+   (technical.html's disclaimer box above its planned-features list), the
+   two sit flush with zero gap between them. */
+.callout + .entry-list { margin-top: 1rem; }
 
 .btn-primary {
   display: inline-block;
@@ -3219,39 +3224,74 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-header-actions form { margin: 0; }
 .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
-/* Language switcher — home page only (its markup lives solely in
-   home.html), so it never needs a route-based conditional to stay off
-   every other page. .hero needs position:relative purely as the anchor
-   for this absolutely-positioned stack; it has no other positioning
-   need of its own. Anchored top-right of .hero so its top edge lines up
-   with the hero <h1> (both start at the section's own top edge) and its
-   right edge stays clear of the section's own content column — sitting
-   below the shared nav's search box, not inside that top nav strip,
-   since .hero is a separate section further down the page. */
-.hero { position: relative; }
-.locale-switcher {
-  position: absolute;
-  top: 0;
-  right: 0;
+/* Sitewide language switcher — layout.html's own thin strip right under the
+   nav, present on every page (unlike the old home-page-only version it
+   replaced). The base rules below (everything except the
+   .lang-panel-collapsible block at the end) are also the no-JS fallback:
+   with lang-switcher.js disabled, .lang-panel never gets the collapsible
+   class and just renders as a plain, always-visible row of language
+   buttons next to the globe. */
+/* Sticky rather than static: the globe button is the piece that must stay
+   anchored and visible while the page scrolls, not the nav bar itself — a
+   solid background keeps scrolled-past content from showing through once
+   this strip sticks to the viewport's top edge. */
+.lang-switcher-bar { display: flex; padding: 0.4rem 1.5rem; position: sticky; top: 0; z-index: 25; background: var(--bg); }
+/* margin-left centers the globe button on the same vertical axis as the
+   "N5etools" nav-brand text above it: (brand text width - toggle diameter)
+   / 2, both measured from the shared 1.5rem left inset they each start at. */
+.lang-switcher { display: flex; align-items: center; margin-left: 1.27rem; }
+.lang-toggle {
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  font-size: 1.1rem;
+  line-height: 1;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
 }
-.locale-switcher form { margin: 0; }
-.locale-btn {
-  display: block;
-  width: 100%;
+/* Emoji glyphs carry extra bottom bearing baked into the font metrics, so
+   flex centering alone still reads a hair high — nudge the glyph down to
+   land visually centered in the circle. */
+.lang-toggle span { transform: translateY(1px); }
+.lang-toggle:hover { border-color: var(--accent); }
+.lang-panel { display: flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; }
+.lang-panel form { margin: 0; }
+.lang-option {
   background: none;
   border: 1px solid var(--panel-border);
-  border-radius: 6px;
+  border-radius: 999px;
   color: var(--text-dim);
   font-family: inherit;
   font-size: 0.85rem;
-  padding: 0.4rem 0.9rem;
+  padding: 0.3rem 0.85rem;
   cursor: pointer;
+  white-space: nowrap;
 }
-.locale-btn:hover { border-color: var(--accent); color: var(--text); }
-.locale-btn-active { border-color: var(--gold); color: var(--gold); }
+.lang-option:hover { border-color: var(--accent); color: var(--text); }
+.lang-option-active { border-color: var(--gold); color: var(--gold); }
+/* JS-added once lang-switcher.js runs — collapses the panel down to
+   nothing so only the globe button shows, then expands it back out via
+   .lang-panel-open on click. See this file's own header comment above:
+   without this class (JS disabled), .lang-panel keeps its base "always
+   visible" layout instead. */
+.lang-panel.lang-panel-collapsible {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.2s ease, opacity 0.15s ease, margin-left 0.2s ease;
+}
+.lang-panel.lang-panel-collapsible.lang-panel-open {
+  max-width: 20rem;
+  margin-left: 0.5rem;
+  opacity: 1;
+}
 
 /* Confirm form under a two-pane creation picker (Clan/Class/Background) —
    sits below .browse-layout, not styled like .creation-form's single-column

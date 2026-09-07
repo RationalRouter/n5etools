@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // referenceFeatureEntry is one row in the Class Reference popup's single,
@@ -74,7 +75,7 @@ type characterReference struct {
 // subclass the character chose for it) instead of merging every class the
 // character has — see handleCharacterReference for when that filter is used
 // (a multiclass character picking one class from characterClassOptions).
-func (s *server) loadCharacterReference(characterID int64, onlyClassSlug string) (characterReference, error) {
+func (s *server) loadCharacterReference(characterID int64, onlyClassSlug, locale string) (characterReference, error) {
 	var ref characterReference
 
 	classRows, err := s.charDB.Query(
@@ -117,33 +118,62 @@ func (s *server) loadCharacterReference(characterID int64, onlyClassSlug string)
 		if err := s.rulesDB.QueryRow(`SELECT name FROM classes WHERE slug = ?`, c.Slug).Scan(&name); err != nil {
 			name = c.Slug
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "classes", c.Slug); err != nil {
+			return ref, err
+		} else if v, ok := tr["name"]; ok {
+			name = v
+		}
 		classNames[c.Slug] = name
 
 		rows, err := s.rulesDB.Query(`
-			SELECT name, level, description FROM v_class_features
+			SELECT slug, name, level, description FROM v_class_features
 			WHERE class_slug = ? ORDER BY sort_order, level`, c.Slug)
 		if err != nil {
 			return ref, err
 		}
+		type classFeatureRow struct {
+			slug, name, description string
+			level                   sql.NullInt64
+		}
+		var classFeatureRows []classFeatureRow
 		for rows.Next() {
-			var fname, description string
-			var level sql.NullInt64
-			if err := rows.Scan(&fname, &level, &description); err != nil {
+			var f classFeatureRow
+			if err := rows.Scan(&f.slug, &f.name, &f.level, &f.description); err != nil {
 				rows.Close()
 				return ref, err
 			}
+			classFeatureRows = append(classFeatureRows, f)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return ref, err
+		}
+		featureSlugs := make([]string, len(classFeatureRows))
+		for i, f := range classFeatureRows {
+			featureSlugs[i] = f.slug
+		}
+		featureTranslations, err := i18n.Batch(s.rulesDB, locale, "class_features", featureSlugs)
+		if err != nil {
+			return ref, err
+		}
+		for _, f := range classFeatureRows {
+			fname, description := f.name, f.description
+			if tr := featureTranslations[f.slug]; tr != nil {
+				if v, ok := tr["name"]; ok {
+					fname = v
+				}
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
 			entry := referenceFeatureEntry{
-				Name: fname, SourceLabel: name, Level: int(level.Int64), Description: description,
-				Locked: level.Valid && int(level.Int64) > c.Levels,
+				Name: fname, SourceLabel: name, Level: int(f.level.Int64), Description: description,
+				Locked: f.level.Valid && int(f.level.Int64) > c.Levels,
 			}
 			if scales := highestScalingLevel(description); scales > entry.Level {
 				entry.ScalesThrough = scales
 			}
 			ref.Features = append(ref.Features, entry)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return ref, err
 		}
 
 		// Class-wide option catalogs (subclass_slug IS NULL — e.g. Taijutsu
@@ -156,31 +186,53 @@ func (s *server) loadCharacterReference(characterID int64, onlyClassSlug string)
 		// always-available fallback listing every entry, matching how a
 		// subclass's own options list is already treated below.
 		optRows, err := s.rulesDB.Query(`
-			SELECT list_name, name, description FROM class_options
+			SELECT slug, list_name, name, description FROM class_options
 			WHERE class_slug = ? AND subclass_slug IS NULL
 			ORDER BY list_name, sort_order`, c.Slug)
 		if err != nil {
 			return ref, err
 		}
-		classBaseOpts := map[string]*subclassBaseOptions{}
-		var classBaseOptsOrder []string
+		type classOptRow struct{ slug, listName, name, description string }
+		var classOptRows []classOptRow
 		for optRows.Next() {
-			var listName, oname, odescription string
-			if err := optRows.Scan(&listName, &oname, &odescription); err != nil {
+			var o classOptRow
+			if err := optRows.Scan(&o.slug, &o.listName, &o.name, &o.description); err != nil {
 				optRows.Close()
 				return ref, err
 			}
-			b, ok := classBaseOpts[listName]
-			if !ok {
-				b = &subclassBaseOptions{ClassName: name, ListName: listName}
-				classBaseOpts[listName] = b
-				classBaseOptsOrder = append(classBaseOptsOrder, listName)
-			}
-			b.Options = append(b.Options, companionFeatureRef{Name: oname, Description: odescription})
+			classOptRows = append(classOptRows, o)
 		}
 		optRows.Close()
 		if err := optRows.Err(); err != nil {
 			return ref, err
+		}
+		optSlugs := make([]string, len(classOptRows))
+		for i, o := range classOptRows {
+			optSlugs[i] = o.slug
+		}
+		optTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", optSlugs)
+		if err != nil {
+			return ref, err
+		}
+		classBaseOpts := map[string]*subclassBaseOptions{}
+		var classBaseOptsOrder []string
+		for _, o := range classOptRows {
+			oname, odescription := o.name, o.description
+			if tr := optTranslations[o.slug]; tr != nil {
+				if v, ok := tr["name"]; ok {
+					oname = v
+				}
+				if v, ok := tr["description"]; ok {
+					odescription = v
+				}
+			}
+			b, ok := classBaseOpts[o.listName]
+			if !ok {
+				b = &subclassBaseOptions{ClassName: name, ListName: o.listName}
+				classBaseOpts[o.listName] = b
+				classBaseOptsOrder = append(classBaseOptsOrder, o.listName)
+			}
+			b.Options = append(b.Options, companionFeatureRef{Name: oname, Description: odescription})
 		}
 		for _, listName := range classBaseOptsOrder {
 			ref.BaseOptions = append(ref.BaseOptions, *classBaseOpts[listName])
@@ -219,57 +271,108 @@ func (s *server) loadCharacterReference(characterID int64, onlyClassSlug string)
 		if !ok {
 			continue // subclass chosen for a class the character no longer has
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "subclasses", slug); err != nil {
+			return ref, err
+		} else if v, ok := tr["name"]; ok {
+			subclassName = v
+		}
 		sourceLabel := classNames[classSlug] + " — " + subclassName
 
 		rows, err := s.rulesDB.Query(`
-			SELECT name, level, description FROM v_subclass_features
+			SELECT slug, name, level, description FROM v_subclass_features
 			WHERE subclass_slug = ? ORDER BY sort_order, level`, slug)
 		if err != nil {
 			return ref, err
 		}
+		type subclassFeatureRow struct {
+			slug, name, description string
+			level                   sql.NullInt64
+		}
+		var subclassFeatureRows []subclassFeatureRow
 		for rows.Next() {
-			var fname, description string
-			var level sql.NullInt64
-			if err := rows.Scan(&fname, &level, &description); err != nil {
+			var f subclassFeatureRow
+			if err := rows.Scan(&f.slug, &f.name, &f.level, &f.description); err != nil {
 				rows.Close()
 				return ref, err
 			}
+			subclassFeatureRows = append(subclassFeatureRows, f)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return ref, err
+		}
+		subFeatureSlugs := make([]string, len(subclassFeatureRows))
+		for i, f := range subclassFeatureRows {
+			subFeatureSlugs[i] = f.slug
+		}
+		subFeatureTranslations, err := i18n.Batch(s.rulesDB, locale, "subclass_features", subFeatureSlugs)
+		if err != nil {
+			return ref, err
+		}
+		for _, f := range subclassFeatureRows {
+			fname, description := f.name, f.description
+			if tr := subFeatureTranslations[f.slug]; tr != nil {
+				if v, ok := tr["name"]; ok {
+					fname = v
+				}
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
 			entry := referenceFeatureEntry{
 				Name: fname, SourceLabel: sourceLabel, IsSubclass: true,
-				Level: int(level.Int64), Description: description,
-				Locked: level.Valid && int(level.Int64) > gateLevel,
+				Level: int(f.level.Int64), Description: description,
+				Locked: f.level.Valid && int(f.level.Int64) > gateLevel,
 			}
 			if scales := highestScalingLevel(description); scales > entry.Level {
 				entry.ScalesThrough = scales
 			}
 			ref.Features = append(ref.Features, entry)
 		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return ref, err
-		}
 
 		optRows, err := s.rulesDB.Query(`
-			SELECT co.list_name, co.name, co.description FROM class_options co
+			SELECT co.slug, co.list_name, co.name, co.description FROM class_options co
 			WHERE co.subclass_slug = ?
 			  AND NOT EXISTS (SELECT 1 FROM class_option_entries e WHERE e.class_option_slug = co.slug)
 			ORDER BY co.list_name, co.sort_order`, slug)
 		if err != nil {
 			return ref, err
 		}
-		baseOpts := subclassBaseOptions{ClassName: classNames[classSlug], SubclassName: subclassName}
+		type subOptRow struct{ slug, listName, name, description string }
+		var subOptRows []subOptRow
 		for optRows.Next() {
-			var listName, name, description string
-			if err := optRows.Scan(&listName, &name, &description); err != nil {
+			var o subOptRow
+			if err := optRows.Scan(&o.slug, &o.listName, &o.name, &o.description); err != nil {
 				optRows.Close()
 				return ref, err
 			}
-			baseOpts.ListName = listName
-			baseOpts.Options = append(baseOpts.Options, companionFeatureRef{Name: name, Description: description})
+			subOptRows = append(subOptRows, o)
 		}
 		optRows.Close()
 		if err := optRows.Err(); err != nil {
 			return ref, err
+		}
+		subOptSlugs := make([]string, len(subOptRows))
+		for i, o := range subOptRows {
+			subOptSlugs[i] = o.slug
+		}
+		subOptTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", subOptSlugs)
+		if err != nil {
+			return ref, err
+		}
+		baseOpts := subclassBaseOptions{ClassName: classNames[classSlug], SubclassName: subclassName}
+		for _, o := range subOptRows {
+			name, description := o.name, o.description
+			if tr := subOptTranslations[o.slug]; tr != nil {
+				if v, ok := tr["name"]; ok {
+					name = v
+				}
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
+			baseOpts.ListName = o.listName
+			baseOpts.Options = append(baseOpts.Options, companionFeatureRef{Name: name, Description: description})
 		}
 		if len(baseOpts.Options) > 0 {
 			ref.BaseOptions = append(ref.BaseOptions, baseOpts)
@@ -344,11 +447,19 @@ func (s *server) handleCharacterReference(w http.ResponseWriter, r *http.Request
 	classSlug := r.URL.Query().Get("class")
 	if classSlug == "" {
 		if isMulticlass {
+			locale := localeFromContext(r.Context())
 			choices := make([]classReferenceChoice, 0, len(classes))
 			for _, c := range classes {
 				var name string
 				if err := s.rulesDB.QueryRow(`SELECT name FROM classes WHERE slug = ?`, c.Slug).Scan(&name); err != nil {
 					name = c.Slug
+				}
+				if tr, err := i18n.Row(s.rulesDB, locale, "classes", c.Slug); err != nil {
+					http.Error(w, "database error", http.StatusInternalServerError)
+					log.Println("translate class reference picker:", err)
+					return
+				} else if v, ok := tr["name"]; ok {
+					name = v
 				}
 				choices = append(choices, classReferenceChoice{Slug: c.Slug, Name: name, Levels: c.Levels})
 			}
@@ -365,7 +476,7 @@ func (s *server) handleCharacterReference(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	ref, err := s.loadCharacterReference(id, classSlug)
+	ref, err := s.loadCharacterReference(id, classSlug, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load character reference:", err)
