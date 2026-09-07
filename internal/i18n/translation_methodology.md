@@ -575,6 +575,37 @@ translate-wrapper into an existing DB-backed loader, grep every call site of tha
 to its return value — if any exist, translate at the point of display (each output list, right
 before it's assigned into the response struct), never inside the loader itself.**
 
+- **The 21 canonical skill names (`internal/charsheet.SkillAbility`) have no translation catalog
+  anywhere in the app** (new finding, 2026-09-07, found while auditing `hunter_pattern_choices.go`).
+  Skill names are used as literal map keys throughout the codebase — `charsheet.SkillAbility`
+  itself, `character_proficiencies` rows, `feature_choices.go`'s skill picker, `mastery.go`,
+  `puppet_skills.go`, `hunter_pattern_choices.go`'s Habitual Researcher field, and (very likely) the
+  Core sheet's own main Skills table — and are shown to the player raw and untranslated in every
+  locale, including "fully translated" Spanish/Portuguese. This is bigger than the badge-label gap
+  above: it's not one shared merge point but a name used as a matching key in dozens of call sites
+  across the whole app, so any fix needs a display-only translate-at-the-point-of-render overlay
+  (never touching the canonical English key any of those sites match against), the same shape
+  `translateEnumDisplay`/`damageTypeCatalogKey` (`items.go`) already established for a different
+  enum. **Deliberately NOT fixed in this pass** — `hunter_pattern_choices.go`'s own
+  `sortedSkillChoiceOptions` was left with untranslated Labels rather than inventing a one-off,
+  file-local translation key namespace for skill names that a proper sitewide fix would later have
+  to reconcile with. Needs its own dedicated pass, scoped to cover every one of the sites listed
+  above at once (the project's own "translate everything in one shot" rule), not just whichever
+  sibling file happens to touch skill names next.
+- **`hunter_pattern_choices.go`** (2026-09-07): `buildPendingHunterPatternChoiceRows` had no
+  `locale` parameter — its two hardcoded `Label: "Kleptomaniac"`/`Label: "Habitual Researcher"`
+  banner strings were duplicating text that already lives in `class_options` (both are real Hunters
+  Patterns catalog rows), so fixed by looking up each pattern's own translated `name` via
+  `i18n.Row(s.rulesDB, locale, "class_options", slug)` (new `hunterPatternChoiceLabel` helper,
+  falling back to the raw English name if the row can't be read, since a pending-choice banner
+  isn't worth failing the whole sheet render over) rather than duplicating a second, parallel
+  hardcoded string. `kleptomaniacChoiceOptions`' own two options (Sleight of Hand / Security Kits)
+  ARE this file's own hand-curated text — wired through the existing
+  `translateFeatureChoiceOptions` (`fco_label:`/`fco_desc:` convention, `feature_choices.go`), 4 new
+  locale keys added (2 labels + 2 descriptions, each with an English identity entry).
+  `sortedSkillChoiceOptions` left untranslated — see the skill-names finding above. Updated all 3
+  call sites (`characters.go`'s two full-sheet-render sites plus this file's own
+  `handleSheetHunterPatternChoice`) to pass `localeFromContext(r.Context())`.
 - **`medical_nin.go`** (2026-09-07): `loadKnownExpertCombatantJutsu` (Combat Medic's Expert
   Combatant picker, sourced from the character's own known Taijutsu/Bukijutsu rather than a rules
   catalog) had no `locale` parameter at all and returned raw `v_jutsu`/`custom_jutsu` Name/
@@ -612,8 +643,8 @@ package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
-`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`, and
-`medical_nin.go` are closed; ~10 sibling files (`hunter_pattern_choices.go`, `wow_whelp.go`,
+`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
+`medical_nin.go`, and `hunter_pattern_choices.go` are closed; ~9 sibling files (`wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches

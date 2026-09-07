@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // kleptomaniacOptionSlug and habitualResearcherOptionSlug identify the two
@@ -70,6 +71,14 @@ func kleptomaniacChoiceOptions() []featureChoiceOption {
 // since that function builds a plain []string while this needs
 // []featureChoiceOption with a "skill:" — prefixed Value each caller here
 // resolves the same way Kleptomaniac's tool option does.
+//
+// Labels are the raw English skill name, deliberately untranslated: skill
+// names have no translation catalog anywhere in this app yet (they're used
+// as literal map keys throughout — charsheet.SkillAbility, character
+// proficiency rows, feature_choices.go's own identical skill picker,
+// mastery.go, puppet_skills.go) — a cross-cutting gap spanning far more than
+// this file. See translation_methodology.md's "Sitewide code-level gaps"
+// section.
 func sortedSkillChoiceOptions() []featureChoiceOption {
 	names := make([]string, 0, len(charsheet.SkillAbility))
 	for name := range charsheet.SkillAbility {
@@ -89,7 +98,20 @@ func sortedSkillChoiceOptions() []featureChoiceOption {
 // source_ref=<its slug> — written by handleSheetHunterPatternChoice, same
 // "check the row that would exist" pattern
 // buildPendingFeatSkillOrToolChoiceRows uses against source_kind='feat'.
-func (s *server) buildPendingHunterPatternChoiceRows(characterID int64) ([]pendingHunterPatternChoiceRow, error) {
+//
+// Each row's own Label is looked up live against class_options' own
+// translated name (i18n.Row) rather than the hardcoded "Kleptomaniac"/
+// "Habitual Researcher" strings this used to return, since both are real
+// Hunters Patterns catalog rows, not this file's own hand-curated text.
+// Kleptomaniac's own two-option choice (kleptomaniacChoiceOptions) IS this
+// file's own hand-curated text, translated via translateFeatureChoiceOptions
+// the same way cooking_nin.go's catalogs are.
+//
+// sortedSkillChoiceOptions' skill names are deliberately left untranslated —
+// see its own doc comment: the 21 skill names have no translation catalog
+// anywhere in the app yet, a cross-cutting gap spanning far more than this
+// file (translation_methodology.md documents it as a standing follow-up).
+func (s *server) buildPendingHunterPatternChoiceRows(characterID int64, locale string) ([]pendingHunterPatternChoiceRow, error) {
 	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickPattern)
 	if err != nil {
 		return nil, err
@@ -123,13 +145,13 @@ func (s *server) buildPendingHunterPatternChoiceRows(characterID int64) ([]pendi
 		switch slug {
 		case kleptomaniacOptionSlug:
 			out = append(out, pendingHunterPatternChoiceRow{
-				PatternSlug: slug, Label: "Kleptomaniac",
-				Fields: []pendingHunterPatternChoiceField{{Name: "choice", Options: kleptomaniacChoiceOptions()}},
+				PatternSlug: slug, Label: s.hunterPatternChoiceLabel(slug, "Kleptomaniac", locale),
+				Fields: []pendingHunterPatternChoiceField{{Name: "choice", Options: translateFeatureChoiceOptions(kleptomaniacChoiceOptions(), locale)}},
 			})
 		case habitualResearcherOptionSlug:
 			skillOptions := sortedSkillChoiceOptions()
 			out = append(out, pendingHunterPatternChoiceRow{
-				PatternSlug: slug, Label: "Habitual Researcher",
+				PatternSlug: slug, Label: s.hunterPatternChoiceLabel(slug, "Habitual Researcher", locale),
 				Fields: []pendingHunterPatternChoiceField{
 					{Name: "choice_1", Options: skillOptions},
 					{Name: "choice_2", Options: skillOptions},
@@ -138,6 +160,21 @@ func (s *server) buildPendingHunterPatternChoiceRows(characterID int64) ([]pendi
 		}
 	}
 	return out, nil
+}
+
+// hunterPatternChoiceLabel looks up a Hunters Pattern's own translated name
+// (class_options) for the pending-choice banner, falling back to the raw
+// English name (never blank) if the row can't be read for any reason —
+// this banner isn't worth failing the whole sheet render over.
+func (s *server) hunterPatternChoiceLabel(slug, fallback, locale string) string {
+	tr, err := i18n.Row(s.rulesDB, locale, "class_options", slug)
+	if err != nil {
+		return fallback
+	}
+	if v, ok := tr["name"]; ok && v != "" {
+		return v
+	}
+	return fallback
 }
 
 // handleSheetHunterPatternChoice resolves one pendingHunterPatternChoiceRow
@@ -163,7 +200,7 @@ func (s *server) handleSheetHunterPatternChoice(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	pending, err := s.buildPendingHunterPatternChoiceRows(id)
+	pending, err := s.buildPendingHunterPatternChoiceRows(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending hunter pattern choice rows:", err)

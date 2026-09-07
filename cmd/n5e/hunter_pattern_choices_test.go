@@ -52,7 +52,7 @@ func TestBuildPendingHunterPatternChoiceRowsKleptomaniac(t *testing.T) {
 	seedHunterNinLevelResources(t, s)
 	id := seedHunterPatternChoiceCharacter(t, s)
 
-	rows, err := s.buildPendingHunterPatternChoiceRows(id)
+	rows, err := s.buildPendingHunterPatternChoiceRows(id, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestBuildPendingHunterPatternChoiceRowsKleptomaniac(t *testing.T) {
 	if err := charstore.AddHunterNinPick(s.charDB, id, charstore.HunterPickPattern, kleptomaniacOptionSlug); err != nil {
 		t.Fatal(err)
 	}
-	rows, err = s.buildPendingHunterPatternChoiceRows(id)
+	rows, err = s.buildPendingHunterPatternChoiceRows(id, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestHandleSheetHunterPatternChoiceKleptomaniac(t *testing.T) {
 		t.Fatalf("tool proficiencies after resolving Kleptomaniac = %+v, want [Security Kits]", tools)
 	}
 
-	rows, err := s.buildPendingHunterPatternChoiceRows(id)
+	rows, err := s.buildPendingHunterPatternChoiceRows(id, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

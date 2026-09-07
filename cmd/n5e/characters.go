@@ -5523,7 +5523,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(id)
+	pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build pending hunter pattern choice rows:", err)
@@ -7139,7 +7139,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("build pending feat skill-or-tool choice rows for fragment:", err)
 			return
 		}
-		pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(characterID)
+		pendingHunterPatternChoices, err := s.buildPendingHunterPatternChoiceRows(characterID, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build pending hunter pattern choice rows for fragment:", err)
