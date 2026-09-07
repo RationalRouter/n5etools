@@ -317,12 +317,48 @@ says nothing about this category of gap. Found so far:
     entry and got one added. All Spanish/Portuguese translation done by hand (still no
     `DEEPL_API_KEY` in this session's tool environment).
 
+  - **`cooking_nin.go` fixed 2026-09-07** — a cleaner case than `hunter_nin.go`/`genjutsu.go`:
+    every one of this file's DB-backed loaders (`loadCookingToolImplementCatalog`,
+    `loadCookingToolPipeImplementCatalog`, `loadExpertCombatantWeaponCatalog`,
+    `loadCookingNinTabData` and everything under it) already took `locale` and correctly called
+    `i18n.Batch` — no missing-loader-overlay bug here. The whole gap was 9 hand-curated
+    `[]featureChoiceOption{...}` package-level catalogs (`fastAndFuriousOptions`,
+    `gastrochemistEnhancementOptions`, `cookingToolDamageTypeOptions`,
+    `cookingToolPropertyL1Options`/`L6Options`/`L11Options`,
+    `cookingToolPipePropertyL3Options`/`L6Options`/`L11Options` — 31 entries, 62 Label+Description
+    strings total), plus two value-to-label resolver functions
+    (`gastrochemistEnhancementLabel`, `cookingToolOptionLabel`) that read those same raw catalogs
+    back for a Known-list display label. Unlike `hunterPickOption`/`genjutsuPickOption` (each
+    scoped to one file), `featureChoiceOption` (`cmd/n5e/feature_choices.go`) is a struct shared
+    across ~10 sibling files still open in this list — so instead of a per-file wrapper, one
+    shared `translateFeatureChoiceOptions(options []featureChoiceOption, locale string)
+    []featureChoiceOption` helper was added directly to `feature_choices.go`, keyed under a
+    shared `"fco_label:" + rawLabel`/`"fco_desc:" + rawDescription` namespace (not a per-file
+    prefix like `hn_`/`gj_`, since the struct itself is shared — a hand-curated Label with
+    identical English text in two different files' catalogs means identical displayed text, so
+    sharing the key is correct, not a collision risk). Both resolver functions were changed to
+    take `locale` and translate the catalog before scanning it, rather than duplicating the
+    lookup logic. Applied at 9 read sites across `loadCookingToolInfusionView`,
+    `loadCookingToolInfusionPipeView`, and `loadCookingNinTabData` — every popup handler
+    (`cooking_nin_*_popup.go`) already threaded `localeFromContext(r.Context())` into
+    `loadCookingNinTabData` correctly, so no popup-level changes were needed. All
+    Spanish/Portuguese translation done by hand (still no `DEEPL_API_KEY` in this session's tool
+    environment). **Any sibling file reached later that also uses `featureChoiceOption` for a
+    hand-curated catalog should reuse `translateFeatureChoiceOptions` directly rather than writing
+    a new per-file wrapper** — check `feature_choices.go` first before assuming a new helper is
+    needed. (Separately confirmed: `loadKnownBlendJutsu` reads known-jutsu `Name`/`Rank`/
+    `Description` straight from `v_jutsu`/`custom_jutsu` with no translation overlay at all — but
+    this mirrors `ninjutsu_specialist.go`'s own `loadKnownNinjutsu`, a pre-existing, wider
+    "known-jutsu-picker" pattern that predates this file and isn't part of the current 19-file
+    hardcoded-literal list; flagged here for the eventual en/pt audit rather than fixed inline,
+    since fixing it means touching `ninjutsu_specialist.go` too, outside this pass's scope.)
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go`, `hunter_nin.go`, and `genjutsu.go` are closed; ~17 sibling files
-(`cooking_nin.go`, `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
+2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, and `cooking_nin.go` are closed;
+~16 sibling files (`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
 `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`, `taijutsu.go`,
 `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
 `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check each one for its
@@ -333,7 +369,10 @@ maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` wa
 (`SELECT ... FROM class_options`/`class_features`/`equipment`/etc.) actually takes a `locale`
 parameter and calls `i18n.Batch`/`i18n.Row` before returning, since a loader silently missing that
 call produces zero hardcoded-English-literal grep hits while still leaking untranslated rules-DB
-content onto the sheet in every non-English locale.
+content onto the sheet in every non-English locale. Also check whether the file's hand-curated
+catalogs already use `featureChoiceOption` (`cmd/n5e/feature_choices.go`) — if so, reuse
+`translateFeatureChoiceOptions` (added for `cooking_nin.go`) rather than writing a new per-file
+wrapper.
 
 ## Applying this to a new language
 

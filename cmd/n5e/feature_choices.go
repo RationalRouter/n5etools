@@ -26,6 +26,31 @@ type featureChoiceOption struct {
 	Description string
 }
 
+// translateFeatureChoiceOptions translates a hand-curated []featureChoiceOption
+// catalog's Label/Description in place-of-copy — shared by every class-
+// mechanics file that hardcodes a small fixed picker catalog as this type
+// (rather than reading it from rules.db) instead of each file writing its
+// own copy of this loop. Same "raw English text doubles as the catalog key"
+// convention translateHunterPickOption (hunter_nin.go) established, just
+// keyed under a shared "fco_" (feature choice option) namespace rather than
+// a per-file one, since this struct itself is already shared across files —
+// a hand-curated Label appearing in two different files' catalogs with the
+// same English text also means the same displayed text, so sharing the key
+// is correct, not a collision risk.
+func translateFeatureChoiceOptions(options []featureChoiceOption, locale string) []featureChoiceOption {
+	tr := i18n.Translator(locale)
+	out := make([]featureChoiceOption, len(options))
+	for i, o := range options {
+		label := tr("fco_label:" + o.Label)
+		description := o.Description
+		if description != "" {
+			description = tr("fco_desc:" + description)
+		}
+		out[i] = featureChoiceOption{Value: o.Value, Label: label, Description: description}
+	}
+	return out
+}
+
 // hasOptionDescription reports whether any option in a pending choice row
 // carries a Description — the sheet_feature_choices template uses this to
 // decide whether a row's <select> needs the rollover-tooltip info icon at

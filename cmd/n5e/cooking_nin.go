@@ -246,8 +246,8 @@ var gastrochemistEnhancementOptions = []featureChoiceOption{
 
 // gastrochemistEnhancementLabel resolves a stored enhancement_type value
 // back to its display label, for the Known list.
-func gastrochemistEnhancementLabel(value string) string {
-	for _, o := range gastrochemistEnhancementOptions {
+func gastrochemistEnhancementLabel(value, locale string) string {
+	for _, o := range translateFeatureChoiceOptions(gastrochemistEnhancementOptions, locale) {
 		if o.Value == value {
 			return o.Label
 		}
@@ -412,8 +412,8 @@ var cookingToolPropertyL11Options = []featureChoiceOption{
 // display label within one of the 4 hand-curated catalogs above — mirrors
 // gastrochemistEnhancementLabel, generalized to take the catalog as a
 // parameter since there are 4 of these instead of 1.
-func cookingToolOptionLabel(options []featureChoiceOption, value string) string {
-	for _, o := range options {
+func cookingToolOptionLabel(options []featureChoiceOption, value, locale string) string {
+	for _, o := range translateFeatureChoiceOptions(options, locale) {
 		if o.Value == value {
 			return o.Label
 		}
@@ -585,13 +585,13 @@ func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int, l
 		Implement:         get(cookingToolChoiceImplement),
 		ImplementOptions:  catalog,
 		DamageType:        get(cookingToolChoiceDamageType),
-		DamageTypeOptions: cookingToolDamageTypeOptions,
+		DamageTypeOptions: translateFeatureChoiceOptions(cookingToolDamageTypeOptions, locale),
 		PropertyL1:        get(cookingToolChoicePropertyL1),
-		PropertyL1Options: cookingToolPropertyL1Options,
+		PropertyL1Options: translateFeatureChoiceOptions(cookingToolPropertyL1Options, locale),
 		PropertyL6:        get(cookingToolChoicePropertyL6),
 		PropertyL11:       get(cookingToolChoicePropertyL11),
 	}
-	v.PropertyL1Label = cookingToolOptionLabel(cookingToolPropertyL1Options, v.PropertyL1)
+	v.PropertyL1Label = cookingToolOptionLabel(cookingToolPropertyL1Options, v.PropertyL1, locale)
 	for _, o := range catalog {
 		if o.Value == v.Implement {
 			v.ImplementName = o.Label
@@ -600,13 +600,13 @@ func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int, l
 	}
 	if toolLevel >= 6 {
 		v.PropertyL6Available = true
-		v.PropertyL6Options = filterCookingToolPropertyL6Options(v.PropertyL1, v.PropertyL6)
-		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPropertyL6Options, v.PropertyL6)
+		v.PropertyL6Options = translateFeatureChoiceOptions(filterCookingToolPropertyL6Options(v.PropertyL1, v.PropertyL6), locale)
+		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPropertyL6Options, v.PropertyL6, locale)
 	}
 	if toolLevel >= 11 {
 		v.PropertyL11Available = true
-		v.PropertyL11Options = filterCookingToolPropertyL11Options(v.PropertyL6, v.PropertyL11)
-		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPropertyL11Options, v.PropertyL11)
+		v.PropertyL11Options = translateFeatureChoiceOptions(filterCookingToolPropertyL11Options(v.PropertyL6, v.PropertyL11), locale)
+		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPropertyL11Options, v.PropertyL11, locale)
 	}
 	return v, nil
 }
@@ -876,13 +876,13 @@ func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel i
 		Implement:         get(cookingToolPipeChoiceImplement),
 		ImplementOptions:  catalog,
 		DamageType:        get(cookingToolPipeChoiceDamageType),
-		DamageTypeOptions: cookingToolDamageTypeOptions,
+		DamageTypeOptions: translateFeatureChoiceOptions(cookingToolDamageTypeOptions, locale),
 		PropertyL3:        get(cookingToolPipeChoicePropertyL3),
-		PropertyL3Options: cookingToolPipePropertyL3Options,
+		PropertyL3Options: translateFeatureChoiceOptions(cookingToolPipePropertyL3Options, locale),
 		PropertyL6:        get(cookingToolPipeChoicePropertyL6),
 		PropertyL11:       get(cookingToolPipeChoicePropertyL11),
 	}
-	v.PropertyL3Label = cookingToolOptionLabel(cookingToolPipePropertyL3Options, v.PropertyL3)
+	v.PropertyL3Label = cookingToolOptionLabel(cookingToolPipePropertyL3Options, v.PropertyL3, locale)
 	for _, o := range catalog {
 		if o.Value == v.Implement {
 			v.ImplementName = o.Label
@@ -891,13 +891,13 @@ func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel i
 	}
 	if classLevel >= 6 {
 		v.PropertyL6Available = true
-		v.PropertyL6Options = cookingToolPipePropertyL6Options
-		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPipePropertyL6Options, v.PropertyL6)
+		v.PropertyL6Options = translateFeatureChoiceOptions(cookingToolPipePropertyL6Options, locale)
+		v.PropertyL6Label = cookingToolOptionLabel(cookingToolPipePropertyL6Options, v.PropertyL6, locale)
 	}
 	if classLevel >= 11 {
 		v.PropertyL11Available = true
-		v.PropertyL11Options = cookingToolPipePropertyL11Options
-		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPipePropertyL11Options, v.PropertyL11)
+		v.PropertyL11Options = translateFeatureChoiceOptions(cookingToolPipePropertyL11Options, locale)
+		v.PropertyL11Label = cookingToolOptionLabel(cookingToolPipePropertyL11Options, v.PropertyL11, locale)
 	}
 	return v, nil
 }
@@ -1323,7 +1323,7 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 		}
 		data.FastAndFurious = &fastAndFuriousView{
 			Current: choices[features.ChoiceKey{FeatureSlug: fastAndFuriousFeatureSlug, ChoiceIndex: 0}],
-			Options: fastAndFuriousOptions,
+			Options: translateFeatureChoiceOptions(fastAndFuriousOptions, locale),
 		}
 	}
 
@@ -1354,7 +1354,7 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 				pickedByJutsu[p.JutsuID] = p.EnhancementType
 			}
 			data.BlendEnhancementUsed = len(enhancementPicks)
-			data.BlendEnhancementOptions = gastrochemistEnhancementOptions
+			data.BlendEnhancementOptions = translateFeatureChoiceOptions(gastrochemistEnhancementOptions, locale)
 			for _, o := range known {
 				if enhType, ok := pickedByJutsu[o.JutsuID]; ok {
 					data.KnownBlendEnhancements = append(data.KnownBlendEnhancements, knownBlendEnhancementPick{
@@ -1362,7 +1362,7 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 						Name:             o.Name,
 						Rank:             o.Rank,
 						EnhancementType:  enhType,
-						EnhancementLabel: gastrochemistEnhancementLabel(enhType),
+						EnhancementLabel: gastrochemistEnhancementLabel(enhType, locale),
 					})
 				} else {
 					data.AvailableBlendJutsu = append(data.AvailableBlendJutsu, o)
