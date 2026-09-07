@@ -744,6 +744,43 @@ before it's assigned into the response struct), never inside the loader itself.*
   shape, this is the same "defer a cross-cutting mechanism to its own pass" call as the badge-label,
   skill-names, and subclass-tracker-popup gaps above — do not fix only `weaponFormTechniqueAutoGrants`
   and call it done.
+- **`titan.go`** (2026-09-07): two genuine hardcoded-Name gaps, both fixed. `titanBashAttack`'s
+  rollable "Bash" row `Name` was a bare Go string literal (never translated, unlike every sibling
+  attack-row builder in this file which already reads its own Name via `i18n.Translator` — e.g.
+  `titanXo16GatlingAttack`) — fixed via a new `"titan.bash_attack_row_name"` key. Kept as the
+  English loanword "Bash" in every locale, matching `companion_fields.bash_heading`'s own existing
+  identity translation for the same word (a companion-field label, unrelated file, but the same
+  established "Bash stays Bash" precedent). `loadTitanUpgradeCatalog`'s Mastercraft-tier special
+  case (`titanUpgradeOption{..., Name: "Bijuu Slayer", ...}` — the one Titan Upgrade item that was
+  never split into its own `class_option_entries` row, per this file's own header doc, so it has no
+  DB-backed translation to overlay) was a second bare literal; fixed via a new
+  `"titan.bijuu_slayer.name"` key, translated ("Asesino de Bijuu"/"Assassino de Bijuu") — "Bijuu"
+  itself stays untranslated (Naruto-specific term, per this project's own "translate everything
+  except genuinely Japanese-origin/Naruto terms" rule), "Slayer" translated the same way the
+  existing `"cr_name:Master Slayer"` entry already does ("Asesino"/"Assassino"). Every other
+  `Name:`/`Description:` assignment in the file was already correctly wired through
+  `i18n.Translator`/`i18n.Batch`/`i18n.Row` — this file was already unusually thorough about i18n
+  (see its own extensive header-doc citations of prior translation work) before this pass; only
+  these two literal proper-noun names had slipped through.
+- Found but NOT fixed, cross-cutting (two NEW findings, both surfaced while auditing `titan.go`):
+  (1) every "tier/category name" field sourced from a raw `class_options.name`/`class_option_entries`
+  parent-row value (not the entry's own translatable `name`) is rendered player-facing untranslated
+  — confirmed by name: `titanUpgradeOption.Tier` (`titan.go`, e.g. "Minor"/"Refined"/"Mastercraft",
+  rendered raw in `character_sheet.html` at `{{.Tier}}`/`{{T "sheet.tier_cost" .Tier .Cost}}`),
+  `puppetUpgradeTier.TierName` (`puppets.go`, already **closed** — "Wood Tier"/"Bronze Tier"/etc.,
+  same raw-`class_options.name` source), and (not yet individually confirmed, but sharing the exact
+  same `Tier string` struct-field shape) `science_nin.go`'s and `science_nin_subclasses.go`'s
+  (already **closed**) own tool/upgrade catalogs. (2) `companionAttackRow.GrantedHint` — the
+  "Granted by a [X] — remove the [X] to remove this attack" hint text shown on every auto-granted
+  rollable attack row — is a bare hardcoded English string at every construction site, confirmed at
+  `titanGrantedUpgradeHint` (this file) and `puppets.go`'s identically-shaped
+  `"Granted by a Puppet Upgrade — remove the upgrade to remove this attack"` (`puppets.go`, already
+  **closed**). Both are the same shape of gap already established in this sweep (a shared struct
+  field populated with raw English at many call sites across many files, several already marked
+  closed) — deferred to their own dedicated pass(es) rather than fixed piecemeal here, consistent
+  with every other cross-cutting finding above. Whoever picks these up should grep
+  `Tier:\s*o\.(name|Name)\b`/`TierName:\s*o\.name\b` and `GrantedHint:\s*"` respectively across
+  `cmd/n5e/*.go` fresh, rather than trusting this note's file list to be exhaustive.
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -751,23 +788,26 @@ gap by SOURCE, not by database/catalog completeness percentage — completeness 
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
-`medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, and `weapon_specialist.go` are
-closed; `wow_whelp.go` was audited (2026-09-07) and found clean OF THIS PARTICULAR gap — its own
-translation gap is real but cross-cutting (see its own bullet above) and deliberately deferred
-rather than fixed in isolation, so don't re-audit it from scratch, but also don't count it "closed"
-until the cross-cutting companion-auto-add pass lands; `taijutsu.go` and `weapon_specialist.go`
-also surfaced their own cross-cutting deferred items (the 22-site-and-growing
+`medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`, and
+`titan.go` are closed; `wow_whelp.go` was audited (2026-09-07) and found clean OF THIS PARTICULAR
+gap — its own translation gap is real but cross-cutting (see its own bullet above) and
+deliberately deferred rather than fixed in isolation, so don't re-audit it from scratch, but also
+don't count it "closed" until the cross-cutting companion-auto-add pass lands; `taijutsu.go` and
+`weapon_specialist.go` also surfaced their own cross-cutting deferred items (the 22-site-and-growing
 `subclassTrackerPopupData`/`subclassTrackerSection` Title/Hint/EmptyHint/AddLabel gap, and the
 "auto-grant map with hardcoded Name(s)" gap spanning `weaponFormTechniqueAutoGrants`/
 `martialTechniqueAutoGrants`/`ninjutsuMoldingAutoGrants`/`huntersExploitAutoGrants`/
-`puppetUpgradeAutoGrants`/`genjutsuInceptionMirageAutoGrants`, see their own bullets above) — same
+`puppetUpgradeAutoGrants`/`genjutsuInceptionMirageAutoGrants`, see their own bullets above), and
+`titan.go` surfaced two more (the `Tier`-field gap spanning `titan.go`/`puppets.go`/
+`science_nin.go`/`science_nin_subclasses.go`, and the `GrantedHint` gap spanning `titan.go`/
+`puppets.go`, see their own bullet above) — same
 "don't count fully closed until the relevant cross-cutting pass lands" caveat applies to
-`taijutsu.go`, `weapon_specialist.go`, and every other closed file that turns out to share either
-mechanism (already confirmed true for `hunter_nin.go`, `puppets.go`, and `genjutsu.go` via the
-auto-grant-map gap, and for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/`medical_nin.go`/
-`cooking_nin.go` via the popup gap); ~6 sibling files (`titan.go`, `elemental_affinity.go`,
-`snb.go`, `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
-check
+`taijutsu.go`, `weapon_specialist.go`, `titan.go`, and every other closed file that turns out to
+share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
+`genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
+`medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
+gap and the GrantedHint gap); ~5 sibling files (`elemental_affinity.go`, `snb.go`,
+`science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
 outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was

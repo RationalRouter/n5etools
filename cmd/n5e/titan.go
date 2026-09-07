@@ -389,7 +389,7 @@ func titanBashAttack(companion charstore.Companion, ref *titanReference, ownerPr
 	}
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name:        "Bash",
+			Name:        i18n.Translator(locale)("titan.bash_attack_row_name"),
 			Description: i18n.Translator(locale)("titan.bash_attack_row_description"),
 			DamageCount: 1, DamageSides: damageSides, DamageType: "bludgeoning",
 		},
@@ -1135,7 +1135,7 @@ func (s *server) loadTitanUpgradeCatalog(locale string) ([]titanUpgradeOption, e
 		return nil, err
 	}
 	if err == nil {
-		o := titanUpgradeOption{Slug: mastercraftSlug, Name: "Bijuu Slayer", Tier: "Mastercraft"}
+		o := titanUpgradeOption{Slug: mastercraftSlug, Name: i18n.Translator(locale)("titan.bijuu_slayer.name"), Tier: "Mastercraft"}
 		// Cost/Drain/Keyword always come from the ENGLISH raw text -- never
 		// re-derive them from mastercraftDescEN after it's been overwritten
 		// with a translation below.
