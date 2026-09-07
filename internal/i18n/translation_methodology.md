@@ -346,7 +346,21 @@ says nothing about this category of gap. Found so far:
     environment). **Any sibling file reached later that also uses `featureChoiceOption` for a
     hand-curated catalog should reuse `translateFeatureChoiceOptions` directly rather than writing
     a new per-file wrapper** — check `feature_choices.go` first before assuming a new helper is
-    needed. (Separately confirmed: `loadKnownBlendJutsu` reads known-jutsu `Name`/`Rank`/
+    needed. **Caught and fixed in the same pass**: `cookingToolDamageTypeOptions`' 3 Bludgeoning/
+    Piercing/Slashing Labels were initially routed through the generic `fco_label:` namespace like
+    every other catalog here, duplicating `items.go`'s own pre-existing `damageTypeCatalogKey`/
+    `translateEnumDisplay` mechanism (the canonical `damage_type.bludgeoning`/`.piercing`/
+    `.slashing` catalog keys every other weapon's damage-type display already uses) under a second,
+    independent key. Fixed via a dedicated `cookingToolDamageTypeOptionsFor(locale)` that calls
+    `translateEnumDisplay(tr, damageTypeCatalogKey, ...)` for Label (reusing the canonical key) and
+    `fco_desc:` only for Description (no existing catalog entry for the Cooking-Tool-specific
+    sentence). **Standing check going forward**: before adding ANY new catalog key for a Label that
+    is a plain damage-type/weapon-category/armor-category word (Bludgeoning, Piercing, Slashing,
+    Fire, Cold, Lightning, Variable, Simple/Martial/Exotic, Light/Medium/Heavy armor), grep
+    `items.go`'s `weaponCategoryCatalogKey`/`armorCategoryCatalogKey`/`damageTypeCatalogKey` maps
+    first and reuse the canonical key via `translateEnumDisplay` — the same "reuse, don't duplicate"
+    discipline `genjutsu.go`'s `cr_name:` reuse already established for resource names, just for
+    this different, UI-catalog-native family of enum labels instead. (Separately confirmed: `loadKnownBlendJutsu` reads known-jutsu `Name`/`Rank`/
     `Description` straight from `v_jutsu`/`custom_jutsu` with no translation overlay at all — but
     this mirrors `ninjutsu_specialist.go`'s own `loadKnownNinjutsu`, a pre-existing, wider
     "known-jutsu-picker" pattern that predates this file and isn't part of the current 19-file

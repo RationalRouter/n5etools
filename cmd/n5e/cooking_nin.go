@@ -361,6 +361,27 @@ var cookingToolDamageTypeOptions = []featureChoiceOption{
 	{Value: "Slashing", Label: "Slashing", Description: "Your Cooking Tool deals Slashing damage."},
 }
 
+// cookingToolDamageTypeOptionsFor translates cookingToolDamageTypeOptions'
+// Label via the canonical damage_type.* catalog (damageTypeCatalogKey,
+// items.go) rather than translateFeatureChoiceOptions' own fco_label:
+// namespace — Bludgeoning/Piercing/Slashing are already translated there for
+// every other weapon's damage-type display, and duplicating that under a
+// second, independent key risks the two falling out of sync across a future
+// retranslation. Only Description (a Cooking-Tool-specific sentence with no
+// existing catalog entry) still goes through fco_desc:.
+func cookingToolDamageTypeOptionsFor(locale string) []featureChoiceOption {
+	tr := i18n.Translator(locale)
+	out := make([]featureChoiceOption, len(cookingToolDamageTypeOptions))
+	for i, o := range cookingToolDamageTypeOptions {
+		out[i] = featureChoiceOption{
+			Value:       o.Value,
+			Label:       translateEnumDisplay(tr, damageTypeCatalogKey, o.Label),
+			Description: tr("fco_desc:" + o.Description),
+		}
+	}
+	return out
+}
+
 // cookingToolPropertyL1Options: 1st level's own property table — "one
 // following properties: Blocking, Hidden, Thrown (45/90), Unarmed,
 // Deadly." Descriptions are transcribed from weapon_properties (rules.db)
@@ -585,7 +606,7 @@ func (s *server) loadCookingToolInfusionView(characterID int64, toolLevel int, l
 		Implement:         get(cookingToolChoiceImplement),
 		ImplementOptions:  catalog,
 		DamageType:        get(cookingToolChoiceDamageType),
-		DamageTypeOptions: translateFeatureChoiceOptions(cookingToolDamageTypeOptions, locale),
+		DamageTypeOptions: cookingToolDamageTypeOptionsFor(locale),
 		PropertyL1:        get(cookingToolChoicePropertyL1),
 		PropertyL1Options: translateFeatureChoiceOptions(cookingToolPropertyL1Options, locale),
 		PropertyL6:        get(cookingToolChoicePropertyL6),
@@ -876,7 +897,7 @@ func (s *server) loadCookingToolInfusionPipeView(characterID int64, classLevel i
 		Implement:         get(cookingToolPipeChoiceImplement),
 		ImplementOptions:  catalog,
 		DamageType:        get(cookingToolPipeChoiceDamageType),
-		DamageTypeOptions: translateFeatureChoiceOptions(cookingToolDamageTypeOptions, locale),
+		DamageTypeOptions: cookingToolDamageTypeOptionsFor(locale),
 		PropertyL3:        get(cookingToolPipeChoicePropertyL3),
 		PropertyL3Options: translateFeatureChoiceOptions(cookingToolPipePropertyL3Options, locale),
 		PropertyL6:        get(cookingToolPipeChoicePropertyL6),
