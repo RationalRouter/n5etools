@@ -5263,7 +5263,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load weapon focus:", err)
 		return
 	}
-	weaponForm, err := s.loadWeaponFormTabData(id, sheet)
+	weaponForm, err := s.loadWeaponFormTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon form:", err)
@@ -7021,7 +7021,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["WeaponFocus"] = weaponFocus
 	case "sheet_weapon_form":
-		weaponForm, err := s.loadWeaponFormTabData(characterID, sheet)
+		weaponForm, err := s.loadWeaponFormTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load weapon form for fragment:", err)

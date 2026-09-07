@@ -69,7 +69,7 @@ func (s *server) handleWeaponFormPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for weapon form popup:", err)
 		return
 	}
-	data, err := s.loadWeaponFormTabData(id, sheet)
+	data, err := s.loadWeaponFormTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon form for popup:", err)
@@ -152,7 +152,7 @@ func (s *server) handleWeaponFormStylePopupAdd(w http.ResponseWriter, r *http.Re
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addWeaponFormStyle(id, slug); status != http.StatusOK {
+	if status, msg := s.addWeaponFormStyle(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}
@@ -220,7 +220,7 @@ func (s *server) handleSuperiorWeaponFlurryPopupAdd(w http.ResponseWriter, r *ht
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addSuperiorWeaponFlurryBenefit(id, slug); status != http.StatusOK {
+	if status, msg := s.addSuperiorWeaponFlurryBenefit(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}

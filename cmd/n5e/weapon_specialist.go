@@ -726,6 +726,27 @@ var superiorWeaponFlurryCatalog = []superiorWeaponFlurryOption{
 	},
 }
 
+// translateSuperiorWeaponFlurryCatalog renders superiorWeaponFlurryCatalog
+// for display: Slug is always the raw canonical value (what gets stored and
+// matched via AddSuperiorWeaponFlurryBenefit/RemoveSuperiorWeaponFlurryBenefit),
+// Name/Description are the locale's own translation, namespaced "swf_name:"/
+// "swf_desc:" so they can't collide with an unrelated catalog key — same
+// "hand-curated Go catalog, not a class_options row" translation shape
+// translateAntiChakraWavelengthOptions (taijutsu.go) established for this
+// class's own hardcoded Anti-Chakra Wavelength keyword list.
+func translateSuperiorWeaponFlurryCatalog(locale string) []superiorWeaponFlurryOption {
+	tr := i18n.Translator(locale)
+	out := make([]superiorWeaponFlurryOption, len(superiorWeaponFlurryCatalog))
+	for i, o := range superiorWeaponFlurryCatalog {
+		out[i] = superiorWeaponFlurryOption{
+			Slug:        o.Slug,
+			Name:        tr("swf_name:" + o.Name),
+			Description: tr("swf_desc:" + o.Description),
+		}
+	}
+	return out
+}
+
 // superiorWeaponFlurryCap is Superior Weapon Flurry's own 2-of-4-then-
 // 3-of-4 pick cap. Not in class_level_resources (confirmed no such row for
 // this feature), so hardcoded directly rather than a rules.db lookup, same
@@ -755,7 +776,7 @@ type superiorWeaponFlurryTabData struct {
 
 // loadSuperiorWeaponFlurryTabData returns nil below 14th level in Weapon
 // Specialist.
-func (s *server) loadSuperiorWeaponFlurryTabData(characterID int64, level int) (*superiorWeaponFlurryTabData, error) {
+func (s *server) loadSuperiorWeaponFlurryTabData(characterID int64, level int, locale string) (*superiorWeaponFlurryTabData, error) {
 	cap := superiorWeaponFlurryCap(level)
 	if cap == 0 {
 		return nil, nil
@@ -769,7 +790,7 @@ func (s *server) loadSuperiorWeaponFlurryTabData(characterID int64, level int) (
 		pickedSet[slug] = true
 	}
 	var known, available []superiorWeaponFlurryOption
-	for _, o := range superiorWeaponFlurryCatalog {
+	for _, o := range translateSuperiorWeaponFlurryCatalog(locale) {
 		if pickedSet[o.Slug] {
 			known = append(known, o)
 		} else {
@@ -811,7 +832,7 @@ type weaponFormTabData struct {
 // Specialist levels or no Weapon Form chosen — the template gates the
 // whole box's existence on this being non-nil, same treatment
 // MartialTechniques/WeaponFocus get.
-func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet) (*weaponFormTabData, error) {
+func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*weaponFormTabData, error) {
 	level, err := s.weaponSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -849,12 +870,14 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 		return nil, err
 	}
 	var known, available []weaponFormStyleOption
+	var styleSlugs []string
 	for rows.Next() {
 		var o weaponFormStyleOption
 		if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
 			rows.Close()
 			return nil, err
 		}
+		styleSlugs = append(styleSlugs, o.Slug)
 		if pickedSet[o.Slug] {
 			known = append(known, o)
 		} else {
@@ -864,6 +887,22 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	styleTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", styleSlugs)
+	if err != nil {
+		return nil, err
+	}
+	for _, list := range [][]weaponFormStyleOption{known, available} {
+		for i := range list {
+			if tr := styleTranslations[list[i].Slug]; tr != nil {
+				if v, ok := tr["name"]; ok {
+					list[i].Name = v
+				}
+				if v, ok := tr["description"]; ok {
+					list[i].Description = v
+				}
+			}
+		}
 	}
 
 	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
@@ -888,11 +927,11 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 		}
 		stalkingPredator = &stalkingPredatorView{
 			Current: choices[features.ChoiceKey{FeatureSlug: stalkingPredatorFeatureSlug, ChoiceIndex: 0}],
-			Options: stalkingPredatorOptions,
+			Options: translateFeatureChoiceOptions(stalkingPredatorOptions, locale),
 		}
 	}
 
-	superiorWeaponFlurry, err := s.loadSuperiorWeaponFlurryTabData(characterID, level)
+	superiorWeaponFlurry, err := s.loadSuperiorWeaponFlurryTabData(characterID, level, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -915,7 +954,7 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 // what the UI already disables. Shared by handleWeaponFormStyleAdd's own
 // Core-sheet AJAX route and the Weapon Form popup's own route
 // (weapon_form_popup.go), so both share one validation path.
-func (s *server) addWeaponFormStyle(id int64, slug string) (int, string) {
+func (s *server) addWeaponFormStyle(id int64, slug, locale string) (int, string) {
 	if slug == "" {
 		return http.StatusBadRequest, "missing style"
 	}
@@ -924,7 +963,7 @@ func (s *server) addWeaponFormStyle(id int64, slug string) (int, string) {
 		log.Println("compute sheet for weapon form style add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadWeaponFormTabData(id, sheet)
+	data, err := s.loadWeaponFormTabData(id, sheet, locale)
 	if err != nil {
 		log.Println("load weapon form styles for add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -965,7 +1004,7 @@ func (s *server) handleWeaponFormStyleAdd(w http.ResponseWriter, r *http.Request
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addWeaponFormStyle(id, slug); status != http.StatusOK {
+	if status, msg := s.addWeaponFormStyle(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}
@@ -1061,7 +1100,7 @@ func (s *server) handleStalkingPredator(w http.ResponseWriter, r *http.Request) 
 // defense in depth regardless of what the UI already disables. Shared by
 // handleSuperiorWeaponFlurryAdd's own Core-sheet AJAX route and the Weapon
 // Form popup's own route (weapon_form_popup.go).
-func (s *server) addSuperiorWeaponFlurryBenefit(id int64, slug string) (int, string) {
+func (s *server) addSuperiorWeaponFlurryBenefit(id int64, slug, locale string) (int, string) {
 	if slug == "" {
 		return http.StatusBadRequest, "missing benefit"
 	}
@@ -1070,7 +1109,7 @@ func (s *server) addSuperiorWeaponFlurryBenefit(id int64, slug string) (int, str
 		log.Println("load weapon specialist level for superior weapon flurry add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadSuperiorWeaponFlurryTabData(id, level)
+	data, err := s.loadSuperiorWeaponFlurryTabData(id, level, locale)
 	if err != nil {
 		log.Println("load superior weapon flurry for add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1111,7 +1150,7 @@ func (s *server) handleSuperiorWeaponFlurryAdd(w http.ResponseWriter, r *http.Re
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addSuperiorWeaponFlurryBenefit(id, slug); status != http.StatusOK {
+	if status, msg := s.addSuperiorWeaponFlurryBenefit(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}

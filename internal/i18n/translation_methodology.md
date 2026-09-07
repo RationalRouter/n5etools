@@ -694,6 +694,56 @@ before it's assigned into the response struct), never inside the loader itself.*
   through `subclassTrackerPopupData`) rather than being fixed piecemeal — do not fix only a few and
   call it done; fix all 22 in one pass or defer all 22 together. Same "defer a shared/cross-cutting
   mechanism to its own pass" precedent as the badge-label gap and the skill-names gap above.
+- **This popup-Title gap is WIDER than first scoped, confirmed 2026-09-07 while auditing
+  `weapon_specialist.go`**: `subclass_tracker_popup.go`'s sibling struct `subclassTrackerSection`
+  (`Title`, `Hint`, `AddLabel` fields — the per-section heading/hint/button-label inside a popup,
+  not the page-level `subclassTrackerPopupData.Title` counted above) has the exact same hardcoded-
+  English shape, at every one of that struct's construction sites across the same set of popup
+  files (spot-checked `hunter_creed_popup.go`'s four `subclassTrackerSection{Title: "Warden
+  Weapon (...)" ...}`-shaped sites, all hardcoded, in an already-"closed" file). Not counted in the
+  22-site number above, not separately grepped/counted yet — same shared mechanism
+  (`subclass_tracker_popup.go`), same deferred-to-its-own-pass treatment, but the real total scope
+  of "fix every subclass-tracker-popup hardcoded string in one pass" is `subclassTrackerPopupData`
+  AND `subclassTrackerSection` sites together, not just the 22 `Title`/`EmptyHint` ones. Whoever
+  picks up this deferred pass should grep `subclassTrackerSection{` fresh rather than trusting the
+  22-site count above to be the whole job.
+- **`weapon_specialist.go`** (2026-09-07): `loadWeaponFormTabData` had no `locale` parameter at
+  all — its Weapon Form Styles `class_options` query returned fully untranslated Name/Description,
+  the same bare-missing-overlay shape fixed repeatedly elsewhere in this sweep (confirmed the
+  translations themselves already exist in `content_translations` for both `es`/`pt`, just never
+  read); fixed by adding `locale`, overlaying `i18n.Batch(..., "class_options", styleSlugs)`, and
+  threading the new parameter through every call site (`loadSuperiorWeaponFlurryTabData`,
+  `addWeaponFormStyle`, `addSuperiorWeaponFlurryBenefit`, both `characters.go` full-sheet-render
+  sites, and all three `weapon_form_popup.go` routes). `stalkingPredatorOptions` (Slayer Form's
+  Stalking Predator, already a `[]featureChoiceOption`) wired through the existing
+  `translateFeatureChoiceOptions` helper — safe, matched only on `.Value`
+  (`"vipers-tongue"`/`"apex-glare"`), never on translated text.
+  `superiorWeaponFlurryCatalog` (base class's own hand-curated 4-benefit catalog, NOT a
+  `featureChoiceOption` — its own `superiorWeaponFlurryOption{Slug, Name, Description}` shape) got
+  a new `translateSuperiorWeaponFlurryCatalog` following `translateAntiChakraWavelengthOptions`'s
+  precedent (`taijutsu.go`) for a hand-curated catalog with no `class_options` row of its own —
+  `Slug` stays the raw canonical value (matched by `AddSuperiorWeaponFlurryBenefit`/
+  `RemoveSuperiorWeaponFlurryBenefit`), `Name`/`Description` translated via new `"swf_name:"`/
+  `"swf_desc:"` locale keys. `weaponFormTechniqueAutoGrants` (the map of granting-feature-slug to
+  2-3 bespoke Flurry Technique names, e.g. `{"Disastrous Strike", "Forced Regression"}`) is left
+  untranslated — see the new cross-cutting finding below, this is NOT specific to this file.
+- Found but NOT fixed, cross-cutting (new, surfaced while auditing `weapon_specialist.go`): every
+  "feature slug → hardcoded English name(s) it auto-grants for free" map in this codebase has the
+  identical untranslated shape — confirmed by name across files: `weaponFormTechniqueAutoGrants`
+  (this file), `martialTechniqueAutoGrants` (`taijutsu.go`, already a **closed** file — meaning it
+  is not actually 100% complete for this reason either), `ninjutsuMoldingAutoGrants`
+  (`ninjutsu_specialist.go`, not yet audited in this sweep), `huntersExploitAutoGrants`
+  (`hunter_nin.go`, already **closed**), `puppetUpgradeAutoGrants` (`puppets.go`, already
+  **closed**), and `genjutsuInceptionMirageAutoGrants` (`genjutsu.go`, already **closed**). All six
+  render their hardcoded Name(s) as real player-facing "Granted" entries on the sheet (the auto-
+  known, no-cap, no-delete-button treatment these auto-grant maps share, per
+  `weaponFormTechniqueAutoGrants`'s own doc comment). None of these values are ever persisted or
+  matched against — they're pure display text, keyed by the (already-translatable) granting
+  feature's own slug — so fixing this is purely a translation-lookup problem, not a matching-key
+  risk one. Given the scale (6+ maps across 6 files, most already closed) and the shared display
+  shape, this is the same "defer a cross-cutting mechanism to its own pass" call as the badge-label,
+  skill-names, and subclass-tracker-popup gaps above — do not fix only `weaponFormTechniqueAutoGrants`
+  and call it done.
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -701,16 +751,22 @@ gap by SOURCE, not by database/catalog completeness percentage — completeness 
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
-`medical_nin.go`, `hunter_pattern_choices.go`, and `taijutsu.go` are closed; `wow_whelp.go` was
-audited (2026-09-07) and found clean OF THIS PARTICULAR gap — its own translation gap is real but
-cross-cutting (see its own bullet above) and deliberately deferred rather than fixed in isolation,
-so don't re-audit it from scratch, but also don't count it "closed" until the cross-cutting
-companion-auto-add pass lands; `taijutsu.go` also surfaced its own cross-cutting deferred item (the
-22-site `subclassTrackerPopupData` Title/EmptyHint gap, see its own bullet above) — same "don't
-count fully closed until the cross-cutting pass lands" caveat applies to it and to every other file
-that has (or will turn out to have) a `subclassTrackerPopupData{Title: ...}` call site; ~7 sibling
-files (`weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
-`puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
+`medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, and `weapon_specialist.go` are
+closed; `wow_whelp.go` was audited (2026-09-07) and found clean OF THIS PARTICULAR gap — its own
+translation gap is real but cross-cutting (see its own bullet above) and deliberately deferred
+rather than fixed in isolation, so don't re-audit it from scratch, but also don't count it "closed"
+until the cross-cutting companion-auto-add pass lands; `taijutsu.go` and `weapon_specialist.go`
+also surfaced their own cross-cutting deferred items (the 22-site-and-growing
+`subclassTrackerPopupData`/`subclassTrackerSection` Title/Hint/EmptyHint/AddLabel gap, and the
+"auto-grant map with hardcoded Name(s)" gap spanning `weaponFormTechniqueAutoGrants`/
+`martialTechniqueAutoGrants`/`ninjutsuMoldingAutoGrants`/`huntersExploitAutoGrants`/
+`puppetUpgradeAutoGrants`/`genjutsuInceptionMirageAutoGrants`, see their own bullets above) — same
+"don't count fully closed until the relevant cross-cutting pass lands" caveat applies to
+`taijutsu.go`, `weapon_specialist.go`, and every other closed file that turns out to share either
+mechanism (already confirmed true for `hunter_nin.go`, `puppets.go`, and `genjutsu.go` via the
+auto-grant-map gap, and for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/`medical_nin.go`/
+`cooking_nin.go` via the popup gap); ~6 sibling files (`titan.go`, `elemental_affinity.go`,
+`snb.go`, `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited —
 check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
