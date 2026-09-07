@@ -192,7 +192,7 @@ func permaPerkSection(characterID int64, ei *scienceNinElementalInnovationistDat
 // abstract upgrade slot. Shared by both wow/add routes (Core-sheet AJAX and
 // this popup), same "one core, two thin wrappers" shape addEIPPick already
 // uses for its own dedicated add.
-func (s *server) addWoWPick(id int64, rawSlug string) (int, string) {
+func (s *server) addWoWPick(id int64, rawSlug, locale string) (int, string) {
 	status, msg := s.scienceNinSubclassPickAddCore(id, charstore.ScienceNinPickWOW,
 		func(d *scienceNinToolsTabData) int {
 			if d.ElementalInnovationist == nil {
@@ -216,12 +216,12 @@ func (s *server) addWoWPick(id int64, rawSlug string) (int, string) {
 	if status != http.StatusOK {
 		return status, msg
 	}
-	name, description, err := s.scienceNinOptionNameAndDescription(rawSlug)
+	name, description, err := s.scienceNinOptionNameAndDescription(rawSlug, locale)
 	if err != nil {
 		log.Println("look up wow option name:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	if err := s.grantWoWWeapon(id, rawSlug, name, description); err != nil {
+	if err := s.grantWoWWeapon(id, rawSlug, name, description, locale); err != nil {
 		log.Println("grant wow weapon:", err)
 		return http.StatusInternalServerError, "database error"
 	}
@@ -241,7 +241,7 @@ func (s *server) handleScienceNinWOWAdd(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addWoWPick(id, slug); status != http.StatusOK {
+	if status, msg := s.addWoWPick(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}
@@ -261,7 +261,7 @@ func (s *server) handleWoWPopupAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addWoWPick(id, slug); status != http.StatusOK {
+	if status, msg := s.addWoWPick(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}

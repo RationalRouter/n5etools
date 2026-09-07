@@ -219,6 +219,13 @@ var armorCategoryCatalogKey = map[string]string{
 var damageTypeCatalogKey = map[string]string{
 	"Slashing": "damage_type.slashing", "Piercing": "damage_type.piercing", "Bludgeoning": "damage_type.bludgeoning",
 	"Fire": "damage_type.fire", "Cold": "damage_type.cold", "Lightning": "damage_type.lightning", "Variable": "damage_type.variable",
+	// Elemental/Force/Wind never appear on a real rules.db equipment row
+	// (confirmed via `SELECT DISTINCT damage_type FROM equipment` — only
+	// the 7 types above exist there) — they're bespoke to the Elemental
+	// Innovationist's own Weapons of Wonder (wow_weapons.go), added here
+	// rather than under a wow-specific namespace so any future real
+	// equipment row using one of these invented types is covered for free.
+	"Elemental": "damage_type.elemental", "Force": "damage_type.force", "Wind": "damage_type.wind",
 }
 
 // translateEnumDisplay looks up value in catalog (case-insensitively for

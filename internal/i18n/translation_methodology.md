@@ -367,26 +367,76 @@ says nothing about this category of gap. Found so far:
     hardcoded-literal list; flagged here for the eventual en/pt audit rather than fixed inline,
     since fixing it means touching `ninjutsu_specialist.go` too, outside this pass's scope.)
 
+  - **`wow_weapons.go` fixed 2026-09-07** — a genuinely different shape of gap from every other
+    entry in this section, and the first one where the "obvious" fix (translate the hardcoded
+    `Name`/`Properties` strings the same way as everywhere else) would have been actively wrong,
+    not just incomplete. `wowWeaponSpecs`' 10 curated entries (`Name`, `DamageDice`, `DamageType`,
+    `Properties`) get baked into a real, per-character `custom_items` row once, at the moment a
+    W.o.W is picked (`grantWoWWeapon`) — unlike every catalog fixed so far, which is re-read and
+    re-translated on every request, this text is written once and never re-synced. Two of the four
+    fields turned out to be load-bearing beyond display:
+    - **`Name` is buildAttacks' only matching key** back to `wowWeaponSpecsByName` (for
+      `AbilityOverride`/`NoDamageAbilityMod`) and to `wowAscendedOverride`'s own designated-W.o.W
+      comparison, and it's also what `revokeWoWWeapon`'s `SELECT ... WHERE ci.name = ?` matches on
+      to find the granted row again when the pick is forgotten. Translating it would silently break
+      all three the moment a character's locale differs from whatever locale was active at grant
+      time (there is no re-sync mechanism) — so it stays English forever, by design, not oversight.
+    - **`Properties` is a machine-parsed keyword field**, not prose — `characters.go`'s own
+      `buildAttacks` lowercases it and greps for `"finesse"`/`"thrown"`/`"ammunition"`/`"range"` to
+      pick the attack's ability score. This is the exact same category `internal/i18n/fields.go`
+      already excludes `equipment.properties`/`equipment.damage_type` for — confirmed here for a
+      second, independent field (a Go-literal one, not a DB column) rather than assumed.
+    - **`DamageType`, by contrast, IS safe** — read back only for display, never matched against
+      anything — so it's the one field actually translated, via `translateEnumDisplay`+
+      `damageTypeCatalogKey` (`items.go`, the same canonical mechanism `cookingToolDamageTypeOptionsFor`
+      above reuses), extended with 3 new keys (`damage_type.elemental`/`.force`/`.wind`) for the
+      3 invented damage types (confirmed via `SELECT DISTINCT damage_type FROM equipment` that no
+      real rules.db weapon ever uses these — they're bespoke to these 10 W.o.W).
+    - Separately, `scienceNinOptionName`/`scienceNinOptionNameAndDescription` (this file's own
+      `class_options` lookups, used to resolve a W.o.W pick's printed name/description) were reading
+      `class_options` directly with **no `i18n.Row` overlay at all**, despite `class_options` already
+      being a registered `TranslatableFields` table — a smaller instance of the `genjutsu.go`
+      missing-loader-overlay bug. Fixed for `description` only (translated via `i18n.Row`, since it
+      only ever lands in a `custom_items.Description` free-text field, never matched); `name` stays
+      untranslated for the identical matching-key reason `Name` does above, since `removeWoWPick`
+      matches `revokeWoWWeapon` against this exact same raw value.
+    - **Lesson for the remaining files**: before translating ANY hand-curated field that ends up
+      persisted onto a `custom_items`/`character_inventory`/similar row (rather than recomputed
+      fresh from `rules.db` on every request), check whether ANYTHING — in the same file or a
+      different one — matches equipped items back against that field's value, or parses it for
+      keywords, before assuming it's pure display text. Grep the field's own values (or the
+      variable/column name) across `cmd/n5e` for a `==`/`strings.Contains`/map-key use, not just
+      for where it's read into a template.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, and `cooking_nin.go` are closed;
-~16 sibling files (`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
-`puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`, `taijutsu.go`,
-`weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
-`puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check each one for its
-own hidden `Restriction`/`Description`-shaped field too (the grep above catches `Restriction` now,
-but a new field name in a new file won't match until it's added here); check for outlying lookup
-maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was hiding one; AND
-— per the `genjutsu.go` finding above — check every DB-backed loader function in the file
-(`SELECT ... FROM class_options`/`class_features`/`equipment`/etc.) actually takes a `locale`
-parameter and calls `i18n.Batch`/`i18n.Row` before returning, since a loader silently missing that
-call produces zero hardcoded-English-literal grep hits while still leaking untranslated rules-DB
-content onto the sheet in every non-English locale. Also check whether the file's hand-curated
-catalogs already use `featureChoiceOption` (`cmd/n5e/feature_choices.go`) — if so, reuse
-`translateFeatureChoiceOptions` (added for `cooking_nin.go`) rather than writing a new per-file
-wrapper.
+2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`, and
+`wow_weapons.go` are closed; ~15 sibling files (`nindog.go`, `science_nin_subclasses.go`,
+`scout_nin.go`, `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
+`taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
+`science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
+each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
+`Restriction` now, but a new field name in a new file won't match until it's added here); check for
+outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was
+hiding one; AND — per the `genjutsu.go` finding above — check every DB-backed loader function in
+the file (`SELECT ... FROM class_options`/`class_features`/`equipment`/etc.) actually takes a
+`locale` parameter and calls `i18n.Batch`/`i18n.Row` before returning, since a loader silently
+missing that call produces zero hardcoded-English-literal grep hits while still leaking
+untranslated rules-DB content onto the sheet in every non-English locale. Also check whether the
+file's hand-curated catalogs already use `featureChoiceOption` (`cmd/n5e/feature_choices.go`) — if
+so, reuse `translateFeatureChoiceOptions` (added for `cooking_nin.go`) rather than writing a new
+per-file wrapper. AND — per the `wow_weapons.go` finding above — before translating any hardcoded
+field that gets persisted onto a per-character row rather than recomputed fresh each request, check
+whether it doubles as a matching key or a machine-parsed keyword field elsewhere in the codebase
+before assuming it's safe to translate.
+
+Also note `scout_nin.go`'s own confirmed-but-not-yet-fixed instance of the missing-loader-overlay
+bug: `loadScoutNinManeuverCatalog(subclassSlug string)` (its single-subclass variant) queries
+`class_options` with no `i18n.Batch` call at all, unlike its sibling
+`loadScoutNinManeuverCatalogForSubclasses(locale string, ...)` which is correctly wired — fix this
+alongside `scout_nin.go`'s own hardcoded-literal pass when that file is reached.
 
 ## Applying this to a new language
 

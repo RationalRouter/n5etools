@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // wow_weapons.go: turns an Elemental Innovationist's W.O.W (Weapons of
@@ -152,7 +153,21 @@ const wowCustomItemKind = "Weapon of Wonder"
 // still grants a bare, statless weapon under its own catalog name rather
 // than failing outright — the player can fill in numbers by hand via the
 // same "Edit this item" UI every other custom item already has.
-func (s *server) grantWoWWeapon(characterID int64, wowSlug, wowName, wowDescription string) error {
+//
+// Name and Properties are deliberately NOT translated, unlike DamageType:
+// Name is the only key buildAttacks/wowAscendedOverride/revokeWoWWeapon
+// have to match a granted custom_items row back against wowWeaponSpecs (see
+// wowWeaponSpecsByName's own doc) — translating it would desync that match
+// the moment a character's locale differs from whatever locale was active
+// at grant time, silently dropping AbilityOverride/NoDamageAbilityMod/
+// Ascended-damage overrides. Properties is a machine-parsed keyword field
+// (buildAttacks greps it, case-insensitively, for "finesse"/"thrown"/
+// "ammunition"/"range" to pick the attack's ability score — see
+// characters.go's own props-parsing block), the identical reason
+// internal/i18n/fields.go's own equipment.properties entry is deliberately
+// excluded from content_translations. Both stay English forever once
+// granted, same as any other machine-parsed or matching-key field.
+func (s *server) grantWoWWeapon(characterID int64, wowSlug, wowName, wowDescription, locale string) error {
 	spec, ok := wowWeaponSpecs[wowSlug]
 	if !ok {
 		spec = wowWeaponSpec{Name: wowName}
@@ -162,7 +177,7 @@ func (s *server) grantWoWWeapon(characterID int64, wowSlug, wowName, wowDescript
 		Kind:         wowCustomItemKind,
 		RollableKind: "weapon",
 		DamageDice:   spec.DamageDice,
-		DamageType:   spec.DamageType,
+		DamageType:   translateEnumDisplay(i18n.Translator(locale), damageTypeCatalogKey, spec.DamageType),
 		Properties:   spec.Properties,
 		// The item library's generic /items/{slug} detail page (items.go's
 		// handleItemDetail) runs this through the ordinary formatDescription,
@@ -228,13 +243,13 @@ func (s *server) revokeWoWWeapon(characterID int64, wowName string) error {
 // ensureScienceNinAutoGrants, before a request's own inventory load and
 // buildAttacks call, so a freshly-backfilled weapon is visible the same
 // request that discovers it's missing.
-func (s *server) ensureWoWWeaponsGranted(characterID int64) error {
+func (s *server) ensureWoWWeaponsGranted(characterID int64, locale string) error {
 	picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickWOW)
 	if err != nil || len(picks) == 0 {
 		return err
 	}
 	for _, p := range picks {
-		name, description, err := s.scienceNinOptionNameAndDescription(p.OptionSlug)
+		name, description, err := s.scienceNinOptionNameAndDescription(p.OptionSlug, locale)
 		if err != nil {
 			return err
 		}
@@ -254,7 +269,7 @@ func (s *server) ensureWoWWeaponsGranted(characterID int64) error {
 		if exists {
 			continue
 		}
-		if err := s.grantWoWWeapon(characterID, p.OptionSlug, name, description); err != nil {
+		if err := s.grantWoWWeapon(characterID, p.OptionSlug, name, description, locale); err != nil {
 			return err
 		}
 	}
@@ -295,12 +310,27 @@ func (s *server) scienceNinOptionName(slug string) (string, error) {
 }
 
 // scienceNinOptionNameAndDescription is scienceNinOptionName's own twin,
-// additionally returning the raw catalog description — addWoWPick's own
-// "what did the player just pick" lookup, since grantWoWWeapon wants both.
-func (s *server) scienceNinOptionNameAndDescription(slug string) (name, description string, err error) {
+// additionally returning the catalog description — addWoWPick's own "what
+// did the player just pick" lookup, since grantWoWWeapon wants both. name
+// stays the raw, untranslated class_options value on purpose (see
+// grantWoWWeapon's own doc on why Name can never be translated); only
+// description — which only ever ends up in a custom_items row's free-text
+// Description field, never matched against anything — is translated, via
+// class_options' own existing i18n.Row overlay (class_options is already a
+// registered TranslatableFields table; this was simply never wired to read
+// it).
+func (s *server) scienceNinOptionNameAndDescription(slug, locale string) (name, description string, err error) {
 	err = s.rulesDB.QueryRow(`SELECT name, description FROM class_options WHERE slug = ?`, slug).Scan(&name, &description)
 	if err == sql.ErrNoRows {
 		return "", "", nil
 	}
-	return name, description, err
+	if err != nil {
+		return "", "", err
+	}
+	if tr, terr := i18n.Row(s.rulesDB, locale, "class_options", slug); terr == nil {
+		if v, ok := tr["description"]; ok {
+			description = v
+		}
+	}
+	return name, description, nil
 }

@@ -5034,7 +5034,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.ensureScienceNinAutoGrants(id, sheet); err != nil {
+	if err := s.ensureScienceNinAutoGrants(id, sheet, localeFromContext(r.Context())); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("ensure science-nin auto grants:", err)
 		return
@@ -6911,7 +6911,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Kujaku"] = loadKujakuModeView(sheet, grantedFeatures, customResources)
 	case "sheet_weapon_attacks":
-		if err := s.ensureScienceNinAutoGrants(characterID, sheet); err != nil {
+		if err := s.ensureScienceNinAutoGrants(characterID, sheet, localeFromContext(r.Context())); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("ensure science-nin auto grants for fragment:", err)
 			return

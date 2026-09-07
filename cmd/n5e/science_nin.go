@@ -434,8 +434,8 @@ func (s *server) ensureAirTrecksGranted(characterID int64) error {
 // the sheet's own charsheet.Compute call, closes that window — every caller
 // that builds the attack table from a freshly loaded inventory should call
 // this first.
-func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.Sheet) error {
-	if err := s.ensureWoWWeaponsGranted(characterID); err != nil {
+func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.Sheet, locale string) error {
+	if err := s.ensureWoWWeaponsGranted(characterID, locale); err != nil {
 		return err
 	}
 	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
