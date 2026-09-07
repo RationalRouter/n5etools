@@ -829,6 +829,28 @@ before it's assigned into the response struct), never inside the loader itself.*
   bare `[]string` Options so the submitted `value` stays the canonical English element name while
   the visible `<option>` text is translated; `character_sheet.html`'s `sheet_elemental_affinities`
   block updated to read `.Value`/`.Label` instead of the bare `.`.
+- **`snb.go`** (2026-09-07): this file was already unusually i18n-thorough (every displayed string
+  already routed through `i18n.Translator`/`i18n.Row` before this pass — the S.N.B stat block was
+  clearly built with i18n in mind from the start, unlike most files in this sweep). Two real
+  findings anyway: (1) another instance of the SAME class of bug `elemental_affinity.go`'s
+  `jutsu.keywords` fix documents above — `loadSNBReference`'s own `knownUpgradeNames` map was keyed
+  by `o.Name` from `loadScienceNinEntryCatalog`'s translated S.N.B Upgrades catalog, then compared
+  against 5 hardcoded English literals ("Armored Exterior", "Sturdy", "Improved Accuracy", "Piston
+  Legs", "Enhanced Size") to decide whether to fold each upgrade's own flat numeric bonus (AC floor,
+  HP bonus, speed override, to-hit bonus, size override) into the computed stat block — silently
+  never matching in es/pt, since `o.Name` there is the DeepL-translated name, not the English
+  literal. Confirmed via `sqlite3` that all 5 have stable slugs
+  (`class/science-nin/option/s-n-b-upgrades/.../entry/<slug>`). Fixed by switching the map to
+  `knownUpgradeSlugs` (keyed by `o.Slug`, immune to locale) and adding 5 named slug constants
+  (`snbArmoredExteriorSlug` etc.) instead of comparing against `o.Name` at all — the correct general
+  lesson from this and the `jutsu.keywords` bug: **any comparison against a `class_option_entries`/
+  `class_options`/`jutsu`/etc. row's own `Name` (or any other `TranslatableFields`-listed column) is
+  a latent locale bug — always match by `Slug` instead, and treat a `.Name`-keyed map/comparison
+  found anywhere in this codebase as worth checking even outside this per-file sweep.** (2) the
+  rollable Bite attack row's own `Name: "Bite"` (in `snbBiteAttack`) was a bare literal, never
+  translated — same shape as `nindog.go`'s own already-fixed Bite and `titan.go`'s own already-fixed
+  Bash; fixed via a new `"snb.bite_name"` key (translated "Mordisco"/"Mordida", matching
+  `nindog.bite.name`'s own precedent for the same word).
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -837,8 +859,8 @@ what was in scope to begin with, and this whole class of string structurally was
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
 `medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`,
-`titan.go`, and `elemental_affinity.go` are closed; `wow_whelp.go` was audited (2026-09-07) and
-found clean OF THIS PARTICULAR
+`titan.go`, `elemental_affinity.go`, and `snb.go` are closed; `wow_whelp.go` was audited
+(2026-09-07) and found clean OF THIS PARTICULAR
 gap — its own translation gap is real but cross-cutting (see its own bullet above) and
 deliberately deferred rather than fixed in isolation, so don't re-audit it from scratch, but also
 don't count it "closed" until the cross-cutting companion-auto-add pass lands; `taijutsu.go` and
@@ -855,7 +877,7 @@ don't count it "closed" until the cross-cutting companion-auto-add pass lands; `
 share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
 `genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
 `medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
-gap and the GrantedHint gap); ~4 sibling files (`snb.go`, `science_nin.go`, `puppet_tactics.go`,
+gap and the GrantedHint gap); ~3 sibling files (`science_nin.go`, `puppet_tactics.go`,
 `full_metal_shinobi.go`) remain fully unaudited — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for

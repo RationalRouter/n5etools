@@ -89,6 +89,24 @@ const (
 	snbRegenerativeArmorFeatureSlug   = "class/science-nin/group/scientific-inquiry/s-n-b-specialist/feature/regenerative-armor"
 )
 
+// snbArmoredExteriorSlug/snbSturdySlug/snbImprovedAccuracySlug/
+// snbPistonLegsSlug/snbEnhancedSizeSlug: the S.N.B Upgrades entries whose
+// own flat, always-on numeric effect loadSNBReference folds into this
+// file's Expected* fields — matched by SLUG, not Name. o.Name (from
+// loadScienceNinEntryCatalog) is translated per-locale, so matching against
+// a hardcoded English Name (as this file used to) silently stopped folding
+// these bonuses in for every non-English locale — the same "a translated
+// field used for runtime matching" bug elemental_affinity.go's own
+// jutsu.keywords fix documents; see translation_methodology.md for that
+// precedent.
+const (
+	snbArmoredExteriorSlug  = "class/science-nin/option/s-n-b-upgrades/minor/entry/armored-exterior"
+	snbSturdySlug           = "class/science-nin/option/s-n-b-upgrades/greater/entry/sturdy"
+	snbImprovedAccuracySlug = "class/science-nin/option/s-n-b-upgrades/minor/entry/improved-accuracy"
+	snbPistonLegsSlug       = "class/science-nin/option/s-n-b-upgrades/minor/entry/piston-legs"
+	snbEnhancedSizeSlug     = "class/science-nin/option/s-n-b-upgrades/refined/entry/enhanced-size"
+)
+
 // snbBaseAbilityScores: the base stat block's own six numbers, "12 (+1) 14
 // (+2) 12 (+1) 8 (-1) 5 (-3) 5 (-3)" in standard STR/DEX/CON/INT/WIS/CHA
 // column order, immediately following "Speed 30 ft." in the same run-on
@@ -389,7 +407,7 @@ func snbBiteDieForLevel(level int) int {
 func snbBiteAttack(level, playerIntMod, ownerProfBonus, accuracyBonus int, locale string) companionAttackRow {
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name:        "Bite",
+			Name:        i18n.Translator(locale)("snb.bite_name"),
 			Description: snbBiteDescription(locale),
 			DamageCount: 1,
 			DamageSides: snbBiteDieForLevel(level),
@@ -532,33 +550,33 @@ func (s *server) loadSNBReference(characterID int64, companion charstore.Compani
 	if err != nil {
 		return nil, err
 	}
-	knownUpgradeNames := make(map[string]bool, len(upgradePicks))
+	knownUpgradeSlugs := make(map[string]bool, len(upgradePicks))
 	var knownUpgrades []scienceNinSubclassOption
 	for _, p := range upgradePicks {
 		for _, o := range upgradeCatalog {
 			if o.Slug != p.OptionSlug {
 				continue
 			}
-			knownUpgradeNames[o.Name] = true
+			knownUpgradeSlugs[o.Slug] = true
 			knownUpgrades = append(knownUpgrades, scienceNinSubclassOption{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Description: upgradeDescBySlug[o.Slug]})
 			break
 		}
 	}
 
-	hasArmoredExterior := knownUpgradeNames["Armored Exterior"]
-	hasSturdy := knownUpgradeNames["Sturdy"]
+	hasArmoredExterior := knownUpgradeSlugs[snbArmoredExteriorSlug]
+	hasSturdy := knownUpgradeSlugs[snbSturdySlug]
 	accuracyBonus := 0
-	if knownUpgradeNames["Improved Accuracy"] {
+	if knownUpgradeSlugs[snbImprovedAccuracySlug] {
 		accuracyBonus = snbImprovedAccuracyBonus(level)
 	}
 	speed := snbBaseSpeed
-	if knownUpgradeNames["Piston Legs"] {
+	if knownUpgradeSlugs[snbPistonLegsSlug] {
 		// "Your S.N.B's movement speed becomes 60 feet" — a flat override,
 		// not additive, and always higher than the base 30 ft. regardless.
 		speed = 60
 	}
 	size := "Medium"
-	if knownUpgradeNames["Enhanced Size"] {
+	if knownUpgradeSlugs[snbEnhancedSizeSlug] {
 		size = "Large"
 	}
 
