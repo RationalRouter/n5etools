@@ -52,7 +52,7 @@ func (s *server) handlePsycheBreakerPopup(w http.ResponseWriter, r *http.Request
 		log.Println("compute sheet for psyche breaker popup:", err)
 		return
 	}
-	data, err := s.loadGenjutsuTabData(id, sheet)
+	data, err := s.loadGenjutsuTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu for psyche breaker popup:", err)

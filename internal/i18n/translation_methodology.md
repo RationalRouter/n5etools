@@ -286,20 +286,54 @@ says nothing about this category of gap. Found so far:
     literal. All Spanish/Portuguese translation done by hand (still no `DEEPL_API_KEY` in this
     session's tool environment either).
 
+  - **`genjutsu.go` fixed 2026-09-07** (4 `Name`/`Description` pairs in `masterOfIllusionOptions`,
+    plus 4 `KeywordDCBonusLabel` literals) — this file turned out to hide a WORSE bug than the
+    "hardcoded Go literal" category the other entries in this section describe: two of its
+    loader functions, `loadGenjutsuOptionCatalog` (backs Malleable Mirages and Genjutsu Inception)
+    and `loadGenjutsuConversionCatalog` (backs Real World Conversion), read straight from
+    `class_options`/`class_features` with **no `i18n.Batch` call at all** — unlike every sibling
+    loader in `hunter_nin.go`, these two never translated their DB-backed content in ANY locale.
+    Same root cause for `handleGenjutsuPickDetail`: 3 of its 4 `switch category` branches
+    (`mirage`, `inception`, `conversion`) queried `rulesDB` directly with no `i18n.Row` overlay;
+    only `illusion-mastery` (the one hand-curated `masterOfIllusionOptions` catalog) needed the
+    usual raw-text-as-key treatment. This is NOT a "string never existed in the pipeline" gap like
+    `custom_resources.go`/`hunter_nin.go` — the translated rows already exist in `class_options`/
+    `class_features`, they just were never read. **Any future file audit must check not only for
+    hardcoded literals but for a DB-backed loader silently missing its `i18n.Batch`/`i18n.Row`
+    call** — grepping for hardcoded strings alone would never have caught this one, since the Go
+    source contains no English literals for Mirages/Inception/Conversion at all. Found by
+    inspecting `loadGenjutsuOptionCatalog`'s signature (no `locale` parameter, unlike
+    `loadHunterOptionCatalog`) while porting the sibling-file fix pattern across — a useful signal
+    to check for on every remaining file: does every rules-database-backed loader function take
+    a `locale` parameter and end with an `i18n.Batch`/`i18n.Row` call, not just the hand-curated
+    ones? Also found 3 more hardcoded display names living outside `masterOfIllusionOptions`
+    entirely (`genjutsuActualizedAlterationPickedRows`'s "Actualized Alteration",
+    `genjutsuMiragePickedRows`'s "Deceitful Duplicate" + its `genjutsuMirageRestLimitedSlugs` map
+    of ~32 Malleable Mirage names, `genjutsuMirageDemonSightPassiveRow`'s "Demon Sight") — all of
+    them duplicate real `class_options` Mirage names already present in the catalog under
+    `custom_resources.go`'s own `cr_name:` keys (since `customResourceGrants` already tracks these
+    same Mirages' rest-pools under those names), so these were translated by REUSING `cr_name:`
+    rather than inventing a new namespace, except "Demon Sight" which had no prior `cr_name:`
+    entry and got one added. All Spanish/Portuguese translation done by hand (still no
+    `DEEPL_API_KEY` in this session's tool environment).
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go` and `hunter_nin.go` are closed; ~18 sibling files (`genjutsu.go`,
-`cooking_nin.go`, `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
+2026-09-07, `custom_resources.go`, `hunter_nin.go`, and `genjutsu.go` are closed; ~17 sibling files
+(`cooking_nin.go`, `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`,
 `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`, `taijutsu.go`,
 `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`,
 `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check each one for its
 own hidden `Restriction`/`Description`-shaped field too (the grep above catches `Restriction` now,
-but a new field name in a new file won't match until it's added here), and check for outlying
-lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was hiding
-one here — a plain grep for the field-name regex across the whole file (not just inside the
-obvious catalog var) is the only reliable way to catch these.
+but a new field name in a new file won't match until it's added here); check for outlying lookup
+maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was hiding one; AND
+— per the `genjutsu.go` finding above — check every DB-backed loader function in the file
+(`SELECT ... FROM class_options`/`class_features`/`equipment`/etc.) actually takes a `locale`
+parameter and calls `i18n.Batch`/`i18n.Row` before returning, since a loader silently missing that
+call produces zero hardcoded-English-literal grep hits while still leaking untranslated rules-DB
+content onto the sheet in every non-English locale.
 
 ## Applying this to a new language
 

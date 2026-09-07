@@ -193,7 +193,7 @@ func TestLoadGenjutsuTabData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := s.loadGenjutsuTabData(1, sheet)
+	data, err := s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestLoadGenjutsuTabData(t *testing.T) {
 	if err := charstore.AddGenjutsuPick(s.charDB, 1, charstore.GenjutsuPickInception, "class/genjutsu-specialist/option/genjutsu-inception/reality-marble"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadGenjutsuTabData(1, sheet)
+	data, err = s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestLoadGenjutsuTabData(t *testing.T) {
 	if err := charstore.AddGenjutsuPick(s.charDB, 1, charstore.GenjutsuPickMirage, "class/genjutsu-specialist/option/malleable-mirages/mental-placebo"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadGenjutsuTabData(1, sheet)
+	data, err = s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
 
 	// No class levels, no feats: the whole tab must stay nil, same as any
 	// other non-Genjutsu-Specialist character.
-	if data, err := s.loadGenjutsuTabData(1, sheet); err != nil || data != nil {
+	if data, err := s.loadGenjutsuTabData(1, sheet, "en"); err != nil || data != nil {
 		t.Fatalf("loadGenjutsuTabData with no levels/feats = %+v, %v, want nil, nil", data, err)
 	}
 
@@ -335,7 +335,7 @@ func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
 	// level — Reality-Marble/Temporal-Stopwatch-gated Mirages stay blocked,
 	// Basic Mirage is open), no Inception, 1 Conversion slot, d4 die.
 	addFeat(illusionistTrainingFeatSlug)
-	data, err := s.loadGenjutsuTabData(1, sheet)
+	data, err := s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +368,7 @@ func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
 	// Add Illusionist Expert: a second Mirage slot, a second Conversion
 	// slot, still no Inception (Expert never grants one).
 	addFeat(illusionistExpertFeatSlug)
-	data, err = s.loadGenjutsuTabData(1, sheet)
+	data, err = s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
 	// is an Inception pick, not a second Conversion), and exactly 1
 	// Inception slot, qualifying as if 9th level.
 	addFeat(illusionistSpecialistFeatSlug)
-	data, err = s.loadGenjutsuTabData(1, sheet)
+	data, err = s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestLoadGenjutsuTabDataArchetypeFeats(t *testing.T) {
 	if err := charstore.AddGenjutsuPick(s.charDB, 1, charstore.GenjutsuPickInception, "class/genjutsu-specialist/option/genjutsu-inception/reality-marble"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = s.loadGenjutsuTabData(1, sheet)
+	data, err = s.loadGenjutsuTabData(1, sheet, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

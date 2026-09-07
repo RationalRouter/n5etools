@@ -5879,7 +5879,7 @@ func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet, 
 	// every Genjutsu Specialist 5+ regardless of pick — see
 	// genjutsuActualizedAlterationPickedRows (genjutsu.go) and the
 	// "genjutsu-pick/actualized-alteration" entry in customResourceGrants.
-	conversionRows, err := s.genjutsuActualizedAlterationPickedRows(characterID)
+	conversionRows, err := s.genjutsuActualizedAlterationPickedRows(characterID, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -5890,7 +5890,7 @@ func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet, 
 	// comment, genjutsu.go), so this injection is what makes the ~31
 	// per-Mirage rest-scoped use-limits (and Deceitful Duplicate's own
 	// ability-modifier-sized pool below) reachable in the first place.
-	mirageRows, err := s.genjutsuMiragePickedRows(characterID)
+	mirageRows, err := s.genjutsuMiragePickedRows(characterID, locale)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Genjutsu Specialist's own mechanics, closing the base-class-wide gaps
@@ -162,14 +163,15 @@ func (s *server) genjutsuSpecialistSubclassSlug(characterID int64) (slug, name s
 // (custom_resources.go) for the pool this feeds. Mirrors
 // medicalDoctrinePickedRows' exact shape (medical_nin.go), which solves the
 // identical NULL-level-catalog-row problem for Medical Doctrine.
-func (s *server) genjutsuActualizedAlterationPickedRows(characterID int64) ([]grantedFeatureRow, error) {
+func (s *server) genjutsuActualizedAlterationPickedRows(characterID int64, locale string) ([]grantedFeatureRow, error) {
 	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickConversion)
 	if err != nil {
 		return nil, err
 	}
 	for _, slug := range picks {
 		if slug == "class/genjutsu-specialist/feature/actualized-alteration" {
-			return []grantedFeatureRow{{Slug: "genjutsu-pick/actualized-alteration", Name: "Actualized Alteration"}}, nil
+			name := i18n.Translator(locale)("cr_name:Actualized Alteration")
+			return []grantedFeatureRow{{Slug: "genjutsu-pick/actualized-alteration", Name: name}}, nil
 		}
 	}
 	return nil, nil
@@ -263,20 +265,21 @@ var genjutsuMirageRestLimitedSlugs = map[string]string{
 // clan_features plus feats, never class_options picks), so without this
 // injection customResourceGrants could never match on a Mirage pick no
 // matter which slug it was keyed to.
-func (s *server) genjutsuMiragePickedRows(characterID int64) ([]grantedFeatureRow, error) {
+func (s *server) genjutsuMiragePickedRows(characterID int64, locale string) ([]grantedFeatureRow, error) {
 	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickMirage)
 	if err != nil {
 		return nil, err
 	}
+	tr := i18n.Translator(locale)
 	var out []grantedFeatureRow
 	for _, slug := range picks {
 		suffix := strings.TrimPrefix(slug, genjutsuMirageOptionSlugPrefix)
 		if suffix == "deceitful-duplicate" {
-			out = append(out, grantedFeatureRow{Slug: genjutsuMirageDeceitfulDuplicateSlug, Name: "Deceitful Duplicate"})
+			out = append(out, grantedFeatureRow{Slug: genjutsuMirageDeceitfulDuplicateSlug, Name: tr("cr_name:Deceitful Duplicate")})
 			continue
 		}
 		if name, ok := genjutsuMirageRestLimitedSlugs[suffix]; ok {
-			out = append(out, grantedFeatureRow{Slug: "genjutsu-mirage/" + suffix, Name: name})
+			out = append(out, grantedFeatureRow{Slug: "genjutsu-mirage/" + suffix, Name: tr("cr_name:" + name)})
 		}
 	}
 	return out, nil
@@ -396,14 +399,15 @@ const genjutsuMirageDemonSightSlug = "genjutsu-mirage/demon-sight"
 // loadMergedGrantedFeatures' own output" reasoning genjutsuMiragePickedRows'
 // doc comment explains, just for computePassiveTraits' input instead of
 // computeCustomResources'.
-func (s *server) genjutsuMirageDemonSightPassiveRow(characterID int64) (*grantedFeatureRow, error) {
+func (s *server) genjutsuMirageDemonSightPassiveRow(characterID int64, locale string) (*grantedFeatureRow, error) {
 	picks, err := charstore.ListGenjutsuPicks(s.charDB, characterID, charstore.GenjutsuPickMirage)
 	if err != nil {
 		return nil, err
 	}
 	for _, slug := range picks {
 		if strings.TrimPrefix(slug, genjutsuMirageOptionSlugPrefix) == "demon-sight" {
-			return &grantedFeatureRow{Slug: genjutsuMirageDemonSightSlug, Name: "Demon Sight"}, nil
+			name := i18n.Translator(locale)("cr_name:Demon Sight")
+			return &grantedFeatureRow{Slug: genjutsuMirageDemonSightSlug, Name: name}, nil
 		}
 	}
 	return nil, nil
@@ -761,7 +765,7 @@ type knownGenjutsuPick struct {
 // loadGenjutsuOptionCatalog reads one of Genjutsu Specialist's two
 // class_options-backed catalogs (list_name "Malleable Mirages" or
 // "Genjutsu Inception") in full.
-func (s *server) loadGenjutsuOptionCatalog(listName string) ([]genjutsuPickOption, error) {
+func (s *server) loadGenjutsuOptionCatalog(locale, listName string) ([]genjutsuPickOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description, COALESCE(prerequisites, '') FROM class_options
 		WHERE class_slug = ? AND list_name = ? ORDER BY name`, genjutsuSpecialistSlug, listName)
@@ -777,14 +781,34 @@ func (s *server) loadGenjutsuOptionCatalog(listName string) ([]genjutsuPickOptio
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // loadGenjutsuConversionCatalog reads Real World Conversion's 5 named
 // class_features rows live (blank level column — these aren't gated by
 // their own level, the base feature's own cap functions handle that) rather
 // than hand-transcribing their names/text.
-func (s *server) loadGenjutsuConversionCatalog() ([]genjutsuPickOption, error) {
+func (s *server) loadGenjutsuConversionCatalog(locale string) ([]genjutsuPickOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_features
 		WHERE class_slug = ? AND slug LIKE 'class/genjutsu-specialist/feature/actualized-%'
@@ -801,7 +825,27 @@ func (s *server) loadGenjutsuConversionCatalog() ([]genjutsuPickOption, error) {
 		}
 		out = append(out, o)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(out))
+	for i, o := range out {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_features", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translations[out[i].Slug]
+		if v, ok := tr["name"]; ok {
+			out[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			out[i].Description = v
+		}
+	}
+	return out, nil
 }
 
 // loadKnownGenjutsu reads every jutsu of classification "Genjutsu" the
@@ -904,6 +948,34 @@ func psycheBreakerCap(subclassSlug string, genjutsuLevel int) int {
 	return 0
 }
 
+// translateMasterOfIllusionOption translates a Name/Description pair pulled
+// from masterOfIllusionOptions — the one hand-curated genjutsuPickOption
+// catalog in this file, transcribed straight from class_features prose
+// rather than a class_options row (see that var's own doc comment), so
+// there's no rules-database row for the normal i18n.Row/Batch machinery to
+// translate. Same "raw English text doubles as the catalog key" convention
+// translateHunterPickOption established (hunter_nin.go).
+func translateMasterOfIllusionOption(name, description, locale string) (string, string) {
+	tr := i18n.Translator(locale)
+	name = tr("gj_illusion_name:" + name)
+	if description != "" {
+		description = tr("gj_illusion_desc:" + description)
+	}
+	return name, description
+}
+
+// translateMasterOfIllusionOptions applies translateMasterOfIllusionOption
+// across the whole catalog, returning a new slice (masterOfIllusionOptions
+// is a shared package var and must not be mutated in place).
+func translateMasterOfIllusionOptions(options []genjutsuPickOption, locale string) []genjutsuPickOption {
+	out := make([]genjutsuPickOption, len(options))
+	for i, o := range options {
+		name, desc := translateMasterOfIllusionOption(o.Name, o.Description, locale)
+		out[i] = genjutsuPickOption{Slug: o.Slug, Name: name, Description: desc, Prerequisites: o.Prerequisites}
+	}
+	return out
+}
+
 // splitGenjutsuPicks classifies a catalog against a character's stored picks
 // for one category — shared by Inception, Real World Conversion, and Master
 // of Illusion; Mirages needs its own version (loadGenjutsuTabData) since it
@@ -1000,7 +1072,7 @@ type genjutsuTabData struct {
 //     Expert's) reuse the class's own existing Conversion picker as-is
 //     (ConversionCap/KnownConversions/AvailableConversions below) — no new
 //     lookup needed, just an extra known-slot per feat.
-func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) (*genjutsuTabData, error) {
+func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*genjutsuTabData, error) {
 	genjutsuLevel, err := s.genjutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -1032,24 +1104,25 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 		if err != nil {
 			return nil, err
 		}
+		tr := i18n.Translator(locale)
 		switch subclassSlug {
 		case corruptThoughtsSubclassSlug:
 			data.ViciousMockeryDamageDie, data.ViciousMockeryPenaltyDie = viciousMockeryDice(genjutsuLevel)
 		case sirenSubclassSlug:
 			data.VisceralLanguageDie = visceralLanguageDie(genjutsuLevel)
-			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Auditory-keyword Genjutsu DC"
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), tr("gj_keyword_dc_label:Auditory-keyword Genjutsu DC")
 		case illusionistSubclassSlug:
 			illusionsMod, _ := charsheet.SkillModifier(sheet, "Illusions")
 			data.PassiveGenjutsuDetection = 10 + illusionsMod
-			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Non-damaging Genjutsu DC"
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), tr("gj_keyword_dc_label:Non-damaging Genjutsu DC")
 		case beguilerSubclassSlug:
-			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Visual-keyword Genjutsu DC"
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), tr("gj_keyword_dc_label:Visual-keyword Genjutsu DC")
 		case mistyDistortionistSubclassSlug:
-			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), "Inhaled-keyword Genjutsu DC"
+			data.KeywordDCBonus, data.KeywordDCBonusLabel = genjutsuKeywordDCBonus(genjutsuLevel), tr("gj_keyword_dc_label:Inhaled-keyword Genjutsu DC")
 		}
 	}
 
-	inceptionCatalog, err := s.loadGenjutsuOptionCatalog("Genjutsu Inception")
+	inceptionCatalog, err := s.loadGenjutsuOptionCatalog(locale, "Genjutsu Inception")
 	if err != nil {
 		return nil, err
 	}
@@ -1082,7 +1155,7 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 		data.MiragesCap += mirageExhibitionMirageBonus(genjutsuLevel)
 	}
 	if data.MiragesCap > 0 {
-		mirageCatalog, err := s.loadGenjutsuOptionCatalog("Malleable Mirages")
+		mirageCatalog, err := s.loadGenjutsuOptionCatalog(locale, "Malleable Mirages")
 		if err != nil {
 			return nil, err
 		}
@@ -1169,7 +1242,7 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 
 	data.ConversionCap = realWorldConversionCap(genjutsuLevel) + archFeats.conversionSlotBonus()
 	if data.ConversionCap > 0 {
-		catalog, err := s.loadGenjutsuConversionCatalog()
+		catalog, err := s.loadGenjutsuConversionCatalog(locale)
 		if err != nil {
 			return nil, err
 		}
@@ -1196,7 +1269,7 @@ func (s *server) loadGenjutsuTabData(characterID int64, sheet *charsheet.Sheet) 
 			pickedSet[slug] = true
 		}
 		data.IllusionMasteryUsed = len(picks)
-		data.KnownIllusionMastery, data.AvailableIllusionMastery = splitGenjutsuPicks(masterOfIllusionOptions, pickedSet)
+		data.KnownIllusionMastery, data.AvailableIllusionMastery = splitGenjutsuPicks(translateMasterOfIllusionOptions(masterOfIllusionOptions, locale), pickedSet)
 	}
 
 	data.TwistedCastingCap = twistedCastingCap(subclassSlug, genjutsuLevel)
@@ -1281,7 +1354,7 @@ func (s *server) handleGenjutsuPickAdd(
 			log.Println("compute sheet for genjutsu pick add:", err)
 			return
 		}
-		data, err := s.loadGenjutsuTabData(id, sheet)
+		data, err := s.loadGenjutsuTabData(id, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load genjutsu for add:", err)
@@ -1365,7 +1438,12 @@ func (s *server) addGenjutsuJutsuPick(
 		log.Println("compute sheet for genjutsu jutsu pick add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadGenjutsuTabData(id, sheet)
+	// Only Used/Cap/JutsuID are read below, never a translated display
+	// field, so "en" is fine here — same "no benefit to threading the real
+	// request locale through a call site that never displays the result"
+	// precedent loadCustomResources' own doc comment documents
+	// (custom_resources.go).
+	data, err := s.loadGenjutsuTabData(id, sheet, "en")
 	if err != nil {
 		log.Println("load genjutsu for jutsu pick add:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1462,6 +1540,7 @@ func (s *server) handleGenjutsuJutsuPickDelete(category charstore.GenjutsuJutsuP
 func (s *server) handleGenjutsuPickDetail(w http.ResponseWriter, r *http.Request) {
 	category := r.PathValue("category")
 	slug := r.PathValue("slug")
+	locale := localeFromContext(r.Context())
 
 	var name, description string
 	switch category {
@@ -1480,6 +1559,14 @@ func (s *server) handleGenjutsuPickDetail(w http.ResponseWriter, r *http.Request
 			log.Println("load genjutsu mirage detail:", err)
 			return
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_options", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
 	case "inception":
 		err := s.rulesDB.QueryRow(`
 			SELECT name, description FROM class_options
@@ -1494,6 +1581,14 @@ func (s *server) handleGenjutsuPickDetail(w http.ResponseWriter, r *http.Request
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load genjutsu inception detail:", err)
 			return
+		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_options", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
 		}
 	case "conversion":
 		err := s.rulesDB.QueryRow(`
@@ -1510,6 +1605,14 @@ func (s *server) handleGenjutsuPickDetail(w http.ResponseWriter, r *http.Request
 			log.Println("load genjutsu conversion detail:", err)
 			return
 		}
+		if tr, err := i18n.Row(s.rulesDB, locale, "class_features", slug); err == nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
 	case "illusion-mastery":
 		found := false
 		for _, o := range masterOfIllusionOptions {
@@ -1522,6 +1625,7 @@ func (s *server) handleGenjutsuPickDetail(w http.ResponseWriter, r *http.Request
 			http.NotFound(w, r)
 			return
 		}
+		name, description = translateMasterOfIllusionOption(name, description, locale)
 	default:
 		http.NotFound(w, r)
 		return

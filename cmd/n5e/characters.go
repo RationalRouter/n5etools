@@ -5230,7 +5230,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	passiveTraitFeatures := append(grantedFeatures, patternRows...)
 	passiveTraitFeatures = append(passiveTraitFeatures, fullMetalShinobiRows...)
-	if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(id); err != nil {
+	if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(id, localeFromContext(r.Context())); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu mirage demon sight row:", err)
 		return
@@ -5287,7 +5287,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load cooking-nin:", err)
 		return
 	}
-	genjutsu, err := s.loadGenjutsuTabData(id, sheet)
+	genjutsu, err := s.loadGenjutsuTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu:", err)
@@ -7053,7 +7053,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["CookingNin"] = cookingNin
 	case "sheet_genjutsu":
-		genjutsu, err := s.loadGenjutsuTabData(characterID, sheet)
+		genjutsu, err := s.loadGenjutsuTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load genjutsu for fragment:", err)
@@ -7202,7 +7202,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		passiveTraitFeatures := append(grantedFeatures, patternRows...)
 		passiveTraitFeatures = append(passiveTraitFeatures, fullMetalShinobiRows...)
-		if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(characterID); err != nil {
+		if demonSightRow, err := s.genjutsuMirageDemonSightPassiveRow(characterID, localeFromContext(r.Context())); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load genjutsu mirage demon sight row for passive traits fragment:", err)
 			return
