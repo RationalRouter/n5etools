@@ -575,13 +575,45 @@ translate-wrapper into an existing DB-backed loader, grep every call site of tha
 to its return value — if any exist, translate at the point of display (each output list, right
 before it's assigned into the response struct), never inside the loader itself.**
 
+- **`medical_nin.go`** (2026-09-07): `loadKnownExpertCombatantJutsu` (Combat Medic's Expert
+  Combatant picker, sourced from the character's own known Taijutsu/Bukijutsu rather than a rules
+  catalog) had no `locale` parameter at all and returned raw `v_jutsu`/`custom_jutsu` Name/
+  Description untranslated — the one genuine missing-overlay bug in this file. Fixed by adding a
+  `locale` parameter and overlaying `i18n.Batch(s.rulesDB, locale, "jutsu", ...)` onto the
+  published-jutsu entries only (a parallel `publishedSlugs` slice tracks which output rows came
+  from a published jutsu vs. player-authored `custom_jutsu`, which has no translation catalog at
+  all) AFTER `HasCombination`'s own raw-`keywords`-substring match — `keywords` itself is never
+  overwritten by the overlay, so this needed no ordering fix, just the missing overlay. No new
+  locale keys needed (reuses the existing `jutsu` table catalog). Everything else in the file was
+  already correct: `loadMedicalDoctrineCatalog` already took `locale` and overlaid
+  `class_features` correctly; `medicalDoctrinePickedRows`' `SourceLabel: "Medical Doctrine"` looked
+  like the same hardcoded-badge-label gap as `scoutNinMobileSavantGrantedJutsu` but is actually
+  dead text — `computeCustomResources` (custom_resources.go) only ever reads `.Slug` off these
+  synthetic rows, confirmed by reading the function; `medicalNinJutsuChartGrantedJutsu`'s
+  `labels[...] = "Subclass Feature"` IS a real instance of the already-flagged cross-cutting
+  badge-label gap (feeds `characters.go`'s `grantLabels` map into a real player-facing
+  `.jutsu-source-badge`, alongside `puppetUpgradeTableGrantedJutsu` and
+  `scoutNinMobileSavantGrantedJutsu`'s identical-shaped hardcoded labels) — left deferred,
+  consistent with the `scout_nin.go` finding, since fixing it means threading `locale` through
+  three call sites feeding one shared merge point in `characters.go`, not a `medical_nin.go`-local
+  change.
+- Found but NOT fixed, cross-cutting (adds to the `jutsu_grants.go`/`passive_traits.go` note
+  above): `medicalNinJutsuChartGrantedJutsu`'s `"Subclass Feature"` label is a third confirmed
+  instance of the shared jutsu-source-badge hardcoded-label gap (alongside
+  `puppetUpgradeTableGrantedJutsu` and `scoutNinMobileSavantGrantedJutsu`), all three merged
+  together in `characters.go`'s jutsu-sheet-loading code around `grantLabels`. None of the three
+  granting functions take a `locale` parameter today. This confirms the gap is a single shared
+  mechanism spanning `puppet_upgrade_jutsu_grants.go`, `scout_nin.go`, and `medical_nin.go` (plus
+  `jutsu_grants.go`/`passive_traits.go` from the earlier finding) — still deferred to its own pass
+  once the 19-file sweep is done, not fixed piecemeal per sibling file.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
-`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, and `puppets.go` are
-closed; ~11 sibling files (`medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
+`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`, and
+`medical_nin.go` are closed; ~10 sibling files (`hunter_pattern_choices.go`, `wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches

@@ -587,7 +587,15 @@ func expertCombatantCap(level int) int {
 // since Expert Combatant is Medical-Nin's own feature. A stale published
 // jutsu_slug (removed in a rules update) is silently skipped, same
 // tolerance loadKnownNinjutsu already extends.
-func (s *server) loadKnownExpertCombatantJutsu(characterID int64) ([]knownJutsuOption, error) {
+//
+// Name/Description are overlaid with the "jutsu" table's translation for
+// every published jutsu (custom_jutsu rows have no translation catalog at
+// all — player-authored content stays in whatever language the player typed
+// it in). The overlay runs AFTER HasCombination's own raw-keywords match
+// below, and keywords itself is never overwritten by the overlay, so
+// translated prose can't break that check — see translation_methodology.md's
+// "recurring bug shape" note.
+func (s *server) loadKnownExpertCombatantJutsu(characterID int64, locale string) ([]knownJutsuOption, error) {
 	rows, err := s.charDB.Query(`
 		SELECT id, jutsu_slug, custom_jutsu_id FROM character_jutsu WHERE character_id = ?`, characterID)
 	if err != nil {
@@ -613,11 +621,14 @@ func (s *server) loadKnownExpertCombatantJutsu(characterID int64) ([]knownJutsuO
 	}
 
 	var out []knownJutsuOption
+	var publishedSlugs []string // parallel to out; "" for a custom_jutsu row (nothing to translate)
 	for _, r := range stored {
 		var name, classification, rank, keywords, description string
+		slug := ""
 		if r.jutsuSlug.Valid {
+			slug = r.jutsuSlug.String
 			err := s.rulesDB.QueryRow(
-				`SELECT name, classification, rank, keywords, description FROM v_jutsu WHERE slug = ?`, r.jutsuSlug.String,
+				`SELECT name, classification, rank, keywords, description FROM v_jutsu WHERE slug = ?`, slug,
 			).Scan(&name, &classification, &rank, &keywords, &description)
 			if err == sql.ErrNoRows {
 				continue // stale slug (rules update) — skip rather than break the picker
@@ -648,6 +659,32 @@ func (s *server) loadKnownExpertCombatantJutsu(characterID int64) ([]knownJutsuO
 			Description:    description,
 			HasCombination: strings.Contains(keywords, "Combination"),
 		})
+		publishedSlugs = append(publishedSlugs, slug)
+	}
+
+	var toBatch []string
+	for _, slug := range publishedSlugs {
+		if slug != "" {
+			toBatch = append(toBatch, slug)
+		}
+	}
+	if len(toBatch) > 0 {
+		translations, err := i18n.Batch(s.rulesDB, locale, "jutsu", toBatch)
+		if err != nil {
+			return nil, err
+		}
+		for i, slug := range publishedSlugs {
+			if slug == "" {
+				continue
+			}
+			tr := translations[slug]
+			if v, ok := tr["name"]; ok && v != "" {
+				out[i].Name = v
+			}
+			if v, ok := tr["description"]; ok && v != "" {
+				out[i].Description = v
+			}
+		}
 	}
 	return out, nil
 }
@@ -764,7 +801,7 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 	if subclassSlug == combatMedicSubclassSlug {
 		data.ExpertCombatantCap = expertCombatantCap(level)
 		if data.ExpertCombatantCap > 0 {
-			known, err := s.loadKnownExpertCombatantJutsu(characterID)
+			known, err := s.loadKnownExpertCombatantJutsu(characterID, locale)
 			if err != nil {
 				return nil, err
 			}
