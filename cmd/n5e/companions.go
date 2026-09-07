@@ -981,7 +981,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet, l
 				return data, err
 			}
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
-				ninDogBiteAttack(c, sheet.ProficiencyBonus))
+				ninDogBiteAttack(c, sheet.ProficiencyBonus, locale))
 		}
 		if c.Kind == "titan" {
 			ref, err := s.loadTitanReference(characterID, sheet, c, locale)
@@ -1361,7 +1361,7 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Attacks"] = append(composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus),
-			ninDogBiteAttack(companion, sheet.ProficiencyBonus))
+			ninDogBiteAttack(companion, sheet.ProficiencyBonus, localeFromContext(r.Context())))
 	case "titan":
 		locale := localeFromContext(r.Context())
 		ref, err := s.loadTitanReference(id, sheet, companion, locale)

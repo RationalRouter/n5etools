@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -217,13 +218,14 @@ func ninDogAC(level, dexMod int) int {
 // out of scope for this fix, same as this file's header doc already flags
 // Nin-Dog's own per-rank ability-score-increase progression as a related,
 // not-yet-addressed gap.
-func ninDogBiteAttack(companion charstore.Companion, ownerProfBonus int) companionAttackRow {
+func ninDogBiteAttack(companion charstore.Companion, ownerProfBonus int, locale string) companionAttackRow {
 	strMod := ninDogEffectiveAbilityModifier(companion, "str")
+	tr := i18n.Translator(locale)
 	return companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name:        "Bite",
-			Description: "Melee Weapon Attack: 5 ft., one target. On a roll of 16 or higher, the target is knocked Prone or dragged 5 feet in any direction the summon wants. No base weapon die is stated in the source — this is a flat Strength-modifier damage bonus only.",
-			DamageType:  "piercing",
+			Name:        tr("nindog.bite.name"),
+			Description: tr("nindog.bite.description"),
+			DamageType:  translateEnumDisplay(tr, damageTypeCatalogKey, "Piercing"),
 		},
 		AttackTotal: strMod + ownerProfBonus,
 		DamageTotal: strMod,
@@ -314,6 +316,36 @@ func ninDogBreedBySlug(slug string) *ninDogBreed {
 	return nil
 }
 
+// translateNinDogBreeds returns ninDogBreeds with Name/Blurb/Traits
+// translated — Slug is the only field ninDogBreedBySlug and
+// charstore.Companion.NinDogBreed ever match against, so it's left as-is.
+func translateNinDogBreeds(locale string) []ninDogBreed {
+	tr := i18n.Translator(locale)
+	out := make([]ninDogBreed, len(ninDogBreeds))
+	for i, b := range ninDogBreeds {
+		traits := make([]string, len(b.Traits))
+		for j := range b.Traits {
+			traits[j] = tr(fmt.Sprintf("nindog.breed.%s.trait_%d", b.Slug, j))
+		}
+		out[i] = ninDogBreed{
+			Slug:   b.Slug,
+			Name:   tr("nindog.breed." + b.Slug + ".name"),
+			Blurb:  tr("nindog.breed." + b.Slug + ".blurb"),
+			Traits: traits,
+		}
+	}
+	return out
+}
+
+func translatedNinDogBreedBySlug(breeds []ninDogBreed, slug string) *ninDogBreed {
+	for i := range breeds {
+		if breeds[i].Slug == slug {
+			return &breeds[i]
+		}
+	}
+	return nil
+}
+
 // ninDogFeaturePickSlot is one open (or not-yet-unlocked) special-feature
 // pick slot on a Nin-Dog's own popup — see ninDogFeaturePickSlots.
 type ninDogFeaturePickSlot struct {
@@ -365,17 +397,18 @@ func ninDogFilterFeaturesByRank(features []companionFeatureRef, ranks []string) 
 // text grants ("gain 1 new Special feature of the appropriate rank" at
 // levels 8/12/16/20), plus Young Kugsha's own two bonus picks. picks is
 // keyed by ChoiceIndex, from loadNinDogFeaturePicks.
-func ninDogFeaturePickSlots(breedSlug string, level int, picks map[int]string) []ninDogFeaturePickSlot {
+func ninDogFeaturePickSlots(breedSlug string, level int, picks map[int]string, locale string) []ninDogFeaturePickSlot {
+	tr := i18n.Translator(locale)
 	slots := []ninDogFeaturePickSlot{
-		{ChoiceIndex: 0, Label: "C-Rank Special Feature (8th level)", Ranks: []string{"C"}, Unlocked: level >= 8},
-		{ChoiceIndex: 1, Label: "B-Rank Special Feature (12th level)", Ranks: []string{"B"}, Unlocked: level >= 12},
-		{ChoiceIndex: 2, Label: "A-Rank Special Feature (16th level)", Ranks: []string{"A"}, Unlocked: level >= 16},
-		{ChoiceIndex: 3, Label: "S-Rank Special Feature (20th level)", Ranks: []string{"S"}, Unlocked: level >= 20},
+		{ChoiceIndex: 0, Label: tr("nindog.slot.c_rank"), Ranks: []string{"C"}, Unlocked: level >= 8},
+		{ChoiceIndex: 1, Label: tr("nindog.slot.b_rank"), Ranks: []string{"B"}, Unlocked: level >= 12},
+		{ChoiceIndex: 2, Label: tr("nindog.slot.a_rank"), Ranks: []string{"A"}, Unlocked: level >= 16},
+		{ChoiceIndex: 3, Label: tr("nindog.slot.s_rank"), Ranks: []string{"S"}, Unlocked: level >= 20},
 	}
 	if breedSlug == "young-kugsha" {
 		slots = append(slots,
-			ninDogFeaturePickSlot{ChoiceIndex: 4, Label: "Young Kugsha Bonus D-Rank Special Feature", Ranks: []string{"D"}, Unlocked: true},
-			ninDogFeaturePickSlot{ChoiceIndex: 5, Label: "Young Kugsha Bonus D- or C-Rank Special Feature (11th level)", Ranks: []string{"D", "C"}, Unlocked: level >= 11},
+			ninDogFeaturePickSlot{ChoiceIndex: 4, Label: tr("nindog.slot.kugsha_bonus_d"), Ranks: []string{"D"}, Unlocked: true},
+			ninDogFeaturePickSlot{ChoiceIndex: 5, Label: tr("nindog.slot.kugsha_bonus_d_or_c"), Ranks: []string{"D", "C"}, Unlocked: level >= 11},
 		)
 	}
 	for i := range slots {
@@ -619,7 +652,7 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 	if err != nil {
 		return nil, err
 	}
-	slots := ninDogFeaturePickSlots(companion.NinDogBreed, characterLevel, picks)
+	slots := ninDogFeaturePickSlots(companion.NinDogBreed, characterLevel, picks, locale)
 	for i := range slots {
 		slots[i].Options = ninDogFilterFeaturesByRank(features, slots[i].Ranks)
 	}
@@ -709,12 +742,13 @@ func (s *server) loadNinDogReference(characterID int64, companion charstore.Comp
 		return nil, err
 	}
 
+	breeds := translateNinDogBreeds(locale)
 	ref := &ninDogReference{
 		Rank:                rank,
 		Size:                size,
 		Level:               characterLevel,
-		Breeds:              ninDogBreeds,
-		Breed:               ninDogBreedBySlug(companion.NinDogBreed),
+		Breeds:              breeds,
+		Breed:               translatedNinDogBreedBySlug(breeds, companion.NinDogBreed),
 		Features:            features,
 		Slots:               slots,
 		JutsuSlotsMax:       jutsuSlotsMax,
@@ -878,7 +912,7 @@ func (s *server) handleNinDogFeaturePick(w http.ResponseWriter, r *http.Request)
 		log.Println("compute sheet for nin-dog feature pick:", err)
 		return
 	}
-	slots := ninDogFeaturePickSlots(companion.NinDogBreed, sheet.Level, map[int]string{})
+	slots := ninDogFeaturePickSlots(companion.NinDogBreed, sheet.Level, map[int]string{}, "")
 	var slot *ninDogFeaturePickSlot
 	for i := range slots {
 		if slots[i].ChoiceIndex == choiceIndex {

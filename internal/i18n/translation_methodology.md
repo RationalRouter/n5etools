@@ -408,12 +408,27 @@ says nothing about this category of gap. Found so far:
       variable/column name) across `cmd/n5e` for a `==`/`strings.Contains`/map-key use, not just
       for where it's read into a template.
 
+- **`nindog.go`** (Inuzuka Beast Master Nin-Dog stat block): `ninDogBreeds`' hand-transcribed
+  Name/Blurb/Traits (3 breeds, 5 traits each — no natural DB row, same shape as
+  `custom_resources.go`), `ninDogFeaturePickSlots`' 6 hardcoded pick-slot `Label` strings, and
+  `ninDogBiteAttack`'s built-in Name/Description/DamageType were all untranslated. Fixed via
+  dotted fixed-key namespacing (`nindog.breed.<slug>.name`/`.blurb`/`.trait_N`, `nindog.slot.*`,
+  `nindog.bite.*`) — matching `titan.go`'s existing dotted-key convention for its own hand-curated
+  content, rather than the raw-English-as-key convention `custom_resources.go`/`cooking_nin.go`
+  use, since `titan.go` already established that alternative for this same "no natural DB row"
+  shape and either convention works as long as it's applied consistently within a file. `Slug` (the
+  only field `ninDogBreedBySlug`/`companion.NinDogBreed` match against) is untouched — only
+  Name/Blurb/Traits, which are pure display, are translated. DamageType routes through the existing
+  `damageTypeCatalogKey`/`translateEnumDisplay` mechanism (`"Piercing"`), not a new key, since the
+  Bite attack is computed fresh every render (never persisted) and Piercing is one of the 7 real
+  rules.db damage types already covered there.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`, and
-`wow_weapons.go` are closed; ~15 sibling files (`nindog.go`, `science_nin_subclasses.go`,
+2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
+`wow_weapons.go`, and `nindog.go` are closed; ~14 sibling files (`science_nin_subclasses.go`,
 `scout_nin.go`, `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check

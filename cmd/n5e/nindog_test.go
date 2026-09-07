@@ -157,7 +157,7 @@ func TestNinDogEffectiveAbilityModifier(t *testing.T) {
 // breed gets plus Young Kugsha's own two bonus slots, and that a non-Kugsha
 // breed never sees those bonus slots at all.
 func TestNinDogFeaturePickSlots(t *testing.T) {
-	base := ninDogFeaturePickSlots("young-inuit", 20, nil)
+	base := ninDogFeaturePickSlots("young-inuit", 20, nil, "")
 	if len(base) != 4 {
 		t.Fatalf("young-inuit at level 20 = %d slots, want 4 (no Kugsha bonus slots)", len(base))
 	}
@@ -167,7 +167,7 @@ func TestNinDogFeaturePickSlots(t *testing.T) {
 		}
 	}
 
-	kugsha := ninDogFeaturePickSlots("young-kugsha", 1, nil)
+	kugsha := ninDogFeaturePickSlots("young-kugsha", 1, nil, "")
 	if len(kugsha) != 6 {
 		t.Fatalf("young-kugsha at level 1 = %d slots, want 6 (4 base + 2 Kugsha bonus)", len(kugsha))
 	}
@@ -179,13 +179,13 @@ func TestNinDogFeaturePickSlots(t *testing.T) {
 	if kugsha[5].Unlocked {
 		t.Error("young-kugsha's 11th-level bonus slot (index 5) should be locked at level 1")
 	}
-	kugsha11 := ninDogFeaturePickSlots("young-kugsha", 11, nil)
+	kugsha11 := ninDogFeaturePickSlots("young-kugsha", 11, nil, "")
 	if !kugsha11[5].Unlocked {
 		t.Error("young-kugsha's 11th-level bonus slot (index 5) should be unlocked at level 11")
 	}
 
 	// A pick already made should be reflected back on its own slot.
-	picked := ninDogFeaturePickSlots("young-inuit", 8, map[int]string{0: "Inu Fangs"})
+	picked := ninDogFeaturePickSlots("young-inuit", 8, map[int]string{0: "Inu Fangs"}, "")
 	if picked[0].Picked != "Inu Fangs" {
 		t.Errorf("slot 0 Picked = %q, want %q", picked[0].Picked, "Inu Fangs")
 	}
@@ -356,7 +356,7 @@ func TestNinDogBiteAttack(t *testing.T) {
 	companion := charstore.Companion{
 		Str: sql.NullInt64{Int64: 15, Valid: true}, // +2
 	}
-	row := ninDogBiteAttack(companion, 4)
+	row := ninDogBiteAttack(companion, 4, "")
 	if row.Name != "Bite" {
 		t.Errorf("Name = %q, want Bite", row.Name)
 	}
@@ -369,7 +369,7 @@ func TestNinDogBiteAttack(t *testing.T) {
 	if row.DamageDice() != "" {
 		t.Errorf("DamageDice() = %q, want empty (no base die stated in source)", row.DamageDice())
 	}
-	if row.DamageType != "piercing" {
-		t.Errorf("DamageType = %q, want piercing", row.DamageType)
+	if row.DamageType != "Piercing" {
+		t.Errorf("DamageType = %q, want Piercing", row.DamageType)
 	}
 }
