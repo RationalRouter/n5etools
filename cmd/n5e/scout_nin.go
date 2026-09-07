@@ -801,6 +801,16 @@ func translateScoutNinPickOptions(db *sql.DB, locale, table string, in []scoutNi
 // returns the catalog's own list_name (e.g. "Arbiter Maneuvers") for the
 // sheet's own section heading, read from the data rather than a hand-typed
 // per-subclass label map.
+//
+// It deliberately returns RAW, untranslated rows —
+// callers (loadScoutNinTabData) run keyword substring matching
+// (filterScoutNinManeuversByKeyword, the "Keyword: Specialized" exclusion
+// shape) against this same catalog's own Description text before ever
+// translating it, and translated prose can't be relied on to still contain
+// the English "Keyword: X" marker (see translateScoutNinPickOptions' own
+// doc). Every slice actually assigned into scoutNinTabData is translated
+// individually at its own point of use, after all keyword matching against
+// this raw catalog is done — see loadScoutNinTabData's own Maneuvers block.
 func (s *server) loadScoutNinManeuverCatalog(subclassSlug string) ([]scoutNinPickOption, string, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description, list_name FROM class_options
@@ -819,6 +829,50 @@ func (s *server) loadScoutNinManeuverCatalog(subclassSlug string) ([]scoutNinPic
 		out = append(out, o)
 	}
 	return out, listName, rows.Err()
+}
+
+// translateScoutNinManeuverListName translates one subclass's own Maneuvers
+// list_name ("Arbiter Maneuvers", etc.) — a class_options field shared
+// identically across every row of one subclass's catalog, so any known slug
+// from that same catalog resolves it. Returns rawListName unchanged if the
+// catalog is empty (nothing to key the lookup off) or carries no
+// translation, same as every other T-fallback-to-raw-key path in this app.
+func (s *server) translateScoutNinManeuverListName(locale, rawListName string, catalog []scoutNinPickOption) (string, error) {
+	if len(catalog) == 0 {
+		return rawListName, nil
+	}
+	tr, err := i18n.Row(s.rulesDB, locale, "class_options", catalog[0].Slug)
+	if err != nil {
+		return "", err
+	}
+	if v, ok := tr["list_name"]; ok && v != "" {
+		return v, nil
+	}
+	return rawListName, nil
+}
+
+// translateKnownScoutNinPicks is translateScoutNinPickOptions' own
+// knownScoutNinPick-shaped twin, for Known lists built by splitScoutNinPicks
+// (whose Known half is already knownScoutNinPick, not scoutNinPickOption).
+func translateKnownScoutNinPicks(db *sql.DB, locale, table string, in []knownScoutNinPick) ([]knownScoutNinPick, error) {
+	slugs := make([]string, len(in))
+	for i, o := range in {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(db, locale, table, slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range in {
+		tr := translations[in[i].Slug]
+		if v, ok := tr["name"]; ok {
+			in[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			in[i].Description = v
+		}
+	}
+	return in, nil
 }
 
 // loadScoutNinManeuverCatalogForSubclasses reads the combined Maneuvers
@@ -1233,6 +1287,13 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 	}
 	data.TechniqueName = subclassName
 	if subclassSlug != "" {
+		if tr, err := i18n.Row(s.rulesDB, locale, "subclasses", subclassSlug); err == nil {
+			if v, ok := tr["name"]; ok && v != "" {
+				data.TechniqueName = v
+			}
+		} else {
+			return nil, err
+		}
 		data.ManeuversCap = scoutNinManeuversKnownCap(subclassSlug, scoutNinLevel)
 		data.ManeuversCap += scoutManeuversCapBonus(grantedFeatures)
 		if data.ManeuversCap > 0 {
@@ -1240,7 +1301,10 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 			if err != nil {
 				return nil, err
 			}
-			data.ManeuversListName = listName
+			data.ManeuversListName, err = s.translateScoutNinManeuverListName(locale, listName, catalog)
+			if err != nil {
+				return nil, err
+			}
 			picks, err := charstore.ListScoutNinPicks(s.charDB, characterID, charstore.ScoutNinPickManeuvers)
 			if err != nil {
 				return nil, err
@@ -1250,6 +1314,14 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 				pickedSet[slug] = true
 			}
 			data.KnownManeuvers, data.AvailableManeuvers = splitScoutNinPicks(catalog, pickedSet)
+			data.KnownManeuvers, err = translateKnownScoutNinPicks(s.rulesDB, locale, "class_options", data.KnownManeuvers)
+			if err != nil {
+				return nil, err
+			}
+			data.AvailableManeuvers, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableManeuvers)
+			if err != nil {
+				return nil, err
+			}
 			// Used counts only picks that are actually IN the current
 			// subclass's own catalog, not every stored row in this
 			// category — unlike Shinobi Adept/Jack of All (base-class-wide,
@@ -1286,6 +1358,14 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 					}
 					data.KnownSignatureManeuver, data.AvailableSignatureManeuver = splitScoutNinPicks(known, sigPickedSet)
 					data.SignatureManeuverUsed = len(data.KnownSignatureManeuver)
+					data.KnownSignatureManeuver, err = translateKnownScoutNinPicks(s.rulesDB, locale, "class_options", data.KnownSignatureManeuver)
+					if err != nil {
+						return nil, err
+					}
+					data.AvailableSignatureManeuver, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableSignatureManeuver)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 
@@ -1311,6 +1391,14 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 				}
 				data.KnownSupremeClones, data.AvailableSupremeClones = splitScoutNinPicks(known, scPickedSet)
 				data.SupremeClonesUsed = len(data.KnownSupremeClones)
+				data.KnownSupremeClones, err = translateKnownScoutNinPicks(s.rulesDB, locale, "class_options", data.KnownSupremeClones)
+				if err != nil {
+					return nil, err
+				}
+				data.AvailableSupremeClones, err = translateScoutNinPickOptions(s.rulesDB, locale, "class_options", data.AvailableSupremeClones)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1373,14 +1461,14 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 	if hasGrantedFeature(grantedFeatures, changeOfHeartFeatureSlug) {
 		data.ChangeOfHeart = &changeOfHeartView{
 			Current: choices[features.ChoiceKey{FeatureSlug: changeOfHeartFeatureSlug, ChoiceIndex: 0}],
-			Options: changeOfHeartOptions,
+			Options: translateFeatureChoiceOptions(changeOfHeartOptions, locale),
 		}
 	}
 
 	if hasGrantedFeature(grantedFeatures, paragonsPresenceFeatureSlug) {
 		data.ParagonsPresence = &paragonsPresenceView{
 			Current: choices[features.ChoiceKey{FeatureSlug: paragonsPresenceFeatureSlug, ChoiceIndex: 0}],
-			Options: paragonsPresenceOptions,
+			Options: translateFeatureChoiceOptions(paragonsPresenceOptions, locale),
 		}
 	}
 

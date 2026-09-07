@@ -449,13 +449,77 @@ says nothing about this category of gap. Found so far:
   `removeAngelEIPSpectreCompanion`), the same "don't translate a matching key" restraint
   `wow_weapons.go` established.
 
+- **`scout_nin.go`** (Scout-Nin's superiority-die maneuver/pick system, ~1900 lines): three fixes.
+  (1) `loadScoutNinManeuverCatalog` (one subclass's own Maneuvers `class_options` rows) had NO
+  `i18n.Batch` overlay at all — same missing-loader-overlay category as `genjutsu.go`/
+  `science_nin_subclasses.go`'s prior findings — but fixing it was NOT a simple "add the call and
+  return" fix: `loadScoutNinTabData`, its one call site, reuses the returned catalog's raw
+  `Description` text AFTER the loader returns, for `filterScoutNinManeuversByKeyword(catalog,
+  "Keyword: Tactical")` (the Signature Maneuver/Tactical Scout branch) and a raw slug-membership
+  scan (Supreme Clones/Cloning Scout). Translating inside the loader itself — the first pass here —
+  would have broken both in every non-English locale, an ordering bug of the identical shape just
+  caught in `science_nin_subclasses.go`'s `handleScienceNinSubclassPickDetail` earlier the same
+  session (see above): translated prose can't be relied on to still contain the English "Keyword: X"
+  marker. This is now the **second time** this exact bug shape recurred in one session, worth
+  calling out as a standing risk, not a one-off — see the recurring-bug-shape paragraph below. Fixed
+  by reverting the loader to return the catalog RAW (documented in its own doc comment) and instead
+  translating each of the 6 display-bound output lists (`KnownManeuvers`/`AvailableManeuvers`,
+  `KnownSignatureManeuver`/`AvailableSignatureManeuver`, `KnownSupremeClones`/
+  `AvailableSupremeClones`) individually via `translateScoutNinPickOptions`/a new
+  `translateKnownScoutNinPicks` twin (for the `knownScoutNinPick`-shaped Known half
+  `splitScoutNinPicks` returns), applied immediately after each split — safe because
+  `splitScoutNinPicks` copies `scoutNinPickOption` by value, so translating a split-off copy never
+  mutates the shared raw `catalog` slice still needed for keyword matching further down the same
+  function. (2) `class_options.list_name` (e.g. "Arbiter Maneuvers", the Maneuvers section's own
+  heading) is itself in `internal/i18n/fields.go`'s `class_options` TranslatableFields entry but was
+  returned completely raw — added `translateScoutNinManeuverListName`, which resolves it via a
+  single `i18n.Row` keyed on the catalog's own first slug (`list_name` is identical across every row
+  of one subclass's catalog, so any known slug resolves it; returns the raw name unchanged if the
+  catalog is empty). (3) Two hand-curated `featureChoiceOption` catalogs — Change of Heart's
+  Messiah/Izanagi/Satanael (Trickster Scout, 17th level) and Paragon's Presence's
+  Berserk/Charmed/Frightened (Arbiter Scout, 14th level) — had no translation at all; both already
+  match only on `Value` (never Label/Description) in `setChangeOfHeart`/`setParagonsPresence`, so
+  wired through the existing `translateFeatureChoiceOptions` (`feature_choices.go`) at their two
+  `changeOfHeartView`/`paragonsPresenceView` construction sites rather than writing a new per-file
+  wrapper. Separately, `scoutNinSubclassSlug`'s own raw `subclasses.name` (used for
+  `data.TechniqueName`, the Technique tab's own heading) had no `i18n.Row` overlay despite
+  `subclasses` already being a registered `TranslatableFields` table — fixed at the one call site in
+  `loadScoutNinTabData`, which already has `locale` in scope. **Found but NOT fixed, flagged as a
+  cross-cutting follow-up outside this file's own scope**: `scoutNinMobileSavantGrantedJutsu`'s
+  `labels[slug] = "Mobile Savant"` and `scoutNinElementalResistanceEntry`'s `Sources:
+  []string{"Elemental Resistance"}` are both hardcoded English display badges, but they're instances
+  of a much wider pre-existing pattern living in shared infra files that aren't among the 19
+  siblings (`jutsu_grants.go`'s `loadGrantedJutsuLabels` hardcodes "Class Feature"/"Subclass
+  Feature"/"Clan"/"Feat" the same way; `passive_traits.go`'s `PassiveTraitEntry.Sources`/
+  `AdvantageEntry.Sources` carry the same shape across every class file that produces one) — fixing
+  scout_nin.go's two instances alone wouldn't close the gap and touching the shared files
+  mid-sibling-sweep risks scope creep across files not yet audited; needs its own dedicated pass
+  across `jutsu_grants.go`, `passive_traits.go`, and every one of their call sites once the 19-file
+  sweep is done.
+
+**Recurring bug shape, now hit twice in one session — treat as a standing risk, not a one-off**:
+whenever a hand-curated/DB-backed field's own English text doubles as a keyword/marker matched by
+substring elsewhere downstream (`strings.Contains(description, "Keyword: Tactical")`, an ALL-CAPS
+name-extraction regex, a raw slug-membership scan built from that same text), that matching MUST
+run against the RAW text BEFORE translation, never after. Both recurrences
+(`science_nin_subclasses.go`'s `handleScienceNinSubclassPickDetail` childless-tier branch, then
+minutes later `scout_nin.go`'s `loadScoutNinManeuverCatalog`) were caught by reading every
+downstream consumer of a loader's return value BEFORE running build/test, not by a test failure —
+neither bug produces a compile error or an English-locale test failure, since the English catalog's
+raw and "translated" text are byte-identical; it only breaks non-English locales, silently, with a
+downstream candidate list simply coming back empty. **Before wiring `i18n.Batch`/`i18n.Row`/any
+translate-wrapper into an existing DB-backed loader, grep every call site of that loader for
+`strings.Contains`, an ALL-CAPS/regex name-extraction helper, or a raw-value membership scan applied
+to its return value — if any exist, translate at the point of display (each output list, right
+before it's assigned into the response struct), never inside the loader itself.**
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
-`wow_weapons.go`, `nindog.go`, and `science_nin_subclasses.go` are closed; ~13 sibling files
-(`scout_nin.go`, `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
+`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, and `scout_nin.go` are closed; ~12
+sibling files (`puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
@@ -465,19 +529,16 @@ hiding one; AND — per the `genjutsu.go` finding above — check every DB-backe
 the file (`SELECT ... FROM class_options`/`class_features`/`equipment`/etc.) actually takes a
 `locale` parameter and calls `i18n.Batch`/`i18n.Row` before returning, since a loader silently
 missing that call produces zero hardcoded-English-literal grep hits while still leaking
-untranslated rules-DB content onto the sheet in every non-English locale. Also check whether the
-file's hand-curated catalogs already use `featureChoiceOption` (`cmd/n5e/feature_choices.go`) — if
-so, reuse `translateFeatureChoiceOptions` (added for `cooking_nin.go`) rather than writing a new
-per-file wrapper. AND — per the `wow_weapons.go` finding above — before translating any hardcoded
-field that gets persisted onto a per-character row rather than recomputed fresh each request, check
+untranslated rules-DB content onto the sheet in every non-English locale — AND, per the
+`scout_nin.go` finding above, before adding that call, check whether the loader's return value ever
+feeds a downstream keyword/marker match, per the recurring-bug-shape paragraph above. Also check
+whether the file's hand-curated catalogs already use `featureChoiceOption`
+(`cmd/n5e/feature_choices.go`) — if so, reuse `translateFeatureChoiceOptions` (added for
+`cooking_nin.go`) rather than writing a new per-file wrapper. AND — per the `wow_weapons.go` finding
+above — before translating any hardcoded field that gets persisted onto a per-character row rather
+than recomputed fresh each request, check
 whether it doubles as a matching key or a machine-parsed keyword field elsewhere in the codebase
 before assuming it's safe to translate.
-
-Also note `scout_nin.go`'s own confirmed-but-not-yet-fixed instance of the missing-loader-overlay
-bug: `loadScoutNinManeuverCatalog(subclassSlug string)` (its single-subclass variant) queries
-`class_options` with no `i18n.Batch` call at all, unlike its sibling
-`loadScoutNinManeuverCatalogForSubclasses(locale string, ...)` which is correctly wired — fix this
-alongside `scout_nin.go`'s own hardcoded-literal pass when that file is reached.
 
 ## Applying this to a new language
 
