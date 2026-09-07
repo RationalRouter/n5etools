@@ -423,13 +423,39 @@ says nothing about this category of gap. Found so far:
   Bite attack is computed fresh every render (never persisted) and Piercing is one of the 7 real
   rules.db damage types already covered there.
 
+- **`science_nin_subclasses.go`** (Science-Nin's 8-subclass cap+catalog picks, ~2650 lines): two
+  gaps, both narrow — most of the file already correctly threads `locale` through
+  `loadScienceNinEntryCatalog`/`loadScienceNinChildlessTierOptions`. (1) `loadScienceNinFlatCatalog`
+  (W.O.W's 9 named Weapons of Wonder — the DISPLAY catalog for the Elemental Innovationist picker,
+  a different data path from `wow_weapons.go`'s own hardcoded `wowWeaponSpecs` map and
+  `scienceNinOptionNameAndDescription`) had NO `i18n.Batch` call at all — a DB-backed loader
+  silently missing the overlay, same category as `genjutsu.go`'s and `wow_weapons.go`'s prior
+  findings. Fixed by adding the same `class_options` batch-overlay pattern
+  `loadScienceNinChildlessTierOptions` already uses. (2) `handleScienceNinSubclassPickDetail`'s own
+  three raw `QueryRow` calls (the click-to-open popup shared by all thirteen non-hand-curated
+  categories) also had no overlay — fixed with `i18n.Row` on each of the three query shapes
+  (`class_options` flat, `class_option_entries`, and the childless-tier `class_options` fallback).
+  For the childless-tier fallback specifically: `splitScienceNinSoloTierItem` must run BEFORE
+  translating, not after — it extracts the item's ALL-CAPS name by pattern-matching the RAW
+  English description (`findEntries`), and a translated body won't match that pattern in Spanish/
+  Portuguese; got this backwards on the first pass here and caught it by comparing against
+  `loadScienceNinChildlessTierOptions`'s own (correct) ordering before testing, not after. Also
+  translated `scienceNinRegaliaOptions` (King's Road's own 8 hand-curated Regalia types, no DB row)
+  via a `translateScienceNinRegaliaOptions` helper, same dotted-key shape as `nindog.go`'s breeds —
+  `Slug` stays untouched since `charstore.ScienceNinPickRegalia` and the detail-popup's own
+  "regalia" branch both match against it. `scienceNinAngelEIPCompanionName` ("Spectre (Angel
+  E.I.P)") was checked and correctly left alone — it's a real matching key
+  (`charstore.ListCompanions` exact-name comparison in both `ensureAngelEIPSpectreCompanion` and
+  `removeAngelEIPSpectreCompanion`), the same "don't translate a matching key" restraint
+  `wow_weapons.go` established.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
-`wow_weapons.go`, and `nindog.go` are closed; ~14 sibling files (`science_nin_subclasses.go`,
-`scout_nin.go`, `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
+`wow_weapons.go`, `nindog.go`, and `science_nin_subclasses.go` are closed; ~13 sibling files
+(`scout_nin.go`, `puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches

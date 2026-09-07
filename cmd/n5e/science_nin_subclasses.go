@@ -478,6 +478,23 @@ var scienceNinRegaliaOptions = []scienceNinSubclassOption{
 	{Slug: "science-nin/regalia/wind", Name: "Wind Regalia", Description: "While equipped with the Wind Regalia you can cast ninjutsu with the Wind Release keyword without needing the HS component. Your A. Ts now deal wind damage and all wind damage you deal ignores resistance. Additionally, while equipped with this Regalia your AC is increased by +1."},
 }
 
+// translateScienceNinRegaliaOptions returns scienceNinRegaliaOptions with
+// Name/Description translated — Slug (the only field
+// charstore.ScienceNinPickRegalia and handleScienceNinSubclassPickDetail's
+// "regalia" branch match against) is left as-is.
+func translateScienceNinRegaliaOptions(locale string) []scienceNinSubclassOption {
+	tr := i18n.Translator(locale)
+	out := make([]scienceNinSubclassOption, len(scienceNinRegaliaOptions))
+	for i, o := range scienceNinRegaliaOptions {
+		out[i] = scienceNinSubclassOption{
+			Slug:        o.Slug,
+			Name:        tr("science_nin_regalia." + o.Slug + ".name"),
+			Description: tr("science_nin_regalia." + o.Slug + ".description"),
+		}
+	}
+	return out
+}
+
 // inversionSerumPoolPattern finds an Inversion Serum entry's own Drain
 // line to determine whether it's paid from a specific CCD half or either —
 // see scienceNinSubclassOption.FixedPool's own doc.
@@ -652,7 +669,7 @@ func splitScienceNinSoloTierItem(tierName, description string) (name, body strin
 
 // loadScienceNinFlatCatalog reads a catalog that is already one row per
 // named choice with nothing to split (W.O.W's own 9 Weapons of Wonder).
-func (s *server) loadScienceNinFlatCatalog(listName string) ([]scienceNinSubclassOption, error) {
+func (s *server) loadScienceNinFlatCatalog(listName, locale string) ([]scienceNinSubclassOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_options
 		WHERE class_slug = ? AND list_name = ? ORDER BY sort_order, name`, scienceNinSlug, listName)
@@ -662,6 +679,7 @@ func (s *server) loadScienceNinFlatCatalog(listName string) ([]scienceNinSubclas
 	defer rows.Close()
 
 	var out []scienceNinSubclassOption
+	var slugs []string
 	for rows.Next() {
 		var o scienceNinSubclassOption
 		var description string
@@ -671,8 +689,30 @@ func (s *server) loadScienceNinFlatCatalog(listName string) ([]scienceNinSubclas
 		o.Epithet, _ = splitLeadingStatLine(description)
 		o.Description = description
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	translated, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		tr := translated[out[i].Slug]
+		if tr["name"] != "" {
+			out[i].Name = tr["name"]
+		}
+		if tr["description"] != "" {
+			// content_translations' own "description" already has the stat
+			// line stripped (cmd/n5e-i18n's export tool) — the raw Epithet
+			// badge built above from the English text stays as-is, matching
+			// loadScienceNinChildlessTierOptions' identical treatment.
+			out[i].Description = tr["description"]
+		}
+	}
+	return out, nil
 }
 
 // splitScienceNinPicks classifies a catalog against a character's own
@@ -1136,7 +1176,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 
 		if has[scienceNinWOWFeatureSlug] {
 			ei.WOWCap = wowCap(level)
-			catalog, err := s.loadScienceNinFlatCatalog("W.O.W (Weapons of Wonder)")
+			catalog, err := s.loadScienceNinFlatCatalog("W.O.W (Weapons of Wonder)", locale)
 			if err != nil {
 				return err
 			}
@@ -1644,7 +1684,7 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			for _, p := range picks {
 				pickedSet[p.OptionSlug] = true
 			}
-			sr.Regalia, sr.AvailableRegalia = splitScienceNinPicks(scienceNinRegaliaOptions, pickedSet)
+			sr.Regalia, sr.AvailableRegalia = splitScienceNinPicks(translateScienceNinRegaliaOptions(locale), pickedSet)
 			sr.RegaliaUsed = len(sr.Regalia)
 		}
 
@@ -2438,7 +2478,7 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 	// for why. Looked up in memory instead of the two DB shapes every
 	// other category below uses.
 	if category == "regalia" {
-		for _, o := range scienceNinRegaliaOptions {
+		for _, o := range translateScienceNinRegaliaOptions(localeFromContext(r.Context())) {
 			if o.Slug == slug {
 				s.renderScienceNinSubclassPickDetail(w, r, o.Name, o.Description)
 				return
@@ -2494,6 +2534,7 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 		return
 	}
 
+	locale := localeFromContext(r.Context())
 	var name, description string
 	var err error
 	if flat {
@@ -2502,6 +2543,18 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 			WHERE slug = ? AND class_slug = ? AND list_name = ?`,
 			slug, scienceNinSlug, listName,
 		).Scan(&name, &description)
+		if err == nil {
+			if tr, trErr := i18n.Row(s.rulesDB, locale, "class_options", slug); trErr != nil {
+				err = trErr
+			} else {
+				if v, ok := tr["name"]; ok {
+					name = v
+				}
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
+		}
 	} else {
 		err = s.rulesDB.QueryRow(`
 			SELECT e.name, e.description FROM class_option_entries e
@@ -2509,6 +2562,18 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 			WHERE e.slug = ? AND o.class_slug = ? AND o.list_name = ?`,
 			slug, scienceNinSlug, listName,
 		).Scan(&name, &description)
+		if err == nil {
+			if tr, trErr := i18n.Row(s.rulesDB, locale, "class_option_entries", slug); trErr != nil {
+				err = trErr
+			} else {
+				if v, ok := tr["name"]; ok {
+					name = v
+				}
+				if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
+		}
 		if err == sql.ErrNoRows {
 			// slug may point at a childless tier's own class_options row
 			// (e.g. Mastercraft's single bundled item) rather than a
@@ -2524,7 +2589,23 @@ func (s *server) handleScienceNinSubclassPickDetail(w http.ResponseWriter, r *ht
 				slug, scienceNinSlug, listName,
 			).Scan(&tier, &description)
 			if tierErr == nil {
+				// The ALL-CAPS item name must be extracted from the RAW
+				// English description before translating — a translated body
+				// won't match findEntries' own English-text pattern, the same
+				// order loadScienceNinChildlessTierOptions already uses.
 				name, description = splitScienceNinSoloTierItem(tier, description)
+				// This tier's own class_options row (not class_option_entries)
+				// is what was translated -- content_translations' own
+				// "description" value already has the stat line stripped, so
+				// it's usable directly as the translated body text, the same
+				// as loadScienceNinChildlessTierOptions' identical case.
+				if tr, trErr := i18n.Row(s.rulesDB, locale, "class_options", slug); trErr != nil {
+					tierErr = trErr
+				} else if v, ok := tr["description"]; ok {
+					description = v
+				}
+			}
+			if tierErr == nil {
 				err = nil
 			}
 		}
