@@ -1171,6 +1171,37 @@ func elementReactorOptions() []puppetUpgradeSubChoiceOption {
 	return out
 }
 
+// puppetUpgradeFixedOptionKeyPrefix maps a puppetUpgradeSubChoiceSpecs entry
+// with a FixedOptions catalog to its own dotted-key i18n namespace —
+// elementReactorOptions/integratedWeaponOptions/masteredArmamentOptions are
+// package-level vars computed once at init with no locale to translate
+// against, so translation has to happen lazily, at the point of use in
+// loadPuppetUpgradeTiers, via translatePuppetUpgradeFixedOptions below.
+var puppetUpgradeFixedOptionKeyPrefix = map[string]string{
+	elementalReactorEntrySlug: "puppet_upgrade.element_reactor",
+	integratedWeaponEntrySlug: "puppet_upgrade.integrated_weapon",
+	masteredArmamentEntrySlug: "puppet_upgrade.mastered_armament",
+}
+
+// translatePuppetUpgradeFixedOptions overlays a dotted-key translation onto
+// a FixedOptions catalog — same "no natural DB row" dotted-key convention
+// titan.go/nindog.go/scienceNinRegaliaOptions already use. Slug is untouched
+// (it's the only field matched against elsewhere — puppetIntegratedWeaponAttacks
+// and elementReactorOptions' own callers both key off it, never Name/
+// Description).
+func translatePuppetUpgradeFixedOptions(tr i18n.TranslateFunc, prefix string, in []puppetUpgradeSubChoiceOption) []puppetUpgradeSubChoiceOption {
+	out := make([]puppetUpgradeSubChoiceOption, len(in))
+	for i, o := range in {
+		out[i] = puppetUpgradeSubChoiceOption{
+			Slug:        o.Slug,
+			Name:        tr(prefix + "." + o.Slug + ".name"),
+			Description: tr(prefix + "." + o.Slug + ".description"),
+			DetailHref:  o.DetailHref,
+		}
+	}
+	return out
+}
+
 // puppetUpgradeTier is one class_options row (a slot-consuming tier, or an
 // untiered one-time-pick list like a single Puppet Weapon Type) with its
 // resolved slot cap, current usage, full option catalog, and the
@@ -1801,6 +1832,18 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 	// Master Upgrades", the other four subclass lists sort before it).
 	optRows := append(subclassOptRows, classWideOptRows...)
 
+	// rawTierNameBySlug holds each row's RAW English tier name (e.g. "Silver
+	// Tier"), captured before the translation overlay below overwrites
+	// optRows[i].name in place — puppetUpgradeTierEscalation's own
+	// HigherTiers lists are hardcoded English tier-name literals, matched
+	// against below (the tier-escalation injection loop), and translated
+	// prose can't be relied on to still equal them. Same ordering hazard as
+	// rawDescriptionBySlug above.
+	rawTierNameBySlug := make(map[string]string, len(optRows))
+	for _, o := range optRows {
+		rawTierNameBySlug[o.slug] = o.name
+	}
+
 	if len(optRows) > 0 {
 		optSlugs := make([]string, len(optRows))
 		for i, o := range optRows {
@@ -1860,6 +1903,14 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 	entriesByOption := map[string][]puppetUpgradeOption{}
 	entryBySlug := map[string]puppetUpgradeOption{}
 	entryNameBySlug := map[string]string{}
+	// rawDescriptionBySlug holds each entry's RAW English description,
+	// captured before the translation overlay below overwrites entryBySlug/
+	// entriesByOption in place — puppetUpgradeAvailableToColor (below) parses
+	// a description's own literal "Techniques: Black, Blue, ..." prefix, and
+	// translated prose can't be relied on to still contain that English
+	// marker (same ordering hazard already documented in
+	// internal/i18n/translation_methodology.md).
+	rawDescriptionBySlug := map[string]string{}
 	var allEntryNames []string
 	if len(optRows) > 0 {
 		slugs := make([]string, len(optRows))
@@ -1888,6 +1939,7 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 			entryBySlug[e.Slug] = e
 			entryNameBySlug[e.Slug] = e.Name
 			allEntryNames = append(allEntryNames, e.Name)
+			rawDescriptionBySlug[e.Slug] = e.Description
 		}
 		entryRows.Close()
 		if err := entryRows.Err(); err != nil {
@@ -2065,11 +2117,21 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 			// Untiered single-option row (e.g. one Puppet Weapon Type, one
 			// Puppeteer Chassis, one Puppet Framework, one Puppet Role):
 			// look up its own description to stand in as the one option.
+			// Read raw for puppetUpgradeAvailableToColor's own English-marker
+			// match below, then overlay the translation for display only —
+			// same raw-then-translate split as the tiered entries above.
 			var desc string
 			if err := s.rulesDB.QueryRow(`SELECT description FROM class_options WHERE slug = ?`, o.slug).Scan(&desc); err != nil {
 				return nil, err
 			}
-			options = []puppetUpgradeOption{{Slug: o.slug, Name: o.name, Description: desc}}
+			rawDescriptionBySlug[o.slug] = desc
+			displayDesc := desc
+			if tr, err := i18n.Row(s.rulesDB, locale, "class_options", o.slug); err != nil {
+				return nil, err
+			} else if v, ok := tr["description"]; ok && v != "" {
+				displayDesc = v
+			}
+			options = []puppetUpgradeOption{{Slug: o.slug, Name: o.name, Description: displayDesc}}
 		}
 
 		// Restrict to options this character's own subclass can actually
@@ -2079,10 +2141,14 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 		// White" — every technique except Purple), which nothing enforced
 		// before. An already-taken entry is kept regardless (never hide a
 		// pick the player already committed to, even in the edge case where
-		// a later subclass change would otherwise un-qualify it).
+		// a later subclass change would otherwise un-qualify it). Matches
+		// against rawDescriptionBySlug, not opt.Description — the latter is
+		// already translated by this point (see rawDescriptionBySlug's own
+		// doc above), and puppetUpgradeAvailableToColor's "Techniques: X, Y"
+		// prefix match only works against the untranslated English text.
 		var filtered []puppetUpgradeOption
 		for _, opt := range options {
-			if pickedCountByEntrySlug[opt.Slug] > 0 || puppetUpgradeAvailableToColor(opt.Description, subclassColor) {
+			if pickedCountByEntrySlug[opt.Slug] > 0 || puppetUpgradeAvailableToColor(rawDescriptionBySlug[opt.Slug], subclassColor) {
 				filtered = append(filtered, opt)
 			}
 		}
@@ -2110,7 +2176,7 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 		// Upgrades itself.
 		if !o.classWide {
 			for entrySlug, spec := range puppetUpgradeTierEscalation {
-				if !slices.Contains(spec.HigherTiers, o.name) {
+				if !slices.Contains(spec.HigherTiers, rawTierNameBySlug[o.slug]) {
 					continue
 				}
 				e, ok := entryBySlug[entrySlug]
@@ -2122,8 +2188,10 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 				// class-wide entry restricted to a subset of Techniques
 				// (Chakra Draining Mechanism, Tag-Team) shows up in every
 				// higher tier for every subclass, including ones its own
-				// "Techniques:" line excludes.
-				if pickedCountByEntrySlug[e.Slug] > 0 || puppetUpgradeAvailableToColor(e.Description, subclassColor) {
+				// "Techniques:" line excludes. Matches against
+				// rawDescriptionBySlug, not e.Description — see that map's
+				// own doc above.
+				if pickedCountByEntrySlug[e.Slug] > 0 || puppetUpgradeAvailableToColor(rawDescriptionBySlug[e.Slug], subclassColor) {
 					options = append(options, e)
 				}
 			}
@@ -2240,6 +2308,9 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 					}
 				case spec.FixedOptions != nil:
 					subOptions = spec.FixedOptions
+					if prefix, ok := puppetUpgradeFixedOptionKeyPrefix[p.UpgradeEntrySlug]; ok {
+						subOptions = translatePuppetUpgradeFixedOptions(i18n.Translator(locale), prefix, subOptions)
+					}
 					lookupOptions = subOptions
 				default:
 					var err error
@@ -2709,7 +2780,7 @@ type puppetWeaponTypeChoiceView struct {
 // loadPuppetWeaponTypeOptions catalogs the 3 Puppet Weapon Types (Drone/
 // Ogre/Sentinel Weapon) directly from class_options, for Transformer's own
 // display-only second pick.
-func (s *server) loadPuppetWeaponTypeOptions() ([]puppetWeaponTypeOption, error) {
+func (s *server) loadPuppetWeaponTypeOptions(locale string) ([]puppetWeaponTypeOption, error) {
 	rows, err := s.rulesDB.Query(
 		`SELECT slug, name, description FROM class_options WHERE list_name = 'Puppet Weapon Types' ORDER BY name`)
 	if err != nil {
@@ -2724,7 +2795,27 @@ func (s *server) loadPuppetWeaponTypeOptions() ([]puppetWeaponTypeOption, error)
 		}
 		options = append(options, o)
 	}
-	return options, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slugs := make([]string, len(options))
+	for i, o := range options {
+		slugs[i] = o.Slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range options {
+		tr := translations[options[i].Slug]
+		if v, ok := tr["name"]; ok {
+			options[i].Name = v
+		}
+		if v, ok := tr["description"]; ok {
+			options[i].Description = v
+		}
+	}
+	return options, nil
 }
 
 // masterOfGreenTechniqueFeatureSlug is Green Technique Marionettist's own
@@ -2803,7 +2894,7 @@ var masterOfGreenTechniqueMaxRank = jutsuRankOrder["B"]
 // or Bonus Action" — have no queryable rules-db column to filter on, so
 // they're left as player-enforced text in the picker's own label rather
 // than silently mis-filtering the list.
-func (s *server) loadGreenTechniqueJutsuOptions(characterID int64) ([]puppetJutsuChoiceOption, error) {
+func (s *server) loadGreenTechniqueJutsuOptions(characterID int64, locale string) ([]puppetJutsuChoiceOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, rank, keywords, description FROM v_jutsu
 		WHERE classification IN ('Ninjutsu', 'Genjutsu') ORDER BY name`)
@@ -2835,12 +2926,36 @@ func (s *server) loadGreenTechniqueJutsuOptions(characterID int64) ([]puppetJuts
 	if err != nil {
 		return nil, err
 	}
-	var out []puppetJutsuChoiceOption
+	// Eligibility (ctx.eligible) matches c.keywords/c.rank.String RAW, before
+	// the translation overlay below — jutsuEligible's own keyword parsing
+	// only works against the untranslated English text.
+	var eligible []candidate
 	for _, c := range candidates {
 		if !ctx.eligible(c.slug, c.keywords, c.rank.String) {
 			continue
 		}
-		out = append(out, puppetJutsuChoiceOption{Value: c.slug, Name: c.name, Rank: c.rank.String, Description: c.description})
+		eligible = append(eligible, c)
+	}
+	slugs := make([]string, len(eligible))
+	for i, c := range eligible {
+		slugs[i] = c.slug
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "jutsu", slugs)
+	if err != nil {
+		return nil, err
+	}
+	var out []puppetJutsuChoiceOption
+	for _, c := range eligible {
+		name, description := c.name, c.description
+		if tr := translations[c.slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
+		out = append(out, puppetJutsuChoiceOption{Value: c.slug, Name: name, Rank: c.rank.String, Description: description})
 	}
 	return out, nil
 }
@@ -3003,7 +3118,7 @@ func buildPuppetUpgradeChoiceView(choices map[features.ChoiceKey]string, options
 // the book's own "Upgrade... of Silver tier or lower" phrase only ever
 // refers to the tiered Upgrade catalog, never those untiered Foundation-style
 // picks.
-func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUpgradeChoiceOption, error) {
+func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64, locale string) ([]puppetUpgradeChoiceOption, error) {
 	companions, err := charstore.ListCompanions(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -3038,7 +3153,7 @@ func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUp
 	subclassColor := puppetSubclassColorBySlug[subclassSlug]
 
 	rows, err := s.rulesDB.Query(`
-		SELECT e.slug, e.name, e.description, o.name
+		SELECT e.slug, e.name, e.description, o.slug, o.name
 		FROM class_option_entries e
 		JOIN class_options o ON o.slug = e.class_option_slug
 		WHERE o.class_slug = 'class/puppet-master' AND (o.subclass_slug IS NULL OR o.subclass_slug = ?)
@@ -3047,12 +3162,12 @@ func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUp
 		return nil, err
 	}
 	type candidate struct {
-		slug, name, description, tierName string
+		slug, name, description, classOptionSlug, tierName string
 	}
 	var candidates []candidate
 	for rows.Next() {
 		var c candidate
-		if err := rows.Scan(&c.slug, &c.name, &c.description, &c.tierName); err != nil {
+		if err := rows.Scan(&c.slug, &c.name, &c.description, &c.classOptionSlug, &c.tierName); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -3060,6 +3175,21 @@ func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUp
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	entrySlugs := make([]string, len(candidates))
+	tierSlugs := make([]string, len(candidates))
+	for i, c := range candidates {
+		entrySlugs[i] = c.slug
+		tierSlugs[i] = c.classOptionSlug
+	}
+	entryTranslations, err := i18n.Batch(s.rulesDB, locale, "class_option_entries", entrySlugs)
+	if err != nil {
+		return nil, err
+	}
+	tierTranslations, err := i18n.Batch(s.rulesDB, locale, "class_options", tierSlugs)
+	if err != nil {
 		return nil, err
 	}
 
@@ -3072,6 +3202,12 @@ func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUp
 		if !ok || rank > alwaysPreparedMaxTierRank {
 			continue
 		}
+		// Matches against c.description (still raw at this point — the
+		// translation overlay below is applied only to the OUTPUT struct,
+		// after this check) — puppetUpgradeAvailableToColor's "Techniques:
+		// X, Y" prefix match only works against the untranslated English
+		// text (see rawDescriptionBySlug's own doc in loadPuppetUpgradeTiers
+		// for the same hazard).
 		if !puppetUpgradeAvailableToColor(c.description, subclassColor) {
 			continue
 		}
@@ -3082,7 +3218,21 @@ func (s *server) loadAlwaysPreparedUpgradeOptions(characterID int64) ([]puppetUp
 		if !met {
 			continue
 		}
-		out = append(out, puppetUpgradeChoiceOption{Slug: c.slug, Name: c.name, Tier: c.tierName, Description: c.description})
+		name, description, tierName := c.name, c.description, c.tierName
+		if tr := entryTranslations[c.slug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				name = v
+			}
+			if v, ok := tr["description"]; ok {
+				description = v
+			}
+		}
+		if tr := tierTranslations[c.classOptionSlug]; tr != nil {
+			if v, ok := tr["name"]; ok {
+				tierName = v
+			}
+		}
+		out = append(out, puppetUpgradeChoiceOption{Slug: c.slug, Name: name, Tier: tierName, Description: description})
 	}
 	return out, nil
 }
@@ -3269,7 +3419,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 	// stay fully manual/narrated — only WHICH second Weapon Type is
 	// currently selected is tracked.
 	if subclassColor == "Blue" && level >= 14 {
-		weaponTypeOptions, err := s.loadPuppetWeaponTypeOptions()
+		weaponTypeOptions, err := s.loadPuppetWeaponTypeOptions(locale)
 		if err != nil {
 			return data, err
 		}
@@ -3297,7 +3447,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 	// effects" application stays entirely manual — only which jutsu is
 	// currently selected is tracked.
 	if subclassColor == "Green" && level >= 20 {
-		jutsuOptions, err := s.loadGreenTechniqueJutsuOptions(characterID)
+		jutsuOptions, err := s.loadGreenTechniqueJutsuOptions(characterID, locale)
 		if err != nil {
 			return data, err
 		}
@@ -3337,7 +3487,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 	// player's own bookkeeping, same as Transformer's second Weapon Type
 	// above.
 	if level >= 18 {
-		upgradeOptions, err := s.loadAlwaysPreparedUpgradeOptions(characterID)
+		upgradeOptions, err := s.loadAlwaysPreparedUpgradeOptions(characterID, locale)
 		if err != nil {
 			return data, err
 		}
@@ -4339,7 +4489,7 @@ func (s *server) handlePuppetTransformerWeaponType(w http.ResponseWriter, r *htt
 		http.Error(w, "character has not reached Transformer (14th level) yet", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadPuppetWeaponTypeOptions()
+	options, err := s.loadPuppetWeaponTypeOptions(localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon type options for transformer:", err)
@@ -4400,7 +4550,7 @@ func (s *server) handlePuppetGreenTechniqueJutsu(w http.ResponseWriter, r *http.
 		http.Error(w, "character has not reached Master of the Green Technique (20th level) yet", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadGreenTechniqueJutsuOptions(id)
+	options, err := s.loadGreenTechniqueJutsuOptions(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load jutsu options for green technique:", err)
@@ -4516,7 +4666,7 @@ func (s *server) handlePuppetAlwaysPreparedUpgrade(w http.ResponseWriter, r *htt
 		http.Error(w, "character has not reached Always Prepared's temporary Upgrade clause (18th level) yet", http.StatusBadRequest)
 		return
 	}
-	options, err := s.loadAlwaysPreparedUpgradeOptions(id)
+	options, err := s.loadAlwaysPreparedUpgradeOptions(id, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load always prepared upgrade options:", err)

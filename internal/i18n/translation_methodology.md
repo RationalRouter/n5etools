@@ -497,16 +497,78 @@ says nothing about this category of gap. Found so far:
   across `jutsu_grants.go`, `passive_traits.go`, and every one of their call sites once the 19-file
   sweep is done.
 
-**Recurring bug shape, now hit twice in one session — treat as a standing risk, not a one-off**:
-whenever a hand-curated/DB-backed field's own English text doubles as a keyword/marker matched by
-substring elsewhere downstream (`strings.Contains(description, "Keyword: Tactical")`, an ALL-CAPS
-name-extraction regex, a raw slug-membership scan built from that same text), that matching MUST
-run against the RAW text BEFORE translation, never after. Both recurrences
-(`science_nin_subclasses.go`'s `handleScienceNinSubclassPickDetail` childless-tier branch, then
-minutes later `scout_nin.go`'s `loadScoutNinManeuverCatalog`) were caught by reading every
-downstream consumer of a loader's return value BEFORE running build/test, not by a test failure —
-neither bug produces a compile error or an English-locale test failure, since the English catalog's
-raw and "translated" text are byte-identical; it only breaks non-English locales, silently, with a
+- **`puppets.go`** (Puppet Master's Upgrade/Foundation/companion system, ~4600 lines, by far the
+  largest and most heavily cross-referenced file audited so far): five fixes, three of them the
+  recurring translate-before-match ordering bug — this file alone accounts for as many recurrences
+  of that shape as every other file combined, because `loadPuppetUpgradeTiers` builds one large,
+  deeply cross-referenced catalog where several independent downstream checks all read the SAME
+  translated `Description`/`name` fields the initial `i18n.Batch` overlay had already overwritten.
+  (1) `puppetUpgradeAvailableToColor` parses a description's own literal `"Techniques: Black, Blue,
+  ..."` prefix to gate an option to the character's subclass color — but by the time it ran (in the
+  option-filtering loop), the `Description` it read had already been translated for two DISTINCT
+  reasons: the untiered-row branch (`SELECT description FROM class_options WHERE slug = ?`,
+  previously raw and correctly matched, but never translated for DISPLAY either — a second, opposite
+  bug in the same spot) and the tier-escalation injection branch (entries re-shown in their own
+  higher tiers, reading the already-translated `entryBySlug` map). Fixed by adding
+  `rawDescriptionBySlug` (captured at scan time, before the translation overlay runs) and matching
+  against that everywhere `puppetUpgradeAvailableToColor` is called from this function, while
+  translating the untiered branch's description separately for its own display-only copy. (2) The
+  SAME tier-escalation branch also compared `o.name` (a tier's own name, e.g. "Silver Tier" —
+  already translated by that point) against `puppetUpgradeTierEscalation`'s `HigherTiers`, a
+  hardcoded Go-literal list of raw English tier names (`puppet_upgrade_prereq.go`) — added
+  `rawTierNameBySlug` (same "capture before translate" shape) and matched against that instead.
+  (3) `loadPuppetWeaponTypeOptions` (Transformer's second-Weapon-Type pick, `class_options` read
+  with `list_name = 'Puppet Weapon Types'`) had no `i18n.Batch` overlay at all — plain missing-loader
+  category. (4) `loadAlwaysPreparedUpgradeOptions` (Always Prepared's own temporary-Upgrade pick,
+  18th level) had NO locale param and read `class_option_entries`/`class_options.name` completely
+  raw for display, while correctly (already) matching `puppetUpgradeAvailableToColor` against that
+  same raw text — fixed by adding `locale`, translating the OUTPUT struct's Name/Tier/Description
+  fields only, after the raw-text color/prereq checks already ran. (5) `loadGreenTechniqueJutsuOptions`
+  (Master of the Green Technique's long-rest jutsu pick, `v_jutsu`) had no locale param either — the
+  eligibility check (`ctx.eligible`, keyword-parsing) already correctly ran against raw
+  `keywords`/`rank`, so only the OUTPUT Name/Description needed the translation overlay added, after
+  eligibility filtering. Separately, three hand-curated `puppetUpgradeSubChoiceOption` catalogs used
+  as `FixedOptions` in the package-level `puppetUpgradeSubChoiceSpecs` map (`elementReactorOptions`,
+  `integratedWeaponOptions`, `masteredArmamentOptions`) were untranslated Go literals with no way to
+  take a `locale` at all, since the map is built once at package init — translation had to move to
+  the point of USE instead (`loadPuppetUpgradeTiers`'s `FixedOptions` branch), via a new
+  `translatePuppetUpgradeFixedOptions` dotted-key helper (`puppet_upgrade.<catalog>.<slug>.name`/
+  `.description`) keyed by which entry slug is being resolved (`puppetUpgradeFixedOptionKeyPrefix`).
+  `elementReactorOptions`' own `Slug`/`Name` (both currently the raw English element name, e.g.
+  "Fire") is a placeholder until `elemental_affinity.go` (one of the remaining sibling files)
+  establishes a real canonical element-name translation mechanism — when that happens, revisit this
+  helper to reuse it rather than keeping its own parallel `puppet_upgrade.element_reactor.*` keys.
+  **Found but NOT fixed, cross-cutting, same follow-up bucket as scout_nin.go's**: `loadGreenTechniqueJutsuOptions`
+  and `loadAlwaysPreparedUpgradeOptions` are read-vs-write consistent within themselves, but this
+  file's `loadPuppetUpgradeTiers` ALSO drives `parsePuppetUpgradePrereq`'s own prerequisite-clause
+  parsing against ALREADY-TRANSLATED description/entry-name vocabulary (self-consistent — translated
+  text matched against a translated vocabulary built the same way, unlike the two ordering bugs fixed
+  above) — this only stays correct if the DeepL-translated `prerequisites`/`description` text for one
+  `class_options`/`class_option_entries` row consistently reuses the SAME translated rendering of
+  another row's `name` it references (e.g. a Spanish "Requiere: Arma Integrada" line must match the
+  Spanish translation of the "Integrated Weapon" entry's own `name` exactly) — a DB CONTENT
+  consistency question the DeepL translation pass would need to get right, not a code-level wiring
+  gap this pass can fix. `puppetUpgradeEntryPrereqMet` (the server-side POST-time revalidation of the
+  same prerequisite, `handlePuppetUpgradeAdd`'s own gate) sidesteps this entirely by matching 100%
+  RAW English throughout (including forcing `loadPuppetArmorChassisOptions("")` with an empty
+  locale) — deliberately, correctly, and consistent with itself, but worth knowing the display-side
+  and the revalidation-side use two entirely different consistency strategies for what is
+  conceptually the same check.
+
+**Recurring bug shape, now confirmed FIVE times across two files in one session — treat as a
+standing risk, not a rare edge case**: whenever a hand-curated/DB-backed field's own English text
+doubles as a keyword/marker matched by substring, exact-value, or membership elsewhere downstream
+(`strings.Contains(description, "Keyword: Tactical")`, an ALL-CAPS name-extraction regex, a raw
+slug/tier-name membership scan built from that same text), that matching MUST run against the RAW
+text BEFORE translation, never after. All five recurrences so far
+(`science_nin_subclasses.go`'s `handleScienceNinSubclassPickDetail` childless-tier branch,
+`scout_nin.go`'s `loadScoutNinManeuverCatalog`, and puppets.go's `puppetUpgradeAvailableToColor`
+description check, its tier-escalation `HigherTiers` name check, and its untiered-row description
+which had the OPPOSITE half of the bug — matched correctly raw but never translated for display)
+were caught by reading every downstream consumer of a loader's return value BEFORE running
+build/test, not by a test failure — neither bug produces a compile error or an English-locale test
+failure, since the English catalog's raw and "translated" text are byte-identical; it only breaks
+non-English locales, silently, with a
 downstream candidate list simply coming back empty. **Before wiring `i18n.Batch`/`i18n.Row`/any
 translate-wrapper into an existing DB-backed loader, grep every call site of that loader for
 `strings.Contains`, an ALL-CAPS/regex name-extraction helper, or a raw-value membership scan applied
@@ -518,8 +580,8 @@ package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
-`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, and `scout_nin.go` are closed; ~12
-sibling files (`puppets.go`, `medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
+`wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, and `puppets.go` are
+closed; ~11 sibling files (`medical_nin.go`, `hunter_pattern_choices.go`, `wow_whelp.go`,
 `taijutsu.go`, `weapon_specialist.go`, `titan.go`, `elemental_affinity.go`, `snb.go`,
 `science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) still have this gap open — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
