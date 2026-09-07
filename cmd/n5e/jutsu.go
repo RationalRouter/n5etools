@@ -164,9 +164,8 @@ func loadJutsuList(rulesDB *sql.DB, locale string) ([]jutsuListEntry, error) {
 		if v, ok := tr["duration"]; ok {
 			entries[i].Duration = v
 		}
-		if v, ok := tr["keywords"]; ok {
-			entries[i].Keywords = v
-		}
+		// entries[i].Keywords is deliberately never overlaid -- see
+		// internal/i18n/fields.go's "keywords is deliberately excluded" note.
 		if v, ok := tr["category_group"]; ok {
 			entries[i].CategoryGroup = sql.NullString{String: v, Valid: true}
 		}
@@ -304,9 +303,8 @@ func loadJutsuDetail(rulesDB *sql.DB, locale, slug string) (*jutsuDetail, error)
 		if v, ok := tr["cost_text"]; ok {
 			j.CostText = v
 		}
-		if v, ok := tr["keywords"]; ok {
-			j.Keywords = v
-		}
+		// j.Keywords is deliberately never overlaid -- see
+		// internal/i18n/fields.go's "keywords is deliberately excluded" note.
 		if v, ok := tr["description"]; ok {
 			j.Description = v
 		}

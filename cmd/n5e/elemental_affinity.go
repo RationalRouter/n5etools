@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Elemental (Nature Release) affinities gate which elemental jutsu a
@@ -323,6 +324,84 @@ type elementalAffinitySlot struct {
 	Label   string
 	Options []string // empty means "any of the 5"
 	Current string   // "" if not yet chosen
+}
+
+// elementalAffinityOption is one translated <option> for an elemental
+// affinity picker's <select> — Value is the raw canonical element name
+// (matched/stored by handleElementalAffinityAdd exactly as
+// elementalAffinitySlots itself returns it), Label is the locale's own name
+// for it. Kept separate from elementalAffinitySlot's own Options ([]string)
+// so the canonical validation path in handleElementalAffinityAdd never has
+// translated text substituted into a matched/stored value — same
+// persisted-matching-key precaution as taijutsu.go's Anti-Chakra Wavelength
+// fix.
+type elementalAffinityOption struct {
+	Value string
+	Label string
+}
+
+// elementalAffinitySlotView is elementalAffinitySlot's own display-only,
+// locale-translated counterpart — built by translateAffinitySlotsForDisplay,
+// never fed back into handleElementalAffinityAdd's own validation.
+type elementalAffinitySlotView struct {
+	SlotKey string
+	Label   string
+	Options []elementalAffinityOption
+	Current string
+}
+
+// translateElementName translates one of the five canonical elementNames
+// values ("Fire", "Water", ...) for display — never call this on a value
+// before it's stored or matched, only when building read-only display data.
+func translateElementName(locale, element string) string {
+	return i18n.Translator(locale)("element." + strings.ToLower(element))
+}
+
+// translateAffinityLabel translates one of the fixed English Source/Label
+// strings this file uses (e.g. "Clan trait", "Nature Release (feat)", or
+// any allAffinityFeatureSlots FeatureLabel) via a single shared "ea_label:"
+// namespace — safe since every caller passes a fixed, never-player-entered
+// string.
+func translateAffinityLabel(locale, label string) string {
+	return i18n.Translator(locale)("ea_label:" + label)
+}
+
+// translateResolvedAffinities returns affinities translated for display —
+// build this ONLY after any matching logic (e.g. characters.go's own
+// affinitySet lookup feeding jutsuEligible) has already consumed the raw,
+// canonical resolveElementalAffinities result; Element must stay in English
+// for that matching to work (see jutsuElement/jutsuElements in this file).
+func translateResolvedAffinities(locale string, affinities []elementalAffinity) []elementalAffinity {
+	out := make([]elementalAffinity, len(affinities))
+	for i, a := range affinities {
+		out[i] = elementalAffinity{
+			Element: translateElementName(locale, a.Element),
+			Source:  translateAffinityLabel(locale, a.Source),
+		}
+	}
+	return out
+}
+
+// translateAffinitySlotsForDisplay is elementalAffinitySlots' own display
+// counterpart — SlotKey and Current (the values a submitted form must send
+// back) stay canonical English; only Label and each Option's own Label are
+// translated. Never use this return value for handleElementalAffinityAdd's
+// own validation — call elementalAffinitySlots directly there instead.
+func translateAffinitySlotsForDisplay(locale string, slots []elementalAffinitySlot) []elementalAffinitySlotView {
+	out := make([]elementalAffinitySlotView, len(slots))
+	for i, s := range slots {
+		opts := make([]elementalAffinityOption, len(s.Options))
+		for k, el := range s.Options {
+			opts[k] = elementalAffinityOption{Value: el, Label: translateElementName(locale, el)}
+		}
+		out[i] = elementalAffinitySlotView{
+			SlotKey: s.SlotKey,
+			Label:   translateAffinityLabel(locale, s.Label),
+			Options: opts,
+			Current: s.Current,
+		}
+	}
+	return out
 }
 
 // resolveElementalAffinities computes every element the character

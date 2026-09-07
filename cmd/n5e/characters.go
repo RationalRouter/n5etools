@@ -5473,6 +5473,11 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		byTheBookGrant := hasByTheBook && patissierChefByTheBookHealingJutsuSlugs[j.Slug]
 		eligibleJutsu[j.Slug] = jutsuEligible(jutsuOrigins[j.Slug], j.Keywords, affinitySet, len(elementalAffinities) > 0, medicalRankCap, j.Rank.String, byTheBookGrant)
 	}
+	// Translated for display only, after affinitySet above has already
+	// consumed the raw canonical Element values it needs for matching.
+	locale := localeFromContext(r.Context())
+	elementalAffinities = translateResolvedAffinities(locale, elementalAffinities)
+	elementalAffinitySlotsView := translateAffinitySlotsForDisplay(locale, elementalAffinitySlotsData)
 
 	// sheet-layout.js's grid ("grid:core"/"grid:bio") and sheet-subgrid.js's
 	// tile order/orientation ("subgrid:<name>") — see 0015_sheet_ui_state.sql
@@ -5549,7 +5554,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		"ItemLibrary": itemLibrary, "FeatLibrary": featLibrary,
 		"JutsuLibrary": groupJutsu(jutsuLibrary), "JutsuSourceTiles": jutsuSourceTiles,
 		"OwnedJutsu": ownedJutsu, "JutsuKnownCap": jutsuKnownCap, "JutsuOrigins": jutsuOrigins,
-		"EligibleJutsu": eligibleJutsu, "ElementalAffinities": elementalAffinities, "ElementalAffinitySlots": elementalAffinitySlotsData,
+		"EligibleJutsu": eligibleJutsu, "ElementalAffinities": elementalAffinities, "ElementalAffinitySlots": elementalAffinitySlotsView,
 		"UIState": uiState,
 		"Drive":   drive, "Goal": goal, "Fear": fear,
 		"PassiveTraits": passiveTraits, "CustomResources": customResources, "PuppetTactics": puppetTactics,
@@ -6988,8 +6993,9 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load elemental affinity picks for fragment:", err)
 			return
 		}
-		data["ElementalAffinities"] = resolveElementalAffinities(sheet.ClanSlug, hasFeat, grantedFeatureSlugs, picks)
-		data["ElementalAffinitySlots"] = elementalAffinitySlots(sheet.ClanSlug, hasFeat, grantedFeatureSlugs, picks)
+		fragmentLocale := localeFromContext(r.Context())
+		data["ElementalAffinities"] = translateResolvedAffinities(fragmentLocale, resolveElementalAffinities(sheet.ClanSlug, hasFeat, grantedFeatureSlugs, picks))
+		data["ElementalAffinitySlots"] = translateAffinitySlotsForDisplay(fragmentLocale, elementalAffinitySlots(sheet.ClanSlug, hasFeat, grantedFeatureSlugs, picks))
 	case "sheet_puppet_tactics":
 		level, err := s.puppetMasterClassLevel(characterID)
 		if err != nil {

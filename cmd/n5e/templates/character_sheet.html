@@ -5243,7 +5243,7 @@
       <select name="element">
         <option value="">{{T "sheet.choose_placeholder_option"}}</option>
         {{$currentSlot := .Current}}
-        {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
+        {{range .Options}}<option value="{{.Value}}"{{if eq .Value $currentSlot}} selected{{end}}>{{.Label}}</option>{{end}}
       </select>
       <button type="submit">{{T "sheet.set_verb"}}</button>
     </label>

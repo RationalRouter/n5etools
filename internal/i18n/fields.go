@@ -9,9 +9,20 @@ package i18n
 // never be translated at the data level -- see the jutsu "components"
 // exclusion below and internal/i18n/glossary.md's technical note.
 var TranslatableFields = map[string][]string{
+	// keywords is deliberately excluded: cmd/n5e/elemental_affinity.go
+	// (jutsuElement/jutsuElements/jutsuNeedsAnyAffinity/
+	// elementFromReleaseKeyword) and cmd/n5e/jutsu_eligibility.go parse this
+	// column at runtime, matching fixed English substrings like "Fire
+	// Release" and "Any Nature Release" to gate which jutsu a character can
+	// learn -- translating it broke elemental jutsu eligibility entirely in
+	// every non-English locale (confirmed live: "Fire Release" translated to
+	// "Liberación de Fuego"/"Técnica del Fuego", neither of which matches
+	// elementReleaseKeyword("Fire")). Same "machine-parsed, must stay in the
+	// source language" exclusion as jutsu.components below and
+	// equipment.properties/damage_type above.
 	"jutsu": {
 		"name", "casting_time", "range", "duration", "cost_text",
-		"keywords", "description", "at_higher_ranks", "category_group",
+		"description", "at_higher_ranks", "category_group",
 	},
 	"feats": {
 		"name", "prerequisites", "description",

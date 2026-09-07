@@ -781,6 +781,54 @@ before it's assigned into the response struct), never inside the loader itself.*
   with every other cross-cutting finding above. Whoever picks these up should grep
   `Tier:\s*o\.(name|Name)\b`/`TierName:\s*o\.name\b` and `GrantedHint:\s*"` respectively across
   `cmd/n5e/*.go` fresh, rather than trusting this note's file list to be exhaustive.
+- **`elemental_affinity.go`** (2026-09-07): surfaced a genuine FUNCTIONAL CORRECTNESS bug, not just
+  a display gap — `jutsu.keywords` was listed as a translatable field
+  (`internal/i18n/fields.go`'s `TranslatableFields["jutsu"]`) and DeepL-translated, but this file's
+  own `jutsuElement`/`jutsuElements`/`jutsuNeedsAnyAffinity`/`elementFromReleaseKeyword` (and
+  `jutsu_eligibility.go`'s callers) match FIXED ENGLISH SUBSTRINGS against a jutsu's own keywords
+  column at runtime (`strings.Contains(keywords, "Fire Release")`, etc.) to decide which jutsu a
+  character is eligible to learn. Confirmed live against `out/rules.db`: `"Fire Release, Ninjutsu"`
+  had been translated to `"Técnica del Fuego, Ninjutsu"` (es) — a string `elementReleaseKeyword`
+  would never match. Net effect: in every non-English locale, elemental jutsu eligibility was
+  silently broken wherever `loadJutsuList`/`loadJutsuDetail` overlaid the translated `keywords`
+  value onto `j.Keywords` before it reached the matching code (`characters.go`'s own eligibility
+  loop at `jutsuEligible(jutsuOrigins[j.Slug], j.Keywords, ...)`) — likely making most/all
+  Nature-Release-gated jutsu read as ineligible for es/pt players (or, depending on which locale
+  string happened to substring-collide, silently WRONG eligibility), with no error, no build
+  failure, and no obvious symptom short of manually comparing eligible-jutsu counts across locales.
+  Fixed at the root: removed `"keywords"` from `jutsu`'s `TranslatableFields` (same "machine-parsed,
+  must stay in the source language" exclusion category as the pre-existing `jutsu.components` and
+  `equipment.properties`/`damage_type` exclusions, now documented the same way) and removed the two
+  runtime overlay sites in `jutsu.go` (`loadJutsuList`, `loadJutsuDetail`) that copied
+  `tr["keywords"]` onto the struct field — `content_translations` rows for `jutsu`/`keywords` are
+  now simply never read, regardless of whether stale rows still exist in a given `rules.db` (not
+  cleaned up as part of this fix; harmless dead data, not a correctness risk, since nothing reads
+  them anymore). One real trade-off: `partials/jutsu_detail.html`'s own `{{.Keywords}}` display (the
+  jutsu detail popup's "Keywords" row) now always shows the raw English column value in every
+  locale — the same already-accepted trade-off `equipment.properties` makes for the identical
+  reason (a machine-parsed field doubling as a raw-text display field, where reversible per-token
+  display translation would need its own dedicated parser, deferred rather than attempted here).
+  Separately, this file's own genuine per-file gap (once the correctness bug above was ruled out as
+  something bigger to defer): `elementalAffinity.Source`, `elementalAffinitySlot.Label`, each
+  `allAffinityFeatureSlots` entry's `FeatureLabel` (e.g. "Versatile Release", "Blood of the
+  Dragon"), and `elementalAffinitySlot.Options`/`elementalAffinity.Element` (the raw "Fire"/
+  "Water"/etc. element names) were all rendered directly to the player
+  (`character_sheet.html`'s `sheet_elemental_affinities` block) with zero translation, while also
+  being the exact same values `resolveElementalAffinities`/`elementalAffinitySlots` return for
+  server-side matching/persistence (`handleElementalAffinityAdd`'s `slices.Contains`,
+  `charstore.SetElementalAffinity`) — another genuine persisted-matching-key risk, same shape as
+  taijutsu.go's Anti-Chakra Wavelength fix. Resolved by leaving `resolveElementalAffinities`/
+  `elementalAffinitySlots` themselves untouched (still canonical English, still safe for
+  `jutsu_eligibility.go`'s own separate `characterElementalAffinities` matching path and for
+  `handleElementalAffinityAdd`'s validation) and adding a display-only translation layer instead:
+  `translateElementName`/`translateAffinityLabel` (new `"element.*"` and `"ea_label:"` locale
+  namespaces) plus `translateResolvedAffinities`/`translateAffinitySlotsForDisplay`, called in
+  `characters.go` only AFTER the raw canonical values have already fed `affinitySet`/
+  `jutsuEligible` — a new `elementalAffinitySlotView`/`elementalAffinityOption` pair of display-only
+  types (`Value`/`Label` split, mirroring `featureChoiceOption`) replaces the picker `<select>`'s
+  bare `[]string` Options so the submitted `value` stays the canonical English element name while
+  the visible `<option>` text is translated; `character_sheet.html`'s `sheet_elemental_affinities`
+  block updated to read `.Value`/`.Label` instead of the bare `.`.
 
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
@@ -788,8 +836,9 @@ gap by SOURCE, not by database/catalog completeness percentage — completeness 
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
 2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
-`medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`, and
-`titan.go` are closed; `wow_whelp.go` was audited (2026-09-07) and found clean OF THIS PARTICULAR
+`medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`,
+`titan.go`, and `elemental_affinity.go` are closed; `wow_whelp.go` was audited (2026-09-07) and
+found clean OF THIS PARTICULAR
 gap — its own translation gap is real but cross-cutting (see its own bullet above) and
 deliberately deferred rather than fixed in isolation, so don't re-audit it from scratch, but also
 don't count it "closed" until the cross-cutting companion-auto-add pass lands; `taijutsu.go` and
@@ -806,8 +855,8 @@ don't count it "closed" until the cross-cutting companion-auto-add pass lands; `
 share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
 `genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
 `medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
-gap and the GrantedHint gap); ~5 sibling files (`elemental_affinity.go`, `snb.go`,
-`science_nin.go`, `puppet_tactics.go`, `full_metal_shinobi.go`) remain fully unaudited — check
+gap and the GrantedHint gap); ~4 sibling files (`snb.go`, `science_nin.go`, `puppet_tactics.go`,
+`full_metal_shinobi.go`) remain fully unaudited — check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
 outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was
