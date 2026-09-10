@@ -27,7 +27,7 @@
         <select name="damage_type">
           <option value="">{{T "character_science_nin_shinobi_ware.choose_option"}}</option>
           {{$currentSlot := .Current}}
-          {{range .Options}}<option value="{{.}}"{{if eq . $currentSlot}} selected{{end}}>{{.}}</option>{{end}}
+          {{range .Options}}<option value="{{.Value}}"{{if eq .Value $currentSlot}} selected{{end}}>{{.Label}}</option>{{end}}
         </select>
         <button type="submit">{{T "character_science_nin_shinobi_ware.set_button"}}</button>
       </label>

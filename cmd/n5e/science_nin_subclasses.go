@@ -986,12 +986,14 @@ type scienceNinShinobiWareData struct {
 	// FullMetalShinobiResistances is every damage type the character
 	// currently holds via Full-Metal Shinobi's own staged progression (two
 	// player picks at 6th/9th level, the third automatic at 14th) — see
-	// fullMetalShinobiResistances' own doc (full_metal_shinobi.go).
+	// fullMetalShinobiResistances' own doc (full_metal_shinobi.go). Display
+	// text, already translated via translateFullMetalShinobiResistances.
 	FullMetalShinobiResistances []string
 	// FullMetalShinobiSlots is every currently-open pick the player can
 	// still make or change (6th/9th level), each excluding whatever's
-	// already been picked in the OTHER slot.
-	FullMetalShinobiSlots []fullMetalShinobiSlot
+	// already been picked in the OTHER slot. Display-only, already
+	// translated via translateFullMetalShinobiSlotsForDisplay.
+	FullMetalShinobiSlots []fullMetalShinobiSlotView
 
 	// EverEvolvingSeal/AvailableEverEvolvingSeal back the 14th-level Ever
 	// Evolving feature (ever_evolving.go): a single Armor Seal (cap 1,
@@ -1506,8 +1508,8 @@ func (s *server) loadScienceNinSubclassData(characterID int64, sheet *charsheet.
 			if err != nil {
 				return err
 			}
-			sw.FullMetalShinobiResistances = fullMetalShinobiResistances(level, resistancePicks)
-			sw.FullMetalShinobiSlots = fullMetalShinobiSlots(level, resistancePicks)
+			sw.FullMetalShinobiResistances = translateFullMetalShinobiResistances(locale, fullMetalShinobiResistances(level, resistancePicks))
+			sw.FullMetalShinobiSlots = translateFullMetalShinobiSlotsForDisplay(locale, fullMetalShinobiSlots(level, resistancePicks))
 		}
 
 		if has[scienceNinEverEvolvingFeatureSlug] {

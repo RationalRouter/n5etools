@@ -923,14 +923,58 @@ before it's assigned into the response struct), never inside the loader itself.*
   `strings.TrimPrefix` silently stopped stripping anything the moment the overlay was added. Fixed
   via a `puppetMasterTacticsPrefixByLocale` map (en/es/pt) instead of a bare literal.
 
+- **`full_metal_shinobi.go`** (2026-09-10), the last of the 19 sibling files: two genuine
+  per-file display gaps, both in the Shinobi-Ware subclass tracker popup
+  (`character_science_nin_shinobi_ware.html`), confirmed against the template rather than assumed.
+  (1) `fullMetalShinobiSlotDef.Label` ("6th Level"/"9th Level") fed `fullMetalShinobiSlot.Label`,
+  rendered raw (`{{.Label}}`) as the picker's own field label — fixed via two new fixed-key locale
+  entries (`full_metal_shinobi.slot_label.sixth_level`/`.ninth_level`), no natural DB row to reuse,
+  same shape as `nindog.go`'s/`titan.go`'s own dotted-key conventions. (2) `fullMetalShinobiSlot.Options`
+  (`[]string` of `fullMetalShinobiDamageTypes`, i.e. "Bludgeoning"/"Piercing"/"Slashing") is a
+  persisted-matching-key risk of the exact shape `elemental_affinity.go`'s `elementalAffinityOption`
+  fix and `taijutsu.go`'s Anti-Chakra Wavelength fix already established: the same raw value is both
+  the `<select>`'s submitted `value` (matched by `setFullMetalShinobiResistancePick`'s
+  `slices.Contains(matched.Options, damageType)` and persisted via
+  `charstore.SetFullMetalShinobiResistance`) and, before this fix, the visible `<option>` text too.
+  Fixed with the same Value/Label-split display-only pattern: a new `fullMetalShinobiOption{Value,
+  Label}`/`fullMetalShinobiSlotView` pair (mirroring `elementalAffinityOption`/
+  `elementalAffinitySlotView`), built by `translateFullMetalShinobiSlotsForDisplay` — `SlotKey`/
+  `Current`/each option's `Value` stay canonical English, only `Label`s are translated. Reused the
+  *existing* canonical `damage_type.bludgeoning`/`.piercing`/`.slashing` catalog keys
+  (`items.go`'s `damageTypeCatalogKey`/`translateEnumDisplay`) for the damage-type labels rather than
+  inventing a new namespace — same "reuse, don't duplicate" discipline `cooking_nin.go`'s
+  `cookingToolDamageTypeOptionsFor` fix already established for this exact family of enum labels.
+  The resolved-resistances list (`FullMetalShinobiResistances`, shown as a plain `<li>{{.}}</li>`
+  list once a damage type is locked in) is pure post-match display too, so it also now runs through
+  `translateFullMetalShinobiResistances` (same `damageTypeCatalogKey` reuse) — safe since, per this
+  file's own header doc, nothing downstream reads it after `fullMetalShinobiResistances` itself
+  already resolved it. `locale` was already in scope at the one call site
+  (`science_nin_subclasses.go`'s `loadScienceNinSubclassPickData`, which already threads `locale`
+  for `loadEverEvolvingSealCatalog` two branches down), so no new parameter threading was needed —
+  only `scienceNinShinobiWareData.FullMetalShinobiSlots`'s own field type changed (from
+  `[]fullMetalShinobiSlot` to the new `[]fullMetalShinobiSlotView`). **Deliberately NOT touched**:
+  `fullMetalShinobiPassiveRows`'s own `names` map (feeding `grantedFeatureRow.Name`, the Core sheet's
+  Resistances-panel Sources tooltip) — this is the already-documented, larger
+  `internal/features.LoadGrantedFeatures`/passive-traits cross-cutting gap (see the `science_nin.go`
+  bullet above), not a new per-file finding; fixing it here in isolation would leave every other
+  file sharing that same choke point inconsistent. Not live-browser-verified (no existing
+  Science-Nin/Shinobi-Ware character at 6th level+ on hand to drive the popup through) — verified via
+  `go build`/`go vet`/`go test ./cmd/n5e/...` (including the pre-existing
+  `TestFullMetalShinobiSlots`/`TestFullMetalShinobiResistances`, both still passing since the
+  underlying canonical `fullMetalShinobiSlot`/`fullMetalShinobiResistances` functions were left
+  untouched) plus manual template/struct-field tracing instead; worth a real live spot-check next
+  time a Shinobi-Ware character is available.
+
 **Standing check for any future "is this language done?" audit**: grep the whole `cmd/n5e`
 package for `(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]` to find this category of
 gap by SOURCE, not by database/catalog completeness percentage — completeness reports only cover
 what was in scope to begin with, and this whole class of string structurally wasn't. As of
-2026-09-07, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
+2026-09-10, `custom_resources.go`, `hunter_nin.go`, `genjutsu.go`, `cooking_nin.go`,
 `wow_weapons.go`, `nindog.go`, `science_nin_subclasses.go`, `scout_nin.go`, `puppets.go`,
 `medical_nin.go`, `hunter_pattern_choices.go`, `taijutsu.go`, `weapon_specialist.go`,
-`titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`, and `puppet_tactics.go` are closed
+`titan.go`, `elemental_affinity.go`, `snb.go`, `science_nin.go`, `puppet_tactics.go`, and
+`full_metal_shinobi.go` are closed — this is all 19 of the sibling files identified at the start of
+this sweep
 (`science_nin.go`
 also surfaced its own new cross-cutting deferred item — the `internal/features.LoadGrantedFeatures`/
 Passive Traits "Sources" tooltip gap, see its own bullet above — same "don't count fully closed
@@ -952,8 +996,9 @@ don't count it "closed" until the cross-cutting companion-auto-add pass lands; `
 share any of these mechanisms (already confirmed true for `hunter_nin.go`, `puppets.go`, and
 `genjutsu.go` via the auto-grant-map gap; for `hunter_nin.go`/`genjutsu.go`/`scout_nin.go`/
 `medical_nin.go`/`cooking_nin.go` via the popup gap; and for `puppets.go` via both the Tier-field
-gap and the GrantedHint gap); ~1 sibling file (`full_metal_shinobi.go`) remains fully
-unaudited — check
+gap and the GrantedHint gap); all 19 sibling files identified at the start of this sweep are now
+closed (the last, `full_metal_shinobi.go`, closed 2026-09-10 — see its own bullet above) — for any
+NEW file found later that wasn't part of this original 19, check
 each one for its own hidden `Restriction`/`Description`-shaped field too (the grep above catches
 `Restriction` now, but a new field name in a new file won't match until it's added here); check for
 outlying lookup maps outside the file's main catalog(s) the way `hunterNinPatternPassiveRows` was

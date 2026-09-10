@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Shinobi-Ware's Full-Metal Shinobi (3rd level): "At Level 6 you choose to
@@ -84,6 +85,78 @@ func fullMetalShinobiResistances(level int, picks map[string]string) []string {
 			if !slices.Contains(out, dt) {
 				out = append(out, dt)
 			}
+		}
+	}
+	return out
+}
+
+// fullMetalShinobiSlotLabelKey maps each slot's own key to its UI-catalog
+// key — "6th Level"/"9th Level" have no other source table to reuse, so
+// each gets its own fixed catalog entry, same shape as titan.go's/
+// nindog.go's own dotted-key conventions for a value with no natural DB row.
+var fullMetalShinobiSlotLabelKey = map[string]string{
+	"sixth-level": "full_metal_shinobi.slot_label.sixth_level",
+	"ninth-level": "full_metal_shinobi.slot_label.ninth_level",
+}
+
+// fullMetalShinobiOption is one translated <option> for a Full-Metal
+// Shinobi resistance slot's <select> — Value is the raw canonical damage
+// type (matched/stored by setFullMetalShinobiResistancePick exactly as
+// fullMetalShinobiSlots itself returns it), Label is the locale's own name
+// for it. Kept separate from fullMetalShinobiSlot's own Options ([]string)
+// so the canonical validation path never sees translated text substituted
+// for a matched/stored value — same persisted-matching-key precaution as
+// elemental_affinity.go's elementalAffinityOption.
+type fullMetalShinobiOption struct {
+	Value string
+	Label string
+}
+
+// fullMetalShinobiSlotView is fullMetalShinobiSlot's own display-only,
+// locale-translated counterpart — built by
+// translateFullMetalShinobiSlotsForDisplay, never fed back into
+// setFullMetalShinobiResistancePick's own validation.
+type fullMetalShinobiSlotView struct {
+	SlotKey string
+	Label   string
+	Options []fullMetalShinobiOption
+	Current string
+}
+
+// translateFullMetalShinobiResistances translates a resolved resistance
+// list for display via the shared canonical damage_type.* catalog keys
+// (items.go) — build this ONLY after any matching/persistence logic has
+// already consumed the raw, canonical fullMetalShinobiResistances result.
+func translateFullMetalShinobiResistances(locale string, resistances []string) []string {
+	tr := i18n.Translator(locale)
+	out := make([]string, len(resistances))
+	for i, dt := range resistances {
+		out[i] = translateEnumDisplay(tr, damageTypeCatalogKey, dt)
+	}
+	return out
+}
+
+// translateFullMetalShinobiSlotsForDisplay is fullMetalShinobiSlots' own
+// display counterpart — SlotKey and Current (the values a submitted form
+// must send back) stay canonical English; only Label and each Option's own
+// Label are translated.
+func translateFullMetalShinobiSlotsForDisplay(locale string, slots []fullMetalShinobiSlot) []fullMetalShinobiSlotView {
+	tr := i18n.Translator(locale)
+	out := make([]fullMetalShinobiSlotView, len(slots))
+	for i, s := range slots {
+		opts := make([]fullMetalShinobiOption, len(s.Options))
+		for k, dt := range s.Options {
+			opts[k] = fullMetalShinobiOption{Value: dt, Label: translateEnumDisplay(tr, damageTypeCatalogKey, dt)}
+		}
+		label := s.Label
+		if key, ok := fullMetalShinobiSlotLabelKey[s.SlotKey]; ok {
+			label = tr(key)
+		}
+		out[i] = fullMetalShinobiSlotView{
+			SlotKey: s.SlotKey,
+			Label:   label,
+			Options: opts,
+			Current: s.Current,
 		}
 	}
 	return out
