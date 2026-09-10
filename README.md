@@ -47,7 +47,7 @@ already in the local database.
 
 ## The two databases
 
-- **Rules DB** — read-only game content (clans, classes, jutsu, feats, gear),
+- **`rules.db`** — read-only game content (clans, classes, jutsu, feats, gear),
   built by `n5e-ingest` from the sourcebook PDFs and embedded into the app
   executable at build time.
 - **`characters.db`** — created next to the executable on first run; holds
