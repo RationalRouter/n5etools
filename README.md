@@ -15,6 +15,7 @@ some HTML, CSS and JavaScript sprinkled in to make the web server ✨ pop ✨
 
 Prebuilt binaries for Windows, Linux, and macOS are
 attached to each [GitHub Release](https://github.com/RationalRouter/n5etools/releases).
+The latest release will always be at the top and marked with green text that says $\color{#00FF00}"Latest"$.
 Download the zip for your platform, unzip it, and run the executable — no
 build step required. `characters.db` is created next to the executable on
 first run and holds your characters; copying the folder moves everything.
