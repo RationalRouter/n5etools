@@ -30,6 +30,8 @@ func TestCompanionKindLabel(t *testing.T) {
 		{"nin-dog", "Nin-Dog"},
 		{"titan", "Titan"},
 		{"snb", "S.N.B"},
+		{"wow-whelp", "Whelp"},
+		{"wow-spectre", "Spectre"},
 		{"custom", "Other"},
 		{"some-future-kind", "some-future-kind"}, // fallback: raw value, not blank
 	}

@@ -290,9 +290,10 @@ func localeTemplateFuncs(locale string) template.FuncMap {
 	tr := i18n.Translator(locale)
 	return template.FuncMap{
 		"T":             tr,
-		"abilityLabel":  func(ab string) string { return abilityLabelTr(tr, ab) },
-		"tierName":      func(tier string) string { return tierNameTr(tr, tier) },
-		"currentLocale": func() string { return locale },
+		"abilityLabel":       func(ab string) string { return abilityLabelTr(tr, ab) },
+		"tierName":           func(tier string) string { return tierNameTr(tr, tier) },
+		"companionKindLabel": func(kind string) string { return companionKindLabelTr(tr, kind) },
+		"currentLocale":      func() string { return locale },
 	}
 }
 

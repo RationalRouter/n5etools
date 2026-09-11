@@ -65,42 +65,60 @@ func companionRespondFragment(r *http.Request) string {
 	}
 }
 
-// companionKindLabels maps a companion's raw stored Kind value to its
-// display label — the same small ordered-lookup-table shape items.go's own
-// itemKindLabel/itemKindLabels use for a different "kind" concept (item
-// categories), kept as a separate table since companion kind and item kind
-// are unrelated vocabularies, but the same "small table, fallback to the
-// raw value" pattern applies. "custom" maps to "Other" specifically to
-// match the Add Companion dropdown's own existing option text
-// (character_sheet.html's sheet_companions define block), not a generic
-// Title Case of "custom", so a companion's kind badge and the dropdown that
-// created it never disagree on what to call it.
-var companionKindLabels = []struct{ kind, label string }{
-	{"puppet", "Puppet"},
-	{"summon", "Summon"},
-	{"nin-dog", "Nin-Dog"},
-	{"titan", "Titan"},
-	{"snb", "S.N.B"},
-	{"void-soul", "Void Soul"},
-	{"custom", "Other"},
+// companionKindLabelKeys maps a companion's raw stored Kind value to the UI
+// catalog key ("sheet.companion_kind_*") that already exists for the Add
+// Companion dropdown's own option text (character_sheet.html's
+// sheet_companions define block) — reusing those keys rather than a
+// separate table keeps the dropdown and the kind badge from ever
+// disagreeing on what to call a kind, and means the badge is actually
+// translated instead of the hardcoded-English literal it used to be.
+// "snb" has no key: the dropdown itself never translates the "S.N.B"
+// abbreviation either (it's a proper-noun initialism, not prose), so the
+// badge matches that and stays literal too — see companionKindLabelTr.
+// "wow-whelp"/"wow-spectre" (migration 0088) are Weapon-of-Wonder auto-
+// added companions, kept apart from generic "custom" solely so their
+// display Name (translated once at creation, then freely player-editable)
+// never has to double as the internal match key companion_fields.html and
+// ensureWhelpCompanion/ensureAngelEIPSpectreCompanion use to find them —
+// see those functions' own docs for the bug this replaced.
+var companionKindLabelKeys = map[string]string{
+	"puppet":      "sheet.companion_kind_puppet",
+	"summon":      "sheet.companion_kind_summon",
+	"nin-dog":     "sheet.companion_kind_nindog",
+	"titan":       "sheet.companion_kind_titan",
+	"void-soul":   "sheet.companion_kind_voidsoul",
+	"wow-whelp":   "sheet.companion_kind_wowwhelp",
+	"wow-spectre": "sheet.companion_kind_wowspectre",
+	"custom":      "sheet.companion_kind_custom",
 }
 
-// companionKindLabel resolves one companion kind's display label — shared
-// by every place a companion's raw kind string would otherwise render
-// verbatim as user-facing text (the Core tab's Companions box, the
-// Companions tab's per-companion card header, the standalone companion
-// popup's own header), so a future new kind only needs adding here once
-// instead of at each render site individually, and so those render sites
-// can never drift on what a given kind is called. Falls back to the raw
-// kind string for anything not in the table (defensive; every kind
-// handleSheetCompanionAdd accepts already has an entry here).
-func companionKindLabel(kind string) string {
-	for _, k := range companionKindLabels {
-		if k.kind == kind {
-			return k.label
-		}
+// companionKindLabelTr resolves one companion kind's translated display
+// label — shared by every place a companion's raw kind string would
+// otherwise render verbatim as user-facing text (the Core tab's Companions
+// box, the Companions tab's per-companion card header, the standalone
+// companion popup's own header), so a future new kind only needs adding to
+// companionKindLabelKeys once instead of at each render site individually.
+// Falls back to the raw kind string for anything not in the table
+// (defensive; every kind handleSheetCompanionAdd accepts already has an
+// entry here, wow-whelp/wow-spectre included even though neither is ever
+// player-chosen from that dropdown).
+func companionKindLabelTr(tr i18n.TranslateFunc, kind string) string {
+	if kind == "snb" {
+		return "S.N.B"
+	}
+	if key, ok := companionKindLabelKeys[kind]; ok {
+		return tr(key)
 	}
 	return kind
+}
+
+// companionKindLabel is companionKindLabelTr's English-only entry point —
+// templateFuncs' own placeholder registration (rebound per-request to the
+// real locale by localeTemplateFuncs, same pattern as tierName) and the
+// one direct Go caller (companions_test.go) that only needs the English
+// fallback.
+func companionKindLabel(kind string) string {
+	return companionKindLabelTr(i18n.Translator("en"), kind)
 }
 
 // companionStructuredAttackKinds whitelists which companion kinds have
@@ -117,13 +135,15 @@ func companionKindLabel(kind string) string {
 // (rather than just checking kind != "" or similar) so a brand-new future
 // kind still starts on the textarea fallback until deliberately added here.
 var companionStructuredAttackKinds = map[string]bool{
-	"puppet":    true,
-	"nin-dog":   true,
-	"titan":     true,
-	"summon":    true,
-	"custom":    true,
-	"snb":       true,
-	"void-soul": true,
+	"puppet":      true,
+	"nin-dog":     true,
+	"titan":       true,
+	"summon":      true,
+	"custom":      true,
+	"snb":         true,
+	"void-soul":   true,
+	"wow-whelp":   true,
+	"wow-spectre": true,
 }
 
 // companionSupportsStructuredAttacks reports whether kind has reached the
@@ -182,7 +202,10 @@ func parseCharacterAndCompanionID(w http.ResponseWriter, r *http.Request) (chara
 }
 
 // handleSheetCompanionAdd creates one companion (form fields "name", "kind")
-// and re-renders the main sheet's Companions box.
+// and re-renders the main sheet's Companions box. "wow-whelp"/"wow-spectre"
+// (migration 0088) are deliberately absent from the kind whitelist below —
+// both are auto-added only by ensureWhelpCompanion/ensureAngelEIPSpectre
+// Companion and must never be player-creatable from this generic form.
 func (s *server) handleSheetCompanionAdd(w http.ResponseWriter, r *http.Request) {
 	id, err := parseCharacterID(r)
 	if err != nil {
@@ -881,10 +904,10 @@ type summonCompanionView struct {
 	TitanReference    *titanReference
 	SNBReference      *snbReference
 	VoidSoulReference *voidSoulReference
-	// WhelpReference: only populated for the one specific kind="custom"
-	// companion the Draconic Gauntlet auto-adds (matched by exact Name, see
-	// scienceNinWhelpCompanionName) — nil for every other summon/custom
-	// companion, which has no formula of its own to compute.
+	// WhelpReference: only populated for the one companion the Draconic
+	// Gauntlet auto-adds (kind="wow-whelp", see scienceNinWhelpCompanionKind)
+	// — nil for every other summon/custom companion, which has no formula of
+	// its own to compute.
 	WhelpReference *whelpReference
 	// Attacks: only populated for a kind companionSupportsStructuredAttacks
 	// reports true for (nin-dog, titan, summon, custom — puppet has its own
@@ -1074,7 +1097,7 @@ func (s *server) loadSummonsTabData(characterID int64, sheet *charsheet.Sheet, l
 			view.Attacks = append(composeCompanionAttacks(attacks, c, sheet.ProficiencyBonus),
 				voidSoulJutsuAttackRows(ref.KnownJutsu, sheet)...)
 		}
-		if c.Kind == "custom" && c.Name == scienceNinWhelpCompanionName {
+		if c.Kind == scienceNinWhelpCompanionKind {
 			ref, err := s.loadWhelpReference(characterID, c, sheet)
 			if err != nil {
 				return data, err
@@ -1263,37 +1286,61 @@ func (s *server) handleCompanionSheet(w http.ResponseWriter, r *http.Request) {
 		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
 	case "custom":
 		// "Custom" shows no rules-reference panel of any kind (see
-		// 0017_companions.sql's own doc), EXCEPT the one specific companion
-		// the Draconic Gauntlet auto-adds (matched by exact Name, same as
-		// loadSummonsTabData's own identical branch) — that one has a real
-		// AC/Max HP formula behind it (wow_whelp.go's loadWhelpReference)
-		// unlike every other custom companion.
-		if companion.Name == scienceNinWhelpCompanionName {
-			ref, err := s.loadWhelpReference(id, companion, sheet)
-			if err != nil {
-				http.Error(w, "database error", http.StatusInternalServerError)
-				log.Println("load whelp reference:", err)
-				return
-			}
-			data["WhelpReference"] = ref
-
-			// Re-read for the same reason as the snb/nin-dog/titan cases
-			// above — loadWhelpReference just wrote fresh AC/Max HP this
-			// render.
-			companion, err = charstore.GetCompanion(s.charDB, id, cid)
-			if err != nil {
-				http.Error(w, "database error", http.StatusInternalServerError)
-				log.Println("reload companion after whelp reference:", err)
-				return
-			}
-			data["Companion"] = companion
-			data["Saves"] = companionSaves(companion, sheet)
-		}
+		// 0017_companions.sql's own doc) — the two exceptions that used to
+		// live here (the Draconic Gauntlet's Whelp, Angel E.I.P's Spectre)
+		// now have their own dedicated kinds (migration 0088) handled below,
+		// so this case is unconditional again.
 		data["ReadOnlyAttacks"] = true
 		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load companion attacks for custom popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+	case scienceNinWhelpCompanionKind:
+		// The Draconic Gauntlet's own Whelp — the one non-"custom" companion
+		// kind with a real AC/Max HP formula behind it (wow_whelp.go's
+		// loadWhelpReference), unlike every other kind handled by this case
+		// and the plain "custom"/"wow-spectre" cases around it.
+		ref, err := s.loadWhelpReference(id, companion, sheet)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load whelp reference:", err)
+			return
+		}
+		data["WhelpReference"] = ref
+
+		// Re-read for the same reason as the snb/nin-dog/titan cases
+		// above — loadWhelpReference just wrote fresh AC/Max HP this
+		// render.
+		companion, err = charstore.GetCompanion(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("reload companion after whelp reference:", err)
+			return
+		}
+		data["Companion"] = companion
+		data["Saves"] = companionSaves(companion, sheet)
+
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for whelp popup:", err)
+			return
+		}
+		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)
+	case "wow-spectre":
+		// Angel E.I.P's own Spectre: no computed reference (its whole card
+		// is the fixed 10 HP ensureAngelEIPSpectreCompanion sets once, plus
+		// the static reference prose companion_fields.html renders for this
+		// kind) — just the structured Attacks list like every other kind.
+		data["ReadOnlyAttacks"] = true
+		attacks, err := charstore.ListCompanionAttacks(s.charDB, id, cid)
+		if err != nil {
+			http.Error(w, "database error", http.StatusInternalServerError)
+			log.Println("load companion attacks for spectre popup:", err)
 			return
 		}
 		data["Attacks"] = composeCompanionAttacks(attacks, companion, sheet.ProficiencyBonus)

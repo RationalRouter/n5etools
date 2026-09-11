@@ -2001,65 +2001,81 @@ func (s *server) handleSpywareProgramPopupAdd(w http.ResponseWriter, r *http.Req
 // one the moment this slug is picked, via ensureAngelEIPSpectreCompanion.
 const scienceNinAngelEIPSlug = "class/science-nin/option/e-i-ps/superior/entry/angel-e-i-p"
 
-// scienceNinAngelEIPCompanionName is the exact display name given to the
-// companion ensureAngelEIPSpectreCompanion auto-adds for Angel E.I.P. The
-// book's own text never gives this entity a stat-block name distinct from
-// the perk itself — it calls it "Spectre" throughout ("your Spectre has 10
-// hit points...", "Your Spectre disappears once it stabilizes you...") —
-// so "Spectre" is what's added, not "Angel"; the "(Angel E.I.P)" suffix
-// both tells the player at a glance which pick produced this entry (a
-// kind="custom" companion otherwise carries no back-reference to whatever
-// created it) and doubles as ensureAngelEIPSpectreCompanion's own
-// duplicate-prevention marker — see that function's own doc.
-const scienceNinAngelEIPCompanionName = "Spectre (Angel E.I.P)"
+// scienceNinAngelEIPCompanionKind is the companion Kind
+// ensureAngelEIPSpectreCompanion creates (migration 0088's 'wow-spectre') —
+// the internal, locale-independent match key this function, its own removal
+// counterpart, and companion_fields.html's own kind="wow-spectre" reference
+// section all use to find this specific auto-added companion again.
+// Previously this was done by an exact match against the companion's own
+// hardcoded-English display Name ("Spectre (Angel E.I.P)"), which broke the
+// moment that Name was translated for a non-English locale (or simply
+// renamed by the player, an editable text input — see
+// companion_sheet.html:27) — see migration 0088's own doc.
+const scienceNinAngelEIPCompanionKind = "wow-spectre"
+
+// scienceNinAngelEIPCompanionName returns the initial display name given to
+// the companion ensureAngelEIPSpectreCompanion auto-adds for Angel E.I.P,
+// translated once at creation via the caller's own locale. The book's own
+// text never gives this entity a stat-block name distinct from the perk
+// itself — it calls it "Spectre" throughout ("your Spectre has 10 hit
+// points...", "Your Spectre disappears once it stabilizes you...") — so
+// "Spectre" is what's added, not "Angel"; the "(Angel E.I.P)" suffix tells
+// the player at a glance which pick produced this entry. Purely cosmetic
+// from here on — the player is free to rename it afterward like any other
+// companion, since scienceNinAngelEIPCompanionKind, not this string, is
+// what the app actually matches on.
+func scienceNinAngelEIPCompanionName(tr i18n.TranslateFunc) string {
+	return tr("companion_fields.spectre_auto_name")
+}
 
 // ensureAngelEIPSpectreCompanion auto-adds Angel E.I.P's own Spectre as a
-// kind="custom" companion the first time the perk is picked — called from
-// addEIPPick below immediately after the pick itself is stored, so both of
-// addEIPPick's own callers (the Core-sheet AJAX route and the Elemental
-// Innovationist popup route) get it automatically. Reuses kind="custom"
-// (cmd/n5e/companions.go:199's kind whitelist) rather than inventing a new
-// companion kind with its own migration/prefill/template plumbing — a
-// Spectre has no ongoing, level-scaling stat block the way a Puppet Tool/
-// Nin-Dog/Titan does (its whole card is a fixed 10 HP plus the fixed prose
-// rendered by companion_fields.html's own "Spectre (Angel E.I.P)"
-// name-matched reference section), which is exactly the "one-off, no
-// formula behind it" shape kind="custom" already exists for. HP/Max HP are
-// set with charstore.SetCompanionIntField("hp_max", ...) followed by
+// kind="wow-spectre" companion the first time the perk is picked — called
+// from addEIPPick below immediately after the pick itself is stored, so
+// both of addEIPPick's own callers (the Core-sheet AJAX route and the
+// Elemental Innovationist popup route) get it automatically. A dedicated
+// kind (migration 0088) rather than kind="custom" solely so the auto-add/
+// auto-remove/reference-panel matching below never has to depend on the
+// player-editable Name field — see scienceNinAngelEIPCompanionKind's own
+// doc. Otherwise the same "one-off, no ongoing formula behind it" shape
+// kind="custom" already existed for — a Spectre has no ongoing,
+// level-scaling stat block the way a Puppet Tool/Nin-Dog/Titan does (its
+// whole card is a fixed 10 HP plus the fixed prose rendered by
+// companion_fields.html's own kind="wow-spectre" reference section). HP/Max
+// HP are set with charstore.SetCompanionIntField("hp_max", ...) followed by
 // charstore.SetCompanionHP, the same two-call "max, then current" shape
 // prefillPuppetStatDefaults (cmd/n5e/companions.go) uses right after
 // charstore.AddCompanion — SetCompanionIntField rather than
 // charstore.SetCompanionStatDefaults specifically because that function
-// would also force AC/Speed/all six ability scores to explicit values,
-// and Angel E.I.P's own text specifies none of those for a Spectre; a
-// kind="custom" companion is documented to start every field blank until
-// the player fills it in, and this only overrides the two fields the book
-// text actually pins a number to.
+// would also force AC/Speed/all six ability scores to explicit values, and
+// Angel E.I.P's own text specifies none of those for a Spectre; every other
+// field starts blank until the player fills it in, and this only overrides
+// the two fields the book text actually pins a number to.
 //
-// Guarded by scienceNinAngelEIPCompanionName's own exact-name match against
+// Guarded by scienceNinAngelEIPCompanionKind's own exact-kind match against
 // the character's existing companions (charstore.ListCompanions) rather
 // than an unconditional add: addEIPPick can run again for the same
 // character if Angel E.I.P is forgotten (removeEIPPick) and re-picked
-// later, and a second "Spectre (Angel E.I.P)" row would just be dead
-// clutter, not a second usable entity — Angel E.I.P's own text describes
-// one Spectre, not one per pick.
+// later, and a second Spectre row would just be dead clutter, not a second
+// usable entity — Angel E.I.P's own text describes one Spectre, not one per
+// pick.
 //
 // Mirrored by removeAngelEIPSpectreCompanion (called from removeEIPPick),
-// which deletes the same exact-name-matched companion when Angel E.I.P is
+// which deletes the same kind-matched companion when Angel E.I.P is
 // forgotten — the auto-create/auto-delete pair the Draconic Gauntlet W.o.W's
 // own Whelp companion (ensureWhelpCompanion/removeWhelpCompanion) is built
 // to match exactly.
-func (s *server) ensureAngelEIPSpectreCompanion(characterID int64) error {
+func (s *server) ensureAngelEIPSpectreCompanion(characterID int64, locale string) error {
 	existing, err := charstore.ListCompanions(s.charDB, characterID)
 	if err != nil {
 		return err
 	}
 	for _, c := range existing {
-		if c.Name == scienceNinAngelEIPCompanionName {
+		if c.Kind == scienceNinAngelEIPCompanionKind {
 			return nil
 		}
 	}
-	companionID, err := charstore.AddCompanion(s.charDB, characterID, "custom", scienceNinAngelEIPCompanionName)
+	name := scienceNinAngelEIPCompanionName(i18n.Translator(locale))
+	companionID, err := charstore.AddCompanion(s.charDB, characterID, scienceNinAngelEIPCompanionKind, name)
 	if err != nil {
 		return err
 	}
@@ -2070,7 +2086,7 @@ func (s *server) ensureAngelEIPSpectreCompanion(characterID int64) error {
 		return err
 	}
 	return charstore.SetCompanionFields(s.charDB, characterID, companionID,
-		scienceNinAngelEIPCompanionName, "",
+		name, "",
 		"", "", "",
 		"", false, "", "",
 		"All", "", "",
@@ -2082,7 +2098,7 @@ func (s *server) ensureAngelEIPSpectreCompanion(characterID int64) error {
 // Companion auto-added, called from removeEIPPick when Angel E.I.P is
 // forgotten so the companion disappears from the Core/Companion sheets the
 // same moment the perk does, instead of being left behind for the player to
-// delete by hand. Matched by scienceNinAngelEIPCompanionName's exact name,
+// delete by hand. Matched by scienceNinAngelEIPCompanionKind's exact kind,
 // same lookup ensureAngelEIPSpectreCompanion itself uses to avoid a
 // duplicate add; a no-op if no such companion exists (already deleted by
 // the player, or Angel E.I.P was never actually picked).
@@ -2092,7 +2108,7 @@ func (s *server) removeAngelEIPSpectreCompanion(characterID int64) error {
 		return err
 	}
 	for _, c := range existing {
-		if c.Name == scienceNinAngelEIPCompanionName {
+		if c.Kind == scienceNinAngelEIPCompanionKind {
 			return charstore.DeleteCompanion(s.charDB, characterID, c.ID)
 		}
 	}
@@ -2109,7 +2125,7 @@ func (s *server) removeAngelEIPSpectreCompanion(characterID int64) error {
 // hooking Angel E.I.P's own companion auto-add (ensureAngelEIPSpectreCompanion)
 // in here, rather than in each route handler separately, covers both entry
 // points for free.
-func (s *server) addEIPPick(id int64, slug string) (int, string) {
+func (s *server) addEIPPick(id int64, slug, locale string) (int, string) {
 	if slug == "" {
 		return http.StatusBadRequest, "missing perk"
 	}
@@ -2149,7 +2165,7 @@ func (s *server) addEIPPick(id int64, slug string) (int, string) {
 		return http.StatusInternalServerError, "database error"
 	}
 	if slug == scienceNinAngelEIPSlug {
-		if err := s.ensureAngelEIPSpectreCompanion(id); err != nil {
+		if err := s.ensureAngelEIPSpectreCompanion(id, locale); err != nil {
 			// The E.I.P pick itself is already stored successfully at this
 			// point; a failure to also add the Spectre companion (a database
 			// error on the follow-up INSERT/UPDATEs) just leaves the player
@@ -2180,7 +2196,7 @@ func (s *server) handleScienceNinEIPAdd(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addEIPPick(id, slug); status != http.StatusOK {
+	if status, msg := s.addEIPPick(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}
@@ -2201,7 +2217,7 @@ func (s *server) handleEIPPopupAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.TrimSpace(r.FormValue("option_slug"))
-	if status, msg := s.addEIPPick(id, slug); status != http.StatusOK {
+	if status, msg := s.addEIPPick(id, slug, localeFromContext(r.Context())); status != http.StatusOK {
 		http.Error(w, msg, status)
 		return
 	}

@@ -57,18 +57,17 @@
      yours" needs no stat card at all, just the player's own sheet.Speed,
      so loadVoidSoulReference writes it live every render the same way the
      four formula kinds do for every field in this group. */}}
-{{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom") (ne .Companion.Kind "void-soul")}}
+{{$autoComputed := and (ne .Companion.Kind "summon") (ne .Companion.Kind "custom") (ne .Companion.Kind "void-soul") (ne .Companion.Kind "wow-whelp") (ne .Companion.Kind "wow-spectre")}}
 {{$autoComputedSpeed := or $autoComputed (eq .Companion.Kind "void-soul")}}
-{{/* $isWhelp: the one specific kind="custom" companion (the Draconic
-     Gauntlet's own Whelp, matched by exact Name — see
-     scienceNinWhelpCompanionName) that DOES have a real formula behind two
-     of its fields (AC, Max HP — wow_whelp.go's loadWhelpReference), unlike
-     every other summon/custom companion $autoComputed already excludes.
-     $autoComputedACHP folds that into just those two fields' own tooltip/
-     pin-labeling, leaving Speed and the six ability scores below on
-     $autoComputed unchanged (still plain player-set — the Whelp has no
-     formula for those either). */}}
-{{$isWhelp := eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
+{{/* $isWhelp: the Draconic Gauntlet's own Whelp (kind="wow-whelp", see
+     scienceNinWhelpCompanionKind) — the one companion $autoComputed
+     excludes above that DOES have a real formula behind two of its fields
+     (AC, Max HP — wow_whelp.go's loadWhelpReference), unlike every other
+     summon/custom/wow-spectre companion. $autoComputedACHP folds that into
+     just those two fields' own tooltip/pin-labeling, leaving Speed and the
+     six ability scores below on $autoComputed unchanged (still plain
+     player-set — the Whelp has no formula for those either). */}}
+{{$isWhelp := eq .Companion.Kind "wow-whelp"}}
 {{$autoComputedACHP := or $autoComputed $isWhelp}}
 <div class="companion-stat-row">
   {{/* AC/HP-current/HP-max share the same delta-editable shape: a leading
@@ -1089,41 +1088,45 @@
   <textarea name="notes" form="{{.FormID}}" rows="4" class="companion-field" placeholder="{{T "companion_fields.notes_placeholder"}}">{{.Companion.Notes}}</textarea>
 </label>
 
-{{/* Resistances/Immunities/ConditionImmunities: kind="custom" only — every
-     other kind has this exact information computed instead (see
-     titan_reference/snb_reference/nindog_reference/summon_tribe_reference's
-     own identical dt/dd rows just below this partial's other blocks, plus
-     Puppet Tool Traits' DamageResistance/DamageImmunity/ConditionImmunity
-     near the top of this file), so a manual override field here would just
-     conflict with an already-computed one for those kinds — "custom" has
-     no computed value of its own to conflict with (charstore.Companion's
-     own field doc). Real <dt>/<dd> markup, matching Titan/SNB/Nin-Dog/
-     Summon's own visual shape exactly, but — unlike those four, which hide
-     an empty row entirely — always rendered here rather than conditional
-     on being non-empty: a "custom" companion's own value lives ONLY in
-     these columns (there's no separate computed twin to fall back to
-     display-only once something's been entered), so the row itself has to
-     stay present and editable at all times or a player would have no way
-     to ever type a first value in. Bound to FormID like Attacks/Traits/
-     Notes above: part of the same whole-form, save-on-blur autosave
-     (SetCompanionFields), not a separate endpoint. */}}
-{{if eq .Companion.Kind "custom"}}
+{{/* Resistances/Immunities/ConditionImmunities: kind="custom"/"wow-whelp"/
+     "wow-spectre" only — every other kind has this exact information
+     computed instead (see titan_reference/snb_reference/nindog_reference/
+     summon_tribe_reference's own identical dt/dd rows just below this
+     partial's other blocks, plus Puppet Tool Traits' DamageResistance/
+     DamageImmunity/ConditionImmunity near the top of this file), so a
+     manual override field here would just conflict with an already-computed
+     one for those kinds — these three have no computed value of their own
+     to conflict with (charstore.Companion's own field doc; wow-whelp's own
+     AC/Max HP formula lives in the delta fields above, not here). Real
+     <dt>/<dd> markup, matching Titan/SNB/Nin-Dog/Summon's own visual shape
+     exactly, but — unlike those four, which hide an empty row entirely —
+     always rendered here rather than conditional on being non-empty: these
+     three kinds' own value lives ONLY in these columns (there's no separate
+     computed twin to fall back to display-only once something's been
+     entered), so the row itself has to stay present and editable at all
+     times or a player would have no way to ever type a first value in.
+     Bound to FormID like Attacks/Traits/Notes above: part of the same
+     whole-form, save-on-blur autosave (SetCompanionFields), not a separate
+     endpoint. */}}
+{{if or (eq .Companion.Kind "custom") (eq .Companion.Kind "wow-whelp") (eq .Companion.Kind "wow-spectre")}}
 <dl class="sheet-passive-trait-list companion-custom-resistances">
   <dt>{{T "companion_fields.damage_resistances_label"}}</dt><dd><input type="text" name="resistances" form="{{.FormID}}" value="{{.Companion.Resistances}}" class="companion-field" placeholder="{{T "companion_fields.resistances_example_placeholder"}}"></dd>
   <dt>{{T "companion_fields.damage_immunities_label"}}</dt><dd><input type="text" name="immunities" form="{{.FormID}}" value="{{.Companion.Immunities}}" class="companion-field" placeholder="{{T "companion_fields.immunities_example_placeholder"}}"></dd>
   <dt>{{T "companion_fields.condition_immunities_label"}}</dt><dd><input type="text" name="condition_immunities" form="{{.FormID}}" value="{{.Companion.ConditionImmunities}}" class="companion-field" placeholder="{{T "companion_fields.condition_immunities_example_placeholder"}}"></dd>
 </dl>
+{{end}}
 {{/* Angel E.I.P's own Spectre reference: static prose, matching the
      Titan/S.N.B/Nin-Dog/Summon Tribe reference panels' own read-only
      "companion-reference" section shape just below this partial's other
      blocks, rather than living in the freeform Notes box above (which
      would otherwise get pre-filled with this same text and crowd out
-     anything the player actually wants to write there). Matched by exact
-     Name the same way ensureAngelEIPSpectreCompanion/
-     removeAngelEIPSpectreCompanion (science_nin_subclasses.go) identify
-     this specific auto-added companion, since kind="custom" carries no
-     other back-reference to what created it. */}}
-{{if eq .Companion.Name "Spectre (Angel E.I.P)"}}
+     anything the player actually wants to write there). Matched by
+     kind="wow-spectre" (migration 0088) — the internal, locale-independent
+     key ensureAngelEIPSpectreCompanion/removeAngelEIPSpectreCompanion
+     (science_nin_subclasses.go) use to identify this specific auto-added
+     companion, since its own Name is just a plain player-editable field
+     (companion_sheet.html's own name input) with no other meaning. */}}
+{{if eq .Companion.Kind "wow-spectre"}}
 <section class="companion-reference">
   <h2>{{T "companion_fields.angel_eip_reference_heading"}}</h2>
   <p>{{T "companion_fields.angel_eip_p1"}}</p>
@@ -1135,19 +1138,20 @@
 {{end}}
 {{/* Draconic Gauntlet W.o.W's own Whelp reference: same static-prose
      "companion-reference" shape as Angel E.I.P's Spectre block just above,
-     matched by exact Name the same way ensureWhelpCompanion/
+     matched by kind="wow-whelp" the same way ensureWhelpCompanion/
      removeWhelpCompanion (cmd/n5e/wow_whelp.go) identify this specific
-     auto-added companion. AC's own formula is no longer stated here since
-     the AC field above now computes and shows it live (loadWhelpReference)
-     — restating it here would just be a second, driftable copy of the same
-     number. DR 5 and the "treat negative modifiers as +0" saving-throw
-     clause have no dedicated mechanical field anywhere in this app's
-     companion model (every companion's AC is a single number with no
-     separate flat damage-reduction stat, and no companion save proficiency
-     ever floors a negative modifier), so both stay narrated here rather
-     than becoming new fields for a single stat only one companion in the
-     game needs. */}}
-{{if eq .Companion.Name "Whelp (Draconic Gauntlet)"}}
+     auto-added companion, for the identical reason Spectre's block above
+     switched off matching by Name. AC's own formula is no longer stated
+     here since the AC field above now computes and shows it live
+     (loadWhelpReference) — restating it here would just be a second,
+     driftable copy of the same number. DR 5 and the "treat negative
+     modifiers as +0" saving-throw clause have no dedicated mechanical field
+     anywhere in this app's companion model (every companion's AC is a
+     single number with no separate flat damage-reduction stat, and no
+     companion save proficiency ever floors a negative modifier), so both
+     stay narrated here rather than becoming new fields for a single stat
+     only one companion in the game needs. */}}
+{{if eq .Companion.Kind "wow-whelp"}}
 <section class="companion-reference">
   <h2>{{T "companion_fields.draconic_gauntlet_reference_heading"}}</h2>
   <p>{{T "companion_fields.draconic_gauntlet_p1"}}</p>
@@ -1157,7 +1161,6 @@
   <p>{{T "companion_fields.draconic_gauntlet_p5"}}</p>
   <p>{{T "companion_fields.draconic_gauntlet_p6"}}</p>
 </section>
-{{end}}
 {{end}}
 {{end}}
 

@@ -25,37 +25,51 @@ import (
 // E.I.P's is.
 const scienceNinDraconicGauntletWoWSlug = "class/science-nin/option/w-o-w-weapons-of-wonder/draconic-gauntlet"
 
-// scienceNinWhelpCompanionName is the exact display name ensureWhelpCompanion
-// gives the companion it auto-adds — "Whelp" is the book's own name for the
-// entity throughout its stat block ("you use your element to create and
-// give life to a small Whelp"; "The Whelp rests perched on your Draconic
-// Gauntlet"), with the same "(<source>)" suffix scienceNinAngelEIPCompanionName
-// uses so a kind="custom" companion (which otherwise carries no back-
-// reference to whatever created it) still tells the player at a glance
-// which pick produced it, and so removeWhelpCompanion/syncDraconicGauntletWhelp
-// can find it again by exact name.
-const scienceNinWhelpCompanionName = "Whelp (Draconic Gauntlet)"
+// scienceNinWhelpCompanionKind is the companion Kind ensureWhelpCompanion
+// creates (migration 0088's 'wow-whelp') — the internal, locale-independent
+// match key removeWhelpCompanion/syncDraconicGauntletWhelp/companion_fields.
+// html's own $isWhelp gate all use to find this specific auto-added
+// companion again. Previously this was done by an exact match against the
+// companion's own hardcoded-English display Name ("Whelp (Draconic
+// Gauntlet)"), which broke the moment that Name was translated for a
+// non-English locale (or simply renamed by the player, an editable text
+// input — see companion_sheet.html:27) — see migration 0088's own doc.
+const scienceNinWhelpCompanionKind = "wow-whelp"
+
+// scienceNinWhelpCompanionName is the initial display name ensureWhelpCompanion
+// gives the companion it auto-adds, translated once at creation via the
+// caller's own locale — "Whelp" is the book's own name for the entity
+// throughout its stat block ("you use your element to create and give life
+// to a small Whelp"; "The Whelp rests perched on your Draconic Gauntlet"),
+// with the same "(<source>)" suffix scienceNinAngelEIPCompanionName uses so
+// the player can tell at a glance which pick produced it. Purely cosmetic
+// from here on — the player is free to rename it afterward like any other
+// companion (companion_sheet.html's name field), since scienceNinWhelpCompanionKind,
+// not this string, is what the app actually matches on.
+func scienceNinWhelpCompanionName(tr i18n.TranslateFunc) string {
+	return tr("companion_fields.whelp_auto_name")
+}
 
 // ensureWhelpCompanion auto-adds the Draconic Gauntlet's own Whelp as a
-// kind="custom" companion — called by syncDraconicGauntletWhelp the moment
-// Draconic Gauntlet becomes the character's designated Ascended W.o.W.
-// Reuses kind="custom" (cmd/n5e/companions.go's kind whitelist) rather than
-// inventing a new companion kind with its own migration/prefill/template
-// plumbing, the same "one-off, no ongoing formula behind its OWN growth"
-// precedent scienceNinAngelEIPSlug's own Spectre companion already sets —
-// unlike a Puppet Tool/Nin-Dog/Titan, a Whelp has no upgrade tree or
+// kind="wow-whelp" companion — called by syncDraconicGauntletWhelp the
+// moment Draconic Gauntlet becomes the character's designated Ascended
+// W.o.W. A dedicated kind (migration 0088) rather than kind="custom" solely
+// so the auto-add/auto-remove/reference-panel matching below never has to
+// depend on the player-editable Name field — see scienceNinWhelpCompanionKind's
+// own doc. Otherwise the same "one-off, no ongoing formula behind its OWN
+// growth" shape scienceNinAngelEIPSlug's own Spectre companion already sets
+// — unlike a Puppet Tool/Nin-Dog/Titan, a Whelp has no upgrade tree or
 // level-scaling stat block of its own to auto-calculate against on every
 // render. AC/HP ARE one-time formulas against the OWNER's own current stats
 // (18 + their Ninjutsu ability modifier; their Intelligence modifier times
 // their Science-Nin level) rather than fixed constants the way Spectre's 10
 // HP is, but they're written ONCE here, at creation time, and are ordinary
-// player-editable fields afterward (kind="custom" renders every stat as an
-// editable input) — not recomputed on every render the way a Titan's own AC
-// is. A player whose Intelligence or Science-Nin level later changes can
-// correct the Whelp's card by hand, the same "trust the player" boundary
-// every other one-time companion prefill in this codebase already draws
-// (prefillPuppetStatDefaults's own baseline included, before a Sync button
-// existed for it).
+// player-editable fields afterward — not recomputed on every render the way
+// a Titan's own AC is. A player whose Intelligence or Science-Nin level
+// later changes can correct the Whelp's card by hand, the same "trust the
+// player" boundary every other one-time companion prefill in this codebase
+// already draws (prefillPuppetStatDefaults's own baseline included, before
+// a Sync button existed for it).
 //
 // The book's own stat block also lists a flat Damage Resistance-adjacent
 // "DR 5" (initially misread as a bare "DR" — see this file's own regression
@@ -64,13 +78,13 @@ const scienceNinWhelpCompanionName = "Whelp (Draconic Gauntlet)"
 // in this app's companion model (every companion's AC is a single number,
 // and no companion save-proficiency ever floors a negative ability modifier
 // at +0), so both stay narrated in the companion-reference block
-// (companion_fields.html's own "Whelp (Draconic Gauntlet)" name-matched
-// section) rather than becoming new mechanical fields for a single, rarely
-// -used stat no other companion in the game needs — the same "narrate the
-// one-off, model the standing attack" boundary wow_weapons.go's own header
-// doc already draws for a W.o.W's own conditional/triggered effects.
+// (companion_fields.html's own kind="wow-whelp"-matched section) rather
+// than becoming new mechanical fields for a single, rarely-used stat no
+// other companion in the game needs — the same "narrate the one-off, model
+// the standing attack" boundary wow_weapons.go's own header doc already
+// draws for a W.o.W's own conditional/triggered effects.
 //
-// Guarded by scienceNinWhelpCompanionName's own exact-name match against the
+// Guarded by scienceNinWhelpCompanionKind's own exact-kind match against the
 // character's existing companions, so re-designating Draconic Gauntlet as
 // Ascended after it was forgotten and re-picked never creates a second,
 // duplicate Whelp.
@@ -80,7 +94,7 @@ func (s *server) ensureWhelpCompanion(characterID int64, locale string) error {
 		return err
 	}
 	for _, c := range existing {
-		if c.Name == scienceNinWhelpCompanionName {
+		if c.Kind == scienceNinWhelpCompanionKind {
 			return nil
 		}
 	}
@@ -97,7 +111,10 @@ func (s *server) ensureWhelpCompanion(characterID int64, locale string) error {
 	ac := int64(18 + ninjutsuAbilityModifier(sheet))
 	hpMax := int64(intMod * scienceNinLevel)
 
-	companionID, err := charstore.AddCompanion(s.charDB, characterID, "custom", scienceNinWhelpCompanionName)
+	tr := i18n.Translator(locale)
+	name := scienceNinWhelpCompanionName(tr)
+
+	companionID, err := charstore.AddCompanion(s.charDB, characterID, scienceNinWhelpCompanionKind, name)
 	if err != nil {
 		return err
 	}
@@ -114,7 +131,7 @@ func (s *server) ensureWhelpCompanion(characterID int64, locale string) error {
 		return err
 	}
 	if err := charstore.SetCompanionFields(s.charDB, characterID, companionID,
-		scienceNinWhelpCompanionName, "",
+		name, "",
 		"", "", "",
 		"", false, "", "",
 		"Psychic, Force", "", "All Sensory",
@@ -123,7 +140,6 @@ func (s *server) ensureWhelpCompanion(characterID int64, locale string) error {
 		return err
 	}
 
-	tr := i18n.Translator(locale)
 	attacks := []charstore.CompanionAttack{
 		{
 			Name: tr("whelp_attack_name:Aether Fireball"), AttackAbility: "", AttackProf: "none", AttackBonus: ninjutsuAttackBonus(sheet),
@@ -168,8 +184,8 @@ func ninjutsuAttackBonus(sheet *charsheet.Sheet) int {
 }
 
 // whelpReference is the read-only/interactive panel for the Draconic
-// Gauntlet's own Whelp companion (kind="custom", matched by exact Name —
-// see scienceNinWhelpCompanionName) — brings AC/Max HP onto the same
+// Gauntlet's own Whelp companion (kind="wow-whelp" — see
+// scienceNinWhelpCompanionKind) — brings AC/Max HP onto the same
 // "computed hint, never silently overwritten, Sync-pinnable" treatment
 // every other formula-backed companion kind already gets (titanReference/
 // ninDogReference/snbReference), replacing the one-time creation-only
@@ -242,7 +258,7 @@ func ninjutsuAbilityModifier(sheet *charsheet.Sheet) int {
 // removeWhelpCompanion deletes the Whelp ensureWhelpCompanion auto-added,
 // called by syncDraconicGauntletWhelp once Draconic Gauntlet is no longer
 // the character's designated Ascended W.o.W — matched by
-// scienceNinWhelpCompanionName's exact name, same lookup ensureWhelpCompanion
+// scienceNinWhelpCompanionKind's exact kind, same lookup ensureWhelpCompanion
 // itself uses. A no-op if no such companion exists (already deleted by the
 // player, or Draconic Gauntlet was never actually Ascended).
 func (s *server) removeWhelpCompanion(characterID int64) error {
@@ -251,7 +267,7 @@ func (s *server) removeWhelpCompanion(characterID int64) error {
 		return err
 	}
 	for _, c := range existing {
-		if c.Name == scienceNinWhelpCompanionName {
+		if c.Kind == scienceNinWhelpCompanionKind {
 			return charstore.DeleteCompanion(s.charDB, characterID, c.ID)
 		}
 	}
