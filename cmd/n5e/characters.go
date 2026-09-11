@@ -3357,13 +3357,33 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The enforced cap here must match jutsuKnownCapForCharacter (the same
+	// one the Core sheet's own jutsu learn/forget flow uses) rather than the
+	// bare classes[]-aggregated computeJutsuKnown alone — otherwise a
+	// character with a bonus-granting clan or class feature (Water and
+	// Oil/Heat Master, Chakra Cell Enhancement, a clan's flat +1, etc.) gets
+	// capped below what the sheet they're building actually honors once
+	// creation finishes.
+	sheet, err := charsheet.Compute(s.rulesDB, s.charDB, id)
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load character sheet for jutsu known cap:", err)
+		return
+	}
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		log.Println("load granted features for jutsu known cap:", err)
+		return
+	}
+
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "bad form", http.StatusBadRequest)
 			return
 		}
 		slugs := r.Form["jutsu"]
-		jutsuKnown, _, err := s.computeJutsuKnown(classes)
+		jutsuKnown, err := s.jutsuKnownCapForCharacter(id, sheet, grantedFeatures)
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load jutsu known:", err)
@@ -3418,7 +3438,7 @@ func (s *server) handleCreateJutsu(w http.ResponseWriter, r *http.Request) {
 	}
 	selRows.Close()
 
-	jutsuKnown, _, err := s.computeJutsuKnown(classes)
+	jutsuKnown, err := s.jutsuKnownCapForCharacter(id, sheet, grantedFeatures)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load jutsu known:", err)
