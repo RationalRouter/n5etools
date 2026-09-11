@@ -46,6 +46,21 @@
 //	    built from internal/i18n/glossary.md so proper nouns and approved
 //	    term renderings aren't touched. Requires DEEPL_API_KEY in the
 //	    environment. Skips keys already present in -out unless -force.
+//
+//	n5e-i18n audit [-root .] [-fix] [-seed-baseline]
+//	    Compiled coverage sweep for player-facing text gaps (see
+//	    internal/i18n/audit.go): hardcoded literals in suspect struct fields
+//	    that never touch TranslatableFields/the UI catalog, and files that
+//	    read a TranslatableFields table but never overlay it via
+//	    i18n.Row/Batch. Reports every finding not already in
+//	    internal/i18n/audit_baseline.json; exits non-zero if any remain.
+//	    -fix additionally auto-wires the safe subset (a known display-only
+//	    field with a translator already in scope) into the UI catalog and
+//	    rewrites the call site, so those gaps get translated on the same
+//	    run instead of blocking it. -seed-baseline overwrites the baseline
+//	    with every current finding instead of reporting/fixing anything --
+//	    used once to bootstrap the gate, or deliberately after a batch of
+//	    findings has been reviewed and accepted rather than fixed.
 package main
 
 import (
@@ -91,9 +106,55 @@ func run(args []string) error {
 		return cmdReport(args[1:])
 	case "catalog-translate":
 		return cmdCatalogTranslate(args[1:])
+	case "audit":
+		return cmdAudit(args[1:])
+	case "verify":
+		return cmdVerify(args[1:])
 	default:
 		return fmt.Errorf("unknown subcommand %q", args[0])
 	}
+}
+
+func cmdAudit(args []string) error {
+	fs := flag.NewFlagSet("audit", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root to sweep")
+	fix := fs.Bool("fix", false, "auto-wire the safe subset of findings into the UI catalog")
+	seed := fs.Bool("seed-baseline", false, "overwrite audit_baseline.json with every current finding")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if *seed {
+		n, err := i18n.WriteAuditBaseline(*root)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "audit: baseline written with %d finding(s)\n", n)
+		return nil
+	}
+
+	result, err := i18n.RunAudit(*root, *fix)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range result.Fixed {
+		fmt.Fprintf(os.Stderr, "audit: fixed %s:%d field %s -> catalog key %q\n", v.File, v.Line, v.Field, v.Key)
+	}
+	if len(result.New) == 0 {
+		fmt.Fprintln(os.Stderr, "audit: no new coverage gaps")
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "audit: %d new coverage gap(s) not in audit_baseline.json:\n", len(result.New))
+	for _, v := range result.New {
+		switch v.Kind {
+		case i18n.AuditMissingOverlay:
+			fmt.Fprintf(os.Stderr, "ERROR: %s: [%s] table %q: %s\n", v.File, v.Kind, v.Table, v.Text)
+		default:
+			fmt.Fprintf(os.Stderr, "ERROR: %s:%d: [%s] field %s: %q\n", v.File, v.Line, v.Kind, v.Field, v.Text)
+		}
+	}
+	return fmt.Errorf("%d new i18n coverage gap(s) -- see errors above; fix them, mark them // i18n:ignore, or run -seed-baseline if deliberately accepted", len(result.New))
 }
 
 // openRulesDB opens a rules.db copy and brings it up to date with the rules
@@ -194,16 +255,9 @@ func cmdCatalogTranslate(args []string) error {
 	ctx := context.Background()
 	client := i18n.NewDeepLClient(apiKey, *pro)
 
-	glossaryID := ""
-	if terms, err := i18n.ParseGlossaryTables(*glossaryPath, glossaryColumn[*locale]); err == nil && len(terms) > 0 {
-		glossaryID, err = client.CreateGlossary(ctx, "n5e-catalog-"+*locale, glossaryTargetLang(targetLang), terms)
-		if err != nil {
-			return fmt.Errorf("creating glossary: %w", err)
-		}
-		defer client.DeleteGlossary(ctx, glossaryID)
-		fmt.Fprintf(os.Stderr, "catalog-translate: glossary with %d term(s) created\n", len(terms))
-	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "catalog-translate: warning: could not parse glossary %s: %v\n", *glossaryPath, err)
+	glossaryID, err := setUpGlossary(ctx, client, "catalog-translate", "n5e-catalog", *locale, *glossaryPath, targetLang)
+	if err != nil {
+		return err
 	}
 
 	protected := make([]string, len(pendingKeys))
@@ -265,6 +319,216 @@ func writeCatalog(path string, cat map[string]string) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
+// setUpGlossary parses glossary.md for locale, checks DeepL actually
+// supports a glossary for this language pair (logging and continuing
+// unconstrained if not, rather than the old silent-on-parse-error-only
+// warning), and returns the id of a persistent glossary
+// (DeepLClient.GetOrCreatePersistentGlossary) reused across runs when
+// glossary.md hasn't changed for this name/target combination -- shared by
+// cmdCatalogTranslate and cmdTranslate so both use identical glossary
+// handling. cmdLabel is just the calling subcommand's name, for log
+// prefixing.
+func setUpGlossary(ctx context.Context, client *i18n.DeepLClient, cmdLabel, namePrefix, locale, glossaryPath, targetLang string) (string, error) {
+	terms, err := i18n.ParseGlossaryTables(glossaryPath, glossaryColumn[locale])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: warning: could not parse glossary %s: %v\n", cmdLabel, glossaryPath, err)
+		return "", nil
+	}
+	if len(terms) == 0 {
+		return "", nil
+	}
+	glossaryTarget := glossaryTargetLang(targetLang)
+	supported, err := client.GlossarySupported(ctx, "EN", glossaryTarget)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: warning: could not check glossary language-pair support: %v\n", cmdLabel, err)
+	} else if !supported {
+		fmt.Fprintf(os.Stderr, "ERROR: %s: DeepL glossaries do not support EN->%s -- translating this locale unconstrained by the glossary (proper nouns/approved terms may drift)\n", cmdLabel, glossaryTarget)
+		return "", nil
+	}
+	glossaryID, err := client.GetOrCreatePersistentGlossary(ctx, namePrefix+"-"+locale, glossaryTarget, terms)
+	if err != nil {
+		return "", fmt.Errorf("setting up glossary: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "%s: glossary with %d term(s) ready (id %s)\n", cmdLabel, len(terms), glossaryID)
+	return glossaryID, nil
+}
+
+// cmdVerify runs the language-agnostic post-translation QA checks
+// (internal/i18n/verify.go) against every translated field for a locale and
+// writes a consolidated, human-readable report -- see this file's package
+// doc comment and translation_methodology.md's "Automated coverage
+// pipeline" section. Unlike `report -strict` (a hard gate on missing/stale
+// coverage), verify's findings are review signals, not failures, with one
+// exception: a placeholder-mismatch is a real correctness bug (it can crash
+// a Sprintf call at render time), so that class alone makes verify exit
+// non-zero.
+func cmdVerify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+	dbPath := fs.String("db", "", "rules database to read from")
+	locale := fs.String("locale", "", "target locale, e.g. es")
+	table := fs.String("table", "", "limit to one table (default: every table in TranslatableFields)")
+	glossaryPath := fs.String("glossary", "internal/i18n/glossary.md", "glossary markdown file")
+	out := fs.String("out", "", "report file to write (default: stdout)")
+	backtranslate := fs.Bool("backtranslate", true, "translate target text back to English via DeepL and flag rows whose meaning drifted")
+	pro := fs.Bool("pro", false, "use the DeepL Pro API host instead of the Free one")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dbPath == "" || *locale == "" {
+		return fmt.Errorf("usage: n5e-i18n verify -db <path> -locale <code> [-table <name>] [-out <file>] [-backtranslate=false]")
+	}
+
+	db, err := openRulesDB(*dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	tables := []string{*table}
+	if *table == "" {
+		tables = tables[:0]
+		for t := range i18n.TranslatableFields {
+			tables = append(tables, t)
+		}
+		sort.Strings(tables)
+	}
+
+	glossaryTerms, _ := i18n.ParseGlossaryTables(*glossaryPath, glossaryColumn[*locale])
+	glossaryChecker := i18n.NewGlossaryChecker(glossaryTerms)
+
+	type rowRef struct {
+		table, slug, field, en, target string
+	}
+	var refs []rowRef
+	var findings []i18n.VerifyFinding
+
+	for _, t := range tables {
+		rowsData, err := loadEnglishValues(db, t)
+		if err != nil {
+			return err
+		}
+		translated, err := loadTranslatedValues(db, t, *locale)
+		if err != nil {
+			return err
+		}
+		for _, rv := range rowsData {
+			for field, enText := range rv.Fields {
+				target, ok := translated[rv.Key+"\x00"+field]
+				if !ok {
+					continue // not yet translated -- report -strict already covers missing coverage
+				}
+				refs = append(refs, rowRef{t, rv.Key, field, enText, target})
+
+				if ok, _, _ := i18n.PlaceholdersMatch(enText, target); !ok {
+					findings = append(findings, i18n.VerifyFinding{Table: t, Slug: rv.Key, Field: field, Kind: "placeholder-mismatch", Detail: "placeholder tokens differ between English and translation"})
+				}
+				if i18n.SuspiciouslyIdentical(enText, target) {
+					findings = append(findings, i18n.VerifyFinding{Table: t, Slug: rv.Key, Field: field, Kind: "suspiciously-identical", Detail: "translated value is byte-identical to English"})
+				}
+				if ratio, outlier := i18n.LengthRatioOutlier(enText, target); outlier {
+					findings = append(findings, i18n.VerifyFinding{Table: t, Slug: rv.Key, Field: field, Kind: "length-ratio-outlier", Detail: fmt.Sprintf("length ratio %.2f (target/English)", ratio)})
+				}
+				if missing := glossaryChecker.MissingTerms(enText, target); len(missing) > 0 {
+					findings = append(findings, i18n.VerifyFinding{Table: t, Slug: rv.Key, Field: field, Kind: "missing-glossary-term", Detail: "expected glossary rendering not found for: " + strings.Join(missing, ", ")})
+				}
+			}
+		}
+	}
+
+	if *backtranslate && len(refs) > 0 {
+		apiKey := os.Getenv("DEEPL_API_KEY")
+		if apiKey == "" {
+			fmt.Fprintln(os.Stderr, "verify: warning: DEEPL_API_KEY not set, skipping back-translation check")
+		} else {
+			client := i18n.NewDeepLClient(apiKey, *pro)
+			ctx := context.Background()
+			sourceLang := glossaryTargetLang(deeplTargetLang[*locale])
+			texts := make([]string, len(refs))
+			for i, r := range refs {
+				texts[i] = i18n.ProtectPlaceholders(r.target)
+			}
+			backTranslated, btErr := client.TranslateFrom(ctx, texts, sourceLang, "EN", "")
+			for i := 0; i < len(backTranslated); i++ {
+				sim := i18n.TextSimilarity(refs[i].en, i18n.RestorePlaceholders(backTranslated[i]))
+				if sim < i18n.BackTranslationDriftThreshold {
+					findings = append(findings, i18n.VerifyFinding{
+						Table: refs[i].table, Slug: refs[i].slug, Field: refs[i].field,
+						Kind:   "backtranslation-drift",
+						Detail: fmt.Sprintf("round-trip similarity %.2f (back-translated: %q)", sim, i18n.RestorePlaceholders(backTranslated[i])),
+					})
+				}
+			}
+			if btErr != nil {
+				fmt.Fprintf(os.Stderr, "verify: warning: back-translation incomplete (%d/%d checked): %v\n", len(backTranslated), len(refs), btErr)
+			}
+		}
+	}
+
+	w := io.Writer(os.Stdout)
+	if *out != "" {
+		f, err := os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+
+	hasHardFailure := false
+	fmt.Fprintf(w, "n5e-i18n verify: locale=%s tables=%d rows-checked=%d findings=%d\n\n", *locale, len(tables), len(refs), len(findings))
+	if len(findings) == 0 {
+		fmt.Fprintln(w, "no findings")
+	}
+	for _, f := range findings {
+		prefix := "WARN"
+		if f.Kind == "placeholder-mismatch" {
+			prefix = "ERROR"
+			hasHardFailure = true
+		}
+		fmt.Fprintf(w, "%s: %s/%s.%s [%s]: %s\n", prefix, f.Table, f.Slug, f.Field, f.Kind, f.Detail)
+	}
+
+	if hasHardFailure {
+		return fmt.Errorf("verify: %d placeholder-mismatch finding(s) -- see report", countKind(findings, "placeholder-mismatch"))
+	}
+	return nil
+}
+
+func countKind(findings []i18n.VerifyFinding, kind string) int {
+	n := 0
+	for _, f := range findings {
+		if f.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+// loadTranslatedValues returns the current content_translations values for
+// one table/locale, keyed by "slug\x00field" -> translated text. Unlike
+// existingTranslations (which only reads en_hash/status for staleness
+// bookkeeping), this reads the actual translated value -- what verify
+// checks against.
+func loadTranslatedValues(db *sql.DB, table, locale string) (map[string]string, error) {
+	rows, err := db.Query(
+		`SELECT slug, field, value FROM content_translations WHERE table_name = ? AND locale = ?`,
+		table, locale,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var slug, field, value string
+		if err := rows.Scan(&slug, &field, &value); err != nil {
+			return nil, err
+		}
+		out[slug+"\x00"+field] = value
+	}
+	return out, rows.Err()
+}
+
 // exportRecord is one translatable field's current state, as written by
 // export and read back (with EnText replaced by a translated Value) by
 // import.
@@ -323,16 +587,9 @@ func cmdTranslate(args []string) error {
 	ctx := context.Background()
 	client := i18n.NewDeepLClient(apiKey, *pro)
 
-	glossaryID := ""
-	if terms, err := i18n.ParseGlossaryTables(*glossaryPath, glossaryColumn[*locale]); err == nil && len(terms) > 0 {
-		glossaryID, err = client.CreateGlossary(ctx, "n5e-content-"+*locale, glossaryTargetLang(targetLang), terms)
-		if err != nil {
-			return fmt.Errorf("creating glossary: %w", err)
-		}
-		defer client.DeleteGlossary(ctx, glossaryID)
-		fmt.Fprintf(os.Stderr, "translate: glossary with %d term(s) created\n", len(terms))
-	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "translate: warning: could not parse glossary %s: %v\n", *glossaryPath, err)
+	glossaryID, err := setUpGlossary(ctx, client, "translate", "n5e-content", *locale, *glossaryPath, targetLang)
+	if err != nil {
+		return err
 	}
 
 	protected := make([]string, len(records))
@@ -663,6 +920,7 @@ func cmdReport(args []string) error {
 	dbPath := fs.String("db", "", "rules database to read from")
 	locale := fs.String("locale", "", "target locale, e.g. es")
 	table := fs.String("table", "", "limit to one table (default: every table in TranslatableFields)")
+	strict := fs.Bool("strict", false, "exit non-zero if any table has missing or stale field(s) for this locale")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -721,6 +979,9 @@ func cmdReport(args []string) error {
 	}
 	if len(tables) > 1 {
 		fmt.Printf("%-28s %8d %8d %8d %8d %8d\n", "TOTAL", gTotal, gDone, gStale, gTotal-gDone, gReviewed)
+	}
+	if *strict && (gTotal-gDone > 0 || gStale > 0) {
+		return fmt.Errorf("ERROR: report -strict: locale %s has %d missing and %d stale field(s) -- translate/import did not complete cleanly", *locale, gTotal-gDone, gStale)
 	}
 	return nil
 }

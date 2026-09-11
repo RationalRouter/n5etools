@@ -320,7 +320,7 @@ untranslated. Apply this by default from now on without asking again.
 | Auditory (keyword) | Auditivo | homebrew, literal |
 | Brave Order (Intelligence Operative resource) | Orden Valiente | confirmed — this is the actual in-game resource name |
 | Power (weapon group) | Poder | homebrew — only one weapon-group name surfaced this batch; full weapon-group list needs its own pass once Weapon Specialist's core class is piloted |
-| Bukijutsu | *unchanged* | proper term of art, same treatment as Taijutsu/Ninjutsu/Genjutsu |
+| Bukijutsu | Bukijutsu | unchanged, proper term of art, same treatment as Taijutsu/Ninjutsu/Genjutsu |
 | Forensics Kit(s) | Herramientas Forenses | homebrew tool proficiency, no real D&D equivalent — matches the official SRD's "Herramientas de X" pattern for real tool proficiencies (e.g. Herramientas de Ladrón) |
 | Weapon Forms (subclass group, Weapon Specialist) | Formas de Arma | literal |
 | Master Strategies (subclass group, Intelligence Operative) | Estrategias Maestras | literal |
