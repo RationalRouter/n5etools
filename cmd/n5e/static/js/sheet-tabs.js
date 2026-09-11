@@ -29,6 +29,11 @@
     });
     if (!matched) return false;
     buttons.forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+    // sheet-layout.js's Gridstack boxes can't measure their own content
+    // while their tab's <section> sits `hidden` (display:none) — see
+    // n5eGrowSheetLayout's own doc. Re-check now that this tab is actually
+    // visible; a no-op for tabs with no Gridstack layout of their own.
+    if (window.n5eGrowSheetLayout) window.n5eGrowSheetLayout(tab);
     if (remember) {
       try {
         sessionStorage.setItem(storageKey, tab);

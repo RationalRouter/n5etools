@@ -46,28 +46,66 @@
     });
   }
 
-  // Temporarily lifts a box's Gridstack-managed absolute positioning/height
-  // clamp and overflow clipping so it can size itself to its own content for
-  // one synchronous measurement, then puts both back exactly as they were.
-  // Needed anywhere this file wants a box's real (unclamped) content height —
+  // Temporarily lifts a box's Gridstack-managed height clamp and overflow
+  // clipping so it can size itself to its own content for one synchronous
+  // measurement, then puts both back exactly as they were. Needed anywhere
+  // this file wants a box's real (unclamped) content height —
   // computeDefaultState measures BEFORE any box is wrapped as a Gridstack
   // item, so it never needs this; every measurement AFTER init does.
+  //
+  // Deliberately does NOT switch `position` to "static" (an earlier version
+  // did). Gridstack's own per-item stylesheet positions
+  // `.grid-stack-item-content` via `top`/`right`/`bottom`/`left` insets (the
+  // column gutter — confirmed live: right/left both 14px), not a CSS width.
+  // Flipping to `position: static` drops those insets entirely, so the
+  // element measures at the *item's full* width instead of the ~28px-
+  // narrower width it actually renders at — text/tables wrap into fewer
+  // lines and the measured height comes out systematically short. That
+  // under-measurement fed straight into growAllClipped's "grow to this
+  // height" target, leaving boxes with real (if smaller) residual overflow
+  // even after the ROW_HEIGHT/ROW_GAP pixel-pitch fix above. Overriding
+  // `bottom` instead keeps `position: absolute` — and therefore the real
+  // left/right insets and real width — while still letting `height: auto`
+  // size to content instead of being pinned between `top` and `bottom`.
   function measureNaturalHeight(contentEl) {
-    const prevPosition = contentEl.style.position;
     const prevHeight = contentEl.style.height;
+    const prevBottom = contentEl.style.bottom;
     const prevOverflowY = contentEl.style.overflowY;
-    contentEl.style.position = "static";
     contentEl.style.height = "auto";
-    contentEl.style.overflowY = "visible";
+    contentEl.style.bottom = "auto";
+    contentEl.style.overflowY = "hidden";
     const height = contentEl.getBoundingClientRect().height;
-    contentEl.style.position = prevPosition;
     contentEl.style.height = prevHeight;
+    contentEl.style.bottom = prevBottom;
     contentEl.style.overflowY = prevOverflowY;
     return height;
   }
 
+  // Gridstack positions row N's top at N * ROW_HEIGHT and gives an h-row
+  // item a total height of h * ROW_HEIGHT (confirmed live: y=21 renders at
+  // top:420px = 21*20, an h=41 item renders 820px tall = 41*20 -- ROW_GAP
+  // is NOT added again per row). marginTop/marginBottom (ROW_GAP/2 each)
+  // are carved OUT of that same per-row slot to become the gap between
+  // boxes, not added on top of it -- so a box's own visible content height
+  // is h*ROW_HEIGHT minus one full ROW_GAP (both margins), not
+  // h*ROW_HEIGHT + (h-1)*ROW_GAP. Getting this wrong (as an earlier version
+  // of this function did) systematically undersizes every box by a
+  // compounding amount as h grows -- e.g. an h=41 box came out 820px tall
+  // where the old formula's own "already big enough" checks assumed 1140px
+  // was available, so genuinely overflowing boxes kept failing the "is it
+  // still clipped" test and never grew to fit, leaving a permanent,
+  // needless scrollbar. See the matching fix to the two currentPx
+  // computations below -- same formula, same bug, wherever a row count is
+  // converted back to the pixel budget it actually renders at.
   function rowsForPx(px) {
-    return Math.max(1, Math.ceil((px + ROW_GAP) / (ROW_HEIGHT + ROW_GAP)));
+    return Math.max(1, Math.ceil((px + ROW_GAP) / ROW_HEIGHT));
+  }
+
+  // Inverse of rowsForPx: the actual content-height budget (in px) an
+  // h-row Gridstack item renders at, once its own top/bottom margins are
+  // carved out -- see rowsForPx's own doc above for how this was measured.
+  function pxForRows(h) {
+    return h * ROW_HEIGHT - ROW_GAP;
   }
 
   function rectOverlaps(a, b) {
@@ -89,6 +127,19 @@
   window.n5eGrowSheetBox = function (boxId) {
     const grow = growCallbacks.get(boxId);
     if (grow) grow();
+  };
+
+  // One "recheck every box in this layout for a now-unnecessary scrollbar"
+  // function per [data-sheet-layout] section (core/bio/puppets/summons),
+  // keyed by that same name — see growAllClipped's own doc inside
+  // initLayout for why a tab-panel needs this re-run on becoming visible,
+  // not just once at page load. sheet-tabs.js calls this by tab name right
+  // after un-hiding a panel; a tab with no matching layout (jutsu/feats/
+  // inventory, which aren't Gridstack-managed) is a harmless no-op.
+  const layoutGrowFns = new Map();
+  window.n5eGrowSheetLayout = function (name) {
+    const fn = layoutGrowFns.get(name);
+    if (fn) requestAnimationFrame(fn);
   };
 
   document.querySelectorAll("[data-sheet-layout]").forEach((layout) => {
@@ -494,7 +545,7 @@
         if (wasHidden) layout.hidden = false;
         const naturalHeight = measureNaturalHeight(box);
         if (wasHidden) layout.hidden = true;
-        const currentPx = node.h * ROW_HEIGHT + (node.h - 1) * ROW_GAP;
+        const currentPx = pxForRows(node.h);
         if (naturalHeight <= currentPx) return;
         grid.update(item, { h: rowsForPx(naturalHeight) });
         grid.compact();
@@ -584,27 +635,74 @@
       });
     }
 
-    // One frame after everything above has settled: a box whose natural
-    // content height doesn't quite fit the row count it was given (a
-    // measurement taken in a different layout context than Gridstack's own
-    // absolute-position rendering, or simply stale saved data) shows a
-    // scrollbar it doesn't need. This is a generic "grow anything that's
-    // still clipped" pass — not gated to freshly-defaulted boxes, since a
-    // saved layout can hit the exact same mismatch.
-    requestAnimationFrame(() => {
-      let grew = false;
-      itemsById.forEach((item, boxId) => {
-        const box = item.querySelector(":scope > .grid-stack-item-content");
-        if (box.scrollHeight <= box.clientHeight) return;
-        const node = item.gridstackNode;
-        if (!node) return;
-        const naturalHeight = measureNaturalHeight(box);
-        const currentPx = node.h * ROW_HEIGHT + (node.h - 1) * ROW_GAP;
-        if (naturalHeight <= currentPx) return;
-        grid.update(item, { h: rowsForPx(naturalHeight) });
-        grew = true;
-      });
-      if (grew) grid.compact();
-    });
+    // A box whose row count doesn't match its natural content height any
+    // more (a measurement taken in a different layout context than
+    // Gridstack's own absolute-position rendering, stale saved data left
+    // over from an earlier, buggier version of this sizing math, or simply
+    // content that's changed since the height was last set) either clips
+    // its own content with a needless scrollbar or sits far taller than its
+    // content needs, leaving a block of empty space underneath. This is a
+    // generic "fit every box to its own content" pass — not gated to
+    // freshly-defaulted boxes, since a saved layout can hit either mismatch
+    // just as easily as a fresh one.
+    //
+    // Grows OR shrinks, unlike window.n5eGrowSheetBox's per-box callback
+    // above (deliberately grow-only, since that one fires mid-interaction —
+    // e.g. right after adding an inventory item — where suddenly shrinking
+    // the box out from under a player who's still looking at it would be
+    // jarring). This pass only ever runs at page load and on a tab becoming
+    // visible (see the re-run doc below), a moment where snapping every box
+    // to its own content is exactly the expected, static "this is what the
+    // sheet looks like" default, not a background resize disrupting
+    // something the player is mid-edit on. A box within SLACK_ROWS of its
+    // natural size is left alone either way, so a small amount of
+    // deliberate breathing room survives; anything beyond that (in either
+    // direction) gets pulled back to the natural size (plus that same small
+    // buffer, when shrinking, rather than snapping bone-flush).
+    //
+    // Run once, one frame after everything above has settled, AND
+    // re-registered below so it can be re-run whenever this layout's own
+    // tab (bio/puppets/summons all start `hidden`) actually becomes
+    // visible: a box measured while its ancestor <section> is
+    // `hidden` (display:none) reports scrollHeight === clientHeight === 0
+    // either way, so this pass silently could not have caught a real
+    // mismatch the first time for anything other than the one tab visible
+    // at page load (core). Without the re-run, a bio/puppets/summons box
+    // with a saved-but-now-wrong height kept a permanent, unnecessary
+    // scrollbar (or a permanent void) until the player manually resized it.
+    //
+    // Internally iterates rather than doing one single sweep: a box that's
+    // still overflowing while `overflow: auto` shows a vertical scrollbar,
+    // which eats into the width its own content has to wrap in — so growing
+    // it enough to drop that scrollbar can itself shrink the natural height
+    // measured on the NEXT pass (confirmed live: a box needing ~250px more
+    // took 3 passes to fully settle, each pass's growth partially closing
+    // the previous pass's own scrollbar-width-driven under-measurement).
+    // One-and-done left real, if smaller, residual overflow behind.
+    function growAllClipped() {
+      const SLACK_ROWS = 2;
+      const MAX_PASSES = 5;
+      for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let changed = false;
+        itemsById.forEach((item, boxId) => {
+          const box = item.querySelector(":scope > .grid-stack-item-content");
+          const node = item.gridstackNode;
+          if (!node) return;
+          const naturalHeight = measureNaturalHeight(box);
+          const targetH = rowsForPx(naturalHeight);
+          const maxH = targetH + SLACK_ROWS;
+          let h = null;
+          if (node.h < targetH) h = targetH;
+          else if (node.h > maxH) h = maxH;
+          if (h === null) return;
+          grid.update(item, { h: h });
+          changed = true;
+        });
+        if (changed) grid.compact();
+        else break;
+      }
+    }
+    requestAnimationFrame(growAllClipped);
+    layoutGrowFns.set(layout.dataset.sheetLayout, growAllClipped);
   }
 })();
