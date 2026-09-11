@@ -396,7 +396,7 @@ func puppetFoundationWeaponDamageType(pick puppetFoundationPick) string {
 // companionAbilityModifier read against the stored field used to
 // under-report the modifier. nil for a pick with no natural weapon at all
 // (Bestial/Matryoshka Framework, every Role, Sentinel).
-func puppetFoundationWeaponAttack(expectedScores map[string]int, ownerProfBonus int, pick puppetFoundationPick) *companionAttackRow {
+func puppetFoundationWeaponAttack(expectedScores map[string]int, ownerProfBonus int, pick puppetFoundationPick, locale string) *companionAttackRow {
 	nw := pick.Entry.NaturalWeapon
 	if nw == nil {
 		return nil
@@ -412,7 +412,7 @@ func puppetFoundationWeaponAttack(expectedScores map[string]int, ownerProfBonus 
 	}
 	return &companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: nw.Name, Description: nw.CritText,
+			Name: i18n.Translator(locale)("foundation_weapon_name:" + nw.Name), Description: nw.CritText,
 			DamageCount: nw.DamageCount, DamageSides: nw.DamageSides, DamageType: damageType,
 		},
 		AttackTotal: mod + ownerProfBonus,

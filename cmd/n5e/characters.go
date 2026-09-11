@@ -5222,7 +5222,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load hunter-nin pattern rows:", err)
 		return
 	}
-	fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(id, sheet.Level, grantedFeatures)
+	fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(id, sheet.Level, grantedFeatures, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load full-metal shinobi resistance rows:", err)
@@ -7212,7 +7212,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load hunter-nin pattern rows for passive traits fragment:", err)
 			return
 		}
-		fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(characterID, sheet.Level, grantedFeatures)
+		fullMetalShinobiRows, err := s.fullMetalShinobiPassiveRows(characterID, sheet.Level, grantedFeatures, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load full-metal shinobi resistance rows for passive traits fragment:", err)

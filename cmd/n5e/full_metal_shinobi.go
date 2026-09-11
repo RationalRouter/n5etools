@@ -212,7 +212,7 @@ var fullMetalShinobiSlotKeys = func() map[string]bool {
 // auto-complete clause produces output from an EMPTY picks map, so without
 // this gate any character of any class simply reaching character level 14
 // would silently gain all three damage resistances.
-func (s *server) fullMetalShinobiPassiveRows(characterID int64, level int, grantedFeatures []grantedFeatureRow) ([]grantedFeatureRow, error) {
+func (s *server) fullMetalShinobiPassiveRows(characterID int64, level int, grantedFeatures []grantedFeatureRow, locale string) ([]grantedFeatureRow, error) {
 	if !hasGrantedFeature(grantedFeatures, scienceNinFullMetalShinobiFeatureSlug) {
 		return nil, nil
 	}
@@ -220,10 +220,11 @@ func (s *server) fullMetalShinobiPassiveRows(characterID int64, level int, grant
 	if err != nil {
 		return nil, err
 	}
+	tr := i18n.Translator(locale)
 	names := map[string]string{
-		"Bludgeoning": "Full-Metal Shinobi (Bludgeoning)",
-		"Piercing":    "Full-Metal Shinobi (Piercing)",
-		"Slashing":    "Full-Metal Shinobi (Slashing)",
+		"Bludgeoning": tr("full_metal_shinobi_passive.bludgeoning"),
+		"Piercing":    tr("full_metal_shinobi_passive.piercing"),
+		"Slashing":    tr("full_metal_shinobi_passive.slashing"),
 	}
 	var rows []grantedFeatureRow
 	for _, dt := range fullMetalShinobiResistances(level, picks) {

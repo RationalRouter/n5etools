@@ -215,7 +215,7 @@ func (s *server) addWoWPick(id int64, rawSlug, locale string) (int, string) {
 			}
 			return d.ElementalInnovationist.AvailableWOW
 		},
-		false, rawSlug)
+		false, rawSlug, locale)
 	if status != http.StatusOK {
 		return status, msg
 	}
@@ -276,7 +276,7 @@ func (s *server) handleWoWPopupAdd(w http.ResponseWriter, r *http.Request) {
 // the player" boundary every other pick removal in this codebase draws. A
 // forgotten W.o.W can no longer be the Ascended designee either, so a
 // matching Ascended pick is cleared alongside it rather than left dangling.
-func (s *server) removeWoWPick(id int64, slug string) error {
+func (s *server) removeWoWPick(id int64, slug, locale string) error {
 	name, err := s.scienceNinOptionName(slug)
 	if err != nil {
 		return err
@@ -301,7 +301,7 @@ func (s *server) removeWoWPick(id int64, slug string) error {
 		}
 	}
 	if slug == scienceNinDraconicGauntletWoWSlug {
-		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
+		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id, locale))
 	}
 	return nil
 }
@@ -322,7 +322,7 @@ func (s *server) handleScienceNinWOWDelete(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "missing pick", http.StatusBadRequest)
 		return
 	}
-	if err := s.removeWoWPick(id, slug); err != nil {
+	if err := s.removeWoWPick(id, slug, localeFromContext(r.Context())); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("remove wow pick:", err)
 		return
@@ -352,7 +352,7 @@ func (s *server) handleWoWPopupDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing pick", http.StatusBadRequest)
 		return
 	}
-	if err := s.removeWoWPick(id, slug); err != nil {
+	if err := s.removeWoWPick(id, slug, localeFromContext(r.Context())); err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("remove wow pick:", err)
 		return

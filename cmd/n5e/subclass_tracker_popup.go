@@ -256,7 +256,7 @@ func (s *server) subclassTrackerPopupDelete(category charstore.ScienceNinSubclas
 			return
 		}
 		if category == charstore.ScienceNinPickAscendedWoW {
-			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
+			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id, localeFromContext(r.Context())))
 		}
 		http.Redirect(w, r, popupPath(id), http.StatusSeeOther)
 	}

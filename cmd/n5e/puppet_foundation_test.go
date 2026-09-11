@@ -132,7 +132,7 @@ func TestPuppetFoundationWeaponAttackUsesExpectedScore(t *testing.T) {
 	// expectedScores map claims a LOWER stored score — this is exactly what
 	// the audit reproduced (companion.Str stuck at 15, mod +2, versus the
 	// corrected mod +3 the Foundation pick actually grants).
-	row := puppetFoundationWeaponAttack(map[string]int{"str": 16}, 9, pick)
+	row := puppetFoundationWeaponAttack(map[string]int{"str": 16}, 9, pick, "en")
 	if row == nil {
 		t.Fatal("Quadrupedal has a NaturalWeapon (Bite); got nil row")
 	}
@@ -147,7 +147,7 @@ func TestPuppetFoundationWeaponAttackUsesExpectedScore(t *testing.T) {
 	// nil baseline upstream) must fall back to a flat 0 modifier, not a
 	// bogus AbilityModifier(0) == -5 from treating the zero value as a real
 	// score — the proficiency bonus alone should remain.
-	row = puppetFoundationWeaponAttack(nil, 9, pick)
+	row = puppetFoundationWeaponAttack(nil, 9, pick, "en")
 	if row.AttackTotal != 9 || row.DamageTotal != 9 {
 		t.Errorf("with no expected score at all, AttackTotal/DamageTotal = %d/%d, want 9/9 (no ability modifier, not -5)", row.AttackTotal, row.DamageTotal)
 	}

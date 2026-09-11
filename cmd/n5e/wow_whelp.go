@@ -6,6 +6,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // scienceNinDraconicGauntletWoWSlug is the Draconic Gauntlet W.o.W's own
@@ -73,7 +74,7 @@ const scienceNinWhelpCompanionName = "Whelp (Draconic Gauntlet)"
 // character's existing companions, so re-designating Draconic Gauntlet as
 // Ascended after it was forgotten and re-picked never creates a second,
 // duplicate Whelp.
-func (s *server) ensureWhelpCompanion(characterID int64) error {
+func (s *server) ensureWhelpCompanion(characterID int64, locale string) error {
 	existing, err := charstore.ListCompanions(s.charDB, characterID)
 	if err != nil {
 		return err
@@ -122,20 +123,21 @@ func (s *server) ensureWhelpCompanion(characterID int64) error {
 		return err
 	}
 
+	tr := i18n.Translator(locale)
 	attacks := []charstore.CompanionAttack{
 		{
-			Name: "Aether Fireball", AttackAbility: "", AttackProf: "none", AttackBonus: ninjutsuAttackBonus(sheet),
-			Description:   "Ranged Weapon Attack: Range 90 feet, one target. On a roll of 17-20, the target gains 1 rank of Burned.",
+			Name: tr("whelp_attack_name:Aether Fireball"), AttackAbility: "", AttackProf: "none", AttackBonus: ninjutsuAttackBonus(sheet),
+			Description:   tr("whelp_attack_desc:Ranged Weapon Attack: Range 90 feet, one target. On a roll of 17-20, the target gains 1 rank of Burned."),
 			DamageCount:   4, DamageSides: 10, DamageAbility: "", DamageBonus: 4, DamageType: "fire",
 		},
 		{
-			Name: "Aether Breath", NoAttackRoll: true,
-			Description: "Cost: 10 Chakra. The Whelp breathes a large cone of alchemical fire — Area Weapon Attack: Dexterity saving throw, reach 15-foot cone, all targets. Success: half damage, no effects. Failure: this damage, and Burned. May pay increments of 10 chakra to increase the damage by 2d6+2 and the cone's area by +10ft, up to 40 chakra total.",
+			Name: tr("whelp_attack_name:Aether Breath"), NoAttackRoll: true,
+			Description: tr("whelp_attack_desc:Cost: 10 Chakra. The Whelp breathes a large cone of alchemical fire — Area Weapon Attack: Dexterity saving throw, reach 15-foot cone, all targets. Success: half damage, no effects. Failure: this damage, and Burned. May pay increments of 10 chakra to increase the damage by 2d6+2 and the cone's area by +10ft, up to 40 chakra total."),
 			DamageCount: 5, DamageSides: 6, DamageAbility: "", DamageBonus: 5, DamageType: "fire",
 		},
 		{
-			Name: "Aether Meteor", NoAttackRoll: true,
-			Description: "Cost: 25 Chakra. Recharge 5-6. The Whelp breathes a draconic sigil of flame on the ground at a space within 120 feet. Large fireballs of alchemical flame begin to manifest in the sky above, treating the area as being targeted by the Fire Storm Fire Ninjutsu at A-Rank.",
+			Name: tr("whelp_attack_name:Aether Meteor"), NoAttackRoll: true,
+			Description: tr("whelp_attack_desc:Cost: 25 Chakra. Recharge 5-6. The Whelp breathes a draconic sigil of flame on the ground at a space within 120 feet. Large fireballs of alchemical flame begin to manifest in the sky above, treating the area as being targeted by the Fire Storm Fire Ninjutsu at A-Rank."),
 		},
 	}
 	for _, a := range attacks {
@@ -272,14 +274,14 @@ func (s *server) removeWhelpCompanion(characterID int64) error {
 // Task #12's per-row Demon Foe checkbox had to work around by finding every
 // rendering path a computed value could reach; this sidesteps it entirely by
 // never trusting a call site's own "before" state.
-func (s *server) syncDraconicGauntletWhelp(characterID int64) error {
+func (s *server) syncDraconicGauntletWhelp(characterID int64, locale string) error {
 	picks, err := charstore.ListScienceNinSubclassPicks(s.charDB, characterID, charstore.ScienceNinPickAscendedWoW)
 	if err != nil {
 		return err
 	}
 	for _, p := range picks {
 		if p.OptionSlug == scienceNinDraconicGauntletWoWSlug {
-			return s.ensureWhelpCompanion(characterID)
+			return s.ensureWhelpCompanion(characterID, locale)
 		}
 	}
 	return s.removeWhelpCompanion(characterID)

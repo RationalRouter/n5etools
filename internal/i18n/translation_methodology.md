@@ -1292,6 +1292,136 @@ psyche-breaker/twisted-casting popups already using the shared pattern.
 have per this item's own scoping, not required) — verified instead via full-repo build/vet/test
 plus manual cross-referencing of every catalog key against its call site.
 
+## Fresh English/Portuguese audit, full-scope standing check: 2026-09-11
+
+With all 6 cross-cutting items above resolved and the 19-file sweep closed, ran the "Standing
+check for any future 'is this language done?' audit" grep (above) at FULL scope — not just the
+19 already-closed files — across both `cmd/n5e` and `internal`:
+
+```
+grep -rnE '(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]' cmd/n5e --include="*.go" | grep -v _test.go   # 669 hits
+grep -rnE '(Name|SourceLabel|Label|Title|Error|Restriction):\s*"[A-Z]' internal --include="*.go" | grep -v _test.go  # 84 hits
+```
+
+All 669 `cmd/n5e` hits traced back to files already closed by the 19-file sweep (each funneling
+through its own already-verified `translateXxx` helper, or a confirmed matching-key false
+positive) — `custom_resources.go` alone accounted for 456 of them. All 84 `internal` hits were
+also false positives (dev/log-only text, or fields already covered by a real `TranslatableFields`
+column). Zero NEW gaps in either grep's raw hit set — but the regex only catches struct literals
+shaped like `Field: "Literal"`, and 6 genuine gaps existed just outside that shape (a raw
+`Label` on package-level data, and struct fields fed by a variable rather than an inline literal):
+
+1. **`internal/features/choices.go`'s `choiceSlotDefs[].Label`** (32 unique strings, e.g.
+   "Masterwork Skill — 7th level, first pick", "Elevated Design — first ability...") — the
+   Pending Choices panel's row label, copied raw at `cmd/n5e/feature_choices.go`'s
+   `buildPendingFeatureChoiceRows` (`row := pendingFeatureChoiceRow{..., Label: slot.Label}`)
+   even though `tr := i18n.Translator(locale)` was already in scope one line above. Missed by
+   every regex-based standing check because `Label` here isn't a literal in the same struct
+   literal that also matches the regex shape (it's `Label: slot.Label`, a variable, not
+   `Label: "..."`) — the ACTUAL literals live one file away, in `internal/features`, a package
+   the standing-check grep never covered (it only ever targeted `cmd/n5e`). Fixed: `Label:
+   tr("choice_slot_label:" + slot.Label)`, new `choice_slot_label:` namespace, 32 keys.
+2. **`internal/puppetupgrades/foundation.go`'s `FoundationEntry.Name`/`.Catalog`** (17 entry
+   names, 4 catalog labels — Puppeteer Chassis/Puppet Framework/Puppet Role/Puppet Weapon Type)
+   — rendered raw as `FoundationCatalogLabel`/`FoundationEntryName` in
+   `partials/companion_fields.html`'s Foundation Traits block (`cmd/n5e/puppets.go`:
+   `catalogLabel, entryName = entry.Catalog, entry.Name`). `tr` wasn't yet in scope in
+   `loadPuppetsTabData` at all (only `locale`) — added `tr := i18n.Translator(locale)` at the top
+   of the function. New `foundation_catalog:`/`foundation_name:` namespaces.
+3. **`internal/puppetupgrades/foundation.go`'s `NaturalWeaponSpec.Name`** (7 synthetic attack
+   names — Slam, Bite, Strike, Talons, Arrow Missile, Smash) — written straight onto
+   `companionAttackRow.CompanionAttack.Name` in `puppetFoundationWeaponAttack`
+   (`cmd/n5e/puppet_foundation.go`), which had no `locale` parameter at all. This is exactly the
+   gap the 19-file sweep's `puppets.go` bullet flagged as "found in passing, deliberately NOT
+   fixed here" and deferred as its own small fix — done now. Threaded `locale` through the
+   function and its one call site (`puppets.go`, already had `locale` in scope). Also fixed the
+   sibling `puppetIntegratedWeaponAttack`'s own "Arm Blades"/"Axe Tail" (same deferred item,
+   same file) — it already took `locale` (used only for `GrantedHint`) but never applied it to
+   `Name`. Both share the new `foundation_weapon_name:` namespace (8 keys total) since they're the
+   same shape of synthetic attack name; confirmed via grep that `CompanionAttack.Name` is never
+   used as a matching key anywhere (only `attack.Name == ""` for an emptiness check).
+4. **`internal/puppetupgrades/bonuses.go`'s `StatBonusEntry.Name`** (4 entries: Enhanced
+   Durability, Bulky Build, Quickfooted, Hovering Mechanism) — rendered raw via
+   `puppetUpgradeBonusNote.Name` at `partials/companion_fields.html:225`
+   (`notes = append(notes, puppetUpgradeBonusNote{Name: ub.Name, ...})`). Fixed with the same `tr`
+   now in scope in `loadPuppetsTabData`. New `stat_bonus_name:` namespace.
+   `CharacterBonus.Name` (the sibling character-side table) was audited too and found to be
+   currently dead for display — `LoadCharacterTotals` populates `CharacterTotals.Sources` from it,
+   and `charsheet.Sheet.PuppetUpgradeSources` is assigned from that, but grepping every template
+   confirms `PuppetUpgradeSources` is never actually rendered anywhere — no fix needed until/unless
+   something starts displaying it.
+5. **`cmd/n5e/full_metal_shinobi.go`'s `fullMetalShinobiPassiveRows`** builds synthetic
+   `grantedFeatureRow`s (one per held resistance) with a hardcoded `names` map
+   ("Full-Metal Shinobi (Bludgeoning)" etc.) instead of going through the real
+   `internal/features.LoadGrantedFeatures` translation path (cross-cutting item 6, resolved
+   2026-09-10) — because these rows are hand-built, not DB-backed, they silently bypassed that
+   fix entirely. `SourceLabel: "Full-Metal Shinobi"` stays raw (same "SourceLabel never
+   translated" rule item 6 established); only `Name` needed a fix. Added a `locale` parameter
+   (both call sites in `characters.go` already had `localeFromContext(r.Context())` available,
+   same as the sibling `hunterNinPatternPassiveRows` call one line above each). New
+   `full_metal_shinobi_passive.{bludgeoning,piercing,slashing}` keys.
+6. **`wow_whelp.go`'s Whelp auto-add companion attack text — RESOLVED 2026-09-11, see the
+   dedicated section below.** `science_nin_subclasses.go`'s sibling `ensureAngelEIPSpectreCompanion`
+   turned out NOT to need the same fix — see that section for why.
+
+**New gap class found, NOT fixed, flagged for its own future pass**: `internal/puppetupgrades`'
+`FoundationEntry.ReferenceTraits`/`RoleEffectSpec.TextBonus`/`NaturalWeaponSpec.CritText` (this
+file) and `bonuses.go`'s `StatBonusParts` (`"AC"`, `"Max HP"`, `"ft. Speed"`, `"ft. flying
+speed"`) are all raw English full sentences/phrases rendered into the same Foundation Traits
+block and stat-bonus card this pass just fixed the *names* for — genuinely player-facing, but a
+different scale of problem: roughly a dozen multi-sentence `ReferenceTraits` blocks (each reading
+straight off the book, e.g. Quadrupedal's "Reduces all damage received that is not fire by 2..."),
+several `TextBonus` closures that interpolate a live-computed number into a sentence (needs an
+`args`-based `tr(...)` call, not a static key), and 4 short but reused stat-phrase fragments. Not
+attempted in this pass — it's a real, bounded, single-file-pair (`foundation.go`+`bonuses.go`) job
+but substantial hand-translation work in its own right, not a "wire the existing `tr`" mechanical
+fix like everything else in this section. Do this as its own dedicated pass, not folded into a
+future unrelated file's fix.
+
+`go build ./...`, `go vet ./...`, and `go test ./...` all pass (including
+`puppet_foundation_test.go`'s and `full_metal_shinobi_test.go`'s existing assertions, updated to
+pass a `locale`/`"en"` argument through the now-parameterized functions — the English catalog
+value for every new key equals its own raw-English key text, so `en`-locale test assertions on
+exact attack names are unaffected). Not live-browser-verified.
+
+## Whelp auto-add companion attack text: RESOLVED 2026-09-11
+
+Revisited the "write-once-at-creation" framing from the section above: it correctly describes WHEN
+the text is written (into the character's own persisted `custom` companion row, at creation time,
+never re-read through an overlay afterward) but that turned out not to be a reason to defer the
+fix — it only means the fix has to run at the SAME moment the text is written, not at render time
+like every other gap in this sweep. `ensureWhelpCompanion` (`wow_whelp.go`) now takes a `locale`
+parameter, and its three hardcoded `CompanionAttack` `Name`/`Description` pairs (Aether Fireball/
+Aether Breath/Aether Meteor) are each wrapped in `tr("whelp_attack_name:" + raw)`/
+`tr("whelp_attack_desc:" + raw)` — 6 new keys, hand-translated es/pt. `syncDraconicGauntletWhelp`
+threads `locale` through to it; its own 4 external call sites (`removeWoWPick`,
+`subclass_tracker_popup.go`'s shared delete-popup factory, `scienceNinSubclassPickAddCore`, and
+`handleScienceNinSubclassPickDelete`) either already had `locale`/`r` in scope or needed a new
+`locale` parameter threaded one level further up to their own callers — `removeWoWPick` and
+`scienceNinSubclassPickAddCore` both gained one, threaded to every caller in turn (all had `r` in
+scope already).
+
+**Existing-character remediation, no migration needed**: `ensureWhelpCompanion`'s own duplicate
+guard matches purely by exact companion name, with no other "already ran once" flag — so a
+character with an English Whelp from before this fix gets a correctly-translated one for free by
+deleting it and re-triggering the sync (re-picking Draconic Gauntlet as Ascended, or any other
+route that calls `syncDraconicGauntletWhelp`), no data migration required. Worth surfacing to a
+player who asks, rather than writing a one-off migration script.
+
+**`ensureAngelEIPSpectreCompanion` (`science_nin_subclasses.go`) audited, found to need NO fix**:
+unlike the Whelp, it adds zero `CompanionAttack` rows and its own `SetCompanionFields` call passes
+only empty strings for `attacks`/`traits`/`notes` — the only non-empty free-text values are
+`resistances: "All"` and the companion's own name `"Spectre (Angel E.I.P)"` (a matching key, left
+raw same as every other companion-matching name in this codebase). There is no hardcoded prose
+here the way there is in the Whelp's attack list — the book gives the Spectre a fixed 10 HP and
+narrates everything else in `companion_fields.html`'s own name-matched reference section (already
+translatable UI-catalog text, not written into the character row). Confirms this file's own
+earlier note ("no fix applied... found clean of the per-file hardcoded-literal pattern") was
+correct — no `locale` parameter added since there'd be nothing to use it for.
+
+`go build ./...`/`go vet ./...`/`go test ./cmd/n5e/... ./internal/...` all green. Not
+live-browser-verified (no Draconic Gauntlet character at hand).
+
 ## Applying this to a new language
 
 For a language with no existing glossary yet:

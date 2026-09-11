@@ -96,7 +96,7 @@ func TestFullMetalShinobiPassiveRowsEndToEnd(t *testing.T) {
 	hasFeature := []grantedFeatureRow{{Slug: scienceNinFullMetalShinobiFeatureSlug, Name: "Full-Metal Shinobi"}}
 
 	// Before 6th level: no rows, no resistances.
-	rows, err := s.fullMetalShinobiPassiveRows(1, 5, hasFeature)
+	rows, err := s.fullMetalShinobiPassiveRows(1, 5, hasFeature, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestFullMetalShinobiPassiveRowsEndToEnd(t *testing.T) {
 	if err := charstore.SetFullMetalShinobiResistance(s.charDB, 1, "sixth-level", "Piercing"); err != nil {
 		t.Fatal(err)
 	}
-	rows, err = s.fullMetalShinobiPassiveRows(1, 8, hasFeature)
+	rows, err = s.fullMetalShinobiPassiveRows(1, 8, hasFeature, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestFullMetalShinobiPassiveRowsEndToEnd(t *testing.T) {
 
 	// At 14th, the last damage type (Slashing) completes automatically even
 	// though the 9th-level slot was never picked.
-	rows, err = s.fullMetalShinobiPassiveRows(1, 14, hasFeature)
+	rows, err = s.fullMetalShinobiPassiveRows(1, 14, hasFeature, "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestFullMetalShinobiPassiveRowsGatedOnFeature(t *testing.T) {
 	if _, err := s.charDB.Exec(`INSERT INTO characters (id, name) VALUES (2, 'Not Shinobi-Ware')`); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := s.fullMetalShinobiPassiveRows(2, 14, nil)
+	rows, err := s.fullMetalShinobiPassiveRows(2, 14, nil, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

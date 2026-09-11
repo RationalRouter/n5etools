@@ -2333,7 +2333,7 @@ func (s *server) handleScienceNinSubclassPickAdd(
 			return
 		}
 		slug := strings.TrimSpace(r.FormValue("option_slug"))
-		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug); status != http.StatusOK {
+		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug, localeFromContext(r.Context())); status != http.StatusOK {
 			http.Error(w, msg, status)
 			return
 		}
@@ -2367,7 +2367,7 @@ func (s *server) scienceNinTrackerPopupAdd(
 			return
 		}
 		slug := strings.TrimSpace(r.FormValue("option_slug"))
-		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug); status != http.StatusOK {
+		if status, msg := s.scienceNinSubclassPickAddCore(id, category, used, cap, available, requiresPool, slug, localeFromContext(r.Context())); status != http.StatusOK {
 			http.Error(w, msg, status)
 			return
 		}
@@ -2388,6 +2388,7 @@ func (s *server) scienceNinSubclassPickAddCore(
 	available func(*scienceNinToolsTabData) []scienceNinSubclassOption,
 	requiresPool bool,
 	rawSlug string,
+	locale string,
 ) (int, string) {
 	slug := rawSlug
 	if slug == "" {
@@ -2438,7 +2439,7 @@ func (s *server) scienceNinSubclassPickAddCore(
 		return http.StatusInternalServerError, "database error"
 	}
 	if category == charstore.ScienceNinPickAscendedWoW {
-		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
+		logWhelpSyncErr(s.syncDraconicGauntletWhelp(id, locale))
 	}
 	return http.StatusOK, ""
 }
@@ -2468,7 +2469,7 @@ func (s *server) handleScienceNinSubclassPickDelete(category charstore.ScienceNi
 			return
 		}
 		if category == charstore.ScienceNinPickAscendedWoW {
-			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id))
+			logWhelpSyncErr(s.syncDraconicGauntletWhelp(id, localeFromContext(r.Context())))
 		}
 		s.respondSheet(w, r, id, "sheet_science_nin")
 	}

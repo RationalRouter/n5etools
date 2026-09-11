@@ -120,7 +120,7 @@ func (s *server) buildPendingFeatureChoiceRows(slots []features.ChoiceSlot, loca
 
 	rows := make([]pendingFeatureChoiceRow, 0, len(slots))
 	for _, slot := range slots {
-		row := pendingFeatureChoiceRow{FeatureSlug: slot.FeatureSlug, ChoiceIndex: slot.ChoiceIndex, Label: slot.Label}
+		row := pendingFeatureChoiceRow{FeatureSlug: slot.FeatureSlug, ChoiceIndex: slot.ChoiceIndex, Label: tr("choice_slot_label:" + slot.Label)}
 		switch slot.Kind {
 		case features.ChoiceSkillProficiency:
 			for _, name := range skillNames {

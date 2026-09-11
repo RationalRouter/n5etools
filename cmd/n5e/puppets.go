@@ -2586,7 +2586,7 @@ func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string, loc
 	}
 	return &companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: name, DamageCount: 1, DamageSides: damageSides, DamageType: damageType,
+			Name: i18n.Translator(locale)("foundation_weapon_name:" + name), DamageCount: 1, DamageSides: damageSides, DamageType: damageType,
 		},
 		AttackTotal: modifier,
 		DamageTotal: modifier,
@@ -3301,6 +3301,7 @@ type puppetsTabData struct {
 
 func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, locale string) (puppetsTabData, error) {
 	var data puppetsTabData
+	tr := i18n.Translator(locale)
 
 	level, err := s.puppetMasterClassLevel(characterID)
 	if err != nil {
@@ -3630,7 +3631,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 				total.FlySpeed = b.FlySpeed
 				total.GrantsFlight = true
 			}
-			notes = append(notes, puppetUpgradeBonusNote{Name: ub.Name, Parts: puppetupgrades.StatBonusParts(b)})
+			notes = append(notes, puppetUpgradeBonusNote{Name: tr("stat_bonus_name:" + ub.Name), Parts: puppetupgrades.StatBonusParts(b)})
 		}
 
 		// Fold in this companion's own Foundation catalog pick (Puppeteer
@@ -3710,7 +3711,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 			if entry.SplitBodyFramework {
 				isMatryoshkaFramework = true
 			}
-			catalogLabel, entryName = entry.Catalog, entry.Name
+			catalogLabel, entryName = tr("foundation_catalog:"+entry.Catalog), tr("foundation_name:"+entry.Name)
 		}
 		finalSpeed := total.Speed
 		if baseline != nil {
@@ -3890,7 +3891,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 
 		view.Attacks = append(view.Attacks, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices, locale)...)
 		for _, fp := range foundationPicks {
-			if row := puppetFoundationWeaponAttack(expectedAbilityScores, ownerProfBonus, fp); row != nil {
+			if row := puppetFoundationWeaponAttack(expectedAbilityScores, ownerProfBonus, fp, locale); row != nil {
 				view.Attacks = append(view.Attacks, *row)
 			}
 		}
