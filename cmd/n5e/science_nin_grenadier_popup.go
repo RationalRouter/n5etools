@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_grenadier_popup.go: the "Grenadier" subclass tracker popup —
@@ -34,16 +35,18 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for grenadier popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for grenadier popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Grenadier", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.grenadier"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Grenadier == nil {
-		popup.EmptyHint = "This character has no B.I.M yet — Explosive Modifications grants this at 3rd-level Grenadier."
+		popup.EmptyHint = tr("subclass_tracker.grenadier.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_grenadier.html", popup, nil)
 		return
 	}
@@ -52,18 +55,18 @@ func (s *server) handleGrenadierPopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, bimSection(id, gr))
+	popup.Sections = append(popup.Sections, bimSection(id, gr, tr))
 	if gr.DesignatedBIM != nil || len(gr.AvailableDesignatedBIM) > 0 {
-		popup.Sections = append(popup.Sections, bimSpecialistSection(id, gr))
+		popup.Sections = append(popup.Sections, bimSpecialistSection(id, gr, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_grenadier.html", popup, nil)
 }
 
-func bimSection(characterID int64, gr *scienceNinGrenadierData) subclassTrackerSection {
+func bimSection(characterID int64, gr *scienceNinGrenadierData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "B.I.M (" + strconv.Itoa(gr.BIMUsed) + "/" + strconv.Itoa(gr.BIMCap) + " held)",
-		Hint:         "Cost badges are informational — Creation Points spent installing/upgrading B.I.Ms aren't tracked separately from the bandolier's own held count.",
+		Title:        tr("subclass_tracker.grenadier.bim.title", gr.BIMUsed, gr.BIMCap),
+		Hint:         tr("subclass_tracker.grenadier.bim.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/grenadier/bim/delete",
 	}
 	for _, k := range gr.KnownBIM {
@@ -75,7 +78,7 @@ func bimSection(characterID int64, gr *scienceNinGrenadierData) subclassTrackerS
 	}
 	if gr.BIMUsed < gr.BIMCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/grenadier/bim/add"
-		sec.AddLabel = "Load Bandolier"
+		sec.AddLabel = tr("subclass_tracker.grenadier.bim.add_label")
 		for _, o := range gr.AvailableBIM {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -87,18 +90,18 @@ func bimSection(characterID int64, gr *scienceNinGrenadierData) subclassTrackerS
 	return sec
 }
 
-func bimSpecialistSection(characterID int64, gr *scienceNinGrenadierData) subclassTrackerSection {
+func bimSpecialistSection(characterID int64, gr *scienceNinGrenadierData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "B.I.M Specialist",
-		Hint:         "One known B.I.M type designated — half Creation Point cost to upgrade, and creatable on the fly as a bonus action. Only the designation itself is tracked; the cost discount and bonus-action creation stay on paper.",
+		Title:        tr("subclass_tracker.grenadier.bim_specialist.title"),
+		Hint:         tr("subclass_tracker.grenadier.bim_specialist.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/grenadier/bim-specialist/delete",
 	}
 	if gr.DesignatedBIM != nil {
 		sec.Known = append(sec.Known, subclassTrackerKnownPick{Slug: gr.DesignatedBIM.Slug, Name: gr.DesignatedBIM.Name, DetailHref: "/science-nin-picks/bim/" + gr.DesignatedBIM.Slug})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/grenadier/bim-specialist/add"
-		sec.AddLabel = "Set B.I.M Specialist"
+		sec.AddLabel = tr("subclass_tracker.grenadier.bim_specialist.add_label")
 		for _, o := range gr.AvailableDesignatedBIM {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: o.Tier, Description: o.Description})
 		}

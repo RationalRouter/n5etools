@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_spyware_popup.go: the "Spyware" subclass tracker popup —
@@ -35,16 +36,18 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for spyware popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for spyware popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Spyware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.spyware"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Spyware == nil {
-		popup.EmptyHint = "This character has no Spyware Programs yet — Cruel Angel's Thesis grants this at 3rd-level Spyware."
+		popup.EmptyHint = tr("subclass_tracker.spyware.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_spyware.html", popup, nil)
 		return
 	}
@@ -53,9 +56,9 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, spywareProgramSection(id, sp, data.CreationPointsUsed, data.CreationPointsCap))
+	popup.Sections = append(popup.Sections, spywareProgramSection(id, sp, data.CreationPointsUsed, data.CreationPointsCap, tr))
 	if sp.QuickHack != nil || len(sp.AvailableQuickHack) > 0 {
-		popup.Sections = append(popup.Sections, quickHackSection(id, sp))
+		popup.Sections = append(popup.Sections, quickHackSection(id, sp, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_spyware.html", popup, nil)
 }
@@ -68,10 +71,10 @@ func (s *server) handleSpywarePopup(w http.ResponseWriter, r *http.Request) {
 // popup.go), re-parsing each option's raw Cost via parseScienceNinToolStatLine
 // rather than reading a dedicated field (scienceNinSubclassOption carries
 // none — see that struct's own doc, science_nin_subclasses.go).
-func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
+func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creationPointsUsed, creationPointsCap int, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Spyware Programs (" + strconv.Itoa(sp.ProgramUsed) + "/" + strconv.Itoa(sp.ProgramCap) + " held)",
+		Title:        tr("subclass_tracker.spyware.program.title", sp.ProgramUsed, sp.ProgramCap),
 		DeleteAction: "/characters/" + idStr + "/science-nin/spyware/program/delete",
 	}
 	for _, k := range sp.KnownPrograms {
@@ -79,7 +82,7 @@ func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creatio
 	}
 	if sp.ProgramUsed < sp.ProgramCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/spyware/program/add"
-		sec.AddLabel = "Install Program"
+		sec.AddLabel = tr("subclass_tracker.spyware.program.add_label")
 		for _, o := range sp.AvailablePrograms {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -98,18 +101,18 @@ func spywareProgramSection(characterID int64, sp *scienceNinSpywareData, creatio
 // quickHackSection has no slot count in its title — Netrunner grants
 // exactly one Quick Hack designation, the same single-slot shape
 // bimSpecialistSection/ascendedWowSection/permaPerkSection already use.
-func quickHackSection(characterID int64, sp *scienceNinSpywareData) subclassTrackerSection {
+func quickHackSection(characterID int64, sp *scienceNinSpywareData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Quick Hack",
-		Hint:         "One known Program made always-prepared — no cast needed to ready it.",
+		Title:        tr("subclass_tracker.spyware.quick_hack.title"),
+		Hint:         tr("subclass_tracker.spyware.quick_hack.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/spyware/quick-hack/delete",
 	}
 	if sp.QuickHack != nil {
 		sec.Known = append(sec.Known, subclassTrackerKnownPick{Slug: sp.QuickHack.Slug, Name: sp.QuickHack.Name, DetailHref: "/science-nin-picks/spyware-program/" + sp.QuickHack.Slug})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/spyware/quick-hack/add"
-		sec.AddLabel = "Set Quick Hack"
+		sec.AddLabel = tr("subclass_tracker.spyware.quick_hack.add_label")
 		for _, o := range sp.AvailableQuickHack {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: o.Tier, Description: o.Description})
 		}

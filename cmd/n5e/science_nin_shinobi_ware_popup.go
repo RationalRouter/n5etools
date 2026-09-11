@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_shinobi_ware_popup.go: the "Shinobi-Ware" subclass tracker
@@ -37,16 +38,18 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 		log.Println("compute sheet for shinobi-ware popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for shinobi-ware popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Shinobi-Ware", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.shinobi_ware"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.ShinobiWare == nil {
-		popup.EmptyHint = "This character has no Shinobi-Ware Upgrades yet — Edge Runner grants this at 3rd-level Shinobi-Ware."
+		popup.EmptyHint = tr("subclass_tracker.shinobi_ware.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_shinobi_ware.html", popup, nil)
 		return
 	}
@@ -55,26 +58,26 @@ func (s *server) handleShinobiWarePopup(w http.ResponseWriter, r *http.Request) 
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, shinobiWareUpgradeSection(id, sw))
+	popup.Sections = append(popup.Sections, shinobiWareUpgradeSection(id, sw, tr))
 	if sw.EvolvedCap > 0 {
-		popup.Sections = append(popup.Sections, gloriousEvolutionSection(id, sw))
+		popup.Sections = append(popup.Sections, gloriousEvolutionSection(id, sw, tr))
 	}
 	if sw.ShinjutsuUpgrade != nil || len(sw.AvailableShinjutsuUpgrade) > 0 {
-		popup.Sections = append(popup.Sections, inHisImageSection(id, sw))
+		popup.Sections = append(popup.Sections, inHisImageSection(id, sw, tr))
 	}
 	if sw.EverEvolvingSeal != nil || len(sw.AvailableEverEvolvingSeal) > 0 {
-		popup.Sections = append(popup.Sections, everEvolvingSection(id, sw, data.CreationPointsUsed, data.CreationPointsCap))
+		popup.Sections = append(popup.Sections, everEvolvingSection(id, sw, data.CreationPointsUsed, data.CreationPointsCap, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_shinobi_ware.html", popup, map[string]any{
 		"ShinobiWare": sw,
 	})
 }
 
-func shinobiWareUpgradeSection(characterID int64, sw *scienceNinShinobiWareData) subclassTrackerSection {
+func shinobiWareUpgradeSection(characterID int64, sw *scienceNinShinobiWareData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Shinobi-Ware Upgrades (" + strconv.Itoa(sw.UpgradeUsed) + "/" + strconv.Itoa(sw.UpgradeCap) + " slots)",
-		Hint:         "Cost badges are informational — Creation Points spent installing an upgrade aren't tracked separately from Upgrade Slots.",
+		Title:        tr("subclass_tracker.shinobi_ware.upgrade.title", sw.UpgradeUsed, sw.UpgradeCap),
+		Hint:         tr("subclass_tracker.shinobi_ware.upgrade.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/shinobi-ware/upgrade/delete",
 	}
 	for _, k := range sw.KnownUpgrades {
@@ -82,7 +85,7 @@ func shinobiWareUpgradeSection(characterID int64, sw *scienceNinShinobiWareData)
 	}
 	if sw.UpgradeUsed < sw.UpgradeCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/shinobi-ware/upgrade/add"
-		sec.AddLabel = "Install Upgrade"
+		sec.AddLabel = tr("subclass_tracker.shinobi_ware.upgrade.add_label")
 		for _, o := range sw.AvailableUpgrades {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -94,11 +97,11 @@ func shinobiWareUpgradeSection(characterID int64, sw *scienceNinShinobiWareData)
 	return sec
 }
 
-func gloriousEvolutionSection(characterID int64, sw *scienceNinShinobiWareData) subclassTrackerSection {
+func gloriousEvolutionSection(characterID int64, sw *scienceNinShinobiWareData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Glorious Evolution (" + strconv.Itoa(sw.EvolvedUsed) + "/" + strconv.Itoa(sw.EvolvedCap) + " evolved)",
-		Hint:         "Slot-free upgrades — don't count against Upgrade Slots above. Higher tiers unlock at 9th and 14th level.",
+		Title:        tr("subclass_tracker.shinobi_ware.glorious_evolution.title", sw.EvolvedUsed, sw.EvolvedCap),
+		Hint:         tr("subclass_tracker.shinobi_ware.glorious_evolution.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/shinobi-ware/evolved/delete",
 	}
 	for _, k := range sw.KnownEvolved {
@@ -106,7 +109,7 @@ func gloriousEvolutionSection(characterID int64, sw *scienceNinShinobiWareData) 
 	}
 	if sw.EvolvedUsed < sw.EvolvedCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/shinobi-ware/evolved/add"
-		sec.AddLabel = "Evolve Upgrade"
+		sec.AddLabel = tr("subclass_tracker.shinobi_ware.glorious_evolution.add_label")
 		for _, o := range sw.AvailableEvolved {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -121,17 +124,17 @@ func gloriousEvolutionSection(characterID int64, sw *scienceNinShinobiWareData) 
 // inHisImageSection has no DeleteAction — Shinjutsu Upgrade is permanent
 // ("You can not change this later"), matching the Core sheet's own missing
 // delete route for this category.
-func inHisImageSection(characterID int64, sw *scienceNinShinobiWareData) subclassTrackerSection {
+func inHisImageSection(characterID int64, sw *scienceNinShinobiWareData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title: "In His Image",
-		Hint:  "One Shinjutsu Upgrade, granted permanently the first time your seal activates — this pick cannot be changed once made. Activating and maintaining the seal, and its +2 AC/+1 crit-range effects while sealed, stay manual.",
+		Title: tr("subclass_tracker.shinobi_ware.in_his_image.title"),
+		Hint:  tr("subclass_tracker.shinobi_ware.in_his_image.hint"),
 	}
 	if sw.ShinjutsuUpgrade != nil {
 		sec.Known = append(sec.Known, subclassTrackerKnownPick{Slug: sw.ShinjutsuUpgrade.Slug, Name: sw.ShinjutsuUpgrade.Name, DetailHref: "/science-nin-picks/shinobi-ware-upgrade/" + sw.ShinjutsuUpgrade.Slug})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/shinobi-ware/shinjutsu-upgrade/add"
-		sec.AddLabel = "Bind Shinjutsu"
+		sec.AddLabel = tr("subclass_tracker.shinobi_ware.in_his_image.add_label")
 		for _, o := range sw.AvailableShinjutsuUpgrade {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -147,11 +150,11 @@ func inHisImageSection(characterID int64, sw *scienceNinShinobiWareData) subclas
 // equals its own rank (everEvolvingSealCost, ever_evolving.go), so a
 // character already close to their cap can find some ranks pickable and
 // higher ones not, all inside this single one-slot section.
-func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
+func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData, creationPointsUsed, creationPointsCap int, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Ever Evolving",
-		Hint:         "Instantly apply an Armor Seal to your Full Metal Shinobi armor for Creation Points equal to its rank. Changing seals (including removing it for no seal) is a Full Turn Action — this app doesn't gate the pick behind that action cost, only the shared Creation Points budget.",
+		Title:        tr("subclass_tracker.shinobi_ware.ever_evolving.title"),
+		Hint:         tr("subclass_tracker.shinobi_ware.ever_evolving.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/shinobi-ware/ever-evolving-seal/delete",
 	}
 	if sw.EverEvolvingSeal != nil {
@@ -161,7 +164,7 @@ func everEvolvingSection(characterID int64, sw *scienceNinShinobiWareData, creat
 		})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/shinobi-ware/ever-evolving-seal/add"
-		sec.AddLabel = "Apply Seal"
+		sec.AddLabel = tr("subclass_tracker.shinobi_ware.ever_evolving.add_label")
 		for _, o := range sw.AvailableEverEvolvingSeal {
 			sec.Available = append(sec.Available, subclassTrackerOption{
 				Slug: o.Slug, Name: o.Name, Epithet: "Rank " + o.Rank + " · " + strconv.Itoa(o.Cost) + " CP", Description: o.Description,

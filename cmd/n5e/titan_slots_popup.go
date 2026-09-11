@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // titan_slots_popup.go: the "Titan Slots" subclass tracker popup — the
@@ -52,21 +53,23 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for titan slots popup:", err)
 		return
 	}
-	data, err := s.loadTitanUpgradesData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadTitanUpgradesData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load titan upgrades for titan slots popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
 	popup := subclassTrackerPopupData{
-		Title:               "Titan Slots",
+		Title:               tr("sheet.titan_slots"),
 		CharacterID:         id,
 		CharacterName:       sheet.Name,
 		RefreshOpenerBlocks: "sheet-summon-tab sheet-science-nin",
 	}
 	if data == nil {
-		popup.EmptyHint = "This character has no Titan Slots yet — Ordnance Training grants this at 3rd-level Mech Crafter."
+		popup.EmptyHint = tr("subclass_tracker.titan_slots.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_titan_slots.html", popup, nil)
 		return
 	}
@@ -74,9 +77,9 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, titanSlotsSection(id, data))
+	popup.Sections = append(popup.Sections, titanSlotsSection(id, data, tr))
 	if data.ExoSuit != nil {
-		popup.Sections = append(popup.Sections, titanExoSuitSection(id, data))
+		popup.Sections = append(popup.Sections, titanExoSuitSection(id, data, tr))
 	}
 	// Specialist Crafting (14th level) isn't a catalog picker at all — a
 	// single "Mech or Weapon" <select>, not part of subclassTrackerSection
@@ -98,11 +101,11 @@ func (s *server) handleTitanSlotsPopup(w http.ResponseWriter, r *http.Request) {
 // (titan_reference, companion_fields.html) — the slot check alone isn't
 // enough, since a Known upgrade's own Cost can exhaust the shared budget
 // well before every slot is filled.
-func titanSlotsSection(characterID int64, data *titanUpgradesData) subclassTrackerSection {
+func titanSlotsSection(characterID int64, data *titanUpgradesData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Titan Slots (" + strconv.Itoa(data.TitanSlotsUsed) + "/" + strconv.Itoa(data.TitanSlotsCap) + " filled)",
-		Hint:         "Mech- or Weapon-keyword upgrades only — installed or replaced during a long rest. Spends from the same Creation Points budget as the Scientific Ninja Tools box on the Core tab.",
+		Title:        tr("subclass_tracker.titan_slots.slots.title", data.TitanSlotsUsed, data.TitanSlotsCap),
+		Hint:         tr("subclass_tracker.titan_slots.slots.hint"),
 		DeleteAction: "/characters/" + idStr + "/titan-slots/delete",
 	}
 	for _, k := range data.KnownUpgrades {
@@ -115,7 +118,7 @@ func titanSlotsSection(characterID int64, data *titanUpgradesData) subclassTrack
 	}
 	if data.TitanSlotsUsed < data.TitanSlotsCap && data.CreationPointsUsed < data.CreationPointsCap {
 		sec.AddAction = "/characters/" + idStr + "/titan-slots/add"
-		sec.AddLabel = "Install Upgrade"
+		sec.AddLabel = tr("subclass_tracker.titan_slots.slots.add_label")
 		for _, o := range data.AvailableUpgrades {
 			// Cost is the SAME titanEffectiveUpgradeCost result addTitanSlotPick
 			// itself checks against the budget (titan.go) — Specialist
@@ -141,12 +144,12 @@ func titanSlotsSection(characterID int64, data *titanUpgradesData) subclassTrack
 // the same shared Creation Points budget. Same double gate as
 // titanSlotsSection above (slot count AND the shared Creation Points
 // budget), matching the original inline template.
-func titanExoSuitSection(characterID int64, data *titanUpgradesData) subclassTrackerSection {
+func titanExoSuitSection(characterID int64, data *titanUpgradesData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	exo := data.ExoSuit
 	sec := subclassTrackerSection{
-		Title:        "Exo-Suit (" + strconv.Itoa(exo.Used) + "/" + strconv.Itoa(exo.Cap) + " filled)",
-		Hint:         "Mech-keyword upgrades of Cost 8 or lower, usable even while not inside the Titan. Installed during a long rest; a second slot opens at 14th level.",
+		Title:        tr("subclass_tracker.titan_slots.exosuit.title", exo.Used, exo.Cap),
+		Hint:         tr("subclass_tracker.titan_slots.exosuit.hint"),
 		DeleteAction: "/characters/" + idStr + "/titan-slots/exosuit/delete",
 	}
 	for _, k := range exo.Known {
@@ -159,7 +162,7 @@ func titanExoSuitSection(characterID int64, data *titanUpgradesData) subclassTra
 	}
 	if exo.Used < exo.Cap && data.CreationPointsUsed < data.CreationPointsCap {
 		sec.AddAction = "/characters/" + idStr + "/titan-slots/exosuit/add"
-		sec.AddLabel = "Install Exo-Suit Upgrade"
+		sec.AddLabel = tr("subclass_tracker.titan_slots.exosuit.add_label")
 		for _, o := range exo.Available {
 			// See titanSlotsSection's own comment just above on why the
 			// Specialist-Crafting-discounted cost, not the raw catalog Cost,

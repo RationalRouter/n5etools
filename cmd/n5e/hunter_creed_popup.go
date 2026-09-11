@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // hunter_creed_popup.go: the "Hunter's Creed" subclass tracker popup — each
@@ -68,16 +69,18 @@ func (s *server) handleHunterCreedPopup(w http.ResponseWriter, r *http.Request) 
 		log.Println("compute sheet for hunter creed popup:", err)
 		return
 	}
-	data, err := s.loadHunterTechniquesTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadHunterTechniquesTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load hunter techniques for creed popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Hunter's Creed", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-hunter-techniques sheet-weapon-attacks"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.hunters_creed"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-hunter-techniques sheet-weapon-attacks"}
 	if data == nil || data.CreedName == "" {
-		popup.EmptyHint = "This character hasn't chosen a Hunter's Creed yet — every Hunter-Nin picks one of the 8 Creeds at 3rd level."
+		popup.EmptyHint = tr("subclass_tracker.hunter_creed.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_hunter_creed.html", popup, nil)
 		return
 	}
@@ -92,50 +95,50 @@ func (s *server) handleHunterCreedPopup(w http.ResponseWriter, r *http.Request) 
 	switch subclassSlug {
 	case bladeWardenSubclassSlug:
 		if data.WardenWeaponCap > 0 {
-			popup.Sections = append(popup.Sections, wardenWeaponSection(id, data))
+			popup.Sections = append(popup.Sections, wardenWeaponSection(id, data, tr))
 		}
 		if data.WardenWeaponPropertyCap > 0 {
-			popup.Sections = append(popup.Sections, wardenWeaponPropertySection(id, data))
+			popup.Sections = append(popup.Sections, wardenWeaponPropertySection(id, data, tr))
 		}
 	case necroticHandSubclassSlug:
 		if data.MedicalTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, medicalTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, medicalTechniqueSection(id, data, tr))
 		}
 	case graveStalkerSubclassSlug:
 		if data.ShadowTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, shadowTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, shadowTechniqueSection(id, data, tr))
 		}
 	case arsenalistSubclassSlug:
 		if data.ArsenalItemCap > 0 {
-			popup.Sections = append(popup.Sections, arsenalItemSection(id, data))
+			popup.Sections = append(popup.Sections, arsenalItemSection(id, data, tr))
 		}
 	case undertakerSubclassSlug:
 		if data.ToxicTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, toxicTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, toxicTechniqueSection(id, data, tr))
 		}
 	case viceAgentSubclassSlug:
 		if data.ViceTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, viceTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, viceTechniqueSection(id, data, tr))
 		}
 	case voidWalkerSubclassSlug:
 		if data.VoidTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, voidTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, voidTechniqueSection(id, data, tr))
 		}
 	case wolvesLegacySubclassSlug:
 		if data.ProstheticAttachmentCap > 0 {
-			popup.Sections = append(popup.Sections, prostheticAttachmentSection(id, data))
+			popup.Sections = append(popup.Sections, prostheticAttachmentSection(id, data, tr))
 		}
 		if data.WolfTechniqueCap > 0 {
-			popup.Sections = append(popup.Sections, wolfTechniqueSection(id, data))
+			popup.Sections = append(popup.Sections, wolfTechniqueSection(id, data, tr))
 		}
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_hunter_creed.html", popup, nil)
 }
 
-func wardenWeaponSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func wardenWeaponSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Warden Weapon (" + strconv.Itoa(data.WardenWeaponUsed) + "/" + strconv.Itoa(data.WardenWeaponCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.warden_weapon.title", data.WardenWeaponUsed, data.WardenWeaponCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/warden-weapon/delete",
 	}
 	for _, k := range data.KnownWardenWeapon {
@@ -143,7 +146,7 @@ func wardenWeaponSection(characterID int64, data *hunterTechniquesTabData) subcl
 	}
 	if data.WardenWeaponUsed < data.WardenWeaponCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/warden-weapon/add"
-		sec.AddLabel = "Choose Warden Weapon"
+		sec.AddLabel = tr("subclass_tracker.hunter_creed.warden_weapon.add_label")
 		for _, o := range data.AvailableWardenWeapon {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -151,10 +154,10 @@ func wardenWeaponSection(characterID int64, data *hunterTechniquesTabData) subcl
 	return sec
 }
 
-func wardenWeaponPropertySection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func wardenWeaponPropertySection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Warden Weapon Property (" + strconv.Itoa(data.WardenWeaponPropertyUsed) + "/" + strconv.Itoa(data.WardenWeaponPropertyCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.warden_weapon_property.title", data.WardenWeaponPropertyUsed, data.WardenWeaponPropertyCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/warden-weapon-property/delete",
 	}
 	for _, k := range data.KnownWardenWeaponProperty {
@@ -162,7 +165,7 @@ func wardenWeaponPropertySection(characterID int64, data *hunterTechniquesTabDat
 	}
 	if data.WardenWeaponPropertyUsed < data.WardenWeaponPropertyCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/warden-weapon-property/add"
-		sec.AddLabel = "Learn Property"
+		sec.AddLabel = tr("subclass_tracker.hunter_creed.warden_weapon_property.add_label")
 		for _, o := range data.AvailableWardenWeaponProperty {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -170,10 +173,10 @@ func wardenWeaponPropertySection(characterID int64, data *hunterTechniquesTabDat
 	return sec
 }
 
-func medicalTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func medicalTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Medical Assassination Technique (" + strconv.Itoa(data.MedicalTechniqueUsed) + "/" + strconv.Itoa(data.MedicalTechniqueCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.medical_technique.title", data.MedicalTechniqueUsed, data.MedicalTechniqueCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/medical-technique/delete",
 	}
 	for _, k := range data.KnownMedicalTechnique {
@@ -181,7 +184,7 @@ func medicalTechniqueSection(characterID int64, data *hunterTechniquesTabData) s
 	}
 	if data.MedicalTechniqueUsed < data.MedicalTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/medical-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableMedicalTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -189,10 +192,10 @@ func medicalTechniqueSection(characterID int64, data *hunterTechniquesTabData) s
 	return sec
 }
 
-func shadowTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func shadowTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Shadow Assassination Technique (" + strconv.Itoa(data.ShadowTechniqueUsed) + "/" + strconv.Itoa(data.ShadowTechniqueCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.shadow_technique.title", data.ShadowTechniqueUsed, data.ShadowTechniqueCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/shadow-technique/delete",
 	}
 	for _, k := range data.KnownShadowTechnique {
@@ -200,7 +203,7 @@ func shadowTechniqueSection(characterID int64, data *hunterTechniquesTabData) su
 	}
 	if data.ShadowTechniqueUsed < data.ShadowTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/shadow-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableShadowTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -208,11 +211,11 @@ func shadowTechniqueSection(characterID int64, data *hunterTechniquesTabData) su
 	return sec
 }
 
-func arsenalItemSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func arsenalItemSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Arsenal (" + strconv.Itoa(data.ArsenalItemUsed) + "/" + strconv.Itoa(data.ArsenalItemCap) + " chosen)",
-		Hint:         "Manipulated Tools items also learn the matching jutsu automatically.",
+		Title:        tr("subclass_tracker.hunter_creed.arsenal.title", data.ArsenalItemUsed, data.ArsenalItemCap),
+		Hint:         tr("subclass_tracker.hunter_creed.arsenal.hint"),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/arsenal-item/delete",
 	}
 	for _, k := range data.KnownArsenalItem {
@@ -220,7 +223,7 @@ func arsenalItemSection(characterID int64, data *hunterTechniquesTabData) subcla
 	}
 	if data.ArsenalItemUsed < data.ArsenalItemCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/arsenal-item/add"
-		sec.AddLabel = "Add to Arsenal"
+		sec.AddLabel = tr("subclass_tracker.hunter_creed.arsenal.add_label")
 		for _, o := range data.AvailableArsenalItem {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -228,10 +231,10 @@ func arsenalItemSection(characterID int64, data *hunterTechniquesTabData) subcla
 	return sec
 }
 
-func toxicTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func toxicTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Toxic Assassination Technique (" + strconv.Itoa(data.ToxicTechniqueUsed) + "/" + strconv.Itoa(data.ToxicTechniqueCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.toxic_technique.title", data.ToxicTechniqueUsed, data.ToxicTechniqueCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/toxic-technique/delete",
 	}
 	for _, k := range data.KnownToxicTechnique {
@@ -239,7 +242,7 @@ func toxicTechniqueSection(characterID int64, data *hunterTechniquesTabData) sub
 	}
 	if data.ToxicTechniqueUsed < data.ToxicTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/toxic-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableToxicTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -247,10 +250,10 @@ func toxicTechniqueSection(characterID int64, data *hunterTechniquesTabData) sub
 	return sec
 }
 
-func viceTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func viceTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Vice Assassination Technique (" + strconv.Itoa(data.ViceTechniqueUsed) + "/" + strconv.Itoa(data.ViceTechniqueCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.vice_technique.title", data.ViceTechniqueUsed, data.ViceTechniqueCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/vice-technique/delete",
 	}
 	for _, k := range data.KnownViceTechnique {
@@ -258,7 +261,7 @@ func viceTechniqueSection(characterID int64, data *hunterTechniquesTabData) subc
 	}
 	if data.ViceTechniqueUsed < data.ViceTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/vice-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableViceTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -266,10 +269,10 @@ func viceTechniqueSection(characterID int64, data *hunterTechniquesTabData) subc
 	return sec
 }
 
-func voidTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func voidTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Void Assassination Technique (" + strconv.Itoa(data.VoidTechniqueUsed) + "/" + strconv.Itoa(data.VoidTechniqueCap) + " chosen)",
+		Title:        tr("subclass_tracker.hunter_creed.void_technique.title", data.VoidTechniqueUsed, data.VoidTechniqueCap),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/void-technique/delete",
 	}
 	for _, k := range data.KnownVoidTechnique {
@@ -277,7 +280,7 @@ func voidTechniqueSection(characterID int64, data *hunterTechniquesTabData) subc
 	}
 	if data.VoidTechniqueUsed < data.VoidTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/void-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableVoidTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -290,11 +293,11 @@ func voidTechniqueSection(characterID int64, data *hunterTechniquesTabData) subc
 // tile behind these attachments' per-rest use pool isn't shown anywhere in
 // this popup, matching titan_slots_popup.go's own "on the Core tab" phrasing
 // for the identical shape of cross-reference.
-func prostheticAttachmentSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func prostheticAttachmentSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Prosthetic Attachments (" + strconv.Itoa(data.ProstheticAttachmentUsed) + "/" + strconv.Itoa(data.ProstheticAttachmentCap) + " chosen)",
-		Hint:         "Spent from your Prosthetic Attachments pool in Special Resources on the Core tab.",
+		Title:        tr("subclass_tracker.hunter_creed.prosthetic_attachment.title", data.ProstheticAttachmentUsed, data.ProstheticAttachmentCap),
+		Hint:         tr("subclass_tracker.hunter_creed.prosthetic_attachment.hint"),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/prosthetic-attachment/delete",
 	}
 	for _, k := range data.KnownProstheticAttachment {
@@ -302,7 +305,7 @@ func prostheticAttachmentSection(characterID int64, data *hunterTechniquesTabDat
 	}
 	if data.ProstheticAttachmentUsed < data.ProstheticAttachmentCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/prosthetic-attachment/add"
-		sec.AddLabel = "Learn Attachment"
+		sec.AddLabel = tr("subclass_tracker.hunter_creed.prosthetic_attachment.add_label")
 		for _, o := range data.AvailableProstheticAttachment {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -310,11 +313,11 @@ func prostheticAttachmentSection(characterID int64, data *hunterTechniquesTabDat
 	return sec
 }
 
-func wolfTechniqueSection(characterID int64, data *hunterTechniquesTabData) subclassTrackerSection {
+func wolfTechniqueSection(characterID int64, data *hunterTechniquesTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Wolf Techniques (" + strconv.Itoa(data.WolfTechniqueUsed) + "/" + strconv.Itoa(data.WolfTechniqueCap) + " chosen)",
-		Hint:         "Learning a Wolf Technique also learns its jutsu. Casting it by spending two uses of your Prosthetic Attachments instead of Chakra (always B-Rank, no component requirement) stays a manual choice at cast time — nothing here automates that alternate cost.",
+		Title:        tr("subclass_tracker.hunter_creed.wolf_technique.title", data.WolfTechniqueUsed, data.WolfTechniqueCap),
+		Hint:         tr("subclass_tracker.hunter_creed.wolf_technique.hint"),
 		DeleteAction: "/characters/" + idStr + "/hunter-nin/creed/wolf-technique/delete",
 	}
 	for _, k := range data.KnownWolfTechnique {
@@ -322,7 +325,7 @@ func wolfTechniqueSection(characterID int64, data *hunterTechniquesTabData) subc
 	}
 	if data.WolfTechniqueUsed < data.WolfTechniqueCap {
 		sec.AddAction = "/characters/" + idStr + "/hunter-nin/creed/wolf-technique/add"
-		sec.AddLabel = "Learn Technique"
+		sec.AddLabel = tr("sheet.learn_technique")
 		for _, o := range data.AvailableWolfTechnique {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // scout_nin_scouting_technique_popup.go: the "Scouting Technique" subclass
@@ -78,16 +79,18 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 		log.Println("compute sheet for scouting technique popup:", err)
 		return
 	}
-	data, err := s.loadScoutNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScoutNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load scout-nin for scouting technique popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Scouting Technique", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-scout-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.scouting_technique"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-scout-nin"}
 	if data == nil || data.TechniqueName == "" {
-		popup.EmptyHint = "This character hasn't chosen a Scouting Technique yet — every Scout-Nin picks one of the 9 Scouting Techniques at 3rd level."
+		popup.EmptyHint = tr("subclass_tracker.scouting_technique.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_scout_nin_scouting_technique.html", popup, nil)
 		return
 	}
@@ -101,23 +104,23 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 	}
 
 	if data.ManeuversCap > 0 {
-		popup.Sections = append(popup.Sections, scoutManeuversSection(id, data))
+		popup.Sections = append(popup.Sections, scoutManeuversSection(id, data, tr))
 	}
 	switch subclassSlug {
 	case tacticalScoutSubclassSlug:
 		if data.TacticalSuperiorityCap > 0 {
-			popup.Sections = append(popup.Sections, tacticalSuperioritySection(id, data))
+			popup.Sections = append(popup.Sections, tacticalSuperioritySection(id, data, tr))
 		}
 		if data.SignatureManeuverCap > 0 {
-			popup.Sections = append(popup.Sections, signatureManeuverSection(id, data))
+			popup.Sections = append(popup.Sections, signatureManeuverSection(id, data, tr))
 		}
 	case cloningScoutSubclassSlug:
 		if data.SupremeClonesCap > 0 {
-			popup.Sections = append(popup.Sections, supremeClonesSection(id, data))
+			popup.Sections = append(popup.Sections, supremeClonesSection(id, data, tr))
 		}
 	case pathfinderScoutSubclassSlug:
 		if data.MobileSavantCap > 0 {
-			popup.Sections = append(popup.Sections, mobileSavantSection(id, data))
+			popup.Sections = append(popup.Sections, mobileSavantSection(id, data, tr))
 		}
 	}
 
@@ -131,10 +134,10 @@ func (s *server) handleScoutingTechniquePopup(w http.ResponseWriter, r *http.Req
 // shared by all 9 Scouting Techniques, titled off the character's own
 // subclass Maneuvers list name (e.g. "Arbiter Maneuvers"), same field the
 // Core sheet's own inline heading used to read.
-func scoutManeuversSection(characterID int64, data *scoutNinTabData) subclassTrackerSection {
+func scoutManeuversSection(characterID int64, data *scoutNinTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        data.ManeuversListName + " (" + strconv.Itoa(data.ManeuversUsed) + "/" + strconv.Itoa(data.ManeuversCap) + " known)",
+		Title:        tr("subclass_tracker.scouting_technique.maneuvers.title", data.ManeuversListName, data.ManeuversUsed, data.ManeuversCap),
 		DeleteAction: "/characters/" + idStr + "/scout-nin/scouting-technique/maneuvers/delete",
 	}
 	for _, k := range data.KnownManeuvers {
@@ -142,7 +145,7 @@ func scoutManeuversSection(characterID int64, data *scoutNinTabData) subclassTra
 	}
 	if data.ManeuversUsed < data.ManeuversCap {
 		sec.AddAction = "/characters/" + idStr + "/scout-nin/scouting-technique/maneuvers/add"
-		sec.AddLabel = "Learn Maneuver"
+		sec.AddLabel = tr("subclass_tracker.scouting_technique.maneuvers.add_label")
 		for _, o := range data.AvailableManeuvers {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -150,10 +153,10 @@ func scoutManeuversSection(characterID int64, data *scoutNinTabData) subclassTra
 	return sec
 }
 
-func tacticalSuperioritySection(characterID int64, data *scoutNinTabData) subclassTrackerSection {
+func tacticalSuperioritySection(characterID int64, data *scoutNinTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Tactical Superiority (" + strconv.Itoa(data.TacticalSuperiorityUsed) + "/" + strconv.Itoa(data.TacticalSuperiorityCap) + " chosen)",
+		Title:        tr("subclass_tracker.scouting_technique.tactical_superiority.title", data.TacticalSuperiorityUsed, data.TacticalSuperiorityCap),
 		DeleteAction: "/characters/" + idStr + "/scout-nin/scouting-technique/tactical-superiority/delete",
 	}
 	for _, k := range data.KnownTacticalSuperiority {
@@ -161,7 +164,7 @@ func tacticalSuperioritySection(characterID int64, data *scoutNinTabData) subcla
 	}
 	if data.TacticalSuperiorityUsed < data.TacticalSuperiorityCap {
 		sec.AddAction = "/characters/" + idStr + "/scout-nin/scouting-technique/tactical-superiority/add"
-		sec.AddLabel = "Learn Maneuver"
+		sec.AddLabel = tr("subclass_tracker.scouting_technique.tactical_superiority.add_label")
 		for _, o := range data.AvailableTacticalSuperiority {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -169,10 +172,10 @@ func tacticalSuperioritySection(characterID int64, data *scoutNinTabData) subcla
 	return sec
 }
 
-func signatureManeuverSection(characterID int64, data *scoutNinTabData) subclassTrackerSection {
+func signatureManeuverSection(characterID int64, data *scoutNinTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Signature Maneuver (" + strconv.Itoa(data.SignatureManeuverUsed) + "/" + strconv.Itoa(data.SignatureManeuverCap) + " chosen)",
+		Title:        tr("subclass_tracker.scouting_technique.signature_maneuver.title", data.SignatureManeuverUsed, data.SignatureManeuverCap),
 		DeleteAction: "/characters/" + idStr + "/scout-nin/scouting-technique/signature-maneuver/delete",
 	}
 	for _, k := range data.KnownSignatureManeuver {
@@ -180,7 +183,7 @@ func signatureManeuverSection(characterID int64, data *scoutNinTabData) subclass
 	}
 	if data.SignatureManeuverUsed < data.SignatureManeuverCap {
 		sec.AddAction = "/characters/" + idStr + "/scout-nin/scouting-technique/signature-maneuver/add"
-		sec.AddLabel = "Mark Signature"
+		sec.AddLabel = tr("subclass_tracker.scouting_technique.signature_maneuver.add_label")
 		for _, o := range data.AvailableSignatureManeuver {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -188,11 +191,11 @@ func signatureManeuverSection(characterID int64, data *scoutNinTabData) subclass
 	return sec
 }
 
-func supremeClonesSection(characterID int64, data *scoutNinTabData) subclassTrackerSection {
+func supremeClonesSection(characterID int64, data *scoutNinTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Supreme Clones (" + strconv.Itoa(data.SupremeClonesUsed) + "/" + strconv.Itoa(data.SupremeClonesCap) + " chosen)",
-		Hint:         "Your clones can perform the marked Maneuver without expending a Superiority Die once per turn — actually having a clone do so stays a manual call.",
+		Title:        tr("subclass_tracker.scouting_technique.supreme_clones.title", data.SupremeClonesUsed, data.SupremeClonesCap),
+		Hint:         tr("subclass_tracker.scouting_technique.supreme_clones.hint"),
 		DeleteAction: "/characters/" + idStr + "/scout-nin/scouting-technique/supreme-clones/delete",
 	}
 	for _, k := range data.KnownSupremeClones {
@@ -200,7 +203,7 @@ func supremeClonesSection(characterID int64, data *scoutNinTabData) subclassTrac
 	}
 	if data.SupremeClonesUsed < data.SupremeClonesCap {
 		sec.AddAction = "/characters/" + idStr + "/scout-nin/scouting-technique/supreme-clones/add"
-		sec.AddLabel = "Mark Supreme Clone"
+		sec.AddLabel = tr("subclass_tracker.scouting_technique.supreme_clones.add_label")
 		for _, o := range data.AvailableSupremeClones {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -208,10 +211,10 @@ func supremeClonesSection(characterID int64, data *scoutNinTabData) subclassTrac
 	return sec
 }
 
-func mobileSavantSection(characterID int64, data *scoutNinTabData) subclassTrackerSection {
+func mobileSavantSection(characterID int64, data *scoutNinTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Mobile Savant (" + strconv.Itoa(data.MobileSavantUsed) + "/" + strconv.Itoa(data.MobileSavantCap) + " chosen)",
+		Title:        tr("subclass_tracker.scouting_technique.mobile_savant.title", data.MobileSavantUsed, data.MobileSavantCap),
 		DeleteAction: "/characters/" + idStr + "/scout-nin/scouting-technique/mobile-savant/delete",
 	}
 	for _, k := range data.KnownMobileSavant {
@@ -219,7 +222,7 @@ func mobileSavantSection(characterID int64, data *scoutNinTabData) subclassTrack
 	}
 	if data.MobileSavantUsed < data.MobileSavantCap {
 		sec.AddAction = "/characters/" + idStr + "/scout-nin/scouting-technique/mobile-savant/add"
-		sec.AddLabel = "Learn Jutsu"
+		sec.AddLabel = tr("create_jutsu.title")
 		for _, o := range data.AvailableMobileSavant {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}

@@ -1241,6 +1241,57 @@ call site.
 
 `go build`/`go vet`/`go test ./...` all pass.
 
+## Cross-cutting item 1 (subclass tracker popup Title/Hint/EmptyHint/AddLabel): RESOLVED 2026-09-11
+
+The oldest of the six cross-cutting items, and the largest by call-site count: every subclass
+tracker popup (`subclass_tracker_popup.go`'s header doc — the `window.open()`-based UI for
+tracking one subclass's cap+catalog picks, e.g. S.N.B Upgrades, Titan Slots, Grenadier's B.I.M)
+builds its `subclassTrackerPopupData`/`subclassTrackerSection` structs with hardcoded English
+`Title`/`Hint`/`EmptyHint`/`AddLabel` literals, spanning 25 popup files and roughly 60 individual
+section-builder call sites. Every one of those files had already been separately closed by the
+19-file sweep above — this was a shape of gap the per-file audits weren't scoped to catch, since
+none of the popup files were in that 19-file list.
+
+Fixed with the standard mechanical pattern used throughout this sweep: each popup handler now
+extracts `locale := localeFromContext(r.Context())` (or reuses an existing `locale` variable
+already in scope) and builds `tr := i18n.Translator(locale)`, replacing the popup-level
+`Title`/`EmptyHint` literals with `tr(...)` calls. Every section-builder function that constructs a
+`subclassTrackerSection` gained a new `tr i18n.TranslateFunc` parameter, threaded in from its
+caller, with every `Title`/`Hint`/`AddLabel` literal replaced by a `tr("subclass_tracker.<subclass>.<section>.<field>", args...)` call — `%d`/`%s` placeholders (slot counts, dynamic list
+names) pass through as `tr` args exactly like every other catalog lookup in this codebase.
+`EmptyHint` keys use `subclass_tracker.<subclass>.empty_hint`; popup-level `Title` fields reuse the
+existing `sheet.<subclass>` keys already in the catalog (added for the Core sheet's own subclass
+tile labels) rather than duplicating them under a new namespace. A few structurally-shared helper
+functions (`ninjaneerWeaponDesignationSection`'s three callers, `hunter_creed_popup.go`'s six
+"Learn Technique" AddLabels) pass in already-translated strings rather than taking `tr` directly,
+reusing an existing bare-word catalog key (`sheet.learn_technique`, `create_jutsu.title`) instead
+of adding a near-duplicate.
+
+136 new `subclass_tracker.*` keys added to `en.json`/`es.json`/`pt.json`, hand-translated (no
+`DEEPL_API_KEY` in this environment) rather than run through `cmd/n5e-i18n` — full parity verified
+across all three locale files before any Go source was touched. Deliberately left untranslated, as
+out of scope for this item (a separate field, not named in the cross-cutting finding): `Epithet`
+fields built from Tier/Keyword/Cost/Drain formatting (`titanUpgradeEpithet`, `mad_scientist.go`'s
+"Maiming"/"Mending" pool words baked into an Epithet string, `shinobi_ware.go`'s "Rank X · Y CP"
+text) and any `RefreshOpenerBlocks`/action-URL/comment text.
+
+**Files touched** (25 popup files, all under `cmd/n5e/`):
+`ninjutsu_specialist_awakened_scroll_popup.go`, `taijutsu_ruin_popup.go`,
+`taijutsu_stancer_popup.go`, `taijutsu_passionate_flame_popup.go`,
+`science_nin_grenadier_popup.go`, `scout_nin_scouting_technique_popup.go`,
+`science_nin_shinobi_ware_popup.go`, `science_nin_ninjaneer_popup.go`,
+`science_nin_technobi_popup.go`, `weapon_form_popup.go`, `titan_slots_popup.go`,
+`snb_upgrades_popup.go`, `intelligence_operative_operative_traps_popup.go`,
+`science_nin_elemental_innovationist_popup.go`, `science_nin_mad_scientist_popup.go`,
+`science_nin_spyware_popup.go`, `hunter_creed_popup.go`, `science_nin_storm_rider_popup.go`, plus
+the class-tile popups that reuse `sheet.<subclass>` keys for combat medic, expert
+combatant/fast-and-furious/bonus-tool-infusion-pipe/nature's-blend cooking subclasses, and the
+psyche-breaker/twisted-casting popups already using the shared pattern.
+
+`go build ./...`, `go vet ./...`, and `go test ./...` all pass. Not live-browser-verified (nice-to-
+have per this item's own scoping, not required) — verified instead via full-repo build/vet/test
+plus manual cross-referencing of every catalog key against its call site.
+
 ## Applying this to a new language
 
 For a language with no existing glossary yet:

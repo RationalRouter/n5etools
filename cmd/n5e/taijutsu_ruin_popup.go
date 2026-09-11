@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // taijutsu_ruin_popup.go: the "Ruin" subclass tracker popup — the
@@ -39,16 +40,18 @@ func (s *server) handleRuinPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for ruin popup:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadMartialTechniquesTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for ruin popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Ruin", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.ruin"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || data.Ruin == nil {
-		popup.EmptyHint = "This character isn't a Ruin Taijutsu Specialist."
+		popup.EmptyHint = tr("subclass_tracker.ruin.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_taijutsu_ruin.html", popup, nil)
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // taijutsu_stancer_popup.go: the "Stancer" subclass tracker popup —
@@ -41,16 +42,18 @@ func (s *server) handleStancerPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for stancer popup:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadMartialTechniquesTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for stancer popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Stancer", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.stancer"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || (data.StancerMixedMartialArts == nil && data.StancerStanceBlending == nil) {
-		popup.EmptyHint = "This character has no Stancer stance picks available yet — Mixed Martial Arts grants at 3rd-level Stancer, Stance Blending at 9th."
+		popup.EmptyHint = tr("subclass_tracker.stancer.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_taijutsu_stancer.html", popup, nil)
 		return
 	}

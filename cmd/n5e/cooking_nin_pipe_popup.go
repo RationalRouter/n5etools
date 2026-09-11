@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // cooking_nin_pipe_popup.go: the "Bonus Tool Infusion: Pipe" subclass
@@ -56,16 +57,18 @@ func (s *server) handlePipePopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for pipe popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadCookingNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for pipe popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Bonus Tool Infusion: Pipe", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.bonus_tool_infusion_pipe"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.BonusToolInfusionPipe == nil {
-		popup.EmptyHint = "This character has no Bonus Tool Infusion: Pipe yet — Herbalist grants this at 3rd level."
+		popup.EmptyHint = tr("subclass_tracker.cooking_pipe.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_pipe.html", popup, nil)
 		return
 	}

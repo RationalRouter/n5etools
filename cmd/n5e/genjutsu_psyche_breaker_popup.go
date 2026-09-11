@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // genjutsu_psyche_breaker_popup.go: the "Psyche Breaker" subclass tracker
@@ -52,16 +53,18 @@ func (s *server) handlePsycheBreakerPopup(w http.ResponseWriter, r *http.Request
 		log.Println("compute sheet for psyche breaker popup:", err)
 		return
 	}
-	data, err := s.loadGenjutsuTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadGenjutsuTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu for psyche breaker popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Psyche Breaker", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.psyche_breaker"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
 	if data == nil || data.PsycheBreakerCap == 0 {
-		popup.EmptyHint = "This character isn't a 10th-level (or higher) Corrupt Thoughts Genjutsu Specialist — Psyche Breaker is Corrupt Thoughts' own 10th-level feature."
+		popup.EmptyHint = tr("subclass_tracker.psyche_breaker.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_genjutsu_psyche_breaker.html", popup, nil)
 		return
 	}

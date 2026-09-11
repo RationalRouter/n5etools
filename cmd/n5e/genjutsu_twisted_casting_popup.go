@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // genjutsu_twisted_casting_popup.go: the "Twisted Casting" subclass tracker
@@ -55,16 +56,18 @@ func (s *server) handleTwistedCastingPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for twisted casting popup:", err)
 		return
 	}
-	data, err := s.loadGenjutsuTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadGenjutsuTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load genjutsu for twisted casting popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Twisted Casting", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.twisted_casting"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-genjutsu"}
 	if data == nil || data.TwistedCastingCap == 0 {
-		popup.EmptyHint = "This character isn't a 10th-level (or higher) Beguiler Genjutsu Specialist — Twisted Casting is Beguiler's own 10th-level feature."
+		popup.EmptyHint = tr("subclass_tracker.twisted_casting.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_genjutsu_twisted_casting.html", popup, nil)
 		return
 	}

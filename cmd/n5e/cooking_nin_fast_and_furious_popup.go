@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // cooking_nin_fast_and_furious_popup.go: the "Fast and Furious" subclass
@@ -48,16 +49,18 @@ func (s *server) handleFastAndFuriousPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for fast and furious popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadCookingNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for fast and furious popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Fast and Furious", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.fast_and_furious"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.FastAndFurious == nil {
-		popup.EmptyHint = "This character has no Fast and Furious yet — Entremetier Chef grants this at 2nd level."
+		popup.EmptyHint = tr("subclass_tracker.cooking_fast_and_furious.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_fast_and_furious.html", popup, nil)
 		return
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_ninjaneer_popup.go: the "Ninjaneer" subclass tracker popup —
@@ -37,16 +38,18 @@ func (s *server) handleNinjaneerPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for ninjaneer popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for ninjaneer popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Ninjaneer", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.ninjaneer"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Ninjaneer == nil {
-		popup.EmptyHint = "This character has no Arsenal Modifications yet — Arsenal Modifications grants this at 3rd-level Ninjaneer."
+		popup.EmptyHint = tr("subclass_tracker.ninjaneer.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_ninjaneer.html", popup, nil)
 		return
 	}
@@ -55,29 +58,29 @@ func (s *server) handleNinjaneerPopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, arsenalModSection(id, nj))
+	popup.Sections = append(popup.Sections, arsenalModSection(id, nj, tr))
 	if nj.EnhancedWeapon != nil || len(nj.AvailableEnhancedWeapons) > 0 {
-		popup.Sections = append(popup.Sections, enhancedWeaponSection(id, nj))
+		popup.Sections = append(popup.Sections, enhancedWeaponSection(id, nj, tr))
 	}
 	if nj.WarriorOfScience != nil {
-		popup.Sections = append(popup.Sections, legendaryWeaponSection(id, nj.WarriorOfScience))
+		popup.Sections = append(popup.Sections, legendaryWeaponSection(id, nj.WarriorOfScience, tr))
 	}
 	if nj.PerfectedWeaponCap > 0 {
-		popup.Sections = append(popup.Sections, perfectedWeaponSection(id, nj))
+		popup.Sections = append(popup.Sections, perfectedWeaponSection(id, nj, tr))
 	}
 	if nj.PerfectedWeaponMark != nil || len(nj.AvailablePerfectedWeaponMarks) > 0 {
-		popup.Sections = append(popup.Sections, perfectedWeaponMarkSection(id, nj))
+		popup.Sections = append(popup.Sections, perfectedWeaponMarkSection(id, nj, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_ninjaneer.html", popup, map[string]any{
 		"WarriorOfScience": nj.WarriorOfScience,
 	})
 }
 
-func arsenalModSection(characterID int64, nj *scienceNinNinjaneerData) subclassTrackerSection {
+func arsenalModSection(characterID int64, nj *scienceNinNinjaneerData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Arsenal Modifications (" + strconv.Itoa(nj.ArsenalModUsed) + "/" + strconv.Itoa(nj.ArsenalModCap) + " slots)",
-		Hint:         "Cost badges are informational — Creation Points spent installing modifications aren't tracked separately from Upgrade Slots.",
+		Title:        tr("subclass_tracker.ninjaneer.arsenal_mod.title", nj.ArsenalModUsed, nj.ArsenalModCap),
+		Hint:         tr("subclass_tracker.ninjaneer.arsenal_mod.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/ninjaneer/arsenal-mod/delete",
 	}
 	for _, k := range nj.KnownArsenalMods {
@@ -85,7 +88,7 @@ func arsenalModSection(characterID int64, nj *scienceNinNinjaneerData) subclassT
 	}
 	if nj.ArsenalModUsed < nj.ArsenalModCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/ninjaneer/arsenal-mod/add"
-		sec.AddLabel = "Install Modification"
+		sec.AddLabel = tr("subclass_tracker.ninjaneer.arsenal_mod.add_label")
 		for _, o := range nj.AvailableArsenalMods {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -97,11 +100,11 @@ func arsenalModSection(characterID int64, nj *scienceNinNinjaneerData) subclassT
 	return sec
 }
 
-func perfectedWeaponSection(characterID int64, nj *scienceNinNinjaneerData) subclassTrackerSection {
+func perfectedWeaponSection(characterID int64, nj *scienceNinNinjaneerData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Perfected Weapons (" + strconv.Itoa(nj.PerfectedWeaponUsed) + "/" + strconv.Itoa(nj.PerfectedWeaponCap) + " held)",
-		Hint:         "Restricted to Minor-tier Arsenal Modifications, granted free of Creation Points — one per Perfected Weapon.",
+		Title:        tr("subclass_tracker.ninjaneer.perfected_weapon.title", nj.PerfectedWeaponUsed, nj.PerfectedWeaponCap),
+		Hint:         tr("subclass_tracker.ninjaneer.perfected_weapon.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/ninjaneer/perfected-weapon/delete",
 	}
 	for _, k := range nj.KnownPerfectedWeapons {
@@ -109,7 +112,7 @@ func perfectedWeaponSection(characterID int64, nj *scienceNinNinjaneerData) subc
 	}
 	if nj.PerfectedWeaponUsed < nj.PerfectedWeaponCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/ninjaneer/perfected-weapon/add"
-		sec.AddLabel = "Perfect Weapon"
+		sec.AddLabel = tr("subclass_tracker.ninjaneer.perfected_weapon.add_label")
 		for _, o := range nj.AvailablePerfectedWeapons {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -143,32 +146,32 @@ func ninjaneerWeaponDesignationSection(title, hint, addAction, addLabel, deleteA
 // designation — the toggle itself renders separately in the template (extra
 // field WarriorOfScience), since it isn't part of the generic Known/
 // Available shape.
-func legendaryWeaponSection(characterID int64, wos *scienceNinWarriorOfScienceData) subclassTrackerSection {
+func legendaryWeaponSection(characterID int64, wos *scienceNinWarriorOfScienceData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	return ninjaneerWeaponDesignationSection(
-		"Warrior of Science: Legendary Weapon",
-		"20 CCD chakra (Action) to activate, 10 CCD chakra upkeep at the start of each turn — spend both manually. While active, a held Legendary Weapon gains +2 to Weapon/Taijutsu attack rolls, ignores THP and damage reduction once per turn, doubles the benefit of one non-Heavy/Two-Handed Weapon Property, and can convert a Bukijutsu's damage to force at double CCD cost — all of which stays on paper; only this on/off state and which weapon is Legendary are tracked.",
-		"/characters/"+idStr+"/science-nin/ninjaneer/legendary-weapon/add", "Designate Legendary Weapon",
+		tr("subclass_tracker.ninjaneer.legendary_weapon.title"),
+		tr("subclass_tracker.ninjaneer.legendary_weapon.hint"),
+		"/characters/"+idStr+"/science-nin/ninjaneer/legendary-weapon/add", tr("subclass_tracker.ninjaneer.legendary_weapon.add_label"),
 		"/characters/"+idStr+"/science-nin/ninjaneer/legendary-weapon/delete",
 		wos.LegendaryWeapon, wos.AvailableLegendaryWeapons)
 }
 
-func enhancedWeaponSection(characterID int64, nj *scienceNinNinjaneerData) subclassTrackerSection {
+func enhancedWeaponSection(characterID int64, nj *scienceNinNinjaneerData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	return ninjaneerWeaponDesignationSection(
-		"Enhanced Arsenal: Enhanced Weapon",
-		"Which owned weapon is your Enhanced Weapon. An Enhanced Finesse weapon uses Intelligence in place of Dexterity for attack and damage rolls, applied automatically.",
-		"/characters/"+idStr+"/science-nin/ninjaneer/enhanced-weapon/add", "Designate Enhanced Weapon",
+		tr("subclass_tracker.ninjaneer.enhanced_weapon.title"),
+		tr("subclass_tracker.ninjaneer.enhanced_weapon.hint"),
+		"/characters/"+idStr+"/science-nin/ninjaneer/enhanced-weapon/add", tr("subclass_tracker.ninjaneer.enhanced_weapon.add_label"),
 		"/characters/"+idStr+"/science-nin/ninjaneer/enhanced-weapon/delete",
 		nj.EnhancedWeapon, nj.AvailableEnhancedWeapons)
 }
 
-func perfectedWeaponMarkSection(characterID int64, nj *scienceNinNinjaneerData) subclassTrackerSection {
+func perfectedWeaponMarkSection(characterID int64, nj *scienceNinNinjaneerData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	return ninjaneerWeaponDesignationSection(
-		"A Weapon to Surpass: Perfected Weapon",
-		"Which owned weapon is your (single, tracked) Perfected Weapon — for The Future of Shinobi: Weapons' own flat Intelligence-Modifier damage bonus, applied automatically once that capstone is granted. The book allows working on an ally's weapon; this app only tracks one of your own.",
-		"/characters/"+idStr+"/science-nin/ninjaneer/perfected-weapon-mark/add", "Mark Perfected Weapon",
+		tr("subclass_tracker.ninjaneer.perfected_weapon_mark.title"),
+		tr("subclass_tracker.ninjaneer.perfected_weapon_mark.hint"),
+		"/characters/"+idStr+"/science-nin/ninjaneer/perfected-weapon-mark/add", tr("subclass_tracker.ninjaneer.perfected_weapon_mark.add_label"),
 		"/characters/"+idStr+"/science-nin/ninjaneer/perfected-weapon-mark/delete",
 		nj.PerfectedWeaponMark, nj.AvailablePerfectedWeaponMarks)
 }

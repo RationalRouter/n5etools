@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // taijutsu_passionate_flame_popup.go: the "Passionate Flame" subclass
@@ -41,16 +42,18 @@ func (s *server) handlePassionateFlamePopup(w http.ResponseWriter, r *http.Reque
 		log.Println("compute sheet for passionate flame popup:", err)
 		return
 	}
-	data, err := s.loadMartialTechniquesTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadMartialTechniquesTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load martial techniques for passionate flame popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Passionate Flame", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.passionate_flame"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-martial-techniques"}
 	if data == nil || data.PassionateFlame == nil {
-		popup.EmptyHint = "This character isn't a Passionate Flame Taijutsu Specialist."
+		popup.EmptyHint = tr("subclass_tracker.passionate_flame.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_taijutsu_passionate_flame.html", popup, nil)
 		return
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // medical_nin_combat_medic_popup.go: the "Combat Medic" subclass tracker
@@ -55,16 +56,18 @@ func (s *server) handleCombatMedicPopup(w http.ResponseWriter, r *http.Request) 
 		log.Println("compute sheet for combat medic popup:", err)
 		return
 	}
-	data, err := s.loadMedicalNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadMedicalNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load medical-nin for combat medic popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Combat Medic", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-medical-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.combat_medic"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-medical-nin"}
 	if data == nil || !data.CombatMedic {
-		popup.EmptyHint = "This character isn't a Combat Medic — Martial Competency and Expert Combatant are Combat Medic's own Tenet of Medicine features."
+		popup.EmptyHint = tr("subclass_tracker.combat_medic.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_medical_nin_combat_medic.html", popup, nil)
 		return
 	}

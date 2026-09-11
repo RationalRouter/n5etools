@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_storm_rider_popup.go: the "Storm Rider" subclass tracker
@@ -38,16 +39,18 @@ func (s *server) handleStormRiderPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for storm rider popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for storm rider popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Storm Rider", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.storm_rider"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.StormRider == nil {
-		popup.EmptyHint = "This character has no A.T. Enhancements yet — Air Trecks grants this at 3rd-level Storm Rider."
+		popup.EmptyHint = tr("subclass_tracker.storm_rider.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_storm_rider.html", popup, nil)
 		return
 	}
@@ -56,18 +59,18 @@ func (s *server) handleStormRiderPopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, atEnhancementSection(id, sr))
+	popup.Sections = append(popup.Sections, atEnhancementSection(id, sr, tr))
 	if sr.RegaliaCap > 0 {
-		popup.Sections = append(popup.Sections, regaliaSection(id, sr))
+		popup.Sections = append(popup.Sections, regaliaSection(id, sr, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_storm_rider.html", popup, nil)
 }
 
-func atEnhancementSection(characterID int64, sr *scienceNinStormRiderData) subclassTrackerSection {
+func atEnhancementSection(characterID int64, sr *scienceNinStormRiderData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "A.T. Enhancements (" + strconv.Itoa(sr.EnhancementUsed) + "/" + strconv.Itoa(sr.EnhancementCap) + " slots)",
-		Hint:         "Cost badges are informational — Creation Points spent installing an enhancement aren't tracked separately from enhancement slots.",
+		Title:        tr("subclass_tracker.storm_rider.enhancement.title", sr.EnhancementUsed, sr.EnhancementCap),
+		Hint:         tr("subclass_tracker.storm_rider.enhancement.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/storm-rider/enhancement/delete",
 	}
 	for _, k := range sr.KnownEnhancements {
@@ -75,7 +78,7 @@ func atEnhancementSection(characterID int64, sr *scienceNinStormRiderData) subcl
 	}
 	if sr.EnhancementUsed < sr.EnhancementCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/storm-rider/enhancement/add"
-		sec.AddLabel = "Install Enhancement"
+		sec.AddLabel = tr("subclass_tracker.storm_rider.enhancement.add_label")
 		for _, o := range sr.AvailableEnhancements {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -87,14 +90,14 @@ func atEnhancementSection(characterID int64, sr *scienceNinStormRiderData) subcl
 	return sec
 }
 
-func regaliaSection(characterID int64, sr *scienceNinStormRiderData) subclassTrackerSection {
+func regaliaSection(characterID int64, sr *scienceNinStormRiderData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
-	hint := "One permanent Regalia, worn alongside your A. Ts."
+	hint := tr("subclass_tracker.storm_rider.regalia.hint_single")
 	if sr.RegaliaCap > 1 {
-		hint = "Two Regalia can be worn at once, granted by Future of Shinobi: Sky Keeper."
+		hint = tr("subclass_tracker.storm_rider.regalia.hint_multiple")
 	}
 	sec := subclassTrackerSection{
-		Title:        "Regalia (" + strconv.Itoa(sr.RegaliaUsed) + "/" + strconv.Itoa(sr.RegaliaCap) + " worn)",
+		Title:        tr("subclass_tracker.storm_rider.regalia.title", sr.RegaliaUsed, sr.RegaliaCap),
 		Hint:         hint,
 		DeleteAction: "/characters/" + idStr + "/science-nin/storm-rider/regalia/delete",
 	}
@@ -103,7 +106,7 @@ func regaliaSection(characterID int64, sr *scienceNinStormRiderData) subclassTra
 	}
 	if sr.RegaliaUsed < sr.RegaliaCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/storm-rider/regalia/add"
-		sec.AddLabel = "Choose Regalia"
+		sec.AddLabel = tr("subclass_tracker.storm_rider.regalia.add_label")
 		for _, o := range sr.AvailableRegalia {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}

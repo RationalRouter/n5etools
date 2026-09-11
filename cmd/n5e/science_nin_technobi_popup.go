@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_technobi_popup.go: the "Technobi" subclass tracker popup —
@@ -46,16 +47,18 @@ func (s *server) handleTechnobiPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for technobi popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for technobi popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Technobi", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.technobi"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-science-nin"}
 	if data == nil || data.Technobi == nil {
-		popup.EmptyHint = "This character has no Technobi Mechanizations yet — The Best Laid Trap grants this at 3rd-level Technobi."
+		popup.EmptyHint = tr("subclass_tracker.technobi.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_technobi.html", popup, nil)
 		return
 	}
@@ -64,16 +67,16 @@ func (s *server) handleTechnobiPopup(w http.ResponseWriter, r *http.Request) {
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, technobiMechanizationSection(id, tb))
+	popup.Sections = append(popup.Sections, technobiMechanizationSection(id, tb, tr))
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_technobi.html", popup, map[string]any{
 		"Technobi": tb,
 	})
 }
 
-func technobiMechanizationSection(characterID int64, tb *scienceNinTechnobiData) subclassTrackerSection {
+func technobiMechanizationSection(characterID int64, tb *scienceNinTechnobiData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Technobi Mechanizations (" + strconv.Itoa(tb.MechanizationUsed) + "/" + strconv.Itoa(tb.MechanizationCap) + " held)",
+		Title:        tr("subclass_tracker.technobi.mechanization.title", tb.MechanizationUsed, tb.MechanizationCap),
 		DeleteAction: "/characters/" + idStr + "/science-nin/technobi/mechanization/delete",
 	}
 	for _, k := range tb.KnownMechanizations {
@@ -81,7 +84,7 @@ func technobiMechanizationSection(characterID int64, tb *scienceNinTechnobiData)
 	}
 	if tb.MechanizationUsed < tb.MechanizationCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/technobi/mechanization/add"
-		sec.AddLabel = "Install Mechanization"
+		sec.AddLabel = tr("subclass_tracker.technobi.mechanization.add_label")
 		for _, o := range tb.AvailableMechanizations {
 			epithet := o.Tier
 			if o.Epithet != "" {

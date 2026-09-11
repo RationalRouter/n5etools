@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // weapon_form_popup.go: the "Weapon Form" subclass tracker popup — each of
@@ -69,16 +70,18 @@ func (s *server) handleWeaponFormPopup(w http.ResponseWriter, r *http.Request) {
 		log.Println("compute sheet for weapon form popup:", err)
 		return
 	}
-	data, err := s.loadWeaponFormTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadWeaponFormTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load weapon form for popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Weapon Form", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-weapon-form"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.weapon_form"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-weapon-form"}
 	if data == nil {
-		popup.EmptyHint = "This character has no Weapon Form chosen yet — every Weapon Specialist picks one of the 8 Weapon Forms at 3rd level."
+		popup.EmptyHint = tr("subclass_tracker.weapon_form.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_weapon_form.html", popup, nil)
 		return
 	}
@@ -86,10 +89,10 @@ func (s *server) handleWeaponFormPopup(w http.ResponseWriter, r *http.Request) {
 	popup.Title = data.FormName
 	var superiorWeaponFlurry *subclassTrackerSection
 	if data.SuperiorWeaponFlurry != nil {
-		sec := superiorWeaponFlurrySection(id, data.SuperiorWeaponFlurry)
+		sec := superiorWeaponFlurrySection(id, data.SuperiorWeaponFlurry, tr)
 		superiorWeaponFlurry = &sec
 	}
-	stylesSection := weaponFormStylesSection(id, data)
+	stylesSection := weaponFormStylesSection(id, data, tr)
 	s.renderSubclassTrackerPopup(w, r, "character_weapon_form.html", popup, map[string]any{
 		"FormName":             data.FormName,
 		"Techniques":           data.Techniques,
@@ -99,11 +102,11 @@ func (s *server) handleWeaponFormPopup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func weaponFormStylesSection(characterID int64, data *weaponFormTabData) subclassTrackerSection {
+func weaponFormStylesSection(characterID int64, data *weaponFormTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        data.FormName + " Styles (" + strconv.Itoa(data.Used) + "/" + strconv.Itoa(data.Cap) + " chosen)",
-		Hint:         "Changeable any time.",
+		Title:        tr("subclass_tracker.weapon_form.styles.title", data.FormName, data.Used, data.Cap),
+		Hint:         tr("subclass_tracker.weapon_form.styles.hint"),
 		DeleteAction: "/characters/" + idStr + "/weapon-specialist/weapon-form/style/delete",
 	}
 	for _, k := range data.Known {
@@ -111,7 +114,7 @@ func weaponFormStylesSection(characterID int64, data *weaponFormTabData) subclas
 	}
 	if data.Used < data.Cap {
 		sec.AddAction = "/characters/" + idStr + "/weapon-specialist/weapon-form/style/add"
-		sec.AddLabel = "Learn Style"
+		sec.AddLabel = tr("subclass_tracker.weapon_form.styles.add_label")
 		for _, o := range data.Available {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}
@@ -119,11 +122,11 @@ func weaponFormStylesSection(characterID int64, data *weaponFormTabData) subclas
 	return sec
 }
 
-func superiorWeaponFlurrySection(characterID int64, data *superiorWeaponFlurryTabData) subclassTrackerSection {
+func superiorWeaponFlurrySection(characterID int64, data *superiorWeaponFlurryTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Superior Weapon Flurry (" + strconv.Itoa(data.Used) + "/" + strconv.Itoa(data.Cap) + " chosen)",
-		Hint:         "Each benefit modifies an existing Flurry Technique's own duration or effect — applying that change stays manual/narrated, only which benefits are selected is tracked here.",
+		Title:        tr("subclass_tracker.weapon_form.superior_weapon_flurry.title", data.Used, data.Cap),
+		Hint:         tr("subclass_tracker.weapon_form.superior_weapon_flurry.hint"),
 		DeleteAction: "/characters/" + idStr + "/weapon-specialist/weapon-form/superior-weapon-flurry/delete",
 	}
 	for _, k := range data.Known {
@@ -131,7 +134,7 @@ func superiorWeaponFlurrySection(characterID int64, data *superiorWeaponFlurryTa
 	}
 	if data.Used < data.Cap {
 		sec.AddAction = "/characters/" + idStr + "/weapon-specialist/weapon-form/superior-weapon-flurry/add"
-		sec.AddLabel = "Select Benefit"
+		sec.AddLabel = tr("subclass_tracker.weapon_form.superior_weapon_flurry.add_label")
 		for _, o := range data.Available {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}

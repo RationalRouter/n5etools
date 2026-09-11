@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // cooking_nin_blend_enhancements_popup.go: the "Nature's Blend Enhancements"
@@ -53,16 +54,18 @@ func (s *server) handleBlendEnhancementsPopup(w http.ResponseWriter, r *http.Req
 		log.Println("compute sheet for blend enhancements popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadCookingNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for blend enhancements popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Nature's Blend Enhancements", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.natures_blend_enhancements"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.BlendEnhancementCap == 0 {
-		popup.EmptyHint = "This character has no Nature's Blend Enhancements yet — Gastrochemist grants this at 2nd level."
+		popup.EmptyHint = tr("subclass_tracker.cooking_blend_enhancements.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_blend_enhancements.html", popup, nil)
 		return
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // intelligence_operative_operative_traps_popup.go: the "Operative Traps"
@@ -53,23 +54,24 @@ func (s *server) handleOperativeTrapsPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("load intelligence operative for operative traps popup:", err)
 		return
 	}
+	tr := i18n.Translator(localeFromContext(r.Context()))
 
-	popup := subclassTrackerPopupData{Title: "Operative Traps", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-intelligence-operative"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.operative_traps"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-intelligence-operative"}
 	if data == nil || data.OperativeTrapsCap == 0 {
-		popup.EmptyHint = "This character has no Operative Traps yet — Trap Setter grants this at 3rd-level Tactical Strategist."
+		popup.EmptyHint = tr("subclass_tracker.operative_traps.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_intelligence_operative_operative_traps.html", popup, nil)
 		return
 	}
 
-	popup.Sections = append(popup.Sections, operativeTrapsSection(id, data))
+	popup.Sections = append(popup.Sections, operativeTrapsSection(id, data, tr))
 	s.renderSubclassTrackerPopup(w, r, "character_intelligence_operative_operative_traps.html", popup, nil)
 }
 
-func operativeTrapsSection(characterID int64, data *intelligenceOperativeTabData) subclassTrackerSection {
+func operativeTrapsSection(characterID int64, data *intelligenceOperativeTabData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Operative Traps (" + strconv.Itoa(data.OperativeTrapsUsed) + "/" + strconv.Itoa(data.OperativeTrapsCap) + " chosen)",
-		Hint:         "Uses set tracked in Special Resources on the Core tab (Operative Traps Set).",
+		Title:        tr("subclass_tracker.operative_traps.traps.title", data.OperativeTrapsUsed, data.OperativeTrapsCap),
+		Hint:         tr("subclass_tracker.operative_traps.traps.hint"),
 		DeleteAction: "/characters/" + idStr + "/intelligence-operative/operative-traps/delete",
 	}
 	for _, k := range data.KnownOperativeTraps {
@@ -77,7 +79,7 @@ func operativeTrapsSection(characterID int64, data *intelligenceOperativeTabData
 	}
 	if data.OperativeTrapsUsed < data.OperativeTrapsCap {
 		sec.AddAction = "/characters/" + idStr + "/intelligence-operative/operative-traps/add"
-		sec.AddLabel = "Learn Trap"
+		sec.AddLabel = tr("subclass_tracker.operative_traps.traps.add_label")
 		for _, o := range data.AvailableOperativeTraps {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description})
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // cooking_nin_expert_combatant_popup.go: the "Expert Combatant (Battle
@@ -54,16 +55,18 @@ func (s *server) handleBattleCookExpertCombatantPopup(w http.ResponseWriter, r *
 		log.Println("compute sheet for expert combatant (battle cook) popup:", err)
 		return
 	}
-	data, err := s.loadCookingNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadCookingNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load cooking-nin for expert combatant (battle cook) popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Expert Combatant (Battle Cook)", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.expert_combatant_battle_cook"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-cooking-nin"}
 	if data == nil || data.ExpertCombatant == nil {
-		popup.EmptyHint = "This character has no Expert Combatant yet — Battle Cook grants this at 2nd level."
+		popup.EmptyHint = tr("subclass_tracker.cooking_expert_combatant.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_cooking_nin_expert_combatant.html", popup, nil)
 		return
 	}

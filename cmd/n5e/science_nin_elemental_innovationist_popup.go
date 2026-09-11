@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // science_nin_elemental_innovationist_popup.go: the "Elemental
@@ -37,15 +38,17 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 		log.Println("compute sheet for elemental innovationist popup:", err)
 		return
 	}
-	data, err := s.loadScienceNinTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadScienceNinTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load science-nin for elemental innovationist popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
 	popup := subclassTrackerPopupData{
-		Title:         "Elemental Innovationist",
+		Title:         tr("sheet.elemental_innovationist"),
 		CharacterID:   id,
 		CharacterName: sheet.Name,
 		// sheet-ac: Exoskeleton's Donned/Doffed toggle changes AC (it swaps
@@ -67,7 +70,7 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 		RefreshOpenerBlocks: "sheet-science-nin sheet-weapon-attacks sheet-inventory sheet-inventory-full sheet-ac sheet-squares sheet-vitals sheet-skills sheet-companions sheet-summon-tab",
 	}
 	if data == nil || data.ElementalInnovationist == nil {
-		popup.EmptyHint = "This character has no Elemental Innovationist picks yet — E.I.Ps grants this at 3rd-level Elemental Innovationist."
+		popup.EmptyHint = tr("subclass_tracker.elemental_innovationist.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_science_nin_elemental_innovationist.html", popup, nil)
 		return
 	}
@@ -76,15 +79,15 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 	popup.ShowCreationPoints = true
 	popup.CreationPointsUsed = data.CreationPointsUsed
 	popup.CreationPointsCap = data.CreationPointsCap
-	popup.Sections = append(popup.Sections, eipSection(id, ei, data.CreationPointsUsed, data.CreationPointsCap))
+	popup.Sections = append(popup.Sections, eipSection(id, ei, data.CreationPointsUsed, data.CreationPointsCap, tr))
 	if ei.WOWCap > 0 {
-		popup.Sections = append(popup.Sections, wowSection(id, ei))
+		popup.Sections = append(popup.Sections, wowSection(id, ei, tr))
 		if ei.DesignatedWoW != nil || len(ei.AvailableDesignatedWoW) > 0 {
-			popup.Sections = append(popup.Sections, ascendedWowSection(id, ei))
+			popup.Sections = append(popup.Sections, ascendedWowSection(id, ei, tr))
 		}
 	}
 	if ei.PermaPerk != nil || len(ei.AvailablePermaPerk) > 0 {
-		popup.Sections = append(popup.Sections, permaPerkSection(id, ei))
+		popup.Sections = append(popup.Sections, permaPerkSection(id, ei, tr))
 	}
 	s.renderSubclassTrackerPopup(w, r, "character_science_nin_elemental_innovationist.html", popup, map[string]any{
 		"Exoskeleton": data.Exoskeleton,
@@ -99,10 +102,10 @@ func (s *server) handleElementalInnovationistPopup(w http.ResponseWriter, r *htt
 // each option's raw Cost via parseScienceNinToolStatLine rather than
 // reading a dedicated field (scienceNinSubclassOption carries none — see
 // that struct's own doc, science_nin_subclasses.go).
-func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, creationPointsUsed, creationPointsCap int) subclassTrackerSection {
+func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, creationPointsUsed, creationPointsCap int, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "E.I.Ps (" + strconv.Itoa(ei.EIPUsed) + "/" + strconv.Itoa(ei.EIPCap) + " known)",
+		Title:        tr("subclass_tracker.elemental_innovationist.eip.title", ei.EIPUsed, ei.EIPCap),
 		DeleteAction: "/characters/" + idStr + "/science-nin/elemental-innovationist/eip/delete",
 	}
 	for _, k := range ei.KnownEIPs {
@@ -110,7 +113,7 @@ func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, cre
 	}
 	if ei.EIPUsed < ei.EIPCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/elemental-innovationist/eip/add"
-		sec.AddLabel = "Fit Perk"
+		sec.AddLabel = tr("subclass_tracker.elemental_innovationist.eip.add_label")
 		for _, o := range ei.AvailableEIPs {
 			epithet := o.Tier
 			if o.Epithet != "" {
@@ -126,10 +129,10 @@ func eipSection(characterID int64, ei *scienceNinElementalInnovationistData, cre
 	return sec
 }
 
-func wowSection(characterID int64, ei *scienceNinElementalInnovationistData) subclassTrackerSection {
+func wowSection(characterID int64, ei *scienceNinElementalInnovationistData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "W.O.W (" + strconv.Itoa(ei.WOWUsed) + "/" + strconv.Itoa(ei.WOWCap) + " known)",
+		Title:        tr("subclass_tracker.elemental_innovationist.wow.title", ei.WOWUsed, ei.WOWCap),
 		DeleteAction: "/characters/" + idStr + "/science-nin/elemental-innovationist/wow/delete",
 	}
 	for _, k := range ei.KnownWOW {
@@ -137,7 +140,7 @@ func wowSection(characterID int64, ei *scienceNinElementalInnovationistData) sub
 	}
 	if ei.WOWUsed < ei.WOWCap {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/elemental-innovationist/wow/add"
-		sec.AddLabel = "Forge Weapon"
+		sec.AddLabel = tr("subclass_tracker.elemental_innovationist.wow.add_label")
 		for _, o := range ei.AvailableWOW {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description, DescriptionHTML: formatWoWDescription(o.Description)})
 		}
@@ -145,18 +148,18 @@ func wowSection(characterID int64, ei *scienceNinElementalInnovationistData) sub
 	return sec
 }
 
-func ascendedWowSection(characterID int64, ei *scienceNinElementalInnovationistData) subclassTrackerSection {
+func ascendedWowSection(characterID int64, ei *scienceNinElementalInnovationistData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Elemental Innovation: Ascended W.o.W",
-		Hint:         "One known W.o.W designated Ascended — half ammo Creation Point cost, and its damage ignores resistance and treats immunity as resistance. Only the designation itself is tracked; the cost discount and damage-type override stay on paper.",
+		Title:        tr("subclass_tracker.elemental_innovationist.ascended_wow.title"),
+		Hint:         tr("subclass_tracker.elemental_innovationist.ascended_wow.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/elemental-innovationist/ascended-wow/delete",
 	}
 	if ei.DesignatedWoW != nil {
 		sec.Known = append(sec.Known, subclassTrackerKnownPick{Slug: ei.DesignatedWoW.Slug, Name: ei.DesignatedWoW.Name, DetailHref: "/science-nin-picks/wow/" + ei.DesignatedWoW.Slug})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/elemental-innovationist/ascended-wow/add"
-		sec.AddLabel = "Set Ascended W.o.W"
+		sec.AddLabel = tr("subclass_tracker.elemental_innovationist.ascended_wow.add_label")
 		for _, o := range ei.AvailableDesignatedWoW {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Description: o.Description, DescriptionHTML: formatWoWDescription(o.Description)})
 		}
@@ -164,18 +167,18 @@ func ascendedWowSection(characterID int64, ei *scienceNinElementalInnovationistD
 	return sec
 }
 
-func permaPerkSection(characterID int64, ei *scienceNinElementalInnovationistData) subclassTrackerSection {
+func permaPerkSection(characterID int64, ei *scienceNinElementalInnovationistData, tr i18n.TranslateFunc) subclassTrackerSection {
 	idStr := strconv.FormatInt(characterID, 10)
 	sec := subclassTrackerSection{
-		Title:        "Perma Perk",
-		Hint:         "One known E.I.P (never Wonder E.I.P) made permanent — usable without CCD chakra or an Exoskeleton.",
+		Title:        tr("subclass_tracker.elemental_innovationist.perma_perk.title"),
+		Hint:         tr("subclass_tracker.elemental_innovationist.perma_perk.hint"),
 		DeleteAction: "/characters/" + idStr + "/science-nin/elemental-innovationist/perma-perk/delete",
 	}
 	if ei.PermaPerk != nil {
 		sec.Known = append(sec.Known, subclassTrackerKnownPick{Slug: ei.PermaPerk.Slug, Name: ei.PermaPerk.Name, DetailHref: "/science-nin-picks/eip/" + ei.PermaPerk.Slug})
 	} else {
 		sec.AddAction = "/characters/" + idStr + "/science-nin/elemental-innovationist/perma-perk/add"
-		sec.AddLabel = "Set Perma Perk"
+		sec.AddLabel = tr("subclass_tracker.elemental_innovationist.perma_perk.add_label")
 		for _, o := range ei.AvailablePermaPerk {
 			sec.Available = append(sec.Available, subclassTrackerOption{Slug: o.Slug, Name: o.Name, Epithet: o.Tier, Description: o.Description})
 		}

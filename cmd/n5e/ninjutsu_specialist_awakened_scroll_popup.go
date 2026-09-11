@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // ninjutsu_specialist_awakened_scroll_popup.go: the "Awakened Scroll"
@@ -54,16 +55,18 @@ func (s *server) handleAwakenedScrollPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for awakened scroll popup:", err)
 		return
 	}
-	data, err := s.loadNinjutsuSpecialistTabData(id, sheet, localeFromContext(r.Context()))
+	locale := localeFromContext(r.Context())
+	data, err := s.loadNinjutsuSpecialistTabData(id, sheet, locale)
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load ninjutsu specialist for awakened scroll popup:", err)
 		return
 	}
+	tr := i18n.Translator(locale)
 
-	popup := subclassTrackerPopupData{Title: "Awakened Scroll", CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-ninjutsu-specialist"}
+	popup := subclassTrackerPopupData{Title: tr("sheet.awakened_scroll"), CharacterID: id, CharacterName: sheet.Name, RefreshOpenerBlocks: "sheet-ninjutsu-specialist"}
 	if data == nil || data.AwakenedScrollCap == 0 {
-		popup.EmptyHint = "This character has no Awakened Scroll seals yet — Awakened Scroll grants this at 2nd-level Scribe Master."
+		popup.EmptyHint = tr("subclass_tracker.awakened_scroll.empty_hint")
 		s.renderSubclassTrackerPopup(w, r, "character_ninjutsu_specialist_awakened_scroll.html", popup, nil)
 		return
 	}
