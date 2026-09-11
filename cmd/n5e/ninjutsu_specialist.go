@@ -10,6 +10,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/charstore"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // Ninjutsu Specialist's own mechanics, closing the base-class-wide gaps
@@ -126,8 +127,11 @@ var ninjutsuMoldingAutoGrants = map[string]string{
 
 // loadEfficientMoldingCatalog reads Efficient Molding's 17-row class-wide
 // catalog (list_name "Efficient Molding", subclass_slug NULL after the
-// parser/migration fix above).
-func (s *server) loadEfficientMoldingCatalog() ([]ninjutsuMoldingOption, error) {
+// parser/migration fix above), translating each row's Name/Description via
+// the existing class_options content_translations rows — this loader had no
+// i18n overlay at all until 2026-09-11, the same "DB-backed loader silently
+// missing i18n.Batch" category found repeatedly in sibling files.
+func (s *server) loadEfficientMoldingCatalog(locale string) ([]ninjutsuMoldingOption, error) {
 	rows, err := s.rulesDB.Query(`
 		SELECT slug, name, description FROM class_options
 		WHERE class_slug = ? AND list_name = 'Efficient Molding' ORDER BY name`, ninjutsuSpecialistSlug)
@@ -136,14 +140,33 @@ func (s *server) loadEfficientMoldingCatalog() ([]ninjutsuMoldingOption, error) 
 	}
 	defer rows.Close()
 	var out []ninjutsuMoldingOption
+	var slugs []string
 	for rows.Next() {
 		var o ninjutsuMoldingOption
 		if err := rows.Scan(&o.Slug, &o.Name, &o.Description); err != nil {
 			return nil, err
 		}
 		out = append(out, o)
+		slugs = append(slugs, o.Slug)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	translations, err := i18n.Batch(s.rulesDB, locale, "class_options", slugs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if tr := translations[out[i].Slug]; tr != nil {
+			if v, ok := tr["name"]; ok && v != "" {
+				out[i].Name = v
+			}
+			if v, ok := tr["description"]; ok && v != "" {
+				out[i].Description = v
+			}
+		}
+	}
+	return out, nil
 }
 
 // splitNinjutsuMoldingPicks classifies the catalog against a character's
@@ -188,7 +211,16 @@ type knownNinjutsuJutsuPick struct {
 // own pickers to filter and offer. A stale published jutsu_slug (removed in
 // a rules update) is silently skipped, same tolerance
 // loadCharacterJutsuSheet already extends to the main Known Jutsu list.
-func (s *server) loadKnownNinjutsu(characterID int64) ([]knownJutsuOption, error) {
+//
+// locale translates a published jutsu's own Name/Description only, via the
+// existing "jutsu" content_translations rows, applied AFTER HasCombination's
+// own raw-`keywords`-substring match (keywords is never overwritten by this
+// overlay — it was removed from jutsu's TranslatableFields entirely, see
+// elemental_affinity.go's own fix, so there is no ordering risk here). A
+// player-authored custom_jutsu has no translation catalog at all and stays
+// in whatever language the player typed it in, same as every other
+// custom_jutsu read site in this app.
+func (s *server) loadKnownNinjutsu(characterID int64, locale string) ([]knownJutsuOption, error) {
 	rows, err := s.charDB.Query(`
 		SELECT id, jutsu_slug, custom_jutsu_id FROM character_jutsu WHERE character_id = ?`, characterID)
 	if err != nil {
@@ -225,6 +257,16 @@ func (s *server) loadKnownNinjutsu(characterID int64) ([]knownJutsuOption, error
 			}
 			if err != nil {
 				return nil, err
+			}
+			if tr, err := i18n.Row(s.rulesDB, locale, "jutsu", r.jutsuSlug.String); err != nil {
+				return nil, err
+			} else {
+				if v, ok := tr["name"]; ok && v != "" {
+					name = v
+				}
+				if v, ok := tr["description"]; ok && v != "" {
+					description = v
+				}
 			}
 		} else if r.customID.Valid {
 			err := s.charDB.QueryRow(
@@ -382,7 +424,7 @@ type ninjutsuSpecialistTabData struct {
 // on this being non-nil, same treatment HunterTechniques/IntelligenceOperative
 // get. Each of the three sub-sections independently gates itself on its own
 // Cap being > 0.
-func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charsheet.Sheet) (*ninjutsuSpecialistTabData, error) {
+func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charsheet.Sheet, locale string) (*ninjutsuSpecialistTabData, error) {
 	level, err := s.ninjutsuSpecialistClassLevel(characterID)
 	if err != nil {
 		return nil, err
@@ -403,7 +445,7 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		return nil, err
 	}
 	if data.MoldingCap > 0 {
-		catalog, err := s.loadEfficientMoldingCatalog()
+		catalog, err := s.loadEfficientMoldingCatalog(locale)
 		if err != nil {
 			return nil, err
 		}
@@ -422,9 +464,12 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		// are auto-known, free molding techniques — they never occupy one of
 		// MoldingUsed's cap-gated slots, so they're appended to KnownMolding
 		// after the cap accounting above, not folded into it.
+		tr := i18n.Translator(locale)
 		for _, f := range grantedFeatures {
 			if name, ok := ninjutsuMoldingAutoGrants[f.Slug]; ok {
-				data.KnownMolding = append(data.KnownMolding, knownNinjutsuMolding{Name: name, Granted: true, Description: f.Description})
+				data.KnownMolding = append(data.KnownMolding, knownNinjutsuMolding{
+					Name: tr("ns_molding_name:" + name), Granted: true, Description: f.Description,
+				})
 			}
 		}
 		sort.Slice(data.KnownMolding, func(i, j int) bool { return data.KnownMolding[i].Name < data.KnownMolding[j].Name })
@@ -440,7 +485,7 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		data.AwakenedScrollCap = awakenedScrollCap(level)
 	}
 	if data.RefinedCap > 0 || ninjutsuMasterCap(level) > 0 || data.AwakenedScrollCap > 0 {
-		known, err := s.loadKnownNinjutsu(characterID)
+		known, err := s.loadKnownNinjutsu(characterID, locale)
 		if err != nil {
 			return nil, err
 		}
@@ -536,7 +581,7 @@ func (s *server) handleNinjutsuMoldingAdd(w http.ResponseWriter, r *http.Request
 		log.Println("compute sheet for ninjutsu molding add:", err)
 		return
 	}
-	data, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	data, err := s.loadNinjutsuSpecialistTabData(id, sheet, "")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load ninjutsu specialist for molding add:", err)
@@ -629,7 +674,7 @@ func (s *server) handleNinjutsuJutsuPickAdd(
 			log.Println("compute sheet for ninjutsu jutsu pick add:", err)
 			return
 		}
-		data, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+		data, err := s.loadNinjutsuSpecialistTabData(id, sheet, "")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load ninjutsu specialist for jutsu pick add:", err)
@@ -678,7 +723,7 @@ func (s *server) addAwakenedScrollPick(id int64, jutsuID int64) (int, string) {
 		log.Println("compute sheet for awakened scroll add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	data, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	data, err := s.loadNinjutsuSpecialistTabData(id, sheet, "")
 	if err != nil {
 		log.Println("load ninjutsu specialist for awakened scroll add:", err)
 		return http.StatusInternalServerError, "database error"

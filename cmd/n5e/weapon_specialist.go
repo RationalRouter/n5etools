@@ -909,11 +909,12 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 	if err != nil {
 		return nil, err
 	}
+	tr := i18n.Translator(locale)
 	var techniques []weaponFormTechnique
 	for _, f := range grantedFeatures {
 		if names, ok := weaponFormTechniqueAutoGrants[f.Slug]; ok {
 			for _, name := range names {
-				techniques = append(techniques, weaponFormTechnique{Name: name, Description: f.Description})
+				techniques = append(techniques, weaponFormTechnique{Name: tr("wf_technique_name:" + name), Description: f.Description})
 			}
 		}
 	}

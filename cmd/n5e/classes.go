@@ -76,6 +76,19 @@ func abilityLabelTr(tr i18n.TranslateFunc, ab string) string {
 	return ab
 }
 
+// tierNameTr translates one raw Tier/TierName value (Titan Upgrades' and
+// Scientific Ninja Tools' own class_options.name — "Minor", "Refined",
+// "Superior", "Supreme", "Mastercraft", "Greater") via the shared
+// "tier_name:" UI-catalog namespace — see templates.go's own tierName
+// template func doc for why this happens at render time rather than at the
+// Go loader (several call sites match the raw English value first).
+func tierNameTr(tr i18n.TranslateFunc, tier string) string {
+	if tier == "" {
+		return ""
+	}
+	return tr("tier_name:" + tier)
+}
+
 // classProfLabels' catalogKey reuses the items page's item_kind.* labels for
 // armor/weapon/tool (same English words, already translated) and the
 // character sheet's own saving_throws/skills_heading keys, rather than a

@@ -1928,7 +1928,7 @@
       <h4 class="puppet-upgrade-list-name">{{.ListName}}</h4>
       {{range .Tiers}}
       <div class="puppet-upgrade-tier">
-        <h5>{{.TierName}} <span class="option-picker-epithet">{{T "sheet.n_of_n_used" .Used .Cap}}</span></h5>
+        <h5>{{.TierNameDisplay}} <span class="option-picker-epithet">{{T "sheet.n_of_n_used" .Used .Cap}}</span></h5>
         {{if .Prerequisites}}<p class="section-hint">{{.Prerequisites}}</p>{{end}}
         {{if .Picks}}
         <ul class="sheet-feature-list puppet-upgrade-picks">
@@ -2983,7 +2983,7 @@
         <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.forget_named" .Name}}" title="{{T "sheet.forget_verb"}}">&times;</button>
       </form>
       <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-tools/{{.Slug}}">{{.Name}}</a>
-      <span class="option-picker-epithet">{{T "sheet.tier_cost" .Tier .Cost}}</span>
+      <span class="option-picker-epithet">{{T "sheet.tier_cost" (tierName .Tier) .Cost}}</span>
     </div>
     {{end}}
     {{if lt .ScienceNin.CreationPointsUsed .ScienceNin.CreationPointsCap}}
@@ -3000,7 +3000,7 @@
              rather than moving into that shared popup pattern. */}}
         <li{{if .Disabled}} class="puppet-upgrade-option-unaffordable"{{end}}>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="option_slug" value="{{.Slug}}" required{{if .Disabled}} disabled{{end}}> {{.Name}} <span class="option-picker-epithet">{{T "sheet.tier_cost" .Tier .Cost}}</span>
+            <input type="radio" name="option_slug" value="{{.Slug}}" required{{if .Disabled}} disabled{{end}}> {{.Name}} <span class="option-picker-epithet">{{T "sheet.tier_cost" (tierName .Tier) .Cost}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
           {{if .Disabled}}<span class="puppet-upgrade-option-prereq">{{T "sheet.not_enough_creation_points"}}</span>{{end}}
@@ -3023,7 +3023,7 @@
         <button type="submit" class="sheet-delete-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_verb"}}">&times;</button>
       </form>
       <a class="puppet-upgrade-pick-name sheet-popup-trigger" href="/science-nin-tools/{{.Slug}}">{{.Name}}</a>
-      <span class="option-picker-epithet">{{.Tier}}</span>
+      <span class="option-picker-epithet">{{tierName .Tier}}</span>
     </div>
     {{end}}
     {{if lt $ig.Used $ig.Cap}}
@@ -3032,7 +3032,7 @@
         {{range $ig.Available}}
         <li>
           <label class="puppet-upgrade-option tooltip">
-            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{.Tier}}</span>
+            <input type="radio" name="option_slug" value="{{.Slug}}" required> {{.Name}} <span class="option-picker-epithet">{{tierName .Tier}}</span>
             <span class="tooltip-content">{{formatDescription .Description}}</span>
           </label>
         </li>

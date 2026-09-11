@@ -111,7 +111,9 @@ const (
 // titanWeaponAttackClausePattern's own doc for why Thermite Launcher/Xo-16
 // Gatling/Greater Missile Racks/Critical Ejection never match that pattern
 // and need a separate mechanism here instead).
-const titanGrantedUpgradeHint = "Granted by a Titan Upgrade — remove the upgrade to remove this attack"
+func titanGrantedUpgradeHint(locale string) string {
+	return i18n.Translator(locale)("sheet.titan_granted_hint")
+}
 
 // titanBaseAbilityScores: titan_unit_card raw_text's own six numbers, "15
 // (+2) 13 (+1) 13 (+1) 5 (-3) 5 (-3) 5 (-3)" immediately following "Speed
@@ -467,7 +469,7 @@ func titanWeaponAttacksFromDescription(name, description string, companion chars
 			},
 			AttackTotal: abilityMod + ownerProfBonus,
 			DamageTotal: abilityMod,
-			GrantedHint: titanGrantedUpgradeHint,
+			GrantedHint: titanGrantedUpgradeHint(locale),
 		})
 	}
 	return out
@@ -594,7 +596,7 @@ func titanXo16GatlingAttack(companion charstore.Companion, ownerProfBonus int, l
 		},
 		AttackTotal: dexMod + ownerProfBonus,
 		DamageTotal: 1,
-		GrantedHint: titanGrantedUpgradeHint,
+		GrantedHint: titanGrantedUpgradeHint(locale),
 	}
 }
 
@@ -636,7 +638,7 @@ func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet, locale string) []co
 				DamageCount: 1, DamageSides: 6, DamageType: "fire",
 			},
 			AttackTotal: modifier,
-			GrantedHint: titanGrantedUpgradeHint,
+			GrantedHint: titanGrantedUpgradeHint(locale),
 		},
 		{
 			CompanionAttack: charstore.CompanionAttack{
@@ -644,7 +646,7 @@ func titanGreaterMissileRacksAttacks(sheet *charsheet.Sheet, locale string) []co
 				DamageCount: 1, DamageSides: 6, DamageType: "force",
 			},
 			AttackTotal: modifier,
-			GrantedHint: titanGrantedUpgradeHint,
+			GrantedHint: titanGrantedUpgradeHint(locale),
 		},
 	}
 }
@@ -745,7 +747,7 @@ func titanThermiteGrenadeAttack(sheet *charsheet.Sheet, isDemonFoe bool, locale 
 			DamageCount: x, DamageSides: 8, DamageType: "fire",
 		},
 		NoAttackRoll: true,
-		GrantedHint:  titanGrantedUpgradeHint,
+		GrantedHint:  titanGrantedUpgradeHint(locale),
 		// DemonFoeEligible set directly here, not via
 		// titanApplyDemonFoeBonus — this row bakes its own +2 into x above
 		// rather than going through that shared helper (its caller,
@@ -815,7 +817,7 @@ func titanCriticalEjectionAttack(sheet *charsheet.Sheet, ref *titanReference, is
 			DamageCount: count, DamageSides: 10, DamageType: "fire",
 		},
 		NoAttackRoll: true,
-		GrantedHint:  titanGrantedUpgradeHint,
+		GrantedHint:  titanGrantedUpgradeHint(locale),
 		// DemonFoeEligible set directly here — see titanThermiteGrenadeAttack's
 		// identical comment just above for why.
 		DemonFoeEligible: true,
@@ -877,7 +879,7 @@ func titanShinobifallAttack(sheet *charsheet.Sheet, ref *titanReference, locale 
 			DamageCount: ref.ProficiencyBonus, DamageSides: sides, DamageType: "bludgeoning",
 		},
 		NoAttackRoll: true,
-		GrantedHint:  titanGrantedUpgradeHint,
+		GrantedHint:  titanGrantedUpgradeHint(locale),
 	}
 }
 

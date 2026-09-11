@@ -743,7 +743,7 @@
   {{range .TitanReference.KnownUpgrades}}
   <div class="companion-titan-upgrade-entry">
     <span class="companion-titan-upgrade-name">{{.Name}}</span>
-    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
+    <span class="companion-titan-upgrade-meta">{{tierName .Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
     <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
   </div>
   {{end}}
@@ -755,7 +755,7 @@
   {{range .TitanReference.ExoSuit.Known}}
   <div class="companion-titan-upgrade-entry">
     <span class="companion-titan-upgrade-name">{{.Name}}</span>
-    <span class="companion-titan-upgrade-meta">{{.Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
+    <span class="companion-titan-upgrade-meta">{{tierName .Tier}} · {{upper .Keyword}} · {{.Cost}} {{T "companion_fields.cp_suffix"}}{{if .Drain}} · {{.Drain}} {{T "companion_fields.ccd_chakra_suffix"}}{{end}}</span>
     <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
   </div>
   {{end}}
@@ -1607,7 +1607,7 @@
     {{range .Ref.KnownUpgrades}}
     <div class="companion-titan-upgrade-entry">
       <span class="companion-titan-upgrade-name">{{.Name}}</span>
-      {{if .Tier}}<span class="companion-titan-upgrade-meta">{{.Tier}}</span>{{end}}
+      {{if .Tier}}<span class="companion-titan-upgrade-meta">{{tierName .Tier}}</span>{{end}}
       <p class="companion-titan-upgrade-desc">{{formatDescription .Description}}</p>
     </div>
     {{end}}

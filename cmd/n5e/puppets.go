@@ -1209,7 +1209,8 @@ func translatePuppetUpgradeFixedOptions(tr i18n.TranslateFunc, prefix string, in
 type puppetUpgradeTier struct {
 	ClassOptionSlug string
 	ListName        string
-	TierName        string // class_options.name — "Wood Tier", "Drone Weapon", ...
+	TierName        string // RAW English class_options.name/list_name — "Wood Tier", "Drone Weapon", ... — round-trips through the sheet's "at_tier" hidden field (handlePuppetUpgradeAdd matches it against another raw DB lookup), so it must never be the translated display text.
+	TierNameDisplay string // locale's own translated tier/list name, for the h5 heading only
 	Prerequisites   string
 	Cap             int
 	Used            int
@@ -1840,8 +1841,16 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 	// prose can't be relied on to still equal them. Same ordering hazard as
 	// rawDescriptionBySlug above.
 	rawTierNameBySlug := make(map[string]string, len(optRows))
+	// rawListNameBySlug is the same capture for list_name — TierName (the
+	// untiered-list branch below sets it to the list's own name) round-trips
+	// through the sheet's "at_tier" hidden field the same way a tiered row's
+	// own name does, so it needs the identical raw-before-translation safety
+	// net even though no known puppetUpgradeTierEscalation entry currently
+	// lives in an untiered list.
+	rawListNameBySlug := make(map[string]string, len(optRows))
 	for _, o := range optRows {
 		rawTierNameBySlug[o.slug] = o.name
+		rawListNameBySlug[o.slug] = o.listName
 	}
 
 	if len(optRows) > 0 {
@@ -1860,6 +1869,9 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 			}
 			if v, ok := tr["prerequisites"]; ok {
 				optRows[i].prereq = v
+			}
+			if v, ok := tr["list_name"]; ok {
+				optRows[i].listName = v
 			}
 		}
 	}
@@ -2407,12 +2419,12 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 			if idx, ok := untieredListIndexByListName[o.listName]; ok {
 				tiers[idx].Options = append(tiers[idx].Options, options...)
 				tiers[idx].Picks = append(tiers[idx].Picks, pickViews...)
-				tiers[idx].Used += usedByTierName[o.name]
+				tiers[idx].Used += usedByTierName[rawTierNameBySlug[o.slug]]
 				continue
 			}
 			tiers = append(tiers, puppetUpgradeTier{
-				ClassOptionSlug: o.slug, ListName: o.listName, TierName: o.listName, Prerequisites: o.prereq,
-				Cap: cap, Used: usedByTierName[o.name], Options: options, Picks: pickViews,
+				ClassOptionSlug: o.slug, ListName: o.listName, TierName: rawListNameBySlug[o.slug], TierNameDisplay: o.listName, Prerequisites: o.prereq,
+				Cap: cap, Used: usedByTierName[rawTierNameBySlug[o.slug]], Options: options, Picks: pickViews,
 			})
 			untieredListIndexByListName[o.listName] = len(tiers) - 1
 			continue
@@ -2427,8 +2439,8 @@ func (s *server) loadPuppetUpgradeTiers(characterID, companionID int64, puppetMa
 		}
 
 		tiers = append(tiers, puppetUpgradeTier{
-			ClassOptionSlug: o.slug, ListName: o.listName, TierName: o.name, Prerequisites: o.prereq,
-			Cap: cap, Used: usedByTierName[o.name], Options: options, Picks: pickViews,
+			ClassOptionSlug: o.slug, ListName: o.listName, TierName: rawTierNameBySlug[o.slug], TierNameDisplay: o.name, Prerequisites: o.prereq,
+			Cap: cap, Used: usedByTierName[rawTierNameBySlug[o.slug]], Options: options, Picks: pickViews,
 		})
 		if !o.classWide {
 			tierIndexByName[o.name] = len(tiers) - 1
@@ -2548,7 +2560,7 @@ func composeCompanionAttacks(list []charstore.CompanionAttack, companion charsto
 // integratedWeaponEntrySlug's own doc) — computed fresh from the sheet on
 // every render instead, the same "never store derived math" rule the rest
 // of this app follows; nil for a choice slug this doesn't recognize.
-func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string) *companionAttackRow {
+func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string, locale string) *companionAttackRow {
 	var name, damageType string
 	var damageSides int
 	switch choiceSlug {
@@ -2578,7 +2590,7 @@ func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string) *co
 		},
 		AttackTotal: modifier,
 		DamageTotal: modifier,
-		GrantedHint: "Granted by a Puppet Upgrade — remove the upgrade to remove this attack",
+		GrantedHint: i18n.Translator(locale)("sheet.puppet_granted_hint"),
 	}
 }
 
@@ -2588,7 +2600,7 @@ func puppetIntegratedWeaponAttack(sheet *charsheet.Sheet, choiceSlug string) *co
 // catalog coverage" precedent as puppetUpgradeSubChoiceSpecs. Integrated
 // Weapon is the only one confirmed so far; a future one (any subclass, not
 // just Purple Technique) gets its own case here.
-func puppetUpgradeGrantedAttacks(sheet *charsheet.Sheet, upgradePicks []charstore.CompanionUpgrade, choices []charstore.CompanionUpgradeChoice) []companionAttackRow {
+func puppetUpgradeGrantedAttacks(sheet *charsheet.Sheet, upgradePicks []charstore.CompanionUpgrade, choices []charstore.CompanionUpgradeChoice, locale string) []companionAttackRow {
 	integratedWeaponUpgradeIDs := map[int64]bool{}
 	for _, u := range upgradePicks {
 		if u.UpgradeEntrySlug == integratedWeaponEntrySlug {
@@ -2603,7 +2615,7 @@ func puppetUpgradeGrantedAttacks(sheet *charsheet.Sheet, upgradePicks []charstor
 		if !integratedWeaponUpgradeIDs[ch.CompanionUpgradeID] {
 			continue
 		}
-		if row := puppetIntegratedWeaponAttack(sheet, ch.ChoiceSlug); row != nil {
+		if row := puppetIntegratedWeaponAttack(sheet, ch.ChoiceSlug, locale); row != nil {
 			out = append(out, *row)
 		}
 	}
@@ -3876,7 +3888,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 		}
 		view.PuppetSkills = resolvePuppetSkills(sheet, c, generalizedPicks, upgradeSlugs, skillAbilityOverride, locale)
 
-		view.Attacks = append(view.Attacks, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices)...)
+		view.Attacks = append(view.Attacks, puppetUpgradeGrantedAttacks(sheet, upgradePicks, upgradeChoices, locale)...)
 		for _, fp := range foundationPicks {
 			if row := puppetFoundationWeaponAttack(expectedAbilityScores, ownerProfBonus, fp); row != nil {
 				view.Attacks = append(view.Attacks, *row)

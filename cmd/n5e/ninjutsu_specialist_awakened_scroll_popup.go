@@ -54,7 +54,7 @@ func (s *server) handleAwakenedScrollPopup(w http.ResponseWriter, r *http.Reques
 		log.Println("compute sheet for awakened scroll popup:", err)
 		return
 	}
-	data, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	data, err := s.loadNinjutsuSpecialistTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load ninjutsu specialist for awakened scroll popup:", err)

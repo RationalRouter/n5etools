@@ -742,6 +742,14 @@ func splitScienceNinPicks(catalog []scienceNinSubclassOption, picked map[string]
 // Wonder E.I.P above: once known, it drops out of Available for good, the
 // same "known picks leave Available" treatment every other category's
 // picks get unconditionally.
+// barrierBIMEntrySlug is Barrier B.I.M's own class_option_entries slug —
+// matched by slug rather than Name (splitScienceNinBIMPicks below), since
+// Name is already translated by the time it reaches this catalog and a
+// non-English locale would otherwise silently break the "no second Barrier
+// B.I.M" exclusion. Same "translated field used for runtime matching" bug
+// class already fixed elsewhere (snb.go's loadSNBReference).
+const barrierBIMEntrySlug = "class/science-nin/option/explosive-modifications/superior/entry/barrier-b-i-m"
+
 func splitScienceNinBIMPicks(catalog []scienceNinSubclassOption, picks []charstore.ScienceNinSubclassPick) (known []knownScienceNinPick, available []scienceNinSubclassOption) {
 	qtyBySlug := make(map[string]int, len(picks))
 	for _, p := range picks {
@@ -751,7 +759,7 @@ func splitScienceNinBIMPicks(catalog []scienceNinSubclassOption, picks []charsto
 		qty, isKnown := qtyBySlug[o.Slug]
 		if isKnown {
 			known = append(known, knownScienceNinPick{Slug: o.Slug, Name: o.Name, Tier: o.Tier, Quantity: qty})
-			if strings.EqualFold(o.Name, "Barrier B.I.M") {
+			if o.Slug == barrierBIMEntrySlug {
 				continue // the one explicitly-named exception — no second Barrier B.I.M
 			}
 		}

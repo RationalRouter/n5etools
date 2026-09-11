@@ -1043,6 +1043,136 @@ than recomputed fresh each request, check
 whether it doubles as a matching key or a machine-parsed keyword field elsewhere in the codebase
 before assuming it's safe to translate.
 
+## Cross-cutting item 2 (auto-grant maps with hardcoded Name(s)): RESOLVED 2026-09-11
+
+Of the 6 maps CLAUDE.md originally listed, only 3 turned out to be real bugs. The other 3
+(`huntersExploitAutoGrants` (`hunter_nin.go`), `puppetUpgradeAutoGrants` (`puppets.go`),
+`genjutsuInceptionMirageAutoGrants` (`genjutsu.go`)) map a feature slug to a real
+`class_options`/`class_option_entries` **slug**, which is then resolved for display through an
+already-translated catalog elsewhere in the same file — traced each one's consumption site by hand
+to confirm before ruling it out; no code changes needed for these three.
+
+The 3 genuine bugs (`weaponFormTechniqueAutoGrants` in `weapon_specialist.go`,
+`martialTechniqueAutoGrants` in `taijutsu.go`, `ninjutsuMoldingAutoGrants` in
+`ninjutsu_specialist.go`) all map a feature slug straight to one or more bespoke hardcoded English
+`Name`(s) with no `class_options` row of their own — fixed identically in all three: wrap the name
+in `i18n.Translator(locale)("<file-scoped prefix>:" + name)` at the point the display struct is
+built, with a new namespaced UI-catalog key per raw name (`wf_technique_name:`, `mt_technique_name:`,
+`ns_molding_name:` respectively — kept separate per file rather than one shared namespace, since
+unlike the `Tier`/`ns_molding_name:`-style single-word catalogs, several of these names collide in
+spelling but not in in-game identity across subclasses). Added 18 + 16 + 22 = 56 new locale-catalog
+entries across `en.json`/`es.json`/`pt.json` (es/pt hand-translated — no `DEEPL_API_KEY` in this
+session's environment; `cmd/n5e-i18n catalog-translate` is the normal path when one is available).
+
+`ninjutsu_specialist.go` surfaced a much larger pre-existing gap while fixing its own auto-grant
+map: the entire file had never threaded `locale` through `loadNinjutsuSpecialistTabData` at all —
+its own Efficient Molding catalog (`loadEfficientMoldingCatalog`) and Known Ninjutsu picker
+(`loadKnownNinjutsu`) were both silently untranslated in every non-English locale, the same
+"DB-backed loader with zero i18n overlay at all" category found repeatedly elsewhere in this sweep.
+Fixed by threading `locale` through both loaders and every one of the function's 8 call sites
+(`ninjutsu_specialist.go` itself, `ninjutsu_specialist_awakened_scroll_popup.go`, and two in
+`characters.go`) — audited each individually the same way `LoadGrantedFeatures`' own ~40 call sites
+were audited: 3 are validation-only (`handleNinjutsuMoldingAdd`, the generic
+`handleNinjutsuJutsuPickAdd` factory, `addAwakenedScrollPick`, all matching by `.Slug`/`.JutsuID`
+only) and pass `""`; the Awakened Scroll popup and both `characters.go` sheet-render call sites are
+real display paths and pass `localeFromContext(r.Context())`.
+
+`go build`/`go vet`/`go test ./cmd/n5e/... ./internal/...` all pass.
+
+## Cross-cutting item 3 (`Tier`-shaped fields sourced from raw `class_options.name`): RESOLVED 2026-09-11
+
+`titan.go`'s `titanUpgradeOption.Tier` and `science_nin.go`'s `scienceNinToolOption.Tier` are both
+read straight off the PARENT `class_options.name` row (Minor/Refined/Greater/Superior/Supreme,
+plus a hardcoded `"Mastercraft"` Go literal for the one bundled top tier in each) with no
+translation overlay, and are purely display fields (confirmed via `git grep` across every template
+— never resubmitted in a form, never compared against a literal). Fixed at the template layer
+rather than the Go loader: a new `tierName` template func (`templates.go`, bound the same
+placeholder-then-rebind way `T`/`abilityLabel` already are) translates via a shared
+`"tier_name:"` UI-catalog namespace, applied at the 4 `character_sheet.html` sites
+(`.ScienceNin.KnownTools`/`AvailableTools`, `.ScienceNin.InfusedGenius.Known`/`Available`) and the
+3 `partials/companion_fields.html` sites (Titan Upgrade attack/upgrade rows). 6 new
+`tier_name:Minor`/`Refined`/`Greater`/`Superior`/`Supreme`/`Mastercraft` catalog entries cover
+every value both files ever produce.
+
+**Doing this at the template layer, not the loader, matters**: `science_nin_subclasses.go`'s
+`o.Tier` (same shape, read via the shared `loadScienceNinEntryCatalog`/
+`loadScienceNinChildlessTierOptions`) is filtered with `strings.EqualFold(o.Tier, "Minor")` /
+`"Shinjutsu"` / `"Regalia"` and a `allowedTiers[strings.ToLower(o.Tier)]` map, ALL against raw
+English literals, in half a dozen places in `loadScienceNinSubclassData` — translating `Tier` at
+the loader would have broken every one of those filters in non-English locales, the exact
+"translated field used for runtime matching" class this sweep has hit repeatedly. Investigated
+whether `scienceNinSubclassOption.Tier`/`knownScienceNinPick.Tier` are ever actually rendered
+anywhere in this file's own display surface (the shared `subclass_tracker_popup.html` partial) —
+they are NOT (that partial shows `.Epithet`, built from the raw stat-line text, never `.Tier`) — so
+no further Go-side change was needed for this file's own Tier field beyond leaving it alone.
+
+**Found and fixed two more bugs of the same general shape while auditing `puppets.go`'s
+`puppetUpgradeTier.TierName` for this item** (both pre-existing, not introduced by this pass):
+1. `usedByTierName[o.name]` (3 sites in `loadPuppetUpgradeTiers`) looked up a slot-usage-by-name
+   map — itself keyed by a RAW name from a separate, untranslated `classOptionNamesBySlug` query —
+   using `o.name`, which by that point in the function HAD been overwritten in place with the
+   translated value. In any non-English locale this was an always-miss lookup, silently showing
+   "0 of N used" on every material-tier Puppet Upgrade box regardless of actual picks. Fixed by
+   looking the raw name up via the already-existing `rawTierNameBySlug[o.slug]` map (captured
+   before the translation overlay, originally added for a different hazard) instead of the
+   translated `o.name`.
+2. `puppetUpgradeTier.TierName` is BOTH the h5 heading text AND the value round-tripped through the
+   sheet's hidden `at_tier` form field (consulted by `handlePuppetUpgradeAdd` for
+   `puppetUpgradeTierEscalation` entries, e.g. "add Stonecold Stronghold from the Gold Tier
+   section") — but that field's value is matched server-side against `puppetUpgradeTierName`'s own
+   fresh, ALWAYS-RAW DB lookup. Since `TierName` was being set to the (translated) `o.name`, this
+   comparison always failed in non-English locales, meaning `handlePuppetUpgradeAdd` fell through
+   to `http.Error(w, "not a valid tier for this upgrade", ...)` for EVERY tier-escalation add in
+   es/pt, even the entry's own home tier. Fixed with a Value/Label split, the same pattern
+   `elemental_affinity.go`/`full_metal_shinobi.go` already established: `TierName` now always holds
+   the RAW name (`rawTierNameBySlug[o.slug]`/`rawListNameBySlug[o.slug]`, the latter a new capture
+   added alongside it), and a new `TierNameDisplay` field holds the translated text, used only at
+   the h5 heading (`character_sheet.html`'s `{{.TierNameDisplay}}`) — the hidden `at_tier` input
+   keeps reading `{{.TierName}}` unchanged.
+3. Also found `class_options.list_name` (a real `TranslatableFields` column) was never overlaid at
+   all in `loadPuppetUpgradeTiers` — a plain missing-overlay bug, same category as this sweep has
+   hit repeatedly elsewhere. Fixed by adding `list_name` to the existing translation-overlay loop
+   right alongside `name`/`prerequisites`.
+
+While in `science_nin_subclasses.go`'s `splitScienceNinBIMPicks`, also fixed an adjacent
+"translated field used for matching" bug spotted in passing:
+`strings.EqualFold(o.Name, "Barrier B.I.M")` compared a `class_option_entries`-sourced, ALREADY-
+TRANSLATED `Name` against a raw English literal (the catalog this function reads from does overlay
+`Name`, unlike `Tier`) — silently breaking the "no second Barrier B.I.M" exclusion in non-English
+locales. Fixed by matching on a new `barrierBIMEntrySlug` constant instead (same "match by slug,
+not Name" fix pattern as `snb.go`'s `loadSNBReference`). Checked the file's one sibling literal-Name
+comparison, `strings.EqualFold(k.Name, "Wonder E.I.P")` — confirmed safe, since that candidate is a
+childless-tier synthesized option whose `Name` is parsed straight off raw English prose
+(`splitScienceNinSoloTierItem`) and never translated at all, unlike a real `class_option_entries`
+row.
+
+`go build`/`go vet`/`go test ./cmd/n5e/... ./internal/...` all pass.
+
+## Cross-cutting item 4 (`companionAttackRow.GrantedHint` duplication): RESOLVED 2026-09-11
+
+`titanGrantedUpgradeHint` (a package-level `const` string in `titan.go`, 7 call sites) and a
+verbatim-duplicate (noun swapped) hardcoded literal in `puppets.go`'s `puppetIntegratedWeaponAttack`
+were both pure hardcoded English with no translation. Neither is ever resubmitted or matched
+against — confirmed via the one template that renders `.GrantedHint`
+(`partials/companion_fields.html`, a tooltip `title` attribute only) — so a straightforward
+translate-in-place fix. `titanGrantedUpgradeHint` changed from a `const` to a
+`func(locale string) string` (all 7 call sites already had `locale` in scope) returning
+`i18n.Translator(locale)("sheet.titan_granted_hint")`; `puppets.go`'s literal replaced with
+`i18n.Translator(locale)("sheet.puppet_granted_hint")`, requiring `locale` to be threaded as a new
+parameter through `puppetIntegratedWeaponAttack` and its caller `puppetUpgradeGrantedAttacks` (both
+previously had no locale awareness at all) up to `loadPuppetsTabData`, which already had it. Two
+new catalog entries (`sheet.titan_granted_hint`, `sheet.puppet_granted_hint`), one full sentence
+each rather than a shared `%s`-templated key, since "Titan"/"Puppet" don't necessarily inflect the
+same way in Spanish/Portuguese grammar as a bare noun substitution would assume.
+
+**Found in passing, deliberately NOT fixed here** (flagged as a separate follow-up task instead of
+scope-creeping this fix): `puppetIntegratedWeaponAttack`'s own "Arm Blades"/"Axe Tail" attack names
+are hardcoded English Go literals with the same "no natural DB row" shape as this file's
+`GrantedHint` bug, but are a different field entirely — left for its own dedicated small fix using
+the same raw-English-as-key convention as `ns_molding_name:` etc.
+
+`go build`/`go vet`/`go test ./cmd/n5e/... ./internal/...` all pass.
+
 ## Applying this to a new language
 
 For a language with no existing glossary yet:

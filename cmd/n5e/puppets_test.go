@@ -275,7 +275,7 @@ func TestPuppetIntegratedWeaponAttack(t *testing.T) {
 			{Kind: "Bukijutsu", Modifier: 1},
 		},
 	}
-	armBlades := puppetIntegratedWeaponAttack(sheet, "arm-blades")
+	armBlades := puppetIntegratedWeaponAttack(sheet, "arm-blades", "")
 	if armBlades == nil {
 		t.Fatal("arm-blades returned nil")
 	}
@@ -286,7 +286,7 @@ func TestPuppetIntegratedWeaponAttack(t *testing.T) {
 		t.Errorf("Arm Blades AttackTotal/DamageTotal = %d/%d, want 6/6 (higher of Ninjutsu 3, Taijutsu 6)", armBlades.AttackTotal, armBlades.DamageTotal)
 	}
 
-	axeTail := puppetIntegratedWeaponAttack(sheet, "axe-tail")
+	axeTail := puppetIntegratedWeaponAttack(sheet, "axe-tail", "")
 	if axeTail == nil {
 		t.Fatal("axe-tail returned nil")
 	}
@@ -294,10 +294,10 @@ func TestPuppetIntegratedWeaponAttack(t *testing.T) {
 		t.Errorf("Axe Tail = %+v, want Name=Axe Tail DamageSides=8 DamageType=piercing", axeTail)
 	}
 
-	if got := puppetIntegratedWeaponAttack(sheet, "not-a-real-choice"); got != nil {
+	if got := puppetIntegratedWeaponAttack(sheet, "not-a-real-choice", ""); got != nil {
 		t.Errorf("unknown choice slug = %+v, want nil", got)
 	}
-	if got := puppetIntegratedWeaponAttack(nil, "arm-blades"); got != nil {
+	if got := puppetIntegratedWeaponAttack(nil, "arm-blades", ""); got != nil {
 		t.Errorf("nil sheet = %+v, want nil", got)
 	}
 }

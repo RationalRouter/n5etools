@@ -891,10 +891,11 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 		}
 	}
 
+	nameTr := i18n.Translator(locale)
 	for _, f := range grantedFeatures {
 		if names, ok := martialTechniqueAutoGrants[f.Slug]; ok {
 			for _, name := range names {
-				known = append(known, knownMartialTechnique{Name: name, Granted: true, Description: f.Description})
+				known = append(known, knownMartialTechnique{Name: nameTr("mt_technique_name:" + name), Granted: true, Description: f.Description})
 			}
 		}
 	}

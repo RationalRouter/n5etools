@@ -5311,7 +5311,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		log.Println("load intelligence operative:", err)
 		return
 	}
-	ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(id, sheet)
+	ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(id, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load ninjutsu specialist:", err)
@@ -7091,7 +7091,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["IntelligenceOperative"] = intelligenceOperative
 	case "sheet_ninjutsu_specialist":
-		ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(characterID, sheet)
+		ninjutsuSpecialist, err := s.loadNinjutsuSpecialistTabData(characterID, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load ninjutsu specialist for fragment:", err)

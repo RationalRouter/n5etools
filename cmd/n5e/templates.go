@@ -257,6 +257,18 @@ var templateFuncs = template.FuncMap{
 	// Content fields (.Description etc.) never go through T — those come
 	// from content_translations, not the UI catalog.
 	"T": i18n.Translator("en"),
+	// tierName: translates a raw class_options.name tier label (Titan
+	// Upgrades' and Scientific Ninja Tools' own "Minor"/"Refined"/"Superior"/
+	// "Supreme"/"Mastercraft"/"Greater") via the shared tier_name: catalog
+	// namespace — these values are read straight off class_options.name with
+	// no translation overlay at the loader (unlike Name/Description), since
+	// several call sites match against the raw English text before this
+	// point (science_nin_subclasses.go's strings.EqualFold(o.Tier, ...)
+	// filters, puppets.go's puppetUpgradeTierEscalation) — translating only
+	// here, at render time, keeps every one of those matches on the raw
+	// value while still showing a translated label to the player. See
+	// localeTemplateFuncs below for the real per-request rebind.
+	"tierName": func(tier string) string { return tierNameTr(i18n.Translator("en"), tier) },
 	// currentLocale: which locale's forms/labels the #lang-switcher (see
 	// layout.html) should mark active. Same placeholder-then-rebind
 	// pattern as T -- render/renderCard bind the real per-request value
@@ -279,6 +291,7 @@ func localeTemplateFuncs(locale string) template.FuncMap {
 	return template.FuncMap{
 		"T":             tr,
 		"abilityLabel":  func(ab string) string { return abilityLabelTr(tr, ab) },
+		"tierName":      func(tier string) string { return tierNameTr(tr, tier) },
 		"currentLocale": func() string { return locale },
 	}
 }
