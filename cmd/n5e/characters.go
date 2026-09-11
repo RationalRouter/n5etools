@@ -4432,7 +4432,7 @@ var damageDicePattern = regexp.MustCompile(`^(\d*)d(\d+)$`)
 // still gets an attack row with an empty damage column ("—", the same
 // fallback an ordinary weapon with no damage_dice would get) — its Save DC
 // and effect are on the item's own card, linked from the row's name.
-func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet *charsheet.Sheet) ([]attackRow, error) {
+func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet *charsheet.Sheet, locale string) ([]attackRow, error) {
 	options, err := charstore.ListWeaponAttackOptions(s.charDB, characterID)
 	if err != nil {
 		return nil, err
@@ -4733,7 +4733,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 
 		sourceLabel := ""
 		if isWoW {
-			sourceLabel = "Weapon of Wonder"
+			sourceLabel = i18n.Translator(locale)("weapon_source_badge.weapon_of_wonder")
 		}
 		row := attackRow{
 			Name:               item.Name,
@@ -5052,7 +5052,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bulk := computeInventoryBulk(inventory, sheet, featureBulkBonuses)
-	attacks, err := s.buildAttacks(id, inventory, sheet)
+	attacks, err := s.buildAttacks(id, inventory, sheet, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("build attacks:", err)
@@ -5545,7 +5545,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "character_sheet.html", map[string]any{
 		"Title": sheet.Name, "ID": id, "Sheet": sheet,
 		"AbilityOrder": charsheet.Abilities, // Sheet.Abilities is a map — fixed display order comes from here
-		"SkillGroups":  groupSkillsByAbility(sheet.Skills),
+		"SkillGroups":  groupSkillsByAbility(sheet.Skills, localeFromContext(r.Context())),
 		"LevelOptions": levelOptions, // sheet_level_row's per-class level <select>s
 		"Inventory":    inventory, "Bulk": bulk, "Jutsu": jutsu, "Attacks": attacks,
 		"Concentration":       concentration,
@@ -5590,23 +5590,35 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// sheetSkillRow pairs one Core-tab charsheet.SkillEntry with its translated
+// display name. Name (embedded from SkillEntry) stays the raw canonical
+// English skill name — the proficiency-toggle form's hidden "value" field
+// posts it back verbatim and handleSheetProficiency matches it against
+// charsheet.SkillAbility/character_proficiencies rows, so it must never be
+// overwritten with translated text. Display is the translated text actually
+// shown to the player, via skillDisplayName.
+type sheetSkillRow struct {
+	charsheet.SkillEntry
+	Display string
+}
+
 type skillGroupRow struct {
 	Ability string
-	Skills  []charsheet.SkillEntry
+	Skills  []sheetSkillRow
 }
 
 // groupSkillsByAbility folds Sheet.Skills (already sorted by ability then
 // name, per Compute's own doc) into one group per ability — a single
 // linear pass, not a re-sort, same "rely on already-sorted input" pattern
 // jutsu.go's groupJutsu uses.
-func groupSkillsByAbility(skills []charsheet.SkillEntry) []skillGroupRow {
+func groupSkillsByAbility(skills []charsheet.SkillEntry, locale string) []skillGroupRow {
 	var groups []skillGroupRow
 	for _, sk := range skills {
 		if n := len(groups); n == 0 || groups[n-1].Ability != sk.Ability {
 			groups = append(groups, skillGroupRow{Ability: sk.Ability})
 		}
 		g := &groups[len(groups)-1]
-		g.Skills = append(g.Skills, sk)
+		g.Skills = append(g.Skills, sheetSkillRow{SkillEntry: sk, Display: skillDisplayName(locale, sk.Name)})
 	}
 	return groups
 }
@@ -5971,7 +5983,7 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	for _, slug := range slugs {
 		var j jutsuSheetRow
 		j.Slug = slug
-		j.SourceLabel = grantLabels[slug]
+		j.SourceLabel = translateJutsuSourceBadge(locale, grantLabels[slug])
 		j.AlwaysMaxDamage = alwaysMaxDamageSlug != "" && slug == alwaysMaxDamageSlug
 		var rank sql.NullString
 		var description, duration, classification string
@@ -6874,7 +6886,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		// sheet_level_row's per-class level <select>s), but every fragment
 		// is rendered through here with the same data, so it costs one map
 		// entry each to keep callers from having to know what they need.
-		"SkillGroups":  groupSkillsByAbility(sheet.Skills),
+		"SkillGroups":  groupSkillsByAbility(sheet.Skills, localeFromContext(r.Context())),
 		"AbilityOrder": charsheet.Abilities,
 		"LevelOptions": levelOptions,
 	}
@@ -6927,7 +6939,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load inventory for fragment:", err)
 			return
 		}
-		attacks, err := s.buildAttacks(characterID, inventory, sheet)
+		attacks, err := s.buildAttacks(characterID, inventory, sheet, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("build attacks for fragment:", err)

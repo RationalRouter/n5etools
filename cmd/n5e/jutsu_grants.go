@@ -7,6 +7,7 @@ import (
 
 	"github.com/sergio/n5e/internal/charsheet"
 	"github.com/sergio/n5e/internal/features"
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // jutsuGrantWithLevelPattern matches a class/clan feature sentence that
@@ -215,6 +216,40 @@ var jutsuGrantNameAliases = map[string]string{
 	// "Medical Release: Necrosis" — confirmed the only jutsu row in
 	// rules.db whose name contains "Necrosis".
 	"necrosis": "jutsu/medical-release-necrosis",
+}
+
+// jutsuSourceBadgeCatalogKey maps the fixed English badge vocabulary every
+// jutsu-grant loader feeding characters.go's loadCharacterJutsuSheet
+// (loadGrantedJutsuLabels below, plus puppetUpgradeTableGrantedJutsu,
+// scoutNinMobileSavantGrantedJutsu, medicalNinJutsuChartGrantedJutsu,
+// hunterNinArsenalItemGrantedJutsu, hunterNinWolfTechniqueGrantedJutsu) can
+// write into its merged grantLabels map, to a UI-catalog key. None of these
+// six functions read a locale — the label is translated once, via
+// translateJutsuSourceBadge, at the single point every one of their maps
+// funnels through (loadCharacterJutsuSheet's own j.SourceLabel assignment),
+// rather than threading locale through six separate builder functions for a
+// plain display string none of them ever match against.
+var jutsuSourceBadgeCatalogKey = map[string]string{
+	"Class Feature":    "jutsu_source_badge.class_feature",
+	"Subclass Feature": "jutsu_source_badge.subclass_feature",
+	"Clan":             "jutsu_source_badge.clan",
+	"Feat":             "jutsu_source_badge.feat",
+	"Puppet Upgrade":   "jutsu_source_badge.puppet_upgrade",
+	"Mobile Savant":    "jutsu_source_badge.mobile_savant",
+	"Arsenal Item":     "jutsu_source_badge.arsenal_item",
+	"Wolf Technique":   "jutsu_source_badge.wolf_technique",
+}
+
+// translateJutsuSourceBadge translates one of grantLabels' fixed badge
+// strings via jutsuSourceBadgeCatalogKey, passing anything unrecognized
+// through unchanged — an empty string (a jutsu with no grant at all) has no
+// catalog entry and correctly stays empty.
+func translateJutsuSourceBadge(locale, label string) string {
+	key, ok := jutsuSourceBadgeCatalogKey[label]
+	if !ok {
+		return label
+	}
+	return i18n.Translator(locale)(key)
 }
 
 // loadGrantedJutsuLabels finds every jutsu a character's class, subclass,

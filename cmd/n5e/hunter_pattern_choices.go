@@ -66,20 +66,19 @@ func kleptomaniacChoiceOptions() []featureChoiceOption {
 }
 
 // sortedSkillChoiceOptions is every skill the rules know about, alphabetical
-// — same source and ordering as buildPendingFeatureChoiceRows' own
-// skillNames list (feature_choices.go), duplicated here rather than shared
-// since that function builds a plain []string while this needs
-// []featureChoiceOption with a "skill:" — prefixed Value each caller here
-// resolves the same way Kleptomaniac's tool option does.
+// (by the raw English name, so ordering stays stable across locales) — same
+// source as buildPendingFeatureChoiceRows' own skillNames list
+// (feature_choices.go), duplicated here rather than shared since that
+// function builds a plain []string while this needs []featureChoiceOption
+// with a "skill:"-prefixed Value each caller here resolves the same way
+// Kleptomaniac's tool option does.
 //
-// Labels are the raw English skill name, deliberately untranslated: skill
-// names have no translation catalog anywhere in this app yet (they're used
-// as literal map keys throughout — charsheet.SkillAbility, character
-// proficiency rows, feature_choices.go's own identical skill picker,
-// mastery.go, puppet_skills.go) — a cross-cutting gap spanning far more than
-// this file. See translation_methodology.md's "Sitewide code-level gaps"
-// section.
-func sortedSkillChoiceOptions() []featureChoiceOption {
+// Value stays the raw canonical English skill name (handleSheetHunterPatternChoice
+// splits off the "skill:" prefix and matches the rest against
+// charsheet.SkillAbility); Label is the translated display text, via the
+// same skillDisplayName/skillCatalogKey catalog mastery.go/puppet_skills.go/
+// feature_choices.go's own skill picker already use.
+func sortedSkillChoiceOptions(locale string) []featureChoiceOption {
 	names := make([]string, 0, len(charsheet.SkillAbility))
 	for name := range charsheet.SkillAbility {
 		names = append(names, name)
@@ -87,7 +86,7 @@ func sortedSkillChoiceOptions() []featureChoiceOption {
 	sort.Strings(names)
 	out := make([]featureChoiceOption, 0, len(names))
 	for _, name := range names {
-		out = append(out, featureChoiceOption{Value: "skill:" + name, Label: name})
+		out = append(out, featureChoiceOption{Value: "skill:" + name, Label: skillDisplayName(locale, name)})
 	}
 	return out
 }
@@ -107,10 +106,6 @@ func sortedSkillChoiceOptions() []featureChoiceOption {
 // file's own hand-curated text, translated via translateFeatureChoiceOptions
 // the same way cooking_nin.go's catalogs are.
 //
-// sortedSkillChoiceOptions' skill names are deliberately left untranslated —
-// see its own doc comment: the 21 skill names have no translation catalog
-// anywhere in the app yet, a cross-cutting gap spanning far more than this
-// file (translation_methodology.md documents it as a standing follow-up).
 func (s *server) buildPendingHunterPatternChoiceRows(characterID int64, locale string) ([]pendingHunterPatternChoiceRow, error) {
 	picks, err := charstore.ListHunterNinPicks(s.charDB, characterID, charstore.HunterPickPattern)
 	if err != nil {
@@ -149,7 +144,7 @@ func (s *server) buildPendingHunterPatternChoiceRows(characterID int64, locale s
 				Fields: []pendingHunterPatternChoiceField{{Name: "choice", Options: translateFeatureChoiceOptions(kleptomaniacChoiceOptions(), locale)}},
 			})
 		case habitualResearcherOptionSlug:
-			skillOptions := sortedSkillChoiceOptions()
+			skillOptions := sortedSkillChoiceOptions(locale)
 			out = append(out, pendingHunterPatternChoiceRow{
 				PatternSlug: slug, Label: s.hunterPatternChoiceLabel(slug, "Habitual Researcher", locale),
 				Fields: []pendingHunterPatternChoiceField{

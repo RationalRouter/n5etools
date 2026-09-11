@@ -4765,14 +4765,14 @@
           <input type="hidden" name="kind" value="skill">
           <input type="hidden" name="value" value="{{.Name}}">
           <input type="hidden" name="on" value="{{if .Proficient}}0{{else}}1{{end}}">
-          <button type="submit" class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}}" data-toggle-class="sheet-prof-bullet-on" aria-label="{{T "sheet.toggle_named_proficiency" .Name}}" title="{{T "sheet.toggle_proficiency_title"}}"></button>
+          <button type="submit" class="sheet-prof-bullet{{if .Proficient}} sheet-prof-bullet-on{{end}}" data-toggle-class="sheet-prof-bullet-on" aria-label="{{T "sheet.toggle_named_proficiency" .Display}}" title="{{T "sheet.toggle_proficiency_title"}}"></button>
         </form>
         <div class="sheet-skill-row rollable{{if .Proficient}} sheet-proficient{{end}}"
-             data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_check_label" .Name}}" tabindex="0" role="button">
+             data-sides="20" data-modifier="{{.Modifier}}" data-label="{{T "sheet.named_check_label" .Display}}" tabindex="0" role="button">
           {{/* Mastery is already inside Modifier — the badge is what makes
                a skill whose number is 4 higher than its ability + proficiency
                would explain readable at a glance. */}}
-          <span class="sheet-skill-name">{{.Name}}{{if .MasteryRank}} <span class="sheet-mastery-badge" title="{{masteryRankName .MasteryRank}} Mastery (Rank {{.MasteryRank}}), {{signed (masteryBonus .MasteryRank)}} included">M{{.MasteryRank}}</span>{{end}}</span>
+          <span class="sheet-skill-name">{{.Display}}{{if .MasteryRank}} <span class="sheet-mastery-badge" title="{{masteryRankName .MasteryRank}} Mastery (Rank {{.MasteryRank}}), {{signed (masteryBonus .MasteryRank)}} included">M{{.MasteryRank}}</span>{{end}}</span>
           <span class="sheet-skill-mod">{{signed .Modifier}}</span>
         </div>
       </div>

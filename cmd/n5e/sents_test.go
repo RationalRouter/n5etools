@@ -191,7 +191,7 @@ func TestBuildAttacksSENTOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	attacks, err := s.buildAttacks(1, inv, sheet)
+	attacks, err := s.buildAttacks(1, inv, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

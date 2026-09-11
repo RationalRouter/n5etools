@@ -252,7 +252,7 @@ func TestBuildAttacksCookingToolInfusionOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	attacks, err := s.buildAttacks(1, inv, sheet)
+	attacks, err := s.buildAttacks(1, inv, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +532,7 @@ func TestBuildAttacksCookingToolInfusionPipeOverrides(t *testing.T) {
 	if len(inv) != 2 {
 		t.Fatalf("inventory = %d items, want 2 (base Cooking Tool + Pipe both equipped)", len(inv))
 	}
-	attacks, err := s.buildAttacks(1, inv, sheet)
+	attacks, err := s.buildAttacks(1, inv, sheet, "")
 	if err != nil {
 		t.Fatal(err)
 	}

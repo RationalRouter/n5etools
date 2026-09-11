@@ -1173,6 +1173,74 @@ the same raw-English-as-key convention as `ns_molding_name:` etc.
 
 `go build`/`go vet`/`go test ./cmd/n5e/... ./internal/...` all pass.
 
+## Cross-cutting item 5 (badge labels and skill names): RESOLVED 2026-09-10
+
+The two halves of this item turned out to be in very different states. The 21 canonical skill
+names (`internal/charsheet.SkillAbility`) already had a working translation mechanism —
+`skillCatalogKey`/`skillDisplayName` (`characters.go`, added 2026-09-07 wiring Spanish across
+class-detail surfaces, well before this cross-cutting item was even logged) — and `mastery.go`,
+`puppet_skills.go`, `puppets.go`'s Generalized Skill picker, and `feature_choices.go`'s own generic
+skill-choice picker were all already using it correctly. Two real gaps remained:
+
+1. **`hunter_pattern_choices.go`'s `sortedSkillChoiceOptions`** (Habitual Researcher's two-skill
+   pick) still built its options with `Label: name` — the raw English name — and its own doc
+   comment still claimed "skill names have no translation catalog anywhere in this app yet," which
+   was stale the moment `skillDisplayName` shipped. Fixed by threading `locale` into the function
+   and using `skillDisplayName(locale, name)` for `Label`, exactly like every other skill picker;
+   `Value` (`"skill:" + name`) is untouched, since `handleSheetHunterPatternChoice` still matches
+   the raw name after stripping the prefix. Removed the now-false "no translation catalog" doc
+   comments at both this function and `buildPendingHunterPatternChoiceRows`.
+2. **The Core sheet's own main Skills table** (`character_sheet.html`'s `sheet_skills` block,
+   `characters.go`'s `groupSkillsByAbility`) had never been wired at all — the box every player
+   looks at most, on every character, showing all 21 English names permanently regardless of
+   locale. Non-trivial to fix because `charsheet.SkillEntry.Name` is a genuine matching key here,
+   not just display text: the proficiency-toggle form posts `value="{{.Name}}"` back to
+   `handleSheetProficiency`, which matches it against `charsheet.SkillAbility`/
+   `character_proficiencies` rows. Translating `Name` in place would have broken every toggle in a
+   non-English locale — recognized before writing any code, not caught by a test. Fixed with the
+   same Value/Label split this sweep has used repeatedly (`elementalAffinityOption`,
+   `fullMetalShinobiOption`): a new `sheetSkillRow` struct embeds `charsheet.SkillEntry` (keeping
+   `Name` raw) plus a `Display string` field; `groupSkillsByAbility` now takes `locale` and sets
+   `Display: skillDisplayName(locale, sk.Name)` per row. The template's hidden `value="{{.Name}}"`
+   stays untouched; the visible `<span class="sheet-skill-name">`, the toggle button's aria-label,
+   and the rollable row's `data-label` all switched to `.Display`. Both `groupSkillsByAbility` call
+   sites (the full sheet render and `renderSheetFragment`'s shared fragment data) already had
+   `localeFromContext(r.Context())` in scope.
+
+Separately, the "badge labels" half turned out to be the shared jutsu-source-badge vocabulary
+flagged repeatedly earlier in this file (`scout_nin.go`'s and `medical_nin.go`'s own findings): six
+functions across five files (`jutsu_grants.go`'s `loadGrantedJutsuLabels`,
+`puppet_upgrade_jutsu_grants.go`'s `puppetUpgradeTableGrantedJutsu`, `scout_nin.go`'s
+`scoutNinMobileSavantGrantedJutsu`, `medical_nin.go`'s `medicalNinJutsuChartGrantedJutsu`, and
+`hunter_nin.go`'s `hunterNinArsenalItemGrantedJutsu`/`hunterNinWolfTechniqueGrantedJutsu`) each
+write one of 8 fixed English strings ("Class Feature", "Subclass Feature", "Clan", "Feat", "Puppet
+Upgrade", "Mobile Savant", "Arsenal Item", "Wolf Technique") into `characters.go`'s merged
+`grantLabels` map, which `loadCharacterJutsuSheet` copies onto `jutsuSheetRow.SourceLabel` — the
+`.jutsu-source-badge` chip shown next to every granted jutsu. None of the six functions read a
+locale, and none of the eight strings are ever matched against anywhere (confirmed by grep — pure
+display). Rather than threading `locale` through all six builders for a plain string none of them
+use for matching, translation happens once, at the single point every one of their maps already
+funnels through: a new `jutsuSourceBadgeCatalogKey` map plus `translateJutsuSourceBadge(locale,
+label)` helper (`jutsu_grants.go`), applied at `loadCharacterJutsuSheet`'s own
+`j.SourceLabel = translateJutsuSourceBadge(locale, grantLabels[slug])` assignment, which already
+had `locale` in scope. Same fix applied to the separate, unrelated `weapon-source-badge` chip
+(`buildAttacks`'s local `sourceLabel = "Weapon of Wonder"` for a granted Weapon of Wonder) — found
+while auditing badge text generally, not originally named in this cross-cutting item, but the
+identical bug shape (a hardcoded English chip fed from a local variable, no matching-key risk since
+the real matching field is the separate `wowCustomItemKind`/`custom_items.kind` constant, never the
+local display variable). `buildAttacks` had no `locale` parameter at all — added one, both of its
+two call sites already had `localeFromContext(r.Context())` available.
+
+9 new locale keys (`jutsu_source_badge.*` ×8, `weapon_source_badge.weapon_of_wonder`), hand-
+translated into es/pt (no `DEEPL_API_KEY` in this environment) rather than run through
+`cmd/n5e-i18n`, checking existing terminology for consistency (e.g. `"Clan"` reuses the same bare
+word already used elsewhere; "Feat" as "Dote"/"Talento" matches other feat-related keys already in
+the catalog). No new skill-name keys were needed — `skillCatalogKey`'s existing 21 entries (42
+`skill.*.name`/`skill.*.desc` keys, already fully translated in en/es/pt) covered every remaining
+call site.
+
+`go build`/`go vet`/`go test ./...` all pass.
+
 ## Applying this to a new language
 
 For a language with no existing glossary yet:
