@@ -535,7 +535,7 @@ func (s *server) handleElementalAffinityAdd(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	level := s.characterLevel(id)
-	grantedFeatures, err := s.loadGrantedFeatures(id, clanSlug.String, level)
+	grantedFeatures, err := s.loadGrantedFeatures(id, clanSlug.String, level, "")
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load granted features for elemental affinity add:", err)

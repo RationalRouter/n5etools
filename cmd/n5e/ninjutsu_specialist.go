@@ -391,7 +391,7 @@ func (s *server) loadNinjutsuSpecialistTabData(characterID int64, sheet *charshe
 		return nil, nil
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

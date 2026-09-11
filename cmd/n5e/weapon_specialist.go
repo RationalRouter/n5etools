@@ -340,7 +340,7 @@ func (s *server) loadWeaponFocusTabData(characterID int64, sheet *charsheet.Shee
 	if err != nil {
 		return nil, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +425,7 @@ func (s *server) weaponFocusBonusSet(characterID int64, sheet *charsheet.Sheet) 
 	if err != nil {
 		return nil, 0, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -487,7 +487,7 @@ func (s *server) weaponSpecialistEnhancedStrikesDice(characterID int64, sheet *c
 	if err != nil || level == 0 {
 		return "", err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return "", err
 	}
@@ -905,7 +905,7 @@ func (s *server) loadWeaponFormTabData(characterID int64, sheet *charsheet.Sheet
 		}
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

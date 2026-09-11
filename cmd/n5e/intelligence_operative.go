@@ -132,7 +132,7 @@ var intelligenceOperativeJutsuGrants = map[string]intelligenceOperativeJutsuGran
 // subclass feature by its own subclass's class level, so no separate
 // Interrogationist/level check is needed here.
 func (s *server) intelligenceOperativeJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]intelligenceOperativeJutsuGrant, error) {
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel, "")
 	if err != nil {
 		return nil, err
 	}

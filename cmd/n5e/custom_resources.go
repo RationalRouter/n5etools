@@ -5856,7 +5856,7 @@ func translateCustomResourceEntries(entries []CustomResourceEntry, locale string
 // entries' Name/Restriction text (see translateCustomResourceEntries) --
 // every other field is language-independent.
 func (s *server) loadCustomResources(characterID int64, sheet *charsheet.Sheet, locale string) ([]CustomResourceEntry, error) {
-	features, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	features, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

@@ -5109,7 +5109,7 @@ func (s *server) handleCharacterSheet(w http.ResponseWriter, r *http.Request) {
 	// free jutsu grants and mergeFeatFeatures) — the Core tab no longer
 	// shows this list itself; see reference.go's Class Reference popup for
 	// the player-facing "what do I have" view.
-	grantedFeatures, err := s.loadGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadGrantedFeatures(id, sheet.ClanSlug, sheet.Level, localeFromContext(r.Context()))
 	if err != nil {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		log.Println("load granted features:", err)
@@ -5769,7 +5769,7 @@ func (s *server) loadCharacterJutsuSheet(characterID int64, sheet *charsheet.She
 	// healing/temp-HP subset (patissierChefByTheBookHealingJutsuSlugs) —
 	// applied per-row below, alongside the same feature's jutsu-access
 	// grant (jutsuEligible/jutsuEligibilityContext).
-	byTheBookFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	byTheBookFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -6701,8 +6701,8 @@ type grantedFeatureRow = features.GrantedFeatureRow
 // character's full active-feature list (passive traits, the Water and Oil
 // bonus check) actually wants, so callers added after the Core tab's own
 // inline version don't have to remember to chain the two themselves.
-func (s *server) loadMergedGrantedFeatures(characterID int64, clanSlug string, classLevel int) ([]grantedFeatureRow, error) {
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+func (s *server) loadMergedGrantedFeatures(characterID int64, clanSlug string, classLevel int, locale string) ([]grantedFeatureRow, error) {
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -6722,8 +6722,8 @@ func (s *server) loadMergedGrantedFeatures(characterID int64, clanSlug string, c
 // subclass slug), plus one for the clan gated by the character's total class
 // level (Sheet.Level, which is that total — there is no display-only level
 // any more for the two to disagree about).
-func (s *server) loadGrantedFeatures(characterID int64, clanSlug string, classLevel int) ([]grantedFeatureRow, error) {
-	all, err := features.LoadGrantedFeatures(s.rulesDB, s.charDB, characterID, clanSlug, classLevel)
+func (s *server) loadGrantedFeatures(characterID int64, clanSlug string, classLevel int, locale string) ([]grantedFeatureRow, error) {
+	all, err := features.LoadGrantedFeatures(s.rulesDB, s.charDB, characterID, clanSlug, classLevel, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -6739,7 +6739,7 @@ func (s *server) loadGrantedFeatures(characterID int64, clanSlug string, classLe
 	// own has[slug] catalog gates, jutsu_grants.go, custom_resources.go,
 	// loadMergedGrantedFeatures) ultimately reads through. See
 	// mergeMixedStudiesFeatures's own doc (science_nin.go).
-	return s.mergeMixedStudiesFeatures(characterID, out)
+	return s.mergeMixedStudiesFeatures(characterID, out, locale)
 }
 
 // puppetMasterTacticSlugs excludes Puppet Master's 5 named Tactics
@@ -6902,7 +6902,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["MartialDice"] = martialDice
 	case "sheet_kujaku_mode":
-		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load granted features for kujaku mode fragment:", err)
@@ -6971,7 +6971,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonuses)
 	case "sheet_elemental_affinities":
-		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load granted features for elemental affinities fragment:", err)
@@ -7188,7 +7188,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 		}
 		data["SummonsTab"] = summonsTab
 	case "sheet_passive_traits":
-		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, localeFromContext(r.Context()))
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load granted features for passive traits fragment:", err)
@@ -7318,7 +7318,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			log.Println("load character jutsu for "+name+" fragment:", err)
 			return
 		}
-		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+		grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			log.Println("load granted features for "+name+" fragment:", err)

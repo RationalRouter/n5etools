@@ -1335,7 +1335,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// stale pre-bonus ones. See internal/features' own doc comment for why
 	// this logic lives in a package charsheet can import instead of
 	// staying inside cmd/n5e where it used to.
-	grantedFeatures, err := features.LoadGrantedFeatures(rulesDB, charDB, characterID, sheet.ClanSlug, sheet.Level)
+	// Locale doesn't matter here: only numeric proficiency/AC/Speed effects
+	// are read below, never a display field.
+	grantedFeatures, err := features.LoadGrantedFeatures(rulesDB, charDB, characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, fmt.Errorf("load granted features: %w", err)
 	}

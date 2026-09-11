@@ -106,7 +106,7 @@ var sentChoiceKey = features.ChoiceKey{FeatureSlug: scienceNinSENTsFeatureSlug, 
 // "empty means untouched" shape cookingToolInfusionAttackOverrides already
 // uses.
 func (s *server) sentAttackOverrides(characterID int64, sheet *charsheet.Sheet) (weaponSlug string, err error) {
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +154,7 @@ func (s *server) setSENTPick(id int64, value string) (int, string) {
 		log.Println("compute sheet for sent pick:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for sent pick:", err)
 		return http.StatusInternalServerError, "database error"

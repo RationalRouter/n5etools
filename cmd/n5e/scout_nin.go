@@ -1217,7 +1217,7 @@ func (s *server) loadScoutNinTabData(characterID int64, sheet *charsheet.Sheet, 
 		return nil, nil
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1749,7 +1749,7 @@ func (s *server) setChangeOfHeart(id int64, value string) (int, string) {
 		log.Println("compute sheet for change of heart:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for change of heart:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1825,7 +1825,7 @@ func (s *server) setParagonsPresence(id int64, value string) (int, string) {
 		log.Println("compute sheet for paragons presence:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for paragons presence:", err)
 		return http.StatusInternalServerError, "database error"

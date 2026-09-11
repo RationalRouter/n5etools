@@ -1295,7 +1295,7 @@ func (s *server) titanUpgradesCreationPointsSpend(characterID int64, granted []g
 // existence on this being non-nil (via loadTitanReference), same treatment
 // loadScienceNinTabData's own nil return gets.
 func (s *server) loadTitanUpgradesData(characterID int64, sheet *charsheet.Sheet, locale string) (*titanUpgradesData, error) {
-	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

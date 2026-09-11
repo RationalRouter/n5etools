@@ -378,7 +378,7 @@ func (s *server) addNinjaneerWeaponDesignation(tier ninjaneerWeaponDesignationTi
 		log.Println("compute sheet for ninjaneer weapon designation add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	granted, err := s.loadGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for ninjaneer weapon designation add:", err)
 		return http.StatusInternalServerError, "database error"

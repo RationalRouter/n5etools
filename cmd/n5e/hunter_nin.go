@@ -315,7 +315,7 @@ var hunterNinRankCeilingGrants = map[string]hunterNinRankCeilingGrant{
 // level in Hunter-Nin, or not Necrotic Hand at all, never has this slug in
 // its output.
 func (s *server) hunterNinRankCeilingGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]hunterNinRankCeilingGrant, error) {
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel, "")
 	if err != nil {
 		return nil, err
 	}
@@ -732,7 +732,7 @@ func (s *server) hunterNinWardenWeaponBonuses(characterID int64, sheet *charshee
 	if err != nil || len(picks) == 0 {
 		return "", false, false, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return "", false, false, err
 	}
@@ -1302,7 +1302,7 @@ func (s *server) loadHunterTechniquesTabData(characterID int64, sheet *charsheet
 		return nil, err
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

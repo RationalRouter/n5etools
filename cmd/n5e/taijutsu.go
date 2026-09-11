@@ -489,7 +489,7 @@ func (s *server) loadMartialDice(characterID int64, sheet *charsheet.Sheet) (*ma
 	if err != nil {
 		return nil, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -812,7 +812,7 @@ func (s *server) loadMartialTechniquesTabData(characterID int64, sheet *charshee
 		return nil, err
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

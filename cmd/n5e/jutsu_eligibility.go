@@ -181,7 +181,7 @@ func (s *server) loadJutsuEligibilityContext(characterID int64) (jutsuEligibilit
 	}
 
 	level := s.characterLevel(characterID)
-	grantedFeatures, err := s.loadGrantedFeatures(characterID, clanSlug.String, level)
+	grantedFeatures, err := s.loadGrantedFeatures(characterID, clanSlug.String, level, "")
 	if err != nil {
 		return ctx, err
 	}

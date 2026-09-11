@@ -474,7 +474,7 @@ var genjutsuPledgeJutsuGrants = map[string]genjutsuMirageJutsuGrant{
 // player choice" shape hunterNinRankCeilingGrantsForCharacter
 // (hunter_nin.go) already uses for its own unconditional cost override.
 func (s *server) genjutsuPledgeJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]genjutsuMirageJutsuGrant, error) {
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel, "")
 	if err != nil {
 		return nil, err
 	}

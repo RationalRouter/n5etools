@@ -93,7 +93,7 @@ func (s *server) beyondTheVeilBulkBonus(characterID int64) (float64, error) {
 	if err := s.charDB.QueryRow(`SELECT clan_slug FROM characters WHERE id = ?`, characterID).Scan(&clanSlug); err != nil {
 		return 0, err
 	}
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug.String, s.characterLevel(characterID))
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug.String, s.characterLevel(characterID), "")
 	if err != nil {
 		return 0, err
 	}
@@ -316,7 +316,7 @@ func (s *server) scienceNinSubclassSlug(characterID int64) (slug, name string, e
 // Crafter's Titan, S.N.B Specialist's own companion) stays exactly as
 // unbuilt as it already is for a native holder — this only widens who can
 // reach the mechanics that already exist, it builds nothing new.
-func (s *server) mergeMixedStudiesFeatures(characterID int64, granted []grantedFeatureRow) ([]grantedFeatureRow, error) {
+func (s *server) mergeMixedStudiesFeatures(characterID int64, granted []grantedFeatureRow, locale string) ([]grantedFeatureRow, error) {
 	hasMixedStudies := false
 	for _, f := range granted {
 		if f.Slug == scienceNinMixedStudiesFeatureSlug {
@@ -351,6 +351,14 @@ func (s *server) mergeMixedStudiesFeatures(characterID int64, granted []grantedF
 				continue
 			}
 			return nil, err
+		}
+		// Name only — Description stays raw English (jutsu_grants.go regex-
+		// parses it for free-jutsu grants), same rule as
+		// internal/features.LoadGrantedFeatures's own Name-only overlay.
+		if t, err := i18n.Row(s.rulesDB, locale, "subclass_features", slug); err != nil {
+			return nil, err
+		} else if t["name"] != "" {
+			name = t["name"]
 		}
 		granted = append(granted, grantedFeatureRow{
 			Slug:        slug,
@@ -484,7 +492,7 @@ func (s *server) ensureScienceNinAutoGrants(characterID int64, sheet *charsheet.
 	if err := s.ensureWoWWeaponsGranted(characterID, locale); err != nil {
 		return err
 	}
-	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return err
 	}
@@ -595,7 +603,7 @@ const scienceNinAdaptiveMovementResourceKey = "ccd"
 // feature" shape genjutsuPledgeJutsuGrantsForCharacter (genjutsu.go) already
 // establishes.
 func (s *server) scienceNinAdaptiveMovementJutsuGrantsForCharacter(characterID int64, clanSlug string, classLevel int) (map[string]bool, error) {
-	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel)
+	granted, err := s.loadGrantedFeatures(characterID, clanSlug, classLevel, "")
 	if err != nil {
 		return nil, err
 	}
@@ -851,7 +859,7 @@ func (s *server) loadScienceNinTabData(characterID int64, sheet *charsheet.Sheet
 
 	data := &scienceNinToolsTabData{CreationPointsCap: cap}
 
-	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

@@ -351,7 +351,7 @@ func (s *server) voidSoulBonusKeyword(characterID int64) (string, error) {
 // (mirroring loadTitanReference's own nil-when-unqualified contract for a
 // kind="titan" companion on a character without Mech Crafter).
 func (s *server) loadVoidSoulReference(characterID int64, sheet *charsheet.Sheet, companion charstore.Companion) (*voidSoulReference, error) {
-	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +589,7 @@ func (s *server) voidSoulJutsuAddCore(characterID int64, rawSlug string) (int, s
 		log.Println("compute sheet for void soul jutsu add:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	granted, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for void soul jutsu add:", err)
 		return http.StatusInternalServerError, "database error"

@@ -737,7 +737,7 @@ func (s *server) loadMedicalNinTabData(characterID int64, sheet *charsheet.Sheet
 		return nil, err
 	}
 
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

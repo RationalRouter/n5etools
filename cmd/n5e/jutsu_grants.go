@@ -237,7 +237,7 @@ var jutsuGrantNameAliases = map[string]string{
 // whose Summoning Technique grant explicitly starts at 7th level, so the two
 // can't be conflated.
 func (s *server) loadGrantedJutsuLabels(characterID int64, sheet *charsheet.Sheet) (map[string]string, error) {
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}

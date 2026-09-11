@@ -910,6 +910,33 @@ before it's assigned into the response struct), never inside the loader itself.*
   shape as every other `internal/features.LoadGrantedFeatures` row, for consistency, rather than
   being fixed in isolation.
 
+- **RESOLVED 2026-09-10**: `internal/features.LoadGrantedFeatures` now takes a `locale string`
+  parameter and overlays `i18n.Batch(rulesDB, locale, table, slugs)` onto each row's `Name` field
+  only, once per source table (`class_features`, `subclass_features`, `clan_features`), batched per
+  section rather than one `i18n.Row` call per feature. `Description` and the `className`/
+  `subclassName`/`clanName` portions of `SourceLabel` are deliberately left raw English, permanently
+  — `cmd/n5e/jutsu_grants.go`'s `parseJutsuGrants` regex-parses `Description` for named free-jutsu
+  grants ("you learn the X Ninjutsu for free"), and `SourceLabel`'s literal `"Class:"`/`"Subclass:"`/
+  `"Racial:"`/`"Feat"` prefix tokens are matched by other code (also in `jutsu_grants.go`) — the same
+  "translated field used for runtime matching" bug class as `elemental_affinity.go`'s `jutsu.keywords`
+  fix and `snb.go`'s `Name`-matching fix, so only `Name` was ever a candidate for translation here.
+  Threaded `locale` through both real callers: `internal/charsheet/charsheet.go`'s `Compute` passes
+  `""` (a pure numeric AC/Speed/proficiency computation path, matching `titan.go:1303`'s own
+  "locale doesn't matter, only numeric fields are read" precedent) — and `cmd/n5e/characters.go`'s
+  `loadGrantedFeatures`/`loadMergedGrantedFeatures` wrapper functions now take `locale` too, along
+  with `science_nin.go`'s `mergeMixedStudiesFeatures` (its own synthetic granted-feature rows now
+  get the identical `i18n.Row(rulesDB, locale, "subclass_features", slug)` `Name`-only overlay,
+  closing the "left deliberately inconsistent until this pass landed" note above). Every call site
+  of the two `characters.go` wrappers across `cmd/n5e/*.go` (~40 of them) was audited individually
+  for whether its result ever reaches `passive_traits.go`'s `computePassiveTraits` (the ONLY real
+  display surface for `Name` — every other call site matches purely on `.Slug`, or copies
+  `.Description` into an unrelated struct's own field) — confirmed only two do:
+  `characters.go`'s `handleCharacterSheet` (full sheet render) and its `sheet_passive_traits`
+  fragment case, both now passing `localeFromContext(r.Context())`; every other call site
+  (including both `character_sheet_test.go` call sites, which assert on English `Name` values)
+  passes `""` and is unaffected. `go build`/`go vet`/`go test ./cmd/n5e/... ./internal/i18n/...
+  ./internal/features/... ./internal/charsheet/...` all pass.
+
 - **`puppet_tactics.go`** (2026-09-07): `loadPuppetTacticsTabData`'s `SELECT name, description FROM
   class_features WHERE slug = ?` (the 5 Tactics picker's own catalog, real player-facing text on
   the Core tab) had no `locale` parameter and no `i18n.Row` overlay at all — genuine missing-overlay
@@ -977,8 +1004,7 @@ what was in scope to begin with, and this whole class of string structurally was
 this sweep
 (`science_nin.go`
 also surfaced its own new cross-cutting deferred item — the `internal/features.LoadGrantedFeatures`/
-Passive Traits "Sources" tooltip gap, see its own bullet above — same "don't count fully closed
-until the relevant cross-cutting pass lands" caveat applies to it too); `wow_whelp.go` was audited
+Passive Traits "Sources" tooltip gap — **RESOLVED 2026-09-10, see the bullet above**); `wow_whelp.go` was audited
 (2026-09-07) and found clean OF THIS PARTICULAR
 gap — its own translation gap is real but cross-cutting (see its own bullet above) and
 deliberately deferred rather than fixed in isolation, so don't re-audit it from scratch, but also

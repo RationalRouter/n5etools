@@ -2107,7 +2107,7 @@ func TestLoadGrantedFeaturesIncludesSubclass(t *testing.T) {
 	}
 
 	// Below the subclass's own feature levels: only the clan feature shows.
-	features, err := s.loadGrantedFeatures(characterID, "clan/vesper", 5)
+	features, err := s.loadGrantedFeatures(characterID, "clan/vesper", 5, "")
 	if err != nil {
 		t.Fatalf("loadGrantedFeatures at level 5: %v", err)
 	}
@@ -2135,7 +2135,7 @@ func TestLoadGrantedFeaturesIncludesSubclass(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	features, err = s.loadGrantedFeatures(characterID, "clan/vesper", 10)
+	features, err = s.loadGrantedFeatures(characterID, "clan/vesper", 10, "")
 	if err != nil {
 		t.Fatalf("loadGrantedFeatures at level 10: %v", err)
 	}

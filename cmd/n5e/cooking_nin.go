@@ -692,7 +692,7 @@ func (s *server) cookingToolInfusionAttackOverrides(characterID int64, sheet *ch
 	if err != nil {
 		return "", "", "", 0, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return "", "", "", 0, err
 	}
@@ -1282,7 +1282,7 @@ func (s *server) loadCookingNinTabData(characterID int64, sheet *charsheet.Sheet
 	if err != nil {
 		return nil, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1464,7 +1464,7 @@ func (s *server) setFastAndFurious(id int64, value string) (int, string) {
 		log.Println("compute sheet for fast and furious:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for fast and furious:", err)
 		return http.StatusInternalServerError, "database error"
@@ -1507,7 +1507,7 @@ func (s *server) cookingToolInfusionEffectiveLevel(characterID int64, sheet *cha
 	if err != nil {
 		return 0, err
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return 0, err
 	}
@@ -1529,7 +1529,7 @@ func (s *server) cookingToolInfusionEffectiveLevel(characterID int64, sheet *cha
 // level, used by callers to gate the 6th/11th property tiers the same way
 // the base feature's own toolLevel does.
 func (s *server) cookingToolInfusionPipeEffectiveLevel(characterID int64, sheet *charsheet.Sheet) (int, error) {
-	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		return 0, err
 	}
@@ -2306,7 +2306,7 @@ func (s *server) setBattleCookExpertCombatantWeapon(id int64, value string) (int
 		log.Println("compute sheet for expert combatant weapon:", err)
 		return http.StatusInternalServerError, "database error"
 	}
-	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level)
+	grantedFeatures, err := s.loadMergedGrantedFeatures(id, sheet.ClanSlug, sheet.Level, "")
 	if err != nil {
 		log.Println("load granted features for expert combatant weapon:", err)
 		return http.StatusInternalServerError, "database error"

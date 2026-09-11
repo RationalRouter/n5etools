@@ -21,6 +21,8 @@ package features
 import (
 	"database/sql"
 	"strconv"
+
+	"github.com/sergio/n5e/internal/i18n"
 )
 
 // GrantedFeatureRow is one auto-seeded, real class/subclass/clan feature a
@@ -49,7 +51,21 @@ type GrantedFeatureRow struct {
 // subclass slug), plus one for the clan gated by the character's total
 // class level (classLevel — the caller's Sheet.Level, so there is no
 // display-only level to disagree with it).
-func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug string, classLevel int) ([]GrantedFeatureRow, error) {
+//
+// locale translates each row's own Name ONLY — the single real display
+// surface for this data is cmd/n5e's passive_traits.go, which folds Name
+// into the Core sheet's Resistances/Senses/Advantages/Disadvantages/Notes
+// "Sources" rollover tooltip. Description and SourceLabel are deliberately
+// left in raw English regardless of locale: cmd/n5e's jutsu_grants.go
+// regex-parses Description for named free-jutsu grants ("you learn the X
+// Ninjutsu for free"), and SourceLabel's own "Class:"/"Subclass:"/
+// "Racial:"/"Feat" prefixes are matched by other code — translating either
+// would silently break that matching in every non-English locale, the same
+// "translated field used for runtime matching" bug class already found
+// (and fixed) in jutsu.keywords and other class-mechanics files. A caller
+// whose result never reaches the Sources tooltip can safely pass "" (or
+// "en") and skip the translation lookups entirely.
+func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug string, classLevel int, locale string) ([]GrantedFeatureRow, error) {
 	var out []GrantedFeatureRow
 
 	classRows, err := charDB.Query(
@@ -92,6 +108,8 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 		if err != nil {
 			return nil, err
 		}
+		var classFeatures []GrantedFeatureRow
+		var classFeatureSlugs []string
 		for rows.Next() {
 			var slug, name, description string
 			var level sql.NullInt64
@@ -99,17 +117,28 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 				rows.Close()
 				return nil, err
 			}
-			out = append(out, GrantedFeatureRow{
+			classFeatures = append(classFeatures, GrantedFeatureRow{
 				Slug: slug, Name: name, Description: description,
 				SourceLabel: FeatureSourceLabel("Class: "+className, level),
 				Level:       int(level.Int64),
 			})
+			classFeatureSlugs = append(classFeatureSlugs, slug)
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		rows.Close()
+		names, err := i18n.Batch(rulesDB, locale, "class_features", classFeatureSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range classFeatures {
+			if t, ok := names[classFeatures[i].Slug]; ok && t["name"] != "" {
+				classFeatures[i].Name = t["name"]
+			}
+		}
+		out = append(out, classFeatures...)
 	}
 
 	subRows, err := charDB.Query(
@@ -151,6 +180,8 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 		if err != nil {
 			return nil, err
 		}
+		var subFeatures []GrantedFeatureRow
+		var subFeatureSlugs []string
 		for rows.Next() {
 			var featureSlug, name, description string
 			var level sql.NullInt64
@@ -158,17 +189,28 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 				rows.Close()
 				return nil, err
 			}
-			out = append(out, GrantedFeatureRow{
+			subFeatures = append(subFeatures, GrantedFeatureRow{
 				Slug: featureSlug, Name: name, Description: description,
 				SourceLabel: FeatureSourceLabel("Subclass: "+subclassName, level),
 				Level:       int(level.Int64),
 			})
+			subFeatureSlugs = append(subFeatureSlugs, featureSlug)
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		rows.Close()
+		names, err := i18n.Batch(rulesDB, locale, "subclass_features", subFeatureSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range subFeatures {
+			if t, ok := names[subFeatures[i].Slug]; ok && t["name"] != "" {
+				subFeatures[i].Name = t["name"]
+			}
+		}
+		out = append(out, subFeatures...)
 	}
 
 	if clanSlug != "" {
@@ -183,6 +225,8 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 		if err != nil {
 			return nil, err
 		}
+		var clanFeatures []GrantedFeatureRow
+		var clanFeatureSlugs []string
 		for rows.Next() {
 			var slug, name, description string
 			var level sql.NullInt64
@@ -190,17 +234,28 @@ func LoadGrantedFeatures(rulesDB, charDB *sql.DB, characterID int64, clanSlug st
 				rows.Close()
 				return nil, err
 			}
-			out = append(out, GrantedFeatureRow{
+			clanFeatures = append(clanFeatures, GrantedFeatureRow{
 				Slug: slug, Name: name, Description: description,
 				SourceLabel: FeatureSourceLabel("Racial: "+clanName, level),
 				Level:       int(level.Int64),
 			})
+			clanFeatureSlugs = append(clanFeatureSlugs, slug)
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		rows.Close()
+		names, err := i18n.Batch(rulesDB, locale, "clan_features", clanFeatureSlugs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range clanFeatures {
+			if t, ok := names[clanFeatures[i].Slug]; ok && t["name"] != "" {
+				clanFeatures[i].Name = t["name"]
+			}
+		}
+		out = append(out, clanFeatures...)
 	}
 
 	return out, nil
