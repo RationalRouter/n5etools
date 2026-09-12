@@ -9,7 +9,15 @@ A portable, offline desktop app for the **Naruto 5e** homebrew TTRPG: character
 creation, a persistent interactive character sheet, and built-in dice rolling.
 Ships as a single executable with the rules database embedded — no installs,
 no config files, no separate database file to manage. Written in Golang, with
-some HTML, CSS and JavaScript sprinkled in to make the web server ✨ pop ✨
+some HTML, CSS and JavaScript sprinkled in to make the web server ✨pop✨
+
+## Supported Languages
+
+-English (obviously) 🇺🇸
+
+-Spanish (Castilian) 🇪🇸
+
+-Portuguese (Brazilian) 🇧🇷
 
 ## Download
 
