@@ -539,6 +539,20 @@ convention. Listed as identity pairs so a future `-force` retranslation doesn't 
 name itself looks malformed/ambiguous (stray leading "O"?), so no Portuguese translation was
 guessed here; check with Sergio whether the English name is correct before translating it.
 
+## Crossover anime/pop-culture proper nouns — left untranslated by design
+
+N5e deliberately borrows named techniques/features from anime outside the Naruto-verse (Science-Nin's
+"Spyware" Inquiry cluster in particular reads as a cyberpunk/mecha-anime homage — see
+Cruel Angel's Thesis, In His Image, Full-Metal Shinobi elsewhere in this file, all already
+translated as ordinary phrases since they're not the property's own title). These two are the
+actual title of the referenced work itself, not just a themed phrase, so they're pinned here as
+identity pairs — this is the correct, intentional outcome, not a translation gap:
+
+| English | Spanish | Portuguese | Source |
+|---|---|---|---|
+| Ghost in the Shell | Ghost in the Shell | Ghost in the Shell | film/manga title kept in English in both Spanish- and Portuguese-language distribution — Science-Nin "Spyware" subclass feature name (`subclass_features/class/science-nin/group/scientific-inquiry/spyware/feature/ghost-in-the-shell`) |
+| Unlimited Blade Works | Unlimited Blade Works | Unlimited Blade Works | Fate/stay night Reality Marble name — stated in English in the original Japanese source material itself, so never translated in any market; appears twice in this game as a Puppet Master platinum-tier upgrade name (`class_option_entries/class/puppet-master/option/upgrades-of-war/platinum-tier/entry/unlimited-blade-works`) and a Hunter-Nin "Arsenalist" subclass feature name (`subclass_features/class/hunter-nin/group/hunters-creeds/arsenalist/feature/unlimited-blade-works`) |
+
 ## One-off content fixes (not glossary terms — full phrases, not reusable)
 
 `clan/futton` epithet: English "A Corrosive Breath" came back untranslated in Portuguese
