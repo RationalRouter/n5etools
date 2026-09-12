@@ -135,6 +135,19 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	tribes, tribeAnomalies := parse.ParseSummonTribes(lines)
 	anomalies = append(anomalies, tribeAnomalies...)
 
+	// jutsu.Name is deliberately excluded from correct.Sweep's proseFields
+	// (see registry.go's comment: identifier-like fields shouldn't go
+	// through spellcheck/grammar tools, which are more likely to mangle a
+	// proper noun than fix a real mistake). A source-book data-entry typo
+	// in the name itself still needs a durable fix that survives every
+	// re-ingest, so it's applied here as a narrow, exact-match substitution
+	// instead of widening that registry.
+	for i := range jutsu {
+		if fixed, ok := correct.CuratedJutsuNameFixes[jutsu[i].Name]; ok {
+			jutsu[i].Name = fixed
+		}
+	}
+
 	corrOpts := correctOptions(dbPath)
 	jutsuCorr, err := correct.Sweep(context.Background(), &jutsu, corrOpts)
 	if err != nil {

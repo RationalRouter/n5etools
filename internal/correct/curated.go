@@ -449,6 +449,20 @@ var curatedCorrections = []curatedCorrection{
 		"you can make a third attack against a creature in range, this time with an additional -2 penalty."},
 }
 
+// CuratedJutsuNameFixes corrects jutsu.Name source-book data-entry typos
+// found during the pt/es glossary pass (see internal/i18n/glossary.md's
+// "Jutsu names" sections). jutsu.Name is deliberately excluded from
+// proseFields/curatedFix's own Sweep (Name fields don't get spellchecked),
+// so a fix here needs its own exact-match table, applied once right after
+// parsing (see internal/ingest.Jutsu) rather than through the Sweep
+// machinery — this is what actually makes a fix durable across a fresh
+// PDF re-ingest, unlike a one-off `UPDATE jutsu SET name=...` against a
+// specific rules.db copy, which a later re-ingest silently overwrites.
+var CuratedJutsuNameFixes = map[string]string{
+	"O Encode Thoughts":   "Encode Thoughts",
+	"One Man Front Lotud": "One Man Front Lotus",
+}
+
 // curatedFix applies every entry above as a plain substring replacement,
 // logged the same way as the other tools. An entry that doesn't match the
 // current text (e.g. a stale key after wording upstream changes) is

@@ -535,9 +535,13 @@ convention. Listed as identity pairs so a future `-force` retranslation doesn't 
 | Grand Slam | Grand Slam | stylized jutsu title, untranslated in Spanish too |
 | Heavy Metal | Heavy Metal | music-genre loanword, commonly left untranslated in Portuguese; Spanish's "Pesada Metal" is grammatically wrong (should be "Metal Pesado" if translated at all) — left as the loanword instead of copying Spanish's error |
 
-**Not yet resolved**: `jutsu/o-encode-thoughts` ("O Encode Thoughts") — the English source
-name itself looks malformed/ambiguous (stray leading "O"?), so no Portuguese translation was
-guessed here; check with Sergio whether the English name is correct before translating it.
+**Resolved 2026-09-11**: `jutsu/o-encode-thoughts`'s stray leading "O" was a source-book
+data-entry typo, confirmed and fixed — see `internal/correct.CuratedJutsuNameFixes`
+("O Encode Thoughts" → "Encode Thoughts", "One Man Front Lotud" → "One Man Front Lotus").
+The fix is applied directly after parsing in `internal/ingest/ingest.go`'s `Jutsu()`, so it
+survives a fresh PDF re-ingest — jutsu.Name is deliberately excluded from `correct.Sweep`'s
+prose fields (see `internal/correct/registry.go`), so this couldn't go through the normal
+misspell/curated-fix pipeline. Translate the corrected name normally going forward.
 
 ## Crossover anime/pop-culture proper nouns — left untranslated by design
 
@@ -553,9 +557,68 @@ identity pairs — this is the correct, intentional outcome, not a translation g
 | Ghost in the Shell | Ghost in the Shell | Ghost in the Shell | film/manga title kept in English in both Spanish- and Portuguese-language distribution — Science-Nin "Spyware" subclass feature name (`subclass_features/class/science-nin/group/scientific-inquiry/spyware/feature/ghost-in-the-shell`) |
 | Unlimited Blade Works | Unlimited Blade Works | Unlimited Blade Works | Fate/stay night Reality Marble name — stated in English in the original Japanese source material itself, so never translated in any market; appears twice in this game as a Puppet Master platinum-tier upgrade name (`class_option_entries/class/puppet-master/option/upgrades-of-war/platinum-tier/entry/unlimited-blade-works`) and a Hunter-Nin "Arsenalist" subclass feature name (`subclass_features/class/hunter-nin/group/hunters-creeds/arsenalist/feature/unlimited-blade-works`) |
 
+## Weapons Range (jutsu.range field value — pinned 2026-09-11)
+
+| English | Spanish | Source |
+|---|---|---|
+| Weapons Range | Distancia de las armas | homebrew `jutsu.range` value meaning "this jutsu's range equals your weapon's range". DeepL non-deterministically mistranslated the plural, no-apostrophe form THREE different wrong ways across 85 rows — "Campo de tiro"/"Campo de tiro de armas" (a shooting-range-facility sense, 79 rows) and "Gama de armas" (a "range/gamut of weapons" sense, 6 rows, found on a second verify pass after the first fix) — while the apostrophe'd sibling forms ("Weapon's Range", singular "Weapon Range") were already correctly rendered using the established "Range" (homebrew mechanic) → "Distancia" convention. Corrected all 85 affected rows |
+| Twice Weapons Range | Distancia de las armas dobles | same bug, doubled-range variant; corrected across 9 affected rows |
+
+## Summon Tribe feature names — animal-name prefix stays untranslated, descriptor translates
+
+Follows the established "Full-Metal Shinobi" → "Shinobi de Metal Puro" partial-translation
+convention: the Japanese summon-animal name (Kitsune/Nezumi/Gama/Kame/Itachi) stays untranslated,
+only the English descriptor translates. Pinned 2026-09-11 after DeepL left these 5 fully
+untranslated (identical to English) despite correctly handling every other sibling in the same
+family (e.g. "Nezumi Assault" → "Asalto de Nezumi", "Itachi Speed" → "Velocidad de Itachi").
+
+| English | Spanish | Source |
+|---|---|---|
+| Kitsune Starball | Bola Estelar de Kitsune | `summon_tribe_features/summon/fox/feature/kitsune-starball` |
+| Nezumi Tutelage | Tutela de Nezumi | `summon_tribe_features/summon/rat/feature/nezumi-tutelage` |
+| Gama Oily Strike | Golpe Aceitoso de Gama | `summon_tribe_features/summon/toad/feature/gama-oily-strike` |
+| Kame Tough Shell | Caparazón Resistente de Kame | `summon_tribe_features/summon/turtle/feature/kame-tough-shell` |
+| Itachi Cycling Blade | Cuchilla Cíclica de Itachi | `summon_tribe_features/summon/weasel/feature/itachi-cycling-blade` |
+
+**Left untranslated on purpose**: `Kitsune Sessho-Seki` — "Sessho-Seki" ("killing stone") is
+itself a genuine Japanese proper noun from kitsune folklore, not an English descriptor, matching
+the sibling untranslated names in the same fox family (Kitsune Tenko/Yako/Zenko/Ninko/Tsume).
+The verify pass's "suspiciously identical" flag on this one is a false positive, not a bug.
+
+## Descriptive names surfaced by the 405-warning glossary triage (pinned 2026-09-11)
+
+| English | Spanish | Source |
+|---|---|---|
+| Frenzy: Magenta | Frenesí: Magenta | `jutsu/frenzy-magenta` |
+| Psycho Mind Flux | Flujo Psico-Mental | `feat/yamanaka/psycho-mind-flux` |
+| Shinobi Sentinel | Shinobi Centinela | `feat/shinobi-sentinel`; "Shinobi" stays untranslated per the established convention (see "Full-Metal Shinobi" → "Shinobi de Metal Puro") |
+| Arsenal Builder | Constructor de Arsenal | `subclass_features/class/hunter-nin/group/hunters-creeds/arsenalist/feature/arsenal-builder` |
+| Sapphire Insights | Perspectivas de Zafiro | `subclass_features/class/intelligence-operative/group/master-strategies/azure-analyst/feature/sapphire-insights` |
+| Gigawatt Molding | Moldeado Gigavatio | `subclass_features/class/ninjutsu-specialist/group/ninjutsu-focus/lightning-breaker/feature/gigawatt-molding`; "Molding" per the existing "Chakra Molding" → "Moldeado de Chakra" glossary entry above |
+| Lifeforce Casting | Lanzamiento de Fuerza Vital | `subclass_features/class/ninjutsu-specialist/group/ninjutsu-focus/sanguine-master/feature/lifeforce-casting`; "Casting" in the jutsu-casting sense ("Lanzamiento"), not the puppet-upgrade "Fundición" sense below |
+| Vibrosteel Edge | Filo de Vibroacero | `class_option_entries/class/science-nin/option/arsenal-modifications/minor/entry/vibrosteel-edge` |
+| Peerless Casting | Fundición Insuperable | `class_option_entries/class/puppet-master/option/magus-upgrades/wood-tier/entry/peerless-casting`; "Casting" in the puppet-construction sense here, matching sibling entries already in the same magus-upgrades tier group ("Successive Casting" → "Fundición sucesiva", "Resizable Casting" → "Fundición con tamaño ajustable") |
+| Bestial Framework | Marco de Trabajo Bestial | `class_options/class/puppet-master/option/puppet-frameworks/bestial-framework`; matches sibling puppet-framework names ("Shade Framework" → "Marco de trabajo Shade", "Spellblade Framework" → "Marco de trabajo Spellblade") |
+| Kujaku Flourish | Floritura de Kujaku | `feat/hoshi/kujaku-flourish`; "Kujaku" (Japanese for peacock) stays untranslated as the summon/technique-name prefix, same convention as the Summon Tribe names above |
+| "12 Chakra, X Fury" (jutsu.cost_text) | "12 Chakra, X Furia" | `jutsu/biding-fury-velocity-untold`; "Fury" per its own sibling row's established rendering (`jutsu/binding-fury-meteor`'s "todas tus acumulaciones actuales de Furia`) |
+
+**Left untranslated on purpose**: `Triple Iron Maiden` (`class_option_entries/class/puppet-master/option/black-iron-upgrades/gold-tier/entry/triple-iron-maiden`)
+— its own prerequisite/base entry "Iron Maiden" is already left untranslated by design, so
+translating only the "Triple" variant would break consistency with the term it's built on.
+`Full Metal Jacket` (`class_option_entries/class/puppet-master/option/armorers-upgrades/gold-tier/entry/full-metal-jacket`)
+— a real-world firearms/armor term (and the Kubrick film title), kept in English matching the
+same "real-world proper noun stays in English" pattern as Iron Maiden rather than translated
+literally ("Chaqueta de Metal Completo" reads as nonsense in Spanish).
+
 ## One-off content fixes (not glossary terms — full phrases, not reusable)
 
 `clan/futton` epithet: English "A Corrosive Breath" came back untranslated in Portuguese
 (Spanish: "Un Aliento Corrosivo"). Hand-fixed to "Um Sopro Corrosivo" directly in the
 database, matching the "Sopro" convention established across the "Breath of X" jutsu family
 above. Not a table entry since it's a one-off phrase, not a reusable term.
+
+`subclass_features/class/scout-nin/group/scouting-technique/tactical-scout/feature/unmatched-tactics`
+description: a table-header phrase "TABLA DE TÁCTICAS SUPERIORES Scout-Nin" left the class name
+"Scout-Nin" untranslated mid-sentence while every other Spanish occurrence of this class name
+translates it to "Explorador-Nin". Hand-fixed to match. Not a table entry — a one-off stray
+instance, not a systemic term-mapping gap.
