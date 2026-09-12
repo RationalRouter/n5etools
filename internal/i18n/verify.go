@@ -126,8 +126,21 @@ func stem(word string) string {
 	return word
 }
 
+// wordBoundary is a Unicode-aware substitute for regexp's `\b`, which only
+// recognizes ASCII word characters ([0-9A-Za-z_]) -- a target-language stem
+// or source term starting with an accented letter (e.g. Portuguese "Água")
+// never has a real `\b` immediately before it, because RE2 treats "Á" as a
+// non-word character, so the space-then-Á transition it sees is
+// non-word-to-non-word, not a boundary. Found 2026-09-12 while chasing a
+// wave of "missing-glossary-term: Water Release" false positives in
+// already-correct Portuguese rows -- confirmed live that `\bÁgu` fails to
+// match "e Água" while `\bAgu` matches "e Agua" fine, same text otherwise.
+// This matches on any non-letter/non-digit boundary instead of ASCII \w.
+const wordBoundary = `(?:^|[^\p{L}\p{N}_])`
+const wordBoundaryEnd = `(?:$|[^\p{L}\p{N}_])`
+
 // wholeWordRe matches s as a complete word (both boundaries) -- used for the
-// English source side, where a leading-only \b let "Trip" match inside
+// English source side, where a leading-only boundary let "Trip" match inside
 // "Triple" and "Light" match inside "Lightning" (Hatake's whole kit is
 // "Lightning Release", which is not a hit on the glossary's "Light" entry).
 func wholeWordRe(s string) *regexp.Regexp {
@@ -135,20 +148,20 @@ func wholeWordRe(s string) *regexp.Regexp {
 	if s == "" {
 		return nil
 	}
-	return regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(s) + `\b`)
+	return regexp.MustCompile(`(?i)` + wordBoundary + regexp.QuoteMeta(s) + wordBoundaryEnd)
 }
 
-// stemPrefixRe matches s as the start of a word only (leading \b, no
+// stemPrefixRe matches s as the start of a word only (leading boundary, no
 // trailing one) -- used for target-language stems, which are deliberately
 // truncated (see stem) so "tirad" is meant to match inside both "tirada"
-// and "tiradas". A trailing \b here would require the truncated stem to
-// BE the whole word, which defeats stemming entirely.
+// and "tiradas". A trailing boundary here would require the truncated stem
+// to BE the whole word, which defeats stemming entirely.
 func stemPrefixRe(s string) *regexp.Regexp {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil
 	}
-	return regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(s))
+	return regexp.MustCompile(`(?i)` + wordBoundary + regexp.QuoteMeta(s))
 }
 
 // MissingTerms returns every glossary entry whose English term appears in en

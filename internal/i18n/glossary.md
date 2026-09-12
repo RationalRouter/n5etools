@@ -85,16 +85,44 @@ text gets translated normally; the clan name itself never does.
 
 ## Nature-transformation ("X Release") jutsu naming
 
-"X Release" (Crystal Release, Explosion Release, Wood Release, etc.) → **"Elemento X"**
-(e.g. Crystal Release → Elemento Cristal, Explosion Release → Elemento Explosivo). Matches the
-Spanish Narutopedia/fan-wiki convention, used consistently across every kekkei genkai type —
-notably NOT matching the actual anime dub, which was inconsistent with itself (Wood Release was
-rendered "jutsu arbóreo" in Part I and "jutsu lignario" in Part II of the same show). The fan-wiki
-term is what Spanish-speaking players are actually likely to already know from looking up jutsu
-online, so it's the better standardized choice despite not being official-dub sourced. Applies to
-jutsu names across most kekkei genkai clans (Bakuton, Futton, Shoton, Ranton, Yoton, Jiton, Keton,
-etc.) — this is a naming *pattern*, not a one-off term, so apply it consistently every time an
-"X Release" jutsu name is translated.
+**READ THIS BEFORE TRANSLATING ANY "X Release" TERM, IN ANY LANGUAGE.** "Release" here has two
+completely different, correctly-differentiated translations depending on WHICH kind of "X" it is —
+conflating them is a confirmed, twice-occurring bug class (see the two pinned "fixed" sections
+below: "'Nature Release' terminology" and "'Elemento X' bug"). Check which category applies BEFORE
+picking a term:
+
+| Category | Members | Canonical translation | Do NOT use |
+|---|---|---|---|
+| The 5 **base elements** + Yin/Yang | Earth, Fire, Water, Wind, Lightning, Yin, Yang Release | **"Descarga de X"** (Spanish)/**"Descarga de/do/da X"** (Portuguese) — see the full per-element table in the "'Elemento X' bug" section below for exact articles/gender | "Elemento X" — this is the specific bug fixed 2026-09-12, do not reintroduce it |
+| Kekkei-genkai **combo** types | Crystal, Explosion, Wood, Boil, Steel, Magnet, Plasma, Lava, Storm, Scorch, Ice, etc. — i.e. every OTHER nature-transformation name, always a combination of two base elements | **"Elemento X"** (e.g. Crystal Release → Elemento Cristal, Explosion Release → Elemento Explosivo) | "Descarga de X" — that pattern is reserved for the base elements only |
+
+**Why these look confusable but must not be merged**: both are "X Release" in the English source,
+and a base element and a combo type can appear in the very same sentence (e.g. "close affinity to
+both Earth and Lightning Release" describing a combo clan's manifestation) — see
+`clan/bakuton/feature/explosion-release`, which correctly mixes both forms: "afinidad con la
+**descarga de Tierra** y la **descarga del Rayo**... manifestar el **Elemento Explosivo**." The
+"Elemento X" bug happened because a translator over-generalized the correct combo-type rule to the
+base elements too (see e.g. the now-corrected glossary row for "Yin Release" below, which used to
+say "follows the already-approved 'Elemento X' pattern" — that reasoning was the bug itself).
+
+Rationale for **why combo types use "Elemento X"**: matches the Spanish Narutopedia/fan-wiki
+convention, used consistently across every kekkei genkai type — notably NOT matching the actual
+anime dub, which was inconsistent with itself (Wood Release was rendered "jutsu arbóreo" in Part I
+and "jutsu lignario" in Part II of the same show). The fan-wiki term is what Spanish-speaking
+players are actually likely to already know from looking up jutsu online, so it's the better
+standardized choice despite not being official-dub sourced. Applies to jutsu names across most
+kekkei genkai clans (Bakuton, Futton, Shoton, Ranton, Yoton, Jiton, Keton, etc.) — this is a naming
+*pattern*, not a one-off term, so apply it consistently every time a genuine combo "X Release"
+jutsu name is translated.
+
+Rationale for **why base elements use "Descarga de X," not "Elemento X" or "Liberación"**: see the
+two pinned sections lower in this file — "'Nature Release' terminology — 'Liberación'/'Liberação'
+replaced by 'Descarga'" (the connotation bug: "Liberación" means freedom/parole, not
+unleash-power) and "'Elemento X' bug for the 5 base elements + Yin/Yang" (the noun bug: "Elemento"
+is the wrong word class entirely, borrowed from the unrelated combo-type convention above). Between
+them, NEITHER "Liberación X" NOR "Elemento X" is ever correct for a base element in any locale —
+only "Descarga de X" (or that language's own equivalent verified against raw English source, if
+translating into a brand-new language) is.
 
 ## Technical note: `components` field is NOT translatable content
 
@@ -148,7 +176,8 @@ Direct material-word translations, no ambiguity:
 | Byakugan | Byakugan | unchanged — proper noun/kekkei genkai name, same treatment as clan names |
 | Tenketsu | Tenketsu | unchanged — Japanese term used as-is in the show itself, same treatment as chakra/jutsu |
 | Ōtsutsuki | Ōtsutsuki | unchanged — proper noun (clan/lineage name) |
-| Yin Release | Elemento Yin | follows the already-approved "Elemento X" nature-transformation pattern |
+| Yin Release | descarga Yin | **corrected 2026-09-12** — this row previously said "Elemento Yin," justified as "follows the already-approved 'Elemento X' nature-transformation pattern"; that reasoning was itself the bug (Yin is a base element, not a kekkei-genkai combo type — see the "READ THIS BEFORE TRANSLATING..." box in the "Nature-transformation" section above). Direct apposition, no preposition — Portuguese's own precedent ("Sua Descarga Yin atingiu...") confirmed this shape before applying it to Spanish. Kept in sync with (same value as) the full base-element+Yin/Yang canonical table in the "'Elemento X' bug" section — that table is the source of truth, this row exists for DeepL glossary coverage in the Spanish-only tables scanned earlier in the file |
+| Yang Release | descarga Yang | same correction and rationale as Yin Release above |
 | Main House / Branch House (Hyūga) | **Rama Principal / Rama Secundaria** | confirmed via Spanish Narutopedia (Sōke/Bunke) — "Rama" (branch) preferred over "Casa" (house): more literal, and also the natural word for a genealogical branch in Spanish, so it reads correctly in both the physical clan-structure sense and the family-tree sense at once |
 | Ino–Shika–Chō | Ino–Shika–Chō | unchanged — canonical trio name, kept untranslated in Spanish fandom same as clan names |
 
@@ -664,6 +693,365 @@ convention already used on every other Mastercraft-tier item.
 | Hot Seal | Selo Quente | `equipment` (seal/weapon/mastercraft/hot-seal, seal/armor/mastercraft/hot-seal); matches already-translated Minor/Greater tiers |
 | Cold Steel Seal | Selo de Aço Frio | `equipment` (seal/armor/mastercraft/cold-steel-seal); matches already-translated Minor/Greater tiers |
 | Star Metal Seal | Selo Estelar de Metal | `equipment` (seal/armor/mastercraft/star-metal-seal, seal/armor/greater/star-metal-seal, seal/armor/minor/star-metal-seal); the Minor tier had a separate, inconsistent "Selo Metálico Estelar" — normalized to match its Greater/Mastercraft siblings |
+
+## Jutsu category_group — elemental Ninjutsu subheadings (pinned 2026-09-12)
+
+Found during a follow-up audit specifically checking that Bukijutsu (and its siblings Taijutsu/
+Ninjutsu/Genjutsu) weren't replicating the earlier Spanish glossary typo bug (glossary.md's
+Bukijutsu row briefly containing the literal word "*unchanged*" instead of "Bukijutsu" — see the
+"Nature-transformation" section's neighboring history). Bukijutsu itself is fine in Portuguese
+(and Spanish) — confirmed unchanged in both `jutsu.category_group` and ordinary prose. But the
+same audit surfaced a different, previously-uncaught bug in the *same field*, same root cause as
+the already-fixed "Weapons Range" bug: `jutsu.category_group` is a clean, byte-identical-per-row
+enum column (e.g. exactly `"Ninjutsu / Fire Release"` repeated across every Fire jutsu), yet DeepL
+translated that identical input inconsistently across different import batches, splitting what
+should be one book-section subheading on the jutsu browse page into two or three separate ones.
+574 total elemental/non-elemental rows checked; Earth (`Liberação da Terra`, 75/75) and Wind
+(`Liberação do Vento`, 74/74) were already fully consistent — Fire, Water, Lightning, and
+Non-Elemental were not. Canonical form for each picked to match how the *same* element already
+reads correctly and consistently in `jutsu.name` for "X Release: ..." jutsu titles (verified by
+querying those rows directly, not guessed) — hand-patched directly in `content_translations`
+rather than re-running translation, so no risk of a fresh DeepL pass reintroducing different drift.
+
+**Superseded 2026-09-12 by the "Descarga" pass below — the table's word choices in the
+Portuguese column are stale.** Kept for its historical record of what was normalized and why
+(the consistency methodology below is still valid); wherever this table says "Liberação de X,"
+the row now actually reads **"Descarga de/do/da X"** in `content_translations` — do not copy
+"Liberação" from this table into a new language or a restored/rolled-back DB.
+
+| English | Portuguese (as fixed at the time — now superseded, see note above) | Source |
+|---|---|---|
+| Ninjutsu / Fire Release | Ninjutsu / Liberação de Fogo → now Descarga de Fogo | matches `jutsu.name`'s own "Liberação de Fogo: X" pattern (e.g. `jutsu/fire-release-dawn`); normalized 4 stray "Liberação **do** Fogo" rows |
+| Ninjutsu / Water Release | Ninjutsu / Liberação de Água → now Descarga de Água | matches `jutsu.name`'s own "Liberação de Água: X" pattern; normalized 19 stray "Liberação **da** Água" rows |
+| Ninjutsu / Lightning Release | Ninjutsu / Liberação do Relâmpago → now Descarga do Relâmpago | matches `jutsu.name`'s own "Liberação do Relâmpago: X" pattern (word choice "Relâmpago," not "Raio"); normalized 8 stray "Liberação do **Raio**" rows |
+| Ninjutsu / Non-Elemental | Ninjutsu / Não-elemental (unaffected by the Descarga pass — "Non-Elemental" is not a "Release" term) | matches the hyphenated-lowercase form already used consistently elsewhere in Portuguese content (e.g. "condição Elemental" prose, `feat`/`subclass_feature` descriptions); normalized 5 "Não Elemental" + 8 "Não elementar" stray rows |
+
+**Spanish fixed 2026-09-12.** Unlike Portuguese, `jutsu.name` itself had ZERO rows using the
+correct "Liberación de Tierra:" prefix to copy from — Earth Release was mistranslated three
+different ways across the *name* field too (`Técnica de la Tierra:` 71 rows, `Elemento Tierra:` 3
+rows, `Libertad de la Tierra:` 1 row), so the canonical form couldn't be picked by majority vote
+the way it was for Portuguese. Picked "Liberación de Tierra" instead by matching the existing
+correct minority form (2 `category_group` rows already read this way) and the "no article for
+feminine elements" convention already established by the correctly-translated `Fuego`/`Agua`
+siblings (`Liberación de Fuego`, `Liberación de Agua` — no article — vs. `Liberación del Viento`/
+`Liberación del Rayo`, which take `del` because Viento/Rayo are masculine). Hand-patched (case-
+preserving `REPLACE`) across `jutsu.name`, `jutsu.category_group`, `jutsu.description` (6 rows,
+including mid-sentence "Chakra de liberación de tierra" phrasing), and `jutsu.keywords` (dead
+field, fixed for consistency only — see [[project_i18n_deepl_pivot_status]] on why keywords is
+excluded from `TranslatableFields` and never actually overlaid at read time). `Ninjutsu /
+Liberación de Rayo` (2 stray rows) also normalized to the majority-correct `Liberación del Rayo`
+(72 rows), matching `jutsu.name`'s own consistent "Liberación del Rayo: X" pattern.
+
+**Superseded 2026-09-12 by the "Descarga" pass below — same caveat as the Portuguese table
+above**: wherever this table says "Liberación de/del X," the row now actually reads "Descarga de
+Tierra"/"Descarga del Rayo" in `content_translations`. Do not copy "Liberación" from this table.
+
+| English | Spanish (as fixed at the time — now superseded, see note above) | Source |
+|---|---|---|
+| Ninjutsu / Earth Release | Ninjutsu / Liberación de Tierra → now Descarga de Tierra | matches the pre-existing correct minority `category_group` rows and the no-article Fuego/Agua convention; normalized 73 stray `category_group` rows (71 "Técnica de la Tierra" + 2 "Elemento Tierra") and separately all 75 `jutsu.name` rows, which had zero correct rows to begin with (71 "Técnica de la Tierra:", 3 "Elemento Tierra:", 1 "Libertad de la Tierra:") |
+| Ninjutsu / Lightning Release | Ninjutsu / Liberación del Rayo → now Descarga del Rayo | matches `jutsu.name`'s own consistent "Liberación del Rayo: X" pattern; normalized 2 stray "Liberación **de** Rayo" rows |
+
+**Found but deliberately NOT fixed in this pass — a much larger cross-table version of the same
+"Elemento Tierra" mistranslation**: the identical wrong term (and its Rayo/Viento/Fuego/Agua
+siblings) also appears as a proper-noun stand-in for "Earth/Lightning/Wind/Fire/Water Release"
+outside the `jutsu` table — confirmed via English-source cross-checking (Portuguese's own already-
+correct rendering of the same row, e.g. `clan/bakuton/feature/explosion-release`'s pt text reads
+"Liberação de Terra"/"Liberação do Relâmpago" where the es text reads "Elemento Tierra"/"Elemento
+Rayo") in `clan_features.name`/`.description`, `clan_traits.name`/`.description`, `clans.overview`,
+`feats.name`, and `subclass_features.name`/`.description` — roughly 150+ rows across all five
+elements, not just Earth. **Not the same as the lowercase generic "elemento tierra/agua" (small
+`e`) found in `class_option_entries`/`class_options` prose** (e.g. "si has elegido el elemento
+tierra o agua"), which is a correct, unrelated translation of a genuinely generic phrase and must
+NOT be touched by any future blind find/replace here. Worth its own dedicated pass, scoped and
+verified table-by-table the same way this one was, rather than a blanket replace.
+
+## "Nature Release" terminology — "Liberación"/"Liberação" replaced by "Descarga" (pinned 2026-09-12)
+
+**Supersedes the canonical forms given in "Jutsu category_group — elemental Ninjutsu
+subheadings" above** (`Liberación de Tierra`, `Liberação de Fogo`, etc.) — those rows are now
+`Descarga de Tierra`, `Descarga de Fogo`, and so on. This was not a bug-fix pass, it was a
+deeper correction to the whole project's established glossary convention for the Naruto-style
+"X Release"/"Nature Release" chakra-technique system, applied across *every* table in both
+locales in one sweep, not just `jutsu.category_group`.
+
+**The problem**: "Release" in "Fire Release," "Nature Release," "Limiter Release," etc. means
+unleashing/discharging chakra power — the sense in "Release your limiters!" or an archer's
+"Release!" command to loose arrows, not the sense of setting someone free. DeepL (and the
+project's own prior hand-picked term) rendered it as **"Liberación"/"Liberação"/"Libertação"** —
+grammatically fluent Spanish/Portuguese, but carrying the *freedom/parole* connotation (releasing
+a prisoner), the wrong sense entirely. Confirmed directly against raw English source (not a
+translated proxy) — e.g. `clan/bakuton/feature/explosion-release`'s English text: "...their close
+affinity to both Earth and Lightning Release... casting a ... Jutsu with the Earth or Lightning
+Release Keywords..." — plainly the power/unleash sense throughout.
+
+**The fix**: replaced with **"Descarga"** ("Discharge") for both locales, everywhere the
+elemental/power sense of "Release" was intended. Applied via a whitelist-driven script (continuation
+word after "Liberación"/"Liberação"/"Libertação" must match a confirmed-safe elemental-context
+phrase, e.g. "de Tierra," "do Fogo," "de la Naturaleza," plus a short list of exact-phrase literal
+overrides for irregular phrasing) rather than a blind regex — anything not matching stays
+untouched by default. Result: **1282/1287 Spanish rows and 1425/1431 Portuguese rows changed,
+3986 total substitutions**, across `jutsu` (category_group, keywords, description, name,
+cost_text, at_higher_ranks, casting_time), `subclass_features`, `feats`, `class_options`,
+`class_option_entries`, `equipment`, `summon_tribes`, `clan_features`, `clan_traits`,
+`summon_tribe_features`, `clans`, `clans` overview, `subclasses`, `adversary_role_traits`, and
+`class_features`. Live-verified in a fresh browser session: the jutsu browse page renders
+"Descarga de Tierra/Agua/Fuego/Viento/Rayo/..." with zero stray "Liberación"/"Liberação" left in
+that list, in both locales.
+
+**Genuine exceptions, deliberately left as "Liberación"/"Liberação"/"Libertação" — this is the
+other, correct sense of "Release" (freeing/dispelling), not a miss**: `jutsu/release`'s own
+Genjutsu-dispel technique ("isolate and forcefully remove the effect of a single Genjutsu... free
+yourself or your target from the Genjutsu") and its direct cross-references — the Puppet Master
+"Countermeasures" upgrade ("«Liberación»/«Técnica de Libertação» o «Escape»/«Fuga»"), the
+Genjutsu Specialist "Tentative Escape" option (bare "«Liberación»"/"“Libertação”"), and the
+"Hanami" feat's "Mass Release"/"Enhanced Inhalant" subclass feature (both reference "Release
+Genjutsu" = "Liberación de Genjutsu"/"Liberação de Genjutsu"). 7 rows in each locale, all
+confirmed by reading the actual English source text row-by-row before excluding them, and
+confirmed still rendering correctly (unchanged) in a live browser check.
+
+**Not folded into this pass**: the previously-documented cross-table "Elemento Tierra"/"Elemento
+X" bug (see the category_group section above) is a different root cause — a wrong noun entirely
+("Element" instead of "Release"), not a wrong connotation on the right noun — even though fixing
+it would also plausibly land on "Descarga de X." Fixed separately immediately after, see below.
+
+## "Elemento X" bug for the 5 base elements + Yin/Yang — fixed to "Descarga de X" (pinned 2026-09-12)
+
+**Different root cause from the "Liberación"/"Descarga" pass above, even though both land on
+"Descarga."** That pass fixed the wrong *connotation* on the right noun ("Liberación" = freedom
+instead of unleash-power). This bug used the wrong noun entirely — "Elemento"/"Elemento" ("Element")
+in place of any release-word — for the 5 base elements (Earth/Fire/Water/Wind/Lightning) and
+Yin/Yang, in `clan_features`, `clan_traits`, `clans` overview, `feats`, and `subclass_features`.
+The regex that drove the Liberación pass never touched these rows, since they never contained
+"Liberación"/"Liberação" at all.
+
+**Canonical form for the 5 base elements + Yin/Yang, both current locales — check this table
+before touching any "Earth/Fire/Water/Wind/Lightning/Yin/Yang Release" row, and use it as the
+template when translating into any future language**:
+
+| English | Spanish | Portuguese |
+|---|---|---|
+| Earth Release | descarga de Tierra | descarga da Terra |
+| Fire Release | descarga de Fuego | descarga de Fogo |
+| Water Release | descarga de Agua | descarga de Água |
+| Wind Release | descarga del Viento | descarga do Vento |
+| Lightning Release | descarga del Rayo | descarga do Relâmpago |
+| Yin Release | descarga Yin | descarga Yin |
+| Yang Release | descarga Yang | descarga Yang |
+
+**Corrected 2026-09-12**: Portuguese Fire/Water Release were originally entered here as "descarga
+do Fogo"/"descarga da Água" — the grammatically-expected contracted forms — without checking
+whether that was actually the established convention. Cross-referencing `jutsu.category_group`
+(the most-audited, already-normalized PT data in the whole project) and a raw substring count
+across the entire PT locale (`de Água` 190 rows vs `da Água` 63; `de Fogo` 230 vs `do Fogo` 50)
+showed the real established convention is uncontracted "de Fogo"/"de Água" for these two elements
+specifically — Portuguese does NOT uniformly contract the preposition with the element's gender.
+Lesson generalized: **before assuming a "grammatically expected" form is the established
+convention, check the most-audited existing data for that exact phrase** — don't derive it from
+grammar rules alone, even inside this same glossary file's own prior notes.
+
+Notes on this table: capitalize the first word when it starts the sentence/phrase ("Descarga de
+Tierra"), never mid-phrase. Spanish takes no article for feminine-gender element nouns (Fuego,
+Agua) but "del" for masculine ones (Viento, Rayo) when preceded by "la descarga del Viento" etc.
+Portuguese contracts the preposition with the element's gender for Earth/Wind/Lightning ("da
+Terra," "do Vento," "do Relâmpago") but NOT for Fire/Water ("de Fogo," "de Água" — uncontracted,
+confirmed established usage, not a typo) — check this table's actual values per element rather
+than assuming uniform contraction. Yin/Yang take no preposition in either language (direct
+apposition) — this was the one form with no pre-existing correct precedent in Spanish, derived
+from Portuguese's own already-correct usage.
+For a brand-new language: do NOT default to whatever pattern that language already uses for the
+kekkei-genkai combo types (see the table right below) — verify the intended sense against raw
+English source first (unleash/discharge power, not "Element" and not "freedom/release-from-
+captivity"), the same two-step check documented in
+[[feedback_established_translation_can_still_be_wrong_sense]].
+
+**Must not be confused with the intentional, correct "Elemento X" convention for kekkei-genkai
+COMBO release types** (Crystal/Explosion/Wood/Boil/Steel/Magnet/Plasma/Lava/Storm/Scorch/Ice,
+etc. — see "Nature-transformation ('X Release') jutsu naming" above) — those remain "Elemento
+Cristal," "Elemento Explosivo," etc., and were explicitly preserved by scoping the fix's element
+list to only the base elements + Yin/Yang, never combo names.
+
+**The fix**: article-aware regex (`(el|del|o|do)? elemento <name>` → the fem. "descarga" phrase,
+converting a leading masculine article to feminine — "el Elemento Tierra" → "la descarga de
+Tierra," "del Elemento Rayo" → "de la descarga del Rayo") plus one exact-phrase literal override
+for a compound case (`clan/shakuton` overview's single "Elemento" governing two conjuncts,
+"Elemento Fuego y Viento" → "descarga de Fuego y del Viento"). Yin/Yang extended using
+Portuguese's own already-correct precedent phrasing ("Descarga Yin"/"Descarga Yang", direct
+apposition, no preposition) confirmed against `feat/konjiki/superior-steel` and
+`feat/kuru/yin-chakra-mastery` before applying the same shape to Spanish. **Result: 99 Spanish
+rows + 5 Portuguese rows, 177 total substitutions.** Live-verified in a fresh scratch-probe
+session directly against `rules.db` rows (browser UI not required for this table set):
+`clan/bakuton/feature/explosion-release` now reads "...afinidad con la descarga de Tierra y la
+descarga del Rayo..." while its own name/trait rows correctly keep "Elemento Explosivo" (the
+combo name); Portuguese rows show "Descarga de Terra," "Descarga do Relâmpago," etc.
+
+**Portuguese was checked as thoroughly as Spanish** (not just spot-checked) per explicit
+instruction, since Portuguese could plausibly have had the identical bug. Found the same bug in
+5 Portuguese rows, plus one confirmed **false positive that was excluded, not fixed**:
+`clans/clan/fushin` overview's "usuários do elemento vento" — its English source ("some of the
+most powerful wind users in the shinobi world") contains no "Release" at all, so this is a
+correct, unrelated, generic translation. Verified against raw English source before excluding,
+per [[feedback_established_translation_can_still_be_wrong_sense]]'s standing lesson — confirmed
+still reading "elemento vento" unchanged after the fix ran.
+
+**RESOLVED 2026-09-12 (item 1's base-element scope only — `jutsu.name`'s own chaos is still
+open, see below)**: fixed the 19 ES + 82 PT `missing-glossary-term` warnings this same sweep
+surfaced. Three distinct causes, found in this order:
+- A real checker bug in `internal/i18n/verify.go`: `wholeWordRe`/`stemPrefixRe` used Go regexp's
+  `\b`, which only recognizes ASCII word characters (`[0-9A-Za-z_]`) — a target-language stem or
+  source term starting with an accented letter (Portuguese "Água" being the main offender here)
+  never registers a real `\b` boundary against a preceding space, since RE2 treats "Á" itself as
+  non-word. This alone accounted for the large majority of the 82 PT warnings (confirmed live:
+  `\bÁgu` failed to match "e Água" while `\bAgu` matched "e Agua" on otherwise-identical text).
+  Fixed by replacing `\b` with a Unicode-aware boundary (`[^\p{L}\p{N}_]` or start/end of string)
+  in both helpers — re-running verify after just this fix dropped the count from 19+82 to 12+8.
+- Two of this file's own Phase-2 canonical values were themselves wrong: Portuguese Fire/Water
+  Release were entered as the grammatically-expected contracted forms ("descarga do Fogo"/"descarga
+  da Água") without checking the actual established convention — corrected to uncontracted "de
+  Fogo"/"de Água" above, per the discovery method noted in that section.
+- The remaining ~20 genuine hits (after the checker fix and glossary correction) were real
+  per-row translation drift, all fixed by hand after checking each against raw English source:
+  `subclass_features.name` rows for the Ninjutsu Specialist's own "X Release" feature names (e.g.
+  Stone Crusher's `earth-release` = "Técnica de la Tierra"/"Técnica da Terra" instead of "Descarga
+  de Tierra"/"Descarga da Terra" — same shape repeated across Fire/Lightning/Wind/Water's own
+  base and "-master" feature names in both locales), `feats.name` (`lightning-release-expert`,
+  `wind-release-expert` — "Experto en la técnica del Rayo"/"Experto en el Estilo del Viento"),
+  a dropped-half-of-compound bug (`feat/kuru/yang-chakra-adept` ES rendered "Yin/Yang Release" as
+  just "descarga Yin," losing "Yang" entirely), `clans` overview flavor text using generic "estilo
+  de"/"técnica da" instead of the glossary term (`shoton`, `hozuki`), and the elided-list gotcha
+  documented below under `fix_release_articles.py`'s known limitation (`weapon-specialist`'s
+  `primal-weapon-techniques-changed` PT description had a bare "(Descarga da Terra, do Vento, do
+  Fogo, da Água ou do Raio)" list where only the first item carried "Descarga" and the last used
+  the wrong word "Raio" instead of "Relâmpago" — hand-fixed since the regex only matches a literal
+  preceding "descarga "). Two remaining flags in `feats/feat/medical-release` ("Reach") and
+  `clan_features/clan/bakuton/feature/explosion-release` ("Range") are confirmed false positives —
+  ordinary English words, not this game's homebrew "Range"/"Reach" mechanics keywords.
+- `out/rules.db` also had the separate `fix_release_articles.py` normalization script applied
+  (45 ES + 77 PT rows, 215 substitutions) to bring the broader "de X" vs "da/do X" preposition
+  inconsistency across `clan_features`/`clan_traits`/`clans`/`feats`/`subclass_features` in line
+  with the corrected canonical table, before the hand-fixes above.
+- **Reusable lesson**: before assuming a "grammatically expected" form is the established
+  convention for a language, check the most-audited existing data for that exact phrase (here,
+  `jutsu.category_group`, plus a raw substring count across the whole locale) — don't derive it
+  from grammar rules alone, even against this same glossary file's own prior notes.
+
+**Related findings surfaced during this investigation, deliberately NOT fixed here — flagged for
+a future dedicated pass**:
+1. **`jutsu.name`'s "X Release:" prefix chaos** — a much bigger, unrelated mess than
+   `category_group` ever was. Spanish Water Release jutsu names alone are split across at least 7
+   different renderings ("Técnica del Agua," "Técnica del Elemento Agua," "Técnica de Agua,"
+   "Descarga de agua," "Lanzamiento de Agua," and two raw-English-leaking forms). Needs its own
+   normalization pass analogous to the `category_group` one documented above, not a quick
+   find-replace. **Confirmed 2026-09-12 to extend well beyond `jutsu.name`**: after the base-element
+   glossary entries below were added, a full `n5e-i18n verify` sweep (all 5 affected tables, both
+   locales) surfaced the identical "wrong word entirely, neither Liberación/Descarga nor Elemento"
+   shape in `feats.name`/`.prerequisites`/`.description` (e.g. `feat/lightning-release-expert.name`
+   = "Experto en la técnica del Rayo," `.prerequisites` = "Descarga de Rayos" — plural, missing
+   article — vs the same feat's own `.description` correctly using "Descarga de Rayo"), and in
+   `subclass_features.name` (e.g. the Ninjutsu Specialist Stone Crusher group's `earth-release`
+   feature name is still "Técnica de la Tierra," never touched by either fix since it contains
+   neither "Liberación" nor "Elemento"). 19 Spanish + 82 Portuguese `missing-glossary-term` warnings
+   for base-element Release terms remained across `clan_features`/`clan_traits`/`clans`/`feats`/
+   `subclass_features` after both fixes — a mix of genuine misses like the ones above and expected
+   false positives (short name/prerequisite fields, and generic flavor text like `clan/shoton`
+   overview's "afinidad por el estilo de la Tierra," which may not be meant to restate the literal
+   keyword at all). Needs the same careful, per-row-verified normalization pass as `jutsu.name`,
+   not a blanket find-replace — run `n5e-i18n verify -db out/rules.db -locale <es|pt> -table
+   <table> -backtranslate=false` per table to regenerate the current list before starting.
+2. **Bare "Elemento" (no element name following) used generically to mean "Nature Release"** —
+   structurally different from the fixed pattern (no name token for the regex to anchor on), so
+   not caught by this fix. Found in `clan/jiton` overview ("Todos los Kazekage han tenido este
+   Elemento"), `clan/ryu` overview ("manifiesten un Elemento extremadamente temprano"), and
+   `subclass_features/class/taijutsu-specialist/.../nature-enhanced-combat` ("Elemento de la
+   Naturaleza"). Deliberately left untouched — confirming correct wording here needs a
+   per-instance rewrite, not a pattern match.
+3. **`feat/kuru/yang-chakra-adept` content-completeness gap** — English source says "Yin/Yang
+   Release," but the Spanish description only ever says "descarga Yin" (post-fix), never
+   mentioning Yang at all — a missing-content gap in the original translation, not a
+   terminology/connotation issue, so out of this fix's scope. The description text itself
+   ("Has comenzado a dominar la otra mitad...") implies the other half should be Yang.
+4. **Portuguese kekkei-genkai combo-name mistranslations, found incidentally while spot-checking
+   the preserved "Elemento Explosivo" pattern** — `clan/bakuton/feature/explosion-release`'s PT
+   `name` field reads "Comunicado sobre a explosão" (nonsensical — "Communiqué about the
+   explosion") where Spanish correctly has "Elemento Explosivo," and
+   `clan/bakuton::Explosion Release Affinity`'s PT name is "Afinidade de Descarga por Explosão"
+   (inconsistent with its own sibling terminology). Neither touched by this fix ("explosão" isn't
+   in this fix's base-element list) — flagged as a separate, apparently PT-specific
+   kekkei-genkai-combo-naming quality issue worth its own audit.
+
+## Pipeline-level safeguard against this bug class recurring (added 2026-09-12)
+
+Everything above catches this bug class through **audits** — reading translated text after the
+fact. That is necessarily reactive. The actual DeepL translation pipeline (`n5e-i18n
+translate`/`catalog-translate`, and the `n5e-i18n verify` QA pass) already has the machinery to
+prevent this class of bug automatically, it just didn't have the right glossary *entries* wired
+into it — the fix here is closing that gap, not building new machinery:
+
+**Root cause of why the pipeline didn't catch this the first time**: `setUpGlossary`
+(`cmd/n5e-i18n/main.go`) parses every English→target term pair out of `glossary.md`'s tables
+(`ParseGlossaryTables`) and feeds them to DeepL as a real glossary constraint, and `n5e-i18n
+verify`'s `GlossaryChecker` (`internal/i18n/verify.go`) independently re-checks every translated
+row against those same terms after the fact. But **no standalone entry for "Earth Release," "Fire
+Release," etc. existed anywhere in the file** — only compound, field-specific phrases like
+"Ninjutsu / Fire Release" (scoped to `jutsu.category_group`'s exact enum string) and the since-
+corrected "Yin Release" row. A compound-phrase entry only matches that exact phrase; it does
+nothing to constrain "Fire Release" appearing on its own in `clan_features`/`feats`/
+`subclass_features` prose, which is exactly where DeepL was free to invent a different wrong term
+per table.
+
+**The fix**: added the canonical base-element table earlier in this file (see the "'Elemento X'
+bug" section's per-element table) as a real, standalone `| English | Spanish | Portuguese |`
+glossary entry for all 7 terms (5 base elements + Yin/Yang). This now does two things
+automatically, with no audit required:
+1. **At translate time**: any future `n5e-i18n translate`/`catalog-translate -force` run
+   constrains DeepL to render "Earth Release" as "descarga de Tierra"/"descarga da Terra"
+   wherever it appears, in any table, not just the ones already audited.
+2. **At verify time**: `n5e-i18n verify` now flags any row where the English text contains one of
+   these 7 terms but the translated text doesn't contain the matching glossary rendering — this
+   already works today, not just for future translations. Confirmed live: `go run ./cmd/n5e-i18n
+   verify -db out/rules.db -locale es -table clan_features -backtranslate=false` reports zero
+   `missing-glossary-term` findings for these 7 terms against the now-fixed data.
+
+**Regression-guarded in code, not just documentation**: `internal/i18n/glossary_parse_test.go`
+(`TestElementReleaseGlossaryCoverage`, `TestElementReleaseGlossaryRejectsKnownWrongTerms`) asserts
+via `go test ./internal/i18n/...` that all 7 terms parse out of `glossary.md` with the exact
+expected canonical value for both locales, and that none of them contain "Elemento"/"Liberaci"/
+"Liberaç"/"Libertaç" — so an accidental future edit to `glossary.md` that breaks or reverts one of
+these entries (a bad merge, a careless table reformat, a rollback to an old commit) fails `go
+test`/CI immediately, rather than silently reopening the gap until the next manual audit.
+
+**Bonus finding from running `verify` for the first time across all 5 affected tables**: it
+immediately, automatically caught the already-known `feat/kuru/yang-chakra-adept` content gap
+(item 3 above) with zero manual reading required, confirming the check has real signal — and
+surfaced that the broader "wrong word entirely" naming chaos (item 1 above) extends past
+`jutsu.name` into `feats`/`subclass_features` name/prerequisite fields (19 Spanish + 82 Portuguese
+`missing-glossary-term` warnings remain across the 5 tables, not yet triaged row-by-row — see item
+1's updated note above). Standalone glossary entries prevent a *future* translation from choosing
+a *new* wrong word; they cannot retroactively fix content that was already mistranslated with a
+third, different wrong word before the entry existed. That backlog is real but out of scope for
+this pipeline fix — it's the same deferred normalization pass item 1 already flags.
+
+**For a future locale or `-force` retranslation**: this pattern (a term appearing in prose across
+multiple content tables having no standalone glossary entry, only field-specific compound
+entries) is the general lesson, not specific to "Release." Before trusting DeepL's default output
+for any established multi-word game term, check whether it has a real standalone glossary row —
+a category_group-style compound entry alone does not protect the same term elsewhere.
+
+## Jutsu range "Self" — mistranslated as a bare pronoun (pinned 2026-09-12)
+
+Found in the same follow-up audit. `jutsu.range = "Self"` (D&D 5e's standard range term meaning
+"this jutsu only affects you") was translated to **"Eu"** ("I"/"Me," a bare first-person pronoun)
+across all 363 Portuguese rows that use it — grammatically odd as a range label and not the actual
+D&D term. Confirmed via web search against real Brazilian Portuguese D&D 5e spell text (multiple
+independent PT-BR spell compendiums, e.g. spells with "Alcance: Pessoal") that the correct,
+official term is **"Pessoal"** ("Personal") — hand-patched directly in `content_translations` for
+all 363 rows rather than left as "Eu." Confirmed safe to change: `parseJutsuRange` (cmd/n5e/jutsu.go)
+always parses the *raw English* `jutsu.range` value fetched before the i18n overlay is applied, so
+this is a display-only fix with no effect on range-based filtering/matching.
+
+**Spanish fixed 2026-09-12**: `jutsu.range = "Self"` was "Uno mismo" ("oneself") for all 363
+Spanish rows — also confirmed via web search that the official Spanish D&D 5e term is likewise
+"Personal" (alcance personal), not "Uno mismo." Hand-patched all 363 rows the same way as
+Portuguese; same `parseJutsuRange`-uses-raw-English confirmation applies, so this is display-only.
 
 ## Confirmed false positives — left untranslated by design (pinned 2026-09-11)
 
