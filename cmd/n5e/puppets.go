@@ -3631,7 +3631,7 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 				total.FlySpeed = b.FlySpeed
 				total.GrantsFlight = true
 			}
-			notes = append(notes, puppetUpgradeBonusNote{Name: tr("stat_bonus_name:" + ub.Name), Parts: puppetupgrades.StatBonusParts(b)})
+			notes = append(notes, puppetUpgradeBonusNote{Name: tr("stat_bonus_name:" + ub.Name), Parts: puppetupgrades.StatBonusParts(tr, b)})
 		}
 
 		// Fold in this companion's own Foundation catalog pick (Puppeteer
@@ -3694,12 +3694,17 @@ func (s *server) loadPuppetsTabData(characterID int64, sheet *charsheet.Sheet, l
 					skillAbilityOverride[skill] = ability
 				}
 				if entry.RoleEffect.TextBonus != nil {
-					foundationTraits = append(foundationTraits, entry.RoleEffect.TextBonus(ownerProfBonus))
+					foundationTraits = append(foundationTraits, entry.RoleEffect.TextBonus(tr, ownerProfBonus))
 				}
 			}
-			foundationTraits = append(foundationTraits, entry.ReferenceTraits...)
-			if entry.NaturalWeapon != nil {
-				foundationTraits = append(foundationTraits, entry.NaturalWeapon.CritText)
+			// ReferenceTraits/CritText are curated prose with no computed
+			// interpolation, so the raw English doubles as the catalog key
+			// (same treatment as foundation_name:/stat_bonus_name: above).
+			for _, t := range entry.ReferenceTraits {
+				foundationTraits = append(foundationTraits, tr("foundation_trait:"+t))
+			}
+			if entry.NaturalWeapon != nil && entry.NaturalWeapon.CritText != "" {
+				foundationTraits = append(foundationTraits, tr("foundation_crit:"+entry.NaturalWeapon.CritText))
 			}
 			if entry.SageCreatureFramework {
 				bestialTraits, err := s.bestialFrameworkReferenceTraits(fp, locale)

@@ -12,7 +12,7 @@ import (
 // reads and DeepL back-translation calls and just calls into these).
 // "Language-agnostic" is the point: every check here works without reading
 // or understanding the target language at all, which is what makes it a
-// real signal for a script neither Sergio nor Claude reads fluently (see
+// real signal for a script no one maintaining this project reads fluently (see
 // translation_methodology.md's "Automated coverage pipeline" section) --
 // unlike a spot-check read, these can't be fooled by fluent-looking nonsense
 // or miss a dropped clause just because the surrounding prose still parses.
@@ -80,8 +80,9 @@ type GlossaryChecker struct {
 
 type glossaryEntry struct {
 	source        string
-	sourceRe      *regexp.Regexp   // \b<source>\b, case-insensitive -- checked against English
+	sourceRe      *regexp.Regexp   // \b<source>\b -- checked against English (case-sensitive for single-word terms, see sourceTermRe)
 	targetStemRes []*regexp.Regexp // one \b<stem> per word of the target rendering
+	singleWord    bool             // subject to the proper-name rule in termPresent
 }
 
 // NewGlossaryChecker precompiles terms (English -> approved target-language
@@ -94,8 +95,9 @@ func NewGlossaryChecker(terms map[string]string) *GlossaryChecker {
 			continue // identity pairs (proper nouns left untouched) have nothing to verify on the target side beyond "still present", which SuspiciouslyIdentical / a manual read covers better
 		}
 		entry := glossaryEntry{
-			source:   source,
-			sourceRe: wholeWordRe(source),
+			source:     source,
+			sourceRe:   sourceTermRe(source),
+			singleWord: !strings.ContainsAny(source, " \t"),
 		}
 		for _, w := range strings.Fields(want) {
 			entry.targetStemRes = append(entry.targetStemRes, stemPrefixRe(stem(w)))
@@ -151,6 +153,50 @@ func wholeWordRe(s string) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)` + wordBoundary + regexp.QuoteMeta(s) + wordBoundaryEnd)
 }
 
+// sourceTermRe is wholeWordRe, except that a SINGLE-word glossary term is
+// matched case-sensitively.
+//
+// This is what separates a pinned game term from its ordinary-English
+// homograph, and it is the difference between a check with signal and one
+// buried in noise. Every one of these terms is a mechanic this game
+// capitalizes in its own source text -- "a Light weapon", "the Thrown
+// property", "gain Advantage" -- while the same letters in ordinary prose
+// are lowercase: "bright light", "set it on fire", "within range". A
+// case-insensitive English side cannot tell them apart, so it flagged every
+// row whose Spanish correctly rendered "bright light" as "luz brillante"
+// for not containing "Ligera" (the feminine adjective meaning lightweight,
+// which would be nonsense there). Measured 2026-09-13: this single change
+// removed 281 of 368 Spanish findings, all verified false positives of
+// exactly that shape.
+//
+// Multi-word terms stay case-insensitive. "Fire Release", "Class Feature"
+// and friends have no ordinary-prose homograph to confuse them with, and
+// tolerating sentence-case variation there is worth more than the
+// precision would be.
+//
+// The cost is real but small and in the safe direction: a genuinely drifted
+// term sitting at the start of a sentence, where ordinary prose is
+// capitalized too, is still flagged (no loss); a pinned term that the
+// source text itself spelled lowercase is now missed. Prefer fixing the
+// source text's own capitalization over reverting this -- the game's
+// mechanics are proper nouns and should read as such.
+func sourceTermRe(s string) *regexp.Regexp {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	if strings.ContainsAny(s, " \t") {
+		return wholeWordRe(s)
+	}
+	// Group 1 is the term itself. wordBoundary/wordBoundaryEnd are real
+	// consuming character classes, not zero-width assertions (RE2 has no
+	// Unicode \b -- see wordBoundary's own comment), so a match's own
+	// indices include the surrounding punctuation/space. termPresent needs
+	// to look at the words either side of the term, so it needs the term's
+	// own bounds, not the padded match's.
+	return regexp.MustCompile(wordBoundary + `(` + regexp.QuoteMeta(s) + `)` + wordBoundaryEnd)
+}
+
 // stemPrefixRe matches s as the start of a word only (leading boundary, no
 // trailing one) -- used for target-language stems, which are deliberately
 // truncated (see stem) so "tirad" is meant to match inside both "tirada"
@@ -188,14 +234,16 @@ func stemPrefixRe(s string) *regexp.Regexp {
 // token-level check against short/common glossary terms, not fixable by
 // tuning thresholds -- a length-based cutoff would just blind the check to
 // real drift on those same short pinned terms. Left as WARN-level advisory
-// noise by design: still catches real term drift, just needs a human (or
-// Claude) glance rather than being treated as a hard failure per row.
+// noise by design: still catches real term drift, just needs a reviewer's
+// glance rather than being treated as a hard failure per row.
 func (gc *GlossaryChecker) MissingTerms(en, target string) []string {
 	var missing []string
+	matched := map[string]bool{}
 	for _, e := range gc.entries {
-		if !e.sourceRe.MatchString(en) {
+		if !termPresent(e, en) {
 			continue
 		}
+		matched[e.source] = true
 		anyStemMissing := false
 		for _, re := range e.targetStemRes {
 			if !re.MatchString(target) {
@@ -207,8 +255,127 @@ func (gc *GlossaryChecker) MissingTerms(en, target string) []string {
 			missing = append(missing, e.source)
 		}
 	}
+	missing = dropSubsumedTerms(missing, matched)
 	sort.Strings(missing)
 	return missing
+}
+
+// termPresent reports whether a glossary term occurs in en in its pinned
+// game sense.
+//
+// For a multi-word term that is just "does the regex match." For a
+// single-word one it additionally requires at least one occurrence that is
+// NOT part of a multi-word capitalized run, because such a run is a proper
+// name rather than the standalone mechanic: "Fire Bomb", "Eye Lights",
+// "Mechanical Light Shield", "No Light at the End". Those are item and
+// upgrade names whose approved Spanish deliberately does not contain the
+// glossary rendering -- "Fire Bomb" is "Bomba incendiaria", which is both
+// correct and idiomatic, and demanding it contain "Fuego" would be wrong.
+//
+// The mechanic's own real usages survive, because they are a capitalized
+// term followed by lowercase prose: "a Light weapon", "the Thrown
+// property", "gain Advantage on the roll". Measured 2026-09-13: this and
+// the case-sensitivity rule together took Spanish from 368 findings to 40,
+// with every removed finding spot-checked as a false positive.
+func termPresent(e glossaryEntry, en string) bool {
+	locs := e.sourceRe.FindAllStringSubmatchIndex(en, -1)
+	if len(locs) == 0 {
+		return false
+	}
+	if !e.singleWord {
+		return true
+	}
+	for _, loc := range locs {
+		// loc[2]:loc[3] is group 1 -- the term without its consumed
+		// boundary characters (see sourceTermRe).
+		if !inTitleCaseRun(en, loc[2], loc[3]) && !atSentenceStart(en, loc[2]) {
+			return true
+		}
+	}
+	return false
+}
+
+// inTitleCaseRun reports whether en[start:end] has a capitalized word
+// immediately before or after it, separated only by a space -- the shape of
+// a multi-word proper name.
+func inTitleCaseRun(en string, start, end int) bool {
+	capitalizedAt := func(s string) bool {
+		for _, r := range s {
+			return unicode.IsUpper(r)
+		}
+		return false
+	}
+	// Word immediately after.
+	if rest := en[end:]; strings.HasPrefix(rest, " ") {
+		if f := strings.Fields(rest); len(f) > 0 && capitalizedAt(f[0]) {
+			return true
+		}
+	}
+	// Word immediately before.
+	if before := en[:start]; strings.HasSuffix(before, " ") {
+		if f := strings.Fields(before); len(f) > 0 && capitalizedAt(f[len(f)-1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// atSentenceStart reports whether en[start:] begins a sentence or a bullet
+// item -- a position where English capitalizes every word, mechanic or not.
+//
+// This is the same reasoning as inTitleCaseRun: the capital carries no
+// information there, so it is not evidence that the pinned mechanic is
+// meant. "• Light created by your Enlightening Grasp feature now lasts..."
+// is the ordinary noun, correctly rendered "La luz creada por...", and
+// demanding the weapon property's "Ligera" would be wrong.
+func atSentenceStart(en string, start int) bool {
+	before := strings.TrimRight(en[:start], " \t")
+	if before == "" {
+		return true
+	}
+	switch before[len(before)-1] {
+	case '.', '!', '?', ':', ';', '\n':
+		return true
+	}
+	return strings.HasSuffix(before, "•")
+}
+
+// dropSubsumedTerms applies longest-match-wins: when a row's English
+// matched both a short term and a longer one that contains it, only the
+// longer one is reported.
+//
+// "Fire" and "Fire Release" are both glossary entries, and every occurrence
+// of the latter is also an occurrence of the former -- so a row about Fire
+// Release jutsu reported both, doubling the noise while saying nothing the
+// specific entry didn't already say. The longer entry is also the correct
+// authority: "descarga de Fuego" is what that text should render as, not
+// the bare "Fuego" the short entry checks for, so the short entry's
+// complaint is actively wrong there.
+//
+// Only suppresses when the containing term ACTUALLY matched this row's
+// English -- a bare "Fire" in a row with no "Fire Release" in it is still
+// reported normally.
+func dropSubsumedTerms(missing []string, matched map[string]bool) []string {
+	if len(missing) == 0 {
+		return missing
+	}
+	kept := missing[:0:0]
+	for _, term := range missing {
+		subsumed := false
+		for other := range matched {
+			if other == term || len(other) <= len(term) {
+				continue
+			}
+			if wholeWordRe(term).MatchString(other) {
+				subsumed = true
+				break
+			}
+		}
+		if !subsumed {
+			kept = append(kept, term)
+		}
+	}
+	return kept
 }
 
 // TextSimilarity returns a language-agnostic rough similarity score in

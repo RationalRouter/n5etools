@@ -1,6 +1,9 @@
 package puppetupgrades
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 // TestEnhancedDurabilityBonus locks in Bronze Tier's own per-technique
 // split: "Purple: Your armor gains a +1 bonus to its AC calculation";
@@ -150,9 +153,21 @@ func TestCharacterBonusesApplyTo(t *testing.T) {
 
 // TestStatBonusParts is the wording shown on a puppet's card: signed deltas
 // for a modifier, a plain total for a flying speed the puppet did not have.
+// The unit label itself lives in the i18n catalog, so this asserts the key
+// and the interpolated value rather than the rendered English -- the English
+// rendering is the catalog's own content (locales/en.json), not this
+// function's.
 func TestStatBonusParts(t *testing.T) {
-	got := StatBonusParts(StatBonus{AC: 1, MaxHP: 18, Speed: 15, FlySpeed: 30, GrantsFlight: true})
-	want := []string{"+1 AC", "+18 Max HP", "+15 ft. Speed", "30 ft. flying speed"}
+	tr := func(key string, args ...any) string {
+		return fmt.Sprintf("%s(%v)", key, args)
+	}
+	got := StatBonusParts(tr, StatBonus{AC: 1, MaxHP: 18, Speed: 15, FlySpeed: 30, GrantsFlight: true})
+	want := []string{
+		"stat_bonus_part:ac([+1])",
+		"stat_bonus_part:max_hp([+18])",
+		"stat_bonus_part:speed([+15])",
+		"stat_bonus_part:fly_speed([30])",
+	}
 	if len(got) != len(want) {
 		t.Fatalf("parts = %q, want %q", got, want)
 	}

@@ -312,17 +312,89 @@ drives the Items page's property tooltips, not the raw string. **Do not include 
 a small shared enum, not per-row prose. Translate it once through the UI string catalog, not as a
 per-equipment-row `content_translations` entry:
 
-| English | Spanish |
-|---|---|
-| Bludgeoning | Contundente |
-| Piercing | Perforante |
-| Slashing | Cortante |
-| Fire | Fuego |
-| Cold | Frío |
-| Lightning | Rayo |
-| Variable | Variable |
+| English | Spanish | Portuguese |
+|---|---|---|
+| Bludgeoning | Contundente | Contundente |
+| Piercing | Perforante | Perfurante |
+| Slashing | Cortante | Cortante |
+| Fire | Fuego | Fogo |
+| Cold | Frío | Frio |
+| Lightning | Rayo | Relâmpago |
+| Variable | Variable | Variável |
 
 ("Slashing/Piercing" is a display-time join of the two rows above, not its own label.)
+
+**The Portuguese column was missing entirely until 2026-09-13, and the three physical types had
+drifted because of it** — nothing pinned them, so `damage_type.bludgeoning` was "Espancamento"
+("a beating," the act of assaulting someone, not a damage class), `damage_type.piercing` had never
+been translated at all and rendered the English "Piercing", and `damage_type.slashing` was the
+noun "Corte" ("a cut") where the enum wants an adjective. Corrected to the official PT-BR D&D 5e
+terms — which is also what this project's own 22,528 translated rows already overwhelmingly use in
+prose: `dano contundente` 141, `dano perfurante` 113, `dano cortante` 60, against **zero** uses of
+"espancamento" or "corte" as a damage type. The corpus had been right and the enum wrong.
+
+Fixed alongside them: `sheet.slashing_placeholder` and the three
+`full_metal_shinobi_passive.{bludgeoning,piercing,slashing}` labels, which are the other keys
+carrying these same three words. Safe to change without touching behavior — `items.go`'s
+`damageTypeCatalogKey` maps raw **English** to the catalog key, so these values are display-only
+and are never matched against.
+
+**General lesson**: a locale column missing from a glossary table is invisible in every report —
+`verify` can only check terms it can parse a target rendering for, so an absent column reads as
+"nothing to check" rather than "unpinned." When adding a locale, diff the column set across every
+table in this file, don't assume the tables are uniform.
+
+### Closed 2026-09-13: the 23 Portuguese rows using noun forms of the physical damage types
+
+Adding the Portuguese column above made `verify` check these three terms for the first time, which
+took Portuguese from 49 findings to 99 — newly-visible pre-existing drift, not new breakage. The
+~31 findings across **23 rows** were prose using the noun form where the enum uses the adjective
+("danos por contusão, perfuração e corte"), bullet labels ("• Contusão:", "• Corte:"), damage
+expressions ("1d6 de Contusão"), and rows already mixing both forms in one sentence
+("(Contusão, Perfurante, Cortante)").
+
+**Fixed by hand, one occurrence at a time — and `normalize-glossary` still must not be extended to
+cover this.** The reason the hand-pass was necessary is the whole point: "Contusão" is ambiguous
+in this corpus. In "ela ganha 1 grau de Contusão" it is the **Bruised condition**, and the correct
+fix there is "1 grau de Contundido" (the condition's own name), not "Contundente" (the damage
+type). A blanket noun→adjective rule would have turned every one of those into nonsense. Same
+hazard class as the "Raio" tail: which rendering is right depends on which mechanic the sentence
+is about, which is exactly what a token-level rule cannot see.
+
+Representative corrections, all verified against the English row:
+
+| Portuguese as written | Corrected to | Why |
+|---|---|---|
+| "Se o alvo estiver Contusão" | "Se o alvo estiver Contundido" | ungrammatical; EN is "If the target is Bruised" — the condition |
+| "ela ganha 1 grau de Contusão" | "...de Contundido" | the condition, not the damage type |
+| "fica Contusada" | "fica Contundida" | "Contusada" is not a word; condition name, feminine agreement |
+| "(Contusão/Terra = Contusão, Corte = Sangramento, Perfuração = Enfraquecimento)" | "(Contundente/Terra = Contundido, Cortante = Sangramento, Perfurante = Enfraquecido)" | one side of each pair is a damage type, the other a condition — the original conflated them |
+| "danos por contusão, perfuração e corte" | "dano contundente, perfurante e cortante" | noun forms where the enum uses adjectives |
+| "danos contusos" | "dano contundente" | "contuso" means bruised, not the damage type |
+| "1d4+1 de dano de Corte" | "...de dano cortante" | same |
+
+After this pass and the Lightning normalization below, **Portuguese and Spanish both report zero
+`missing-glossary-term` findings.**
+
+### Closed 2026-09-13: the Lightning "Raio"/"elétrico" family
+
+Previously left alone as an accepted exception. Reopened and fixed under the "correct, not
+understandable" standard (see translation_methodology.md), because it was not one alternative
+rendering but **three families across ~75 rows** — "dano de Raio" / "dano de raio" / "Dano de
+Raio" / "dano por Raio" / "danos de Raio" for the damage type, "descarga de raios" / "descarga de
+raio" / "Descarga do Raio" / "Descarga de Raios" for the element, and a separate "dano elétrico"
+family in 22 more rows.
+
+There is also a concrete readability defect, not just inconsistency: **"raio" is also the
+Portuguese word for *radius***. "dano de Raio em um raio de 15 pés" is genuinely ambiguous on the
+page, which is why the glossary pinned "Relâmpago" for the mechanic in the first place.
+
+Normalized to `dano de Relâmpago` and `Descarga do Relâmpago`. The rewrite was restricted to
+occurrences carrying a lightning-marking head word (`dano`/`danos`/`descarga`), so bare "raio"
+meaning radius was never touched; the "dano elétrico" rows were each confirmed against their
+English saying "Lightning damage" (as opposed to the Science-Nin "Electric"/"Electro" upgrades,
+which legitimately keep "elétrico"). The country name keeps "Raio" — see "Country names built on
+an element word".
 
 **Standing rule, confirmed 2026-09-04 as a hard policy (not re-confirmed per instance going
 forward): anything the player can potentially see gets translated.** This is the same policy
@@ -838,6 +910,28 @@ template when translating into any future language**:
 | Yin Release | descarga Yin | descarga Yin |
 | Yang Release | descarga Yang | descarga Yang |
 
+### Country names built on an element word
+
+These are setting place names, not the mechanic, and they keep the element's
+everyday word rather than the pinned mechanic rendering — the country is
+"Terra do Raio," never "Terra do Relâmpago." They live in this table so
+longest-match-wins (`dropSubsumedTerms`) suppresses the bare `Lightning` entry
+on rows that only mention the country; without an entry here the checker flags
+a correct translation, since the lowercase "of" in "Land of Lightning" puts it
+outside `inTitleCaseRun`'s reach.
+
+| English | Spanish | Portuguese |
+|---|---|---|
+| Land of Lightning | Tierra del Rayo | Terra do Raio |
+
+The wider convention these follow, confirmed by a corpus sweep 2026-09-13
+across ~55 rows: every `Land of X` country is `Terra do/da X` / `Tierra del/de
+la X`, capitalized as the proper noun it is. That sweep also turned up the two
+ways this goes wrong — a lowercased country name ("tierra del rayo"), and an
+English word left in place inside an otherwise-translated name ("tierra de
+Cackles", "Tierra de Graves"). Both are fixed; check new country names for
+both.
+
 **Corrected 2026-09-12**: Portuguese Fire/Water Release were originally entered here as "descarga
 do Fogo"/"descarga da Água" — the grammatically-expected contracted forms — without checking
 whether that was actually the established convention. Cross-referencing `jutsu.category_group`
@@ -1029,6 +1123,36 @@ surfaced that the broader "wrong word entirely" naming chaos (item 1 above) exte
 a *new* wrong word; they cannot retroactively fix content that was already mistranslated with a
 third, different wrong word before the entry existed. That backlog is real but out of scope for
 this pipeline fix — it's the same deferred normalization pass item 1 already flags.
+
+**That deferred normalization pass is now built and run (2026-09-13)**: `n5e-i18n
+normalize-glossary -db <db> -locale <code> [-apply]` (`cmd/n5e-i18n/normalize.go`). It rewrites the
+already-mistranslated backlog that a glossary entry alone can never reach, and is re-runnable after
+any future `translate -force` re-introduces the same drift. Portuguese `missing-glossary-term`
+findings went 384 → 35 (349 rows rewritten); Spanish 421 → ~16 element findings (338 rows
+rewritten), with the remaining Spanish total dominated by the common-word noise `MissingTerms`
+documents as inherent (Light 98, Fire 64, Range 48, Thrown 46, Reach 18 — ordinary prose the
+token-level check cannot distinguish from the pinned game sense).
+
+Three properties make it safe to run unattended, and are worth preserving if it's ever extended:
+- **It only touches rows `verify` already flags**, via the same `GlossaryChecker.MissingTerms`
+  call, and only for the terms that row is flagged for. A row already carrying the approved
+  rendering is never rewritten, so a second run is a verified no-op.
+- **It only handles the 5 base element Releases** (`elementReleaseTerms`). These are multi-word
+  mechanics names with no ordinary-prose homograph, which is exactly the property the noisy terms
+  above lack — a mechanical rewrite of "Light" or "Range" would corrupt correct prose.
+- **It re-agrees grammar rather than doing a flat string swap.** The approved renderings are
+  spelled lowercase and mid-sentence in the tables above ("descarga da Terra"), but the
+  overwhelmingly common site is a jutsu name's own leading position, so the replacement inherits
+  the capitalization of what it replaced; and a consumed governing article is re-agreed with the
+  feminine "descarga" (pt "da", es "de la"), so "chakra **do** Elemento Fogo" becomes "chakra
+  **da** descarga de Fogo" rather than a broken "chakra do descarga de Fogo".
+
+**Portuguese's residual 35** are one documented word-choice family, left deliberately for a human:
+rows rendering Lightning Release's head noun as "Raio" rather than the pinned "Relâmpago" (see the
+`Ninjutsu / Lightning Release` row above), in the bare form "Chakra do Raio" with no wrapper word.
+Those cannot be rewritten mechanically without also corrupting legitimate *lightning damage-type*
+prose ("dano de raio") in the same rows, which is the exact ambiguity a human read resolves and a
+token-level rule cannot.
 
 **For a future locale or `-force` retranslation**: this pattern (a term appearing in prose across
 multiple content tables having no standalone glossary entry, only field-specific compound

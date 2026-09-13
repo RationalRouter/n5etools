@@ -1,7 +1,7 @@
 // Weapon "properties" free-text normalizer.
 //
-// equipment.properties is a single comma-separated column copied verbatim
-// from the Mastersheet's WeapArmor tab (see internal/sheet/weaparmor.go),
+// equipment.properties is a single comma-separated column as printed,
+// carried for the curated rows in internal/classcharts,
 // e.g. "Thrown (30/60), Multiattack, Ammunition" or "Reach 1, Grapple,
 // Finesse, Tactical, Two-Handed, Winding". This file splits that text into
 // individual (property, per-weapon detail) pairs so the Items page can

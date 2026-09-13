@@ -1,0 +1,3713 @@
+{
+ "classes": [
+  {
+   "slug": "class/cooking-nin",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Cooking Tool Infusion, Shinobi Snacks",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Cooking Focus, Food for the Soul",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Tool Expertise",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Cooking Focus (2)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Cooking Tool (2), Wandering Aroma",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "War and Food",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Cooking Focus (3)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Iron Stomach",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Cooking Tool (3)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Cooking Focus (4)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Iron Stomach (2), Wandering Aroma (2)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Food for the Soul (2), War and Food (2)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Cooking Focus (5)",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": null,
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Peerless Taste",
+     "resources": [
+      {
+       "name": "Cooking Die",
+       "value": "1d12",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/genjutsu-specialist",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Chakra Disruption, Actualization",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Genjutsu Pledge, Malleable Mirages",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Genjutsu Inception",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Real World Conversion, Keen Awareness",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Genjutsu Pledge (2)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Genjutsu Inception (2)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Real World Conversion (2)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Genjutsu Pledge (3)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Keen Awareness (2), The Turn",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "The Turn, Master of Illusion",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Genjutsu Pledge (4)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Real World Conversion (3), The Turn",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "9",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": null,
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "9",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Genjutsu Pledge (5)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "The Prestige, The Turn (2), Master of Illusion (2)",
+     "resources": [
+      {
+       "name": "Malleable Mirages",
+       "value": "11",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/hunter-nin",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Swift Response, Lethal Precision, Lethal Attack",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Cunning Action, Hunters Patterns, Primary Target",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "1d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Hunter Creed, Hunter Exploits",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "2d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "2d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Uncanny Dodge, Expertise",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "3d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Hunted Target, Defensive Tactics",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "3d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Hunter Creed (2)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "4d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "4d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Hunters Patterns (2)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "5d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Hunter Creed (3), Hunters Exploits (2)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "5d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Defensive Tactics (2), Hunted Target (2)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "6d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "6d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Elusive",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "7d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Hunter Creed (4), Hunters Strike (3)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "7d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Hunters Patterns (3), Expertise (2)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "8d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "8d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Hunter Creed (5), Defensive Tactics (3)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "9d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Hunters Exploits (3)",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "9d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "10d8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Hunters Strike (4), Assassinate",
+     "resources": [
+      {
+       "name": "Lethal Attack",
+       "value": "10d8",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/intelligence-operative",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Strategic Timing, Exploit Weakness",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Master Planner, Expertise",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Master Strategist",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Tactical Scheme, Helpful Operative",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Master Strategist (2)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Sabaki",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Master Strategist (3), Expertise (2)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Tactical Scheme (2)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "7",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Declaration of War",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "7",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "8",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Master Strategist (4)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "8",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Tsume",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "9",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Tactical Scheme (3)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "9",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat, Expertise (3)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "10",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Master Strategist (5)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "10",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Declaration of War (2)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "11",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "11",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Checkmate (2)",
+     "resources": [
+      {
+       "name": "Brave Orders",
+       "value": "12",
+       "status": "auto"
+      },
+      {
+       "name": "Plans Known",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/medical-nin",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Medical Ninjutsu, Rejuvenating Rest",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Channeled Healing, Tenets of Medicine",
+     "resources": [
+      {
+       "name": "Channeled Healing",
+       "value": "+2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Chakra Scalpel, Medical Doctrine",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "1d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "1d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Tenets of Medicine (2), Preserve/Take Life",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "1d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Advanced Medical Research",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "2d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "C",
+     "features_text": "Chakra Scalpel (2)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "2d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 13,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "2d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Tenets of Medicine (3)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "2d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 15,
+     "highest_rank_known": "B",
+     "features_text": "Gifted Healer",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "3d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 16,
+     "highest_rank_known": "B",
+     "features_text": "Chakra Scalpel (3)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "3d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 17,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "3d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 18,
+     "highest_rank_known": "A",
+     "features_text": "Medical Doctrine (2), Tenets of Medicine (4)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "7",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "3d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 19,
+     "highest_rank_known": "A",
+     "features_text": "Gifted Healer (2)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "7",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "4d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 20,
+     "highest_rank_known": "A",
+     "features_text": null,
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "7",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "4d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 21,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "8",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "4d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 22,
+     "highest_rank_known": "S",
+     "features_text": "Tenets of Medicine (4)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "8",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "4d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 23,
+     "highest_rank_known": "S",
+     "features_text": "Chakra Scalpel (4)",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "8",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "5d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 24,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "9",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "5d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 25,
+     "highest_rank_known": "S",
+     "features_text": "Supreme Healer",
+     "resources": [
+      {
+       "name": "Chakra Scalpel Charges",
+       "value": "9",
+       "status": "auto"
+      },
+      {
+       "name": "Chakra Scalpel damage",
+       "value": "5d4",
+       "status": "auto"
+      },
+      {
+       "name": "Channeled Healing",
+       "value": "+12",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/ninjutsu-specialist",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Chakra Recovery, Refined Ninjutsu",
+     "resources": [
+      {
+       "name": "Refined Ninjutsu",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Ninjutsu Tradition",
+     "resources": [
+      {
+       "name": "Refined Ninjutsu",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Efficient Molding",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Jutsu Breaker, Efficient Molding (2)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ninjutsu Tradition (2), Chakra Recovery (2)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "C",
+     "features_text": null,
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 13,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Refined Ninjutsu (2), Efficient Molding (3)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 15,
+     "highest_rank_known": "B",
+     "features_text": "Ninjutsu Tradition (3)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 16,
+     "highest_rank_known": "B",
+     "features_text": "Chakra Recovery (3), Jutsu Breaker (2)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 17,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 18,
+     "highest_rank_known": "A",
+     "features_text": "Efficient Molding (4)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 19,
+     "highest_rank_known": "A",
+     "features_text": "Ninjutsu Tradition (4)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 20,
+     "highest_rank_known": "A",
+     "features_text": "Efficient Molding (5)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 21,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 22,
+     "highest_rank_known": "S",
+     "features_text": "Chakra Recovery (4), Refined Ninjutsu (3), Jutsu Breaker (3)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "5",
+       "status": "manual"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "7",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 23,
+     "highest_rank_known": "S",
+     "features_text": "Ninjutsu Tradition (5), Efficient Molding (6)",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 24,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 25,
+     "highest_rank_known": "S",
+     "features_text": "Ninjutsu Master",
+     "resources": [
+      {
+       "name": "Efficient Moldings",
+       "value": "6",
+       "status": "auto"
+      },
+      {
+       "name": "Refined Ninjutsu",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/puppet-master",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Chakra Threads, Puppet Tool",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Tactics of the Craft, Puppet Technique, Puppet Upgrades",
+     "resources": [
+      {
+       "name": "Wood Tier",
+       "value": "2",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Chakra Enhanced Retrofit",
+     "resources": [
+      {
+       "name": "Wood Tier",
+       "value": "2",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Wood Tier",
+       "value": "3",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Extra Attack, Generalized Skill",
+     "resources": [
+      {
+       "name": "Wood Tier",
+       "value": "3",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Puppet Technique (2), Puppet Tool (2)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Tool Expertise",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Chakra Threads (2), Puppet Tool (3)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Puppet Technique (3)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Tactics of the Craft (2)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Chakra Enhanced Retrofit (2)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Puppet Technique (4)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "1",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Always Prepared, Puppet Tool (4)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "1",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Puppet Technique (5)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Always Prepared (2)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Platinum Tier",
+       "value": "1",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Platinum Tier",
+       "value": "1",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Puppet Technique (6)",
+     "resources": [
+      {
+       "name": "Bronze Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Gold Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Platinum Tier",
+       "value": "2",
+       "status": "manual"
+      },
+      {
+       "name": "Silver Tier",
+       "value": "3",
+       "status": "manual"
+      },
+      {
+       "name": "Wood Tier",
+       "value": "4",
+       "status": "manual"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/science-nin",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Shinobi of Science, Chakra Cell Enhancement",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Chakra containment Device, Scientific Ninja Tools",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Scientific Inquiry",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "8",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Extra Attack, The Right Tool",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "10",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Scientific Inquiry (2)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "12",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Yhprum's Law",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "14",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "16",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Scientific Inquiry (3)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "18",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Calculated Response",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "20",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Infused Genius",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "22",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "24",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Chakra Containment Device (2)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "26",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Scientific Inquiry (4)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "28",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Calculated Response (2)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "30",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "32",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Scientific Inquiry (5)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "34",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Mixed Studies",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "36",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "38",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Scientific Inquiry (6)",
+     "resources": [
+      {
+       "name": "Creation Points",
+       "value": "40",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/scout-nin",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Fighting Style, Deft Explorer",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Shinobi Adept",
+     "resources": []
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Scouting Technique",
+     "resources": []
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": []
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Extra Attack, Jack of all, Master of None",
+     "resources": []
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Scouting Techniques (2)",
+     "resources": []
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Signature Jutsu",
+     "resources": []
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": []
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Scouting Techniques (3)",
+     "resources": []
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Signature Technique",
+     "resources": []
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": null,
+     "resources": []
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": []
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Shinobi Adept (2)",
+     "resources": []
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Scouting Techniques (4)",
+     "resources": []
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Signature Jutsu (2)",
+     "resources": []
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": []
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Scouting Techniques (5)",
+     "resources": []
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": null,
+     "resources": []
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": []
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Scouting Techniques (6)",
+     "resources": []
+    }
+   ]
+  },
+  {
+   "slug": "class/taijutsu-specialist",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Martial Defense, Unarmed Technique, Taijutsu Stance",
+     "resources": []
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Martial Adept, Enhanced Movement",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "1",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Taijutsu Style",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "1",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "1",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Martial Defense (2), Extra Attack",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "1",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Unarmed Technique (2), Taijutsu Style (2)",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Evasion, Chakra Enhanced Strikes",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Martial Defense (3), Taijutsu Style (3)",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "2",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Unbreakable Will",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Unarmed Technique (3), Flow of Battle",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "5",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Martial Defense (4), Master of Persistence",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "3",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Taijutsu Style (4)",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Perfect Body",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Martial Defense (5), Taijutsu Style (5)",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "4",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Perfect Mind",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "6",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Taijutsu Style (6)",
+     "resources": [
+      {
+       "name": "Martial Die",
+       "value": "5",
+       "status": "auto"
+      },
+      {
+       "name": "Martial Techniques",
+       "value": "7",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "slug": "class/weapon-specialist",
+   "levels": [
+    {
+     "level": 1,
+     "proficiency_bonus": 3,
+     "jutsu_known": 6,
+     "highest_rank_known": "D",
+     "features_text": "Weapon Focus",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "proficiency_bonus": 3,
+     "jutsu_known": 7,
+     "highest_rank_known": "D",
+     "features_text": "Weapon Flurry, Weapon Stance",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "proficiency_bonus": 3,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Weapon Form",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d4",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "1",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "proficiency_bonus": 4,
+     "jutsu_known": 8,
+     "highest_rank_known": "D",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d4",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "1",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "proficiency_bonus": 4,
+     "jutsu_known": 9,
+     "highest_rank_known": "C",
+     "features_text": "Extra Attack, Enhanced Property",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d6",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "1",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 6,
+     "proficiency_bonus": 4,
+     "jutsu_known": 10,
+     "highest_rank_known": "C",
+     "features_text": "Weapon Form (2)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d6",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 7,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Critical Focus, Enhanced Chakra Strike",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d6",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 8,
+     "proficiency_bonus": 5,
+     "jutsu_known": 11,
+     "highest_rank_known": "C",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d6",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 9,
+     "proficiency_bonus": 5,
+     "jutsu_known": 12,
+     "highest_rank_known": "B",
+     "features_text": "Weapon Focus (2)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d8",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 10,
+     "proficiency_bonus": 6,
+     "jutsu_known": 13,
+     "highest_rank_known": "B",
+     "features_text": "Battle Readiness",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d8",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "2",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 11,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Superior Attack, Critical Focus (2)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d8",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 12,
+     "proficiency_bonus": 6,
+     "jutsu_known": 14,
+     "highest_rank_known": "B",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d8",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 13,
+     "proficiency_bonus": 7,
+     "jutsu_known": 15,
+     "highest_rank_known": "A",
+     "features_text": "Weapon Form (3)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d10",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 14,
+     "proficiency_bonus": 7,
+     "jutsu_known": 16,
+     "highest_rank_known": "A",
+     "features_text": "Superior Weapon Flurry",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d10",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 15,
+     "proficiency_bonus": 7,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Weapon Focus (3)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d10",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "3",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 16,
+     "proficiency_bonus": 8,
+     "jutsu_known": 17,
+     "highest_rank_known": "A",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d10",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 17,
+     "proficiency_bonus": 8,
+     "jutsu_known": 18,
+     "highest_rank_known": "S",
+     "features_text": "Critical Focus (3)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d12",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 18,
+     "proficiency_bonus": 8,
+     "jutsu_known": 19,
+     "highest_rank_known": "S",
+     "features_text": "Superior Weapon Flurry (2)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d12",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 19,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Ability Score Improvement/Feat",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d12",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    },
+    {
+     "level": 20,
+     "proficiency_bonus": 9,
+     "jutsu_known": 20,
+     "highest_rank_known": "S",
+     "features_text": "Weapon Form (4)",
+     "resources": [
+      {
+       "name": "Flurry Die",
+       "value": "d12",
+       "status": "auto"
+      },
+      {
+       "name": "Styles Known",
+       "value": "4",
+       "status": "auto"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

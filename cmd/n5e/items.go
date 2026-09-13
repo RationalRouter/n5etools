@@ -252,7 +252,7 @@ func translateEnumDisplay(tr i18n.TranslateFunc, catalog map[string]string, valu
 // equipment_armor_properties/armor_properties), so which pair to query
 // depends on the item's own kind. Armor's junction currently has zero rows
 // (which named property applies to which specific armor is only printed in
-// the book's Armor table, a pure image — see V2_ROADMAP.md's OCR-debt
+// the book's Armor table, a pure image — see Roadmap.md's OCR-debt
 // note), but querying it anyway costs one cheap lookup and means armor
 // properties appear here automatically the moment that gap is closed, no
 // code change needed — same "no code needed once data exists" pattern

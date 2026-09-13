@@ -162,6 +162,22 @@ func run() error {
 				log.Printf("auto-update: %s — %v", r.Title, r.Err)
 			}
 		}
+
+		// Centrally-translated content bundles, published by the maintainer
+		// via a rolling GitHub Release tag — see internal/autoupdate's own
+		// package doc for why this exists as a separate check from the book
+		// ingest loop above (no DeepL key or network call is ever made from
+		// this binary; it only ever downloads an already-translated file).
+		for _, r := range autoupdate.CheckTranslations(context.Background(), rulesDB, cacheDir, nil) {
+			switch r.Action {
+			case "unchanged", "no bundle yet":
+				// quiet — routine outcomes
+			case "updated":
+				log.Printf("auto-update: %s translations — updated", r.Locale)
+			case "error":
+				log.Printf("auto-update: %s translations — %v", r.Locale, r.Err)
+			}
+		}
 	}()
 
 	launchURL := baseURL + "/?token=" + token

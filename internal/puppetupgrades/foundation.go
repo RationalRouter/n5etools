@@ -1,7 +1,5 @@
 package puppetupgrades
 
-import "strconv"
-
 // This file is the Puppet Master class's other big always-on-effect table,
 // alongside bonuses.go — but for the 4 mandatory, one-time 2nd-level
 // "build your puppet" picks (Puppeteer Chassis/Black, Puppet Frameworks/
@@ -122,7 +120,13 @@ type RoleEffectSpec struct {
 	// it (Controller's Save DC bonus, Supporter's healing bonus, Lurker's
 	// crit damage bonus) — the sentence is pre-computed here, not left as a
 	// fraction of Proficiency Bonus for the player to work out by hand.
-	TextBonus func(profBonus int) string
+	//
+	// The sentence interpolates a live number, so it cannot use the
+	// raw-English-as-catalog-key treatment ReferenceTraits/CritText get at
+	// their read sites — it takes a translator and resolves a named
+	// format-string key instead. tr is i18n.TranslateFunc's shape, spelled
+	// structurally so this package stays dependency-free.
+	TextBonus func(tr func(key string, args ...any) string, profBonus int) string
 }
 
 // FoundationEntry is one of the 17 Chassis/Framework/Role/Weapon Type
@@ -375,9 +379,8 @@ func buildFoundationEntries() map[string]FoundationEntry {
 			},
 			BonusSkills: []string{"Chakra Control"},
 			RoleEffect: &RoleEffectSpec{
-				TextBonus: func(profBonus int) string {
-					return "Save DC bonus for upgrades requiring a saving throw: +" + strconv.Itoa(abilityCeilThird(profBonus)) +
-						" (1/3 Proficiency Bonus, rounded up)."
+				TextBonus: func(tr func(string, ...any) string, profBonus int) string {
+					return tr("foundation_role_text:controller_save_dc", abilityCeilThird(profBonus))
 				},
 			},
 			ReferenceTraits: []string{
@@ -405,8 +408,8 @@ func buildFoundationEntries() map[string]FoundationEntry {
 			RoleEffect: &RoleEffectSpec{
 				CritRangeBonus:  1,
 				CritDamageBonus: func(profBonus int) int { return profBonus },
-				TextBonus: func(profBonus int) string {
-					return "On a critical hit, add your Proficiency Bonus (+" + strconv.Itoa(profBonus) + ") to the damage dealt."
+				TextBonus: func(tr func(string, ...any) string, profBonus int) string {
+					return tr("foundation_role_text:lurker_crit_damage", profBonus)
 				},
 			},
 		},
@@ -431,8 +434,8 @@ func buildFoundationEntries() map[string]FoundationEntry {
 			},
 			BonusSkills: []string{"Medicine"},
 			RoleEffect: &RoleEffectSpec{
-				TextBonus: func(profBonus int) string {
-					return "Increases all healing or temporary hit points its upgrades/actions/jutsu grant by your Proficiency Bonus (+" + strconv.Itoa(profBonus) + ")."
+				TextBonus: func(tr func(string, ...any) string, profBonus int) string {
+					return tr("foundation_role_text:supporter_healing", profBonus)
 				},
 			},
 		},

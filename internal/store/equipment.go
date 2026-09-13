@@ -1,39 +1,26 @@
-// Loading the Mastersheet's WeapArmor tab into the equipment table.
+// Loading the curated weapon and armor rows into the equipment table.
 //
-// Cost and weight are not in this sheet — they come from the core book's
-// own Chapter 5 prose (a separate, not-yet-written parser). This loader
-// only ever sets the columns it owns (the armor-calc and weapon-stat
-// columns); a later core-book load fills cost/weight in on the same slug
-// without touching what this loader wrote, same override-safe contract as
-// everywhere else.
+// These are the clan/class-specific weapons and armor that appear in no
+// printed price table, so no book parser produces them; internal/classcharts
+// carries them as this repo's own data. Cost, where a row has it, came from
+// the core book's own OCR pass (see migration 0015) and is carried along
+// here so a from-scratch rebuild reproduces it.
+//
+// This loader only ever sets the columns it owns; a core-book load fills in
+// anything else on the same slug without touching what this wrote, the same
+// override-safe contract as everywhere else.
 package store
 
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
+	"github.com/sergio/n5e/internal/classcharts"
 	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/sheet"
 )
 
-// armorCategory maps the sheet's "Calculation Type" to the schema's
-// armor_category free-text convention.
-func armorCategory(calcType string) string {
-	switch calcType {
-	case "Light Armor":
-		return "light"
-	case "Medium Armor":
-		return "medium"
-	case "Heavy Armor":
-		return "heavy"
-	default:
-		return strings.ToLower(strings.ReplaceAll(calcType, " ", "-")) // "Custom" / "Ability Mod"
-	}
-}
-
-// LoadWeapArmor upserts the sheet's official armor and weapon rows.
-func LoadWeapArmor(db *sql.DB, book SourceBook, armors []sheet.Armor, weapons []sheet.Weapon) (*LoadReport, error) {
+// LoadCuratedEquipment upserts the curated armor and weapon rows.
+func LoadCuratedEquipment(db *sql.DB, book SourceBook, items []classcharts.Item) (*LoadReport, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -46,35 +33,28 @@ func LoadWeapArmor(db *sql.DB, book SourceBook, armors []sheet.Armor, weapons []
 
 	report := &LoadReport{}
 	seen := map[string]string{}
-	for _, a := range armors {
-		slug := "armor/" + Slugify(a.Name)
-		if other, dup := seen[slug]; dup {
+	for _, it := range items {
+		if other, dup := seen[it.Slug]; dup {
 			report.Duplicates = append(report.Duplicates,
-				fmt.Sprintf("%s: %q and %q collide", slug, other, a.Name))
+				fmt.Sprintf("%s: %q and %q collide", it.Slug, other, it.Name))
 			continue
 		}
-		seen[slug] = a.Name
-		outcome, err := upsertArmor(tx, book, slug, a)
+		seen[it.Slug] = it.Name
+
+		outcome, err := upsertCuratedItem(tx, book, it)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", slug, err)
+			return nil, fmt.Errorf("%s: %w", it.Slug, err)
 		}
-		report.count(outcome, slug)
-	}
-	for _, w := range weapons {
-		slug := "weapon/" + Slugify(w.Name)
-		if other, dup := seen[slug]; dup {
-			report.Duplicates = append(report.Duplicates,
-				fmt.Sprintf("%s: %q and %q collide", slug, other, w.Name))
-			continue
-		}
-		seen[slug] = w.Name
-		outcome, err := upsertWeapon(tx, book, slug, w)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", slug, err)
-		}
-		report.count(outcome, slug)
-		if err := syncEquipmentProperties(tx, slug, w.Qualities, report); err != nil {
-			return nil, fmt.Errorf("%s properties: %w", slug, err)
+		report.count(outcome, it.Slug)
+
+		if it.Kind == "weapon" {
+			var raw string
+			if it.Properties != nil {
+				raw = *it.Properties
+			}
+			if err := syncEquipmentProperties(tx, it.Slug, raw, report); err != nil {
+				return nil, fmt.Errorf("%s properties: %w", it.Slug, err)
+			}
 		}
 	}
 
@@ -91,70 +71,114 @@ func LoadWeapArmor(db *sql.DB, book SourceBook, armors []sheet.Armor, weapons []
 	return report, tx.Commit()
 }
 
-func upsertArmor(tx *sql.Tx, book SourceBook, slug string, a sheet.Armor) (rowOutcome, error) {
+func upsertCuratedItem(tx *sql.Tx, book SourceBook, it classcharts.Item) (rowOutcome, error) {
+	status := it.DetectionStatus
+	if status == "" {
+		status = "auto"
+	}
+
 	var old struct {
-		name, category, ability1, ability2 sql.NullString
-		maxMod                             sql.NullFloat64
-		acBonus, bulk                      sql.NullFloat64
-		status                             string
+		name, kind                          string
+		damageDice, damageType, properties  sql.NullString
+		weaponCategory, armorCategory       sql.NullString
+		ability1, ability2                  sql.NullString
+		costRyo, bulk, maxMod               sql.NullFloat64
+		acBonus, strengthReq                sql.NullInt64
+		status                              string
 	}
 	err := tx.QueryRow(`
-		SELECT name, armor_category, armor_ability_1, armor_ability_2,
-		       armor_max_mod, ac_bonus, bulk, detection_status
-		FROM equipment WHERE slug = ?`, slug).Scan(
-		&old.name, &old.category, &old.ability1, &old.ability2,
-		&old.maxMod, &old.acBonus, &old.bulk, &old.status)
-
-	category := armorCategory(a.CalcType)
-	var maxMod any
-	if a.MaxMod != nil {
-		maxMod = *a.MaxMod
-	}
+		SELECT name, kind, damage_dice, damage_type, properties, weapon_category,
+		       armor_category, armor_ability_1, armor_ability_2,
+		       cost_ryo, bulk, armor_max_mod, ac_bonus, strength_req,
+		       detection_status
+		FROM equipment WHERE slug = ?`, it.Slug).Scan(
+		&old.name, &old.kind, &old.damageDice, &old.damageType, &old.properties,
+		&old.weaponCategory, &old.armorCategory, &old.ability1, &old.ability2,
+		&old.costRyo, &old.bulk, &old.maxMod, &old.acBonus, &old.strengthReq,
+		&old.status)
 
 	if err == sql.ErrNoRows {
 		_, err := tx.Exec(`
-			INSERT INTO equipment (slug, name, kind, armor_category, armor_ability_1,
-			                       armor_ability_2, armor_max_mod, ac_bonus, bulk,
+			INSERT INTO equipment (slug, name, kind, damage_dice, damage_type,
+			                       properties, weapon_category, armor_category,
+			                       armor_ability_1, armor_ability_2, cost_ryo,
+			                       bulk, armor_max_mod, ac_bonus, strength_req,
 			                       source_book, source_version, detection_status)
-			VALUES (?, ?, 'armor', ?, ?, ?, ?, ?, ?, ?, ?, 'auto')`,
-			slug, a.Name, category, a.Ability1, a.Ability2, maxMod,
-			a.ArmorBonus, a.Bulk, book.Slug, book.Version)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			it.Slug, it.Name, it.Kind, str(it.DamageDice), str(it.DamageType),
+			str(it.Properties), str(it.WeaponCategory), str(it.ArmorCategory),
+			str(it.ArmorAbility1), str(it.ArmorAbility2), flt(it.CostRyo),
+			flt(it.Bulk), flt(it.ArmorMaxMod), num(it.ACBonus), num(it.StrengthReq),
+			book.Slug, book.Version, status)
 		return rowCreated, err
 	}
 	if err != nil {
 		return 0, err
 	}
 
-	changed := old.name.String != a.Name ||
-		old.category.String != category ||
-		old.ability1.String != a.Ability1 ||
-		old.ability2.String != a.Ability2 ||
-		!nullableFloatEq(old.maxMod, a.MaxMod) ||
-		old.acBonus.Float64 != a.ArmorBonus ||
-		old.bulk.Float64 != a.Bulk
-	newStatus, outcome := decideStatus(old.status, "auto", changed)
+	changed := old.name != it.Name || old.kind != it.Kind ||
+		!nullableStrEq(old.damageDice, it.DamageDice) ||
+		!nullableStrEq(old.damageType, it.DamageType) ||
+		!nullableStrEq(old.properties, it.Properties) ||
+		!nullableStrEq(old.weaponCategory, it.WeaponCategory) ||
+		!nullableStrEq(old.armorCategory, it.ArmorCategory) ||
+		!nullableStrEq(old.ability1, it.ArmorAbility1) ||
+		!nullableStrEq(old.ability2, it.ArmorAbility2) ||
+		!nullableFloatEq(old.costRyo, it.CostRyo) ||
+		!nullableFloatEq(old.bulk, it.Bulk) ||
+		!nullableFloatEq(old.maxMod, it.ArmorMaxMod) ||
+		!nullableIntEq(old.acBonus, it.ACBonus) ||
+		!nullableIntEq(old.strengthReq, it.StrengthReq)
+
+	newStatus, outcome := decideStatus(old.status, status, changed)
 	if outcome == rowUnchanged {
 		return rowUnchanged, nil
 	}
 	_, err = tx.Exec(`
 		UPDATE equipment
-		SET name = ?, armor_category = ?, armor_ability_1 = ?, armor_ability_2 = ?,
-		    armor_max_mod = ?, ac_bonus = ?, bulk = ?, source_book = ?,
-		    source_version = ?, detection_status = ?
+		SET name = ?, kind = ?, damage_dice = ?, damage_type = ?, properties = ?,
+		    weapon_category = ?, armor_category = ?, armor_ability_1 = ?,
+		    armor_ability_2 = ?, cost_ryo = ?, bulk = ?, armor_max_mod = ?,
+		    ac_bonus = ?, strength_req = ?, source_book = ?, source_version = ?,
+		    detection_status = ?
 		WHERE slug = ?`,
-		a.Name, category, a.Ability1, a.Ability2, maxMod, a.ArmorBonus, a.Bulk,
-		book.Slug, book.Version, newStatus, slug)
+		it.Name, it.Kind, str(it.DamageDice), str(it.DamageType), str(it.Properties),
+		str(it.WeaponCategory), str(it.ArmorCategory), str(it.ArmorAbility1),
+		str(it.ArmorAbility2), flt(it.CostRyo), flt(it.Bulk), flt(it.ArmorMaxMod),
+		num(it.ACBonus), num(it.StrengthReq), book.Slug, book.Version, newStatus,
+		it.Slug)
 	return outcome, err
+}
+
+// str/num/flt turn a nil pointer into a SQL NULL rather than a zero value —
+// a missing ac_bonus must not be stored as 0.
+func str(p *string) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func num(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func flt(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // syncEquipmentProperties re-derives a weapon's normalized property rows
 // from its raw properties text (see internal/parse/weaponprops.go) on every
-// load, regardless of whether the row itself changed — same
-// delete-then-reinsert idempotent pattern classlevels.go uses for
-// class_level_resources, so a change to the canonicalization map alone
-// (with no change to the raw text) still gets picked up on the next
-// ingest. Unrecognized tokens are surfaced via report.Skipped rather than
-// silently dropped.
+// load, regardless of whether the row itself changed, so a change to the
+// canonicalization map alone (with no change to the raw text) still gets
+// picked up on the next ingest. Unrecognized tokens are surfaced via
+// report.Skipped rather than silently dropped.
 func syncEquipmentProperties(tx *sql.Tx, slug, rawProperties string, report *LoadReport) error {
 	if _, err := tx.Exec(`DELETE FROM equipment_properties WHERE equipment_slug = ?`, slug); err != nil {
 		return err
@@ -179,44 +203,4 @@ func syncEquipmentProperties(tx *sql.Tx, slug, rawProperties string, report *Loa
 		}
 	}
 	return nil
-}
-
-func upsertWeapon(tx *sql.Tx, book SourceBook, slug string, w sheet.Weapon) (rowOutcome, error) {
-	var old struct {
-		name, damageDice, damageType, properties sql.NullString
-		status                                   string
-	}
-	err := tx.QueryRow(`
-		SELECT name, damage_dice, damage_type, properties, detection_status
-		FROM equipment WHERE slug = ?`, slug).Scan(
-		&old.name, &old.damageDice, &old.damageType, &old.properties, &old.status)
-
-	if err == sql.ErrNoRows {
-		_, err := tx.Exec(`
-			INSERT INTO equipment (slug, name, kind, damage_dice, damage_type,
-			                       properties, source_book, source_version, detection_status)
-			VALUES (?, ?, 'weapon', ?, ?, ?, ?, ?, 'auto')`,
-			slug, w.Name, w.DamageDice, w.DamageType, w.Qualities, book.Slug, book.Version)
-		return rowCreated, err
-	}
-	if err != nil {
-		return 0, err
-	}
-
-	changed := old.name.String != w.Name ||
-		old.damageDice.String != w.DamageDice ||
-		old.damageType.String != w.DamageType ||
-		old.properties.String != w.Qualities
-	newStatus, outcome := decideStatus(old.status, "auto", changed)
-	if outcome == rowUnchanged {
-		return rowUnchanged, nil
-	}
-	_, err = tx.Exec(`
-		UPDATE equipment
-		SET name = ?, damage_dice = ?, damage_type = ?, properties = ?,
-		    source_book = ?, source_version = ?, detection_status = ?
-		WHERE slug = ?`,
-		w.Name, w.DamageDice, w.DamageType, w.Qualities, book.Slug, book.Version,
-		newStatus, slug)
-	return outcome, err
 }

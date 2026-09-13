@@ -1,6 +1,7 @@
 // Package correct automatically cleans up prose text parsed from the
 // sourcebook PDFs before it ever reaches the rules database — spelling
-// (misspell); a narrow grammar heuristic for false plural-possessives
+// (misspell); a stray-capitalization fixer for game-term homographs used as
+// ordinary words ("and Fire them off" -> "and fire them off"); a narrow grammar heuristic for false plural-possessives
 // ("Katana's" -> "Katanas"); a stray-hyphen-space compound-word splitter
 // ("D- Rank" -> "D-Rank"); a dropped-possessive-apostrophe fixer
 // ("a creatures cells" -> "a creature's cells"); a closed set of real-word
@@ -31,13 +32,15 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/sergio/n5e/internal/parse"
 )
 
 // Record is one applied correction, ready to be logged to the
 // text_corrections audit table by internal/store.WriteTextCorrections.
 type Record struct {
 	EntityType, EntityPath, Field string
-	Tool                          string // "misspell", "apostrophe", "hyphenspace", "possessive", "wordconfusion", "bonusplural", "penaltyplural", "curated", or "languagetool"
+	Tool                          string // "misspell", "apostrophe", "hyphenspace", "possessive", "wordconfusion", "bonusplural", "penaltyplural", "abbrevsplit", "pluralverb", "succeedon", "straycaps", "commacaps", "midcaps", "curated", or "languagetool"
 	RuleID                        string // LanguageTool rule id; "" for every other tool
 	Original, Corrected           string
 }
@@ -49,9 +52,16 @@ type Report struct {
 	ApostropheFixes     int
 	HyphenSpaceFixes    int
 	PossessiveFixes     int
+	PossessiveExtFixes  int
+	AbbrevSplitFixes    int
+	PluralVerbFixes     int
 	WordConfusionFixes  int
 	BonusPluralFixes    int
 	PenaltyPluralFixes  int
+	SucceedOnFixes      int
+	StrayCapsFixes      int
+	CommaCapsFixes      int
+	MidCapsFixes        int
 	LanguageToolFixes   int
 	LanguageToolSkipped int
 	CuratedFixes        int
@@ -79,8 +89,66 @@ type unit struct {
 	text                          string
 }
 
+// localPass is one in-process correction rule: the fixer itself (defined in
+// rules.go, or curatedFix in curated.go) plus where its tally lands in the
+// Report. Every rule shares one signature, which is what lets the pipeline
+// be a table instead of a near-identical block of code per rule.
+type localPass struct {
+	fix   func(string) (string, []textDiff)
+	count func(*Report) *int
+}
+
+// preLanguageToolPasses and postLanguageToolPasses are the pipeline, split
+// where the network pass sits. **Order is load-bearing**, so add a rule at
+// the position its assumptions require rather than at the end:
+//
+//   - apostrophe runs after misspell, on already-spelling-corrected text.
+//   - hyphenspace runs after LanguageTool so its allowlist sees whatever LT
+//     left behind, for the same reason.
+//   - straycaps runs second-to-last so a curated entry can key on the
+//     already-lowercased text.
+//   - curated runs last, so every entry's Original string can be written
+//     against the text exactly as every other pass has left it.
+var (
+	preLanguageToolPasses = []localPass{
+		{misspellFix, func(r *Report) *int { return &r.MisspellFixes }},
+		{apostropheFix, func(r *Report) *int { return &r.ApostropheFixes }},
+	}
+	postLanguageToolPasses = []localPass{
+		{hyphenSpaceFix, func(r *Report) *int { return &r.HyphenSpaceFixes }},
+		{possessiveFix, func(r *Report) *int { return &r.PossessiveFixes }},
+		{possessiveExtFix, func(r *Report) *int { return &r.PossessiveExtFixes }},
+		{abbrevSplitFix, func(r *Report) *int { return &r.AbbrevSplitFixes }},
+		{pluralVerbFix, func(r *Report) *int { return &r.PluralVerbFixes }},
+		{wordConfusionFix, func(r *Report) *int { return &r.WordConfusionFixes }},
+		{bonusPluralFix, func(r *Report) *int { return &r.BonusPluralFixes }},
+		{penaltyPluralFix, func(r *Report) *int { return &r.PenaltyPluralFixes }},
+		{succeedOnFix, func(r *Report) *int { return &r.SucceedOnFixes }},
+		{strayCapsFix, func(r *Report) *int { return &r.StrayCapsFixes }},
+		{commaCapsFix, func(r *Report) *int { return &r.CommaCapsFixes }},
+		{midCapsFix, func(r *Report) *int { return &r.MidCapsFixes }},
+		{curatedFix, func(r *Report) *int { return &r.CuratedFixes }},
+	}
+)
+
+// runLocalPass applies one rule across every unit, recording each change.
+// Rules are applied pass-by-pass rather than unit-by-unit (all units through
+// misspell, then all units through apostrophe, ...) — the same order the
+// pipeline had when it was written out longhand, and the order the ordering
+// notes above describe.
+func runLocalPass(p localPass, units []*unit, rep *Report) {
+	for _, u := range units {
+		fixed, diffs := p.fix(u.text)
+		for _, d := range diffs {
+			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
+		}
+		*p.count(rep) += len(diffs)
+		u.text = fixed
+	}
+}
+
 // Sweep walks v (a pointer to a slice of parsed entities, e.g. &clans),
-// corrects every registered prose field (see registry.go) in place, and
+// corrects every registered prose field (see proseFields below) in place, and
 // returns a report of what changed. It returns a non-nil error only for a
 // programmer mistake (v isn't a pointer to a slice) — never for network or
 // rate-limit problems, which become Warnings so a maintainer's ingest run
@@ -95,97 +163,14 @@ func Sweep(ctx context.Context, v any, opts Options) (*Report, error) {
 	var units []*unit
 	collect(rv.Elem(), "", &units, rep)
 
-	// Pass 1: misspell — local, instant, always runs.
-	for _, u := range units {
-		fixed, diffs := misspellFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.MisspellFixes += len(diffs)
-		u.text = fixed
+	for _, p := range preLanguageToolPasses {
+		runLocalPass(p, units, rep)
 	}
-
-	// Pass 2: the list-context apostrophe heuristic — local, instant,
-	// always runs, operates on the misspell-corrected text.
-	for _, u := range units {
-		fixed, diffs := apostropheFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.ApostropheFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 3: LanguageTool — network, rate-limited, skippable.
 	if !opts.SkipLanguageTool {
 		sweepLanguageTool(ctx, units, opts, rep)
 	}
-
-	// Pass 4: hyphen-space — local, instant, always runs. Operates after
-	// LanguageTool so its allowlist sees whatever LT left behind, same as
-	// apostrophe operating after misspell.
-	for _, u := range units {
-		fixed, diffs := hyphenSpaceFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.HyphenSpaceFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 5: dropped possessive apostrophe — local, instant, always runs.
-	for _, u := range units {
-		fixed, diffs := possessiveFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.PossessiveFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 6: closed-set real-word confusions (e.g. "allay" -> "ally") —
-	// local, instant, always runs.
-	for _, u := range units {
-		fixed, diffs := wordConfusionFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.WordConfusionFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 7: "a +N bonuses" number-agreement heuristic — local, instant,
-	// always runs.
-	for _, u := range units {
-		fixed, diffs := bonusPluralFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.BonusPluralFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 8: "a -N penalties" number-agreement heuristic (mirror of pass
-	// 7) — local, instant, always runs.
-	for _, u := range units {
-		fixed, diffs := penaltyPluralFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.PenaltyPluralFixes += len(diffs)
-		u.text = fixed
-	}
-
-	// Pass 9: curated one-off corrections — local, instant, always runs.
-	// Runs last so each entry's Original key can be written against the
-	// text as every other pass has already left it.
-	for _, u := range units {
-		fixed, diffs := curatedFix(u.text)
-		for _, d := range diffs {
-			rep.Records = append(rep.Records, Record{u.entityType, u.entityPath, u.field, d.tool, d.ruleID, d.original, d.corrected})
-		}
-		rep.CuratedFixes += len(diffs)
-		u.text = fixed
+	for _, p := range postLanguageToolPasses {
+		runLocalPass(p, units, rep)
 	}
 
 	for _, u := range units {
@@ -421,4 +406,37 @@ func auditSlug(name string) string {
 func contentHash(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
+}
+
+// proseFields lists, per parsed struct type, which string fields hold
+// free-form narrative text worth spell/grammar-checking. Deliberately an
+// explicit allowlist, not a naming convention: fields like SpeedText,
+// CostText, HitPointsText, AbilityRaw, or QuickBuild look like prose by
+// name but are short, semi-structured rules text (or mix proper nouns/build
+// shorthand) where a grammar tool is more likely to mangle a term of art
+// than fix a real mistake. Name/Epithet/Keywords/Prerequisites and similar
+// identifier-like fields are excluded for the same reason. Extend one line
+// at a time as new entity types gain a genuine prose field.
+var proseFields = map[reflect.Type][]string{
+	reflect.TypeOf(parse.Clan{}):               {"Overview"},
+	reflect.TypeOf(parse.ClanTrait{}):          {"Description"},
+	reflect.TypeOf(parse.ClanFeature{}):        {"Description"},
+	reflect.TypeOf(parse.Feat{}):               {"Description"},
+	reflect.TypeOf(parse.Jutsu{}):              {"Description", "AtHigherRanks"},
+	reflect.TypeOf(parse.Class{}):              {"Description"},
+	reflect.TypeOf(parse.ClassFeature{}):       {"Description"},
+	reflect.TypeOf(parse.ClassOption{}):        {"Description"},
+	reflect.TypeOf(parse.OptionList{}):         {"Description"},
+	reflect.TypeOf(parse.Subclass{}):           {"Description"},
+	reflect.TypeOf(parse.SubclassGroup{}):      {"Description"},
+	reflect.TypeOf(parse.BloodlineLatent{}):    {"Description"},
+	reflect.TypeOf(parse.Background{}):         {"Description", "FeatureText", "ASIText", "Equipment"},
+	reflect.TypeOf(parse.FightingStance{}):     {"Description"},
+	reflect.TypeOf(parse.EnhancementSeal{}):    {"Description"},
+	reflect.TypeOf(parse.SummonTribe{}):        {"Description", "JutsuSpecialty"},
+	reflect.TypeOf(parse.SummonRole{}):         {"Description"},
+	reflect.TypeOf(parse.SummonAttack{}):       {"Description"},
+	reflect.TypeOf(parse.SummonFeature{}):      {"Description"},
+	reflect.TypeOf(parse.AdversaryRole{}):      {"Description"},
+	reflect.TypeOf(parse.AdversaryRoleTrait{}): {"Description"},
 }

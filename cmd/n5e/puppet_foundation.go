@@ -382,6 +382,18 @@ func puppetFoundationWeaponDamageType(pick puppetFoundationPick) string {
 	return ""
 }
 
+// critDescription translates a NaturalWeaponSpec's CritText, whose curated
+// English doubles as its own catalog key (same treatment as
+// foundation_name:/foundation_weapon_name:). Several natural weapons have
+// no crit clause at all; translating "" would render the bare key, so the
+// empty case short-circuits.
+func critDescription(locale, critText string) string {
+	if critText == "" {
+		return ""
+	}
+	return i18n.Translator(locale)("foundation_crit:" + critText)
+}
+
 // puppetFoundationWeaponAttack computes one Foundation pick's own fixed
 // natural weapon as a synthetic attack row — same "never stored, computed
 // fresh every render" treatment as puppetIntegratedWeaponAttack, but reading
@@ -412,7 +424,7 @@ func puppetFoundationWeaponAttack(expectedScores map[string]int, ownerProfBonus 
 	}
 	return &companionAttackRow{
 		CompanionAttack: charstore.CompanionAttack{
-			Name: i18n.Translator(locale)("foundation_weapon_name:" + nw.Name), Description: nw.CritText,
+			Name: i18n.Translator(locale)("foundation_weapon_name:" + nw.Name), Description: critDescription(locale, nw.CritText),
 			DamageCount: nw.DamageCount, DamageSides: nw.DamageSides, DamageType: damageType,
 		},
 		AttackTotal: mod + ownerProfBonus,

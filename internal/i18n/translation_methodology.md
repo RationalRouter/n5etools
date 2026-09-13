@@ -5,6 +5,37 @@ after working through Spanish, so future languages (Portuguese, etc.) can follow
 directly instead of re-deriving or re-discussing it from scratch. `glossary.md` holds the actual
 approved terms for a given language; this file describes *how* those terms get chosen and applied.
 
+## The bar: correct, not "understandable"
+
+**"A player would understand it" is not an acceptable standard and is never a reason to leave a
+string alone.** Established 2026-09-13, after a batch of Portuguese rows was described as
+acceptable because the grammar was valid and the meaning came through, even though the same
+mechanic was rendered five different ways across the corpus.
+
+Every translation this project ships is grammatically and syntactically correct to the letter, and
+as close to native speech as we can get it. Internal consistency is part of correctness, not a
+separate nicety: one mechanic, one rendering, everywhere. A string that is merely intelligible is a
+defect, the same as a misspelling is a defect.
+
+The reason this is worth stating explicitly is that nobody upstream enforces it. The sourcebook
+PDFs carry a steady medium-to-high rate of spelling and grammar errors, the community around them
+largely doesn't treat that as a problem, and the Discord's `#pdf-errors` channel absorbs only what
+someone happens to report. That is why this repo has its own `internal/correct` pipeline, its own
+`verify`/glossary checker, and its own English-source audits — upstream text is an input to be
+corrected, never an authority to be copied faithfully.
+
+Practical consequences:
+
+- **Source errors are caught at translation time.** A translation pass is the first time anyone
+  reads a given sentence closely, so it is where English bugs surface. Fix the English too (via
+  `internal/correct`, so it survives a re-ingest) rather than translating around it — see
+  "English-source bugs found by the glossary checker" below.
+- **Treat anything that looks off as a finding.** Mid-sentence capitals, a missing serial comma
+  that changes the parse, a mechanic named two ways in one paragraph, a stray English word inside
+  a translated name — all of these are in scope, whether or not a tool flagged them.
+- **A finding is closed by fixing it or by a stated, specific reason**, recorded in `glossary.md`.
+  "It reads fine" is not such a reason.
+
 ## Scope: everything player-facing, UI and game content alike
 
 As of the DeepL-API pivot (2026-09-05), translation is not limited to the UI string catalog.
@@ -1364,6 +1395,9 @@ shaped like `Field: "Literal"`, and 6 genuine gaps existed just outside that sha
    dedicated section below.** `science_nin_subclasses.go`'s sibling `ensureAngelEIPSpectreCompanion`
    turned out NOT to need the same fix — see that section for why.
 
+> **RESOLVED 2026-09-13** — the pass described immediately below was done. See
+> "`internal/puppetupgrades` closed" at the end of this file for what shipped.
+
 **New gap class found, NOT fixed, flagged for its own future pass**: `internal/puppetupgrades`'
 `FoundationEntry.ReferenceTraits`/`RoleEffectSpec.TextBonus`/`NaturalWeaponSpec.CritText` (this
 file) and `bonuses.go`'s `StatBonusParts` (`"AC"`, `"Max HP"`, `"ft. Speed"`, `"ft. flying
@@ -1441,3 +1475,205 @@ For a language with no existing glossary yet:
    translation exists for that language, or the anime dub for that language is known to be lower
    quality/less consistent than the Spanish dub was — since that changes which source-priority tier
    actually has usable material to check against.
+
+## `internal/puppetupgrades` closed — the last deferred sweep item (2026-09-13)
+
+The `ReferenceTraits`/`TextBonus`/`CritText`/`StatBonusParts` gap flagged above is fixed. The
+package had no i18n wiring of any kind — not one `tr()` call — so every Foundation Traits block
+and stat-bonus card rendered English in es/pt regardless of locale.
+
+**38 new catalog keys**, hand-translated (no DeepL call — these are dense rules prose where a
+machine pass is exactly what the original deferral was avoiding):
+
+| Keys | Shape | Why |
+|---|---|---|
+| `foundation_trait:<english>` (27) | curated English doubles as the key | Static prose, same convention as `foundation_name:`/`cr_name:` |
+| `foundation_crit:<english>` (4) | same | `NaturalWeaponSpec.CritText`; several weapons have none, so `""` short-circuits rather than rendering a bare key (`critDescription`, `puppet_foundation.go`) |
+| `foundation_role_text:<slug>` (3) | named key, `%d` format string | `RoleEffectSpec.TextBonus` interpolates a live Proficiency-Bonus-derived number, so it cannot key off its own rendered text |
+| `stat_bonus_part:<field>` (4) | named key, `%s` format string | The unit label's position relative to the number is not the same in every language, so "AC"/"Max HP"/"ft. Speed"/"ft. flying speed" are format strings, not concatenations |
+
+**`puppetupgrades` stays dependency-free.** `TextBonus` and `StatBonusParts` take a translator
+spelled structurally — `func(key string, args ...any) string`, which `i18n.TranslateFunc` is
+assignable to — rather than importing `internal/i18n` into a package that is otherwise pure
+curated data. Both read sites (`puppets.go`'s foundation-traits loop and `puppet_foundation.go`'s
+weapon-attack builder) already had `tr`/`locale` in scope.
+
+**Two gotchas worth remembering:**
+- `audit_baseline.json` is keyed by **line number**. Editing any already-baselined file shifts
+  every entry below the edit and fails `TestI18nAudit` with what look like 26 brand-new
+  violations. Reseed (`go run ./cmd/n5e-i18n audit -seed-baseline`) and **diff the result** — if
+  the added and removed sets are the same findings at different line numbers, nothing real was
+  absorbed. That diff also correctly dropped 7 stale `internal/validate/crosscheck.go` entries,
+  that file having been retired earlier the same day.
+- `TestStatBonusParts` used to assert the rendered English. It now asserts the key and the
+  interpolated argument instead — the English rendering is `locales/en.json`'s content, not that
+  function's, and duplicating the format strings in the test would just be a second place to
+  forget to update.
+
+`go build ./...`, `go vet ./...`, `go test ./...` all pass. Not live-browser-verified (no Puppet
+Master character with a Foundation pick was loaded).
+
+## English-source bugs found by the glossary checker (2026-09-13)
+
+The glossary check pins single-word mechanics case-sensitively, because the sourcebook capitalizes
+a mechanic and lowercases the ordinary word. That makes the checker an accidental but effective
+detector of **stray capitalization in the English source** — a capitalized ordinary word reads to
+it as an unrendered mechanic, so it flags a translation that was in fact correct.
+
+Every such flag is a source bug, not a translation bug, and both halves get fixed:
+
+| English as written | Problem | Fix |
+|---|---|---|
+| "and **Fire** them off" | the verb, capitalized | `internal/correct/straycaps.go` |
+| "prepare to **Fire** in all directions" | same | same |
+| "a shockwave **the Fires** out" | verb + wrong relative pronoun | straycaps + curated |
+| "When you **Hit** a creature" | the verb, not Hit Points | straycaps |
+| "a painfully bright **Light**" | the noun, not the weapon property | curated |
+| "**Succeed** a Constitution saving throw" | capital + wrong preposition | curated |
+| "the **Piercing earth** and bludgeoning damage" | missing serial commas fused two damage types | curated |
+
+The last one is the clearest argument for fixing source rather than translating around it: the
+missing commas made "Piercing earth" read as one compound, and the Portuguese had faithfully
+translated the misreading ("dano de perfuração na terra" — piercing damage *in the earth*).
+
+`straycaps` is deliberately narrow: each rule needs both a preceding word that licenses a verb and
+a following complement only a verb takes, because "resistance to Fire damage" and "Hit Points"
+outnumber the typos by two orders of magnitude. `straycaps_test.go` guards both directions.
+
+### Checker precision rules
+
+Three rules keep the check from crying wolf, each with a regression test in
+`verify_glossary_test.go` that also guards that real drift is still reported:
+
+1. **Case-sensitive single-word terms** (`sourceTermRe`) — "bright light" is not the Light property.
+2. **Title-case runs are proper names** (`inTitleCaseRun`) — "Fire Bomb" is correctly "Bomba
+   incendiaria", not something containing "Fuego".
+3. **Sentence- and bullet-initial capitals carry no information** (`atSentenceStart`, added
+   2026-09-13) — "• Light created by your Enlightening Grasp feature..." is the ordinary noun.
+
+A proper name whose English contains a lowercase function word ("Land of Lightning") escapes rule
+2, because the word before the term is lowercase. Those get their own glossary table entry so
+longest-match-wins suppresses the bare term — see glossary.md's "Country names built on an element
+word".
+
+## The stray-capitalization audit (2026-09-13)
+
+Closes the open item left by the `Fire`/`Hit`/`Light` pass earlier the same day, which only
+covered game-term homographs. This one covers the whole corpus: every mid-sentence capital in
+the 6,650 prose fields across the 18 tables with prose, tallied and classified.
+
+Method — worth repeating rather than re-deriving, because the naive version produces thousands of
+false positives:
+
+1. Split each field on sentence punctuation **plus** `(`, `"` and `“`. Parenthetical and quoted
+   clauses genuinely start a new sentence, and treating them otherwise reports every `(This
+   cannot be changed…)` and `(Your choice)` as a defect.
+2. Skip a capital whose neighbour is also capitalized — that is a proper name or a multi-word term
+   (`Half Moon`, `Use an Object`, `Saving Throw`), not a stray.
+3. Skip anything preceded by an abbreviation (`A.`, `ft.`, `vs.`). The corpus contains a real
+   `A. Ts` spacing artifact from the PDF's `A.T.s`, which is its own bug, not a capitalization one.
+4. Subtract the game's own vocabulary, harvested from every `name`/`display_name`/`condition`/
+   `damage_type`/`keywords` column in the database — 3,842 words.
+
+That left 5,301 occurrences over 638 word types, which sorted into three fixable shapes plus a
+large legitimate remainder (`Genjutsu`, `D-Rank`, `Dexterity`, `Prone`, `Envenomed`, `AC` and the
+rest of the book's real terms of art, which must not be touched).
+
+| shape | rule | count |
+|---|---|---|
+| ordinary word capitalized after a comma | `commacaps` (`internal/correct/rules.go`) | 144 |
+| ordinary word capitalized mid-clause, no comma | `midcaps` | 34 |
+| two sentences run together with no punctuation at all | 36 curated entries | 44 |
+
+Both regex rules are driven by an **explicit vocabulary**, not by position alone. A general
+"lowercase anything after a comma" would have corrupted `, B-Rank`, `, Ninjutsu`, `, AC` and
+`, Grappled`, which are correct. Every word in both lists was checked against the full corpus for
+a term-of-art reading and has none. Three deliberate exclusions are documented at the rules
+themselves: `Within` (opens each entry of a parallel list, so lowercasing all but the first would
+make the list inconsistent), and `Reduce`/`Interrupt` (the book also uses each as a real noun
+mechanic — `the Amplify or Reduce features`, `this jutsu counts as an Interrupt`).
+
+The 36 curated entries are the ones no rule can reach: there is no comma to anchor on, and
+lowercasing the capital would turn a missing period into a run-on instead of fixing it. Each
+needed a human to decide period vs. comma — `impenetrable barrier of steel and chain When you or
+an ally` is two sentences, `Beginning at 15th level When you would pass a saving throw` is a level
+header wanting a comma. Several carried a second defect fixed in the same entry (`it is only last`
+→ `it only lasts`, `a +2 weapons` → `a +2 weapon`, `when you can a Tsuchigumo clan Hijutsu` →
+`when you cast a`).
+
+### `succeed a saving throw` → `succeed on a`
+
+Same audit, separate rule (`succeedon`). "Succeed" is intransitive in this sense: you succeed *on*
+a check, not *a* check. 271 occurrences of the prepositionless form against 52 correct ones — a
+systemic authoring habit, not unrelated slips. Scoped by requiring an actual roll noun (saving
+throw / save / check) after the determiner, which is what keeps it off the genuinely intransitive
+uses the same audit turned up: `succeed by 5 or more`, `succeeds and is reset`, `choose to succeed
+instead`, `automatically succeeds if it is immune`, `succeed hacking into a system`.
+
+12 of the 271 are in `poisons` and the Genjutsu Pill, which are hand-transcribed in migrations
+rather than parsed from a PDF, so `correct.Sweep` never sees them — fixed permanently in
+`0074_succeed_on_curated_rows.sql`, the same pattern `0034` used for Weaved Mail.
+
+### What this cost the translations, and why nothing had to be re-translated
+
+Between the two, 416 English fields changed, which invalidated the `en_hash` on 702
+`content_translations` rows. Every one was spot-checked before deciding: Spanish renders the
+clause `superar una Tirada de Salvación` and Portuguese `ter sucesso no Teste de Resistência` —
+both transitive, both correct, and neither affected by an English preposition or an English
+capital. So the hashes were refreshed in place rather than the rows re-translated, and `verify`
+reports the same 15 (pt) / 32 (es) findings as before, all of them the previously-accepted
+`suspiciously-identical` proper names. A changed hash with an unchanged translation is the normal
+outcome for a source-side typography fix; re-translating would have burned DeepL quota to produce
+the same Spanish and Portuguese.
+
+## The dropped-possessive and abbreviation sweep (2026-09-13)
+
+A follow-up scan of the same corpus for the remaining classes of grammar slip. Five categories
+were scanned; three produced real findings, two were entirely false positives (`ranked of`, 291
+hits, is the book's own rank syntax; `doubled-word`, 6 hits, is table headers) and were dropped
+without a rule.
+
+| Rule | Fixes | Shape |
+| --- | --- | --- |
+| `possessive` (2 new branches) | 185 | `a creatures neck`, `the targets Armor Class` |
+| `abbrevsplit` | 91 | `your A. Ts`, `2 B.I. Ms into 1 B.I.M` |
+| `pluralverb` | 13 | `Affected creatures gains 1 rank` |
+| `curated` | 26 | plural possessives, and one-off slips found while reviewing |
+
+**The possessive drop is much wider than the 2026-08-05 pass found.** That pass identified the
+error by the *possessed* noun and so needed a closed list of them (`possessiveDropRe`, 210
+instances). Two further branches were added rather than loosening it:
+
+- `possessiveDetRe` identifies the drop by the **singular determiner** before the head instead —
+  `a`/`an`/`one` immediately before a plural `creatures`/`targets`/`weapons`/… is already
+  ungrammatical, so the head is necessarily a dropped possessive and the possessed noun can be
+  anything. The word *after* the head still has to be checked (RE2 has no lookahead, so it is
+  captured and tested in code): `a creatures is` is a verb, not a possession, and an `-ly` adverb
+  means the head itself was mis-pluralized — `When a Creatures currently under the effects` is
+  `a Creature`, not `a creature's`.
+- `possessiveNounRe` is the original shape with the possessed-noun list extended by the 149
+  further nouns this scan confirmed.
+
+**Plural possessives were deliberately left to `curated.go`.** Both regexes insert `’s`, which is
+wrong wherever the head really is plural, so `possessivePluralContextRe` holds back anything
+preceded by `all`/`both`/`multiple`/`several`/`other`/`affected` or a bare preposition. The right
+rendering there is a judgment call the verb decides — `creatures’ saving throws` stays plural,
+while `Affected creatures AC is reduced` becomes the distributive `An affected creature’s AC is
+reduced` because the verb is singular. One of them is not a possessive at all: `grant the affected
+creatures temporary hit points` is ditransitive and is left exactly as printed.
+
+**`abbrevsplit` is a pure extraction artifact**, not an authoring one: the PDF text repeatedly eats
+a space into a dotted abbreviation just before its last letter. The canonical rendering is the one
+the un-split occurrences already use — a period between every letter, no trailing period, bare `s`
+for the plural (`B.I.M` 146, `S.N.B` 124, `E.I.P` 38). The stems and their tail letters are
+enumerated rather than matched generically, because the generic shape also matches an abbreviation
+legitimately ending a sentence before a one-letter word (`…the B.I.M. A creature must…`) and would
+silently weld the two together.
+
+One further row, the Fearsome Seal, is hand-transcribed in migrations and so unreachable by
+`correct.Sweep` — fixed in `0075_possessive_curated_rows.sql`, same pattern as `0074`.
+
+228 English fields changed, invalidating 516 `content_translations` hashes. As with the previous
+audit these are typography-only on the English side — Spanish and Portuguese both already render
+the possessive with *de*, which carries no apostrophe and no number agreement to get wrong — so the
+hashes were refreshed in place and `verify` still reports the same 15 (pt) / 32 (es) findings.

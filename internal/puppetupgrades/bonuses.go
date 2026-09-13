@@ -124,7 +124,12 @@ func (b StatBonus) IsZero() bool {
 // card ("+1 AC", "+15 ft. Speed"). A granted flying speed reads as a total
 // rather than a signed delta because that is what it is — the puppet had
 // none before.
-func StatBonusParts(b StatBonus) []string {
+//
+// Each phrase is a catalog format string rather than a Go concatenation:
+// the unit label's position relative to the number is not the same in every
+// language. tr is i18n.TranslateFunc's shape, spelled structurally so this
+// package stays dependency-free.
+func StatBonusParts(tr func(key string, args ...any) string, b StatBonus) []string {
 	signed := func(n int) string {
 		if n >= 0 {
 			return "+" + strconv.Itoa(n)
@@ -133,16 +138,16 @@ func StatBonusParts(b StatBonus) []string {
 	}
 	var parts []string
 	if b.AC != 0 {
-		parts = append(parts, signed(b.AC)+" AC")
+		parts = append(parts, tr("stat_bonus_part:ac", signed(b.AC)))
 	}
 	if b.MaxHP != 0 {
-		parts = append(parts, signed(b.MaxHP)+" Max HP")
+		parts = append(parts, tr("stat_bonus_part:max_hp", signed(b.MaxHP)))
 	}
 	if b.Speed != 0 {
-		parts = append(parts, signed(b.Speed)+" ft. Speed")
+		parts = append(parts, tr("stat_bonus_part:speed", signed(b.Speed)))
 	}
 	if b.GrantsFlight {
-		parts = append(parts, strconv.Itoa(b.FlySpeed)+" ft. flying speed")
+		parts = append(parts, tr("stat_bonus_part:fly_speed", strconv.Itoa(b.FlySpeed)))
 	}
 	return parts
 }

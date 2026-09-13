@@ -3,7 +3,7 @@
 -- 0023). The two answer different questions: drive_last_modified says "has
 -- the PDF itself changed on Drive," ingest_schema_version says "has THIS
 -- BINARY's own parsing/schema logic moved on since the last successful
--- ingest" — a real gap found 2026-07-27 (see V2_ROADMAP.md's former "Known
+-- ingest" — a real gap found 2026-07-27 (see Roadmap.md's former "Known
 -- bugs" entry): a migration that adds a table needing a content backfill
 -- (e.g. jutsu_upcast_rules) applies structurally on every startup regardless,
 -- but its CONTENT only gets populated when a real ingest runs — and until

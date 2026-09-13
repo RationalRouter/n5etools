@@ -55,6 +55,10 @@ type Report struct {
 	Correction []*correct.Report
 	// Loads is one entry per store.LoadReport produced, in display order.
 	Loads []NamedLoad
+	// OCRAnomalies is every page where an independent OCR reading disagreed
+	// with the text-layer parse enough to flag for review — see ocrcheck.go.
+	// Advisory only; never affects what gets loaded.
+	OCRAnomalies []OCRAnomaly
 }
 
 // FileSHA256 hashes a file's contents, recorded as provenance on every
@@ -130,6 +134,7 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	ocrAnomalies := crossValidatePages(pdfPath, "book/jutsu-compendium", 4, doc.NumPages(), lines)
 
 	jutsu, anomalies := parse.ParseJutsuBook(lines)
 	tribes, tribeAnomalies := parse.ParseSummonTribes(lines)
@@ -199,6 +204,10 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	for _, a := range anomalies {
 		fmt.Fprintf(summary, "  p%-4d %-40s %s\n", a.Page, a.Subject, a.Problem)
 	}
+	fmt.Fprintf(summary, "\n%d OCR cross-check anomalies:\n", len(ocrAnomalies))
+	for _, a := range ocrAnomalies {
+		fmt.Fprintf(summary, "  p%-4d similarity %.2f\n", a.Page, a.Ratio)
+	}
 
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
@@ -219,6 +228,9 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
+	if err := store.WriteOCRAnomalies(db, book, toStoreOCRAnomalies(ocrAnomalies)); err != nil {
+		return nil, err
+	}
 
 	return &Report{
 		Summary:    summary.String(),
@@ -227,6 +239,7 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 			{Label: "", Report: loadReport},
 			{Label: "summon tribes", Report: tribeReport},
 		},
+		OCRAnomalies: ocrAnomalies,
 	}, nil
 }
 
@@ -243,6 +256,7 @@ func Clans(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report, 
 	if err != nil {
 		return nil, err
 	}
+	ocrAnomalies := crossValidatePages(pdfPath, "book/clan-compendium", 5, doc.NumPages(), lines)
 
 	clans, anomalies := parse.ParseClanBook(lines)
 	latentFeat, latents, latentAnomalies := parse.ParseBloodlineLatents(lines)
@@ -311,6 +325,10 @@ func Clans(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report, 
 	for _, a := range anomalies {
 		fmt.Fprintf(summary, "  p%-4d %-40s %s\n", a.Page, a.Subject, a.Problem)
 	}
+	fmt.Fprintf(summary, "\n%d OCR cross-check anomalies:\n", len(ocrAnomalies))
+	for _, a := range ocrAnomalies {
+		fmt.Fprintf(summary, "  p%-4d similarity %.2f\n", a.Page, a.Ratio)
+	}
 
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
@@ -332,6 +350,9 @@ func Clans(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report, 
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
+	if err := store.WriteOCRAnomalies(db, book, toStoreOCRAnomalies(ocrAnomalies)); err != nil {
+		return nil, err
+	}
 
 	return &Report{
 		Summary:    summary.String(),
@@ -340,6 +361,7 @@ func Clans(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report, 
 			{Label: "", Report: loadReport},
 			{Label: "bloodline latents", Report: latentReport},
 		},
+		OCRAnomalies: ocrAnomalies,
 	}, nil
 }
 
@@ -356,6 +378,7 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	if err != nil {
 		return nil, err
 	}
+	ocrAnomalies := crossValidatePages(pdfPath, "book/class-compendium", 6, doc.NumPages(), lines)
 
 	classes, anomalies := parse.ParseClassBook(lines)
 
@@ -423,6 +446,10 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	for _, a := range anomalies {
 		fmt.Fprintf(summary, "  p%-4d %-40s %s\n", a.Page, a.Subject, a.Problem)
 	}
+	fmt.Fprintf(summary, "\n%d OCR cross-check anomalies:\n", len(ocrAnomalies))
+	for _, a := range ocrAnomalies {
+		fmt.Fprintf(summary, "  p%-4d similarity %.2f\n", a.Page, a.Ratio)
+	}
 
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
@@ -474,6 +501,9 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
+	if err := store.WriteOCRAnomalies(db, book, toStoreOCRAnomalies(ocrAnomalies)); err != nil {
+		return nil, err
+	}
 
 	return &Report{
 		Summary:    summary.String(),
@@ -486,6 +516,7 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 			{Label: "embedded subclass option lists", Report: embeddedListReport},
 			{Label: "weapon form styles", Report: weaponFormStylesReport},
 		},
+		OCRAnomalies: ocrAnomalies,
 	}, nil
 }
 
@@ -501,6 +532,7 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	ocrAnomalies := crossValidatePages(pdfPath, "book/core", 2, doc.NumPages(), lines)
 
 	stances, anomalies := parse.ParseFightingStances(lines)
 	feats, featAnomalies := parse.ParseCoreFeats(lines)
@@ -564,6 +596,10 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	for _, a := range anomalies {
 		fmt.Fprintf(summary, "  p%-4d %-40s %s\n", a.Page, a.Subject, a.Problem)
 	}
+	fmt.Fprintf(summary, "\n%d OCR cross-check anomalies:\n", len(ocrAnomalies))
+	for _, a := range ocrAnomalies {
+		fmt.Fprintf(summary, "  p%-4d similarity %.2f\n", a.Page, a.Ratio)
+	}
 
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
@@ -599,6 +635,9 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
+	if err := store.WriteOCRAnomalies(db, book, toStoreOCRAnomalies(ocrAnomalies)); err != nil {
+		return nil, err
+	}
 
 	return &Report{
 		Summary:    summary.String(),
@@ -610,6 +649,7 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 			{Label: "enhancement seals", Report: sealReport},
 			{Label: "multiclass rules", Report: mcReport},
 		},
+		OCRAnomalies: ocrAnomalies,
 	}, nil
 }
 
@@ -627,6 +667,7 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	ocrAnomalies := crossValidatePages(pdfPath, "book/bingo-book", 1, doc.NumPages(), lines)
 
 	roles, roleAnomalies := parse.ParseAdversaryRoles(lines)
 	traits, traitAnomalies := parse.ParseAdversaryRoleTraits(lines)
@@ -668,6 +709,10 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	for _, a := range anomalies {
 		fmt.Fprintf(summary, "  p%-4d %-40s %s\n", a.Page, a.Subject, a.Problem)
 	}
+	fmt.Fprintf(summary, "\n%d OCR cross-check anomalies:\n", len(ocrAnomalies))
+	for _, a := range ocrAnomalies {
+		fmt.Fprintf(summary, "  p%-4d similarity %.2f\n", a.Page, a.Ratio)
+	}
 
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
@@ -693,6 +738,9 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
+	if err := store.WriteOCRAnomalies(db, book, toStoreOCRAnomalies(ocrAnomalies)); err != nil {
+		return nil, err
+	}
 
 	return &Report{
 		Summary:    summary.String(),
@@ -702,5 +750,6 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 			{Label: "adversary role traits", Report: traitReport},
 			{Label: "adversary ranks", Report: rankReport},
 		},
+		OCRAnomalies: ocrAnomalies,
 	}, nil
 }

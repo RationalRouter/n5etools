@@ -317,6 +317,13 @@ func nullableFloatEq(a sql.NullFloat64, b *float64) bool {
 	return b != nil && a.Float64 == *b
 }
 
+func nullableStrEq(a sql.NullString, b *string) bool {
+	if !a.Valid {
+		return b == nil
+	}
+	return b != nil && a.String == *b
+}
+
 // replaceKeywords rebuilds the per-keyword index rows from the printed
 // keyword line. Pure derived data — no overrides live here.
 func replaceKeywords(tx *sql.Tx, slug, printed string) error {

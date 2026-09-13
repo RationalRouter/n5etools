@@ -61,6 +61,26 @@
 //	    with every current finding instead of reporting/fixing anything --
 //	    used once to bootstrap the gate, or deliberately after a batch of
 //	    findings has been reviewed and accepted rather than fixed.
+//
+//	n5e-i18n check-drive [-state <file>]
+//	    Compares every official sourcebook's live Drive Last-Modified time
+//	    against the last time translate-book actually ran for that
+//	    book+locale (tracked in -state, a small maintainer-only JSON file,
+//	    default internal/i18n/translation-state.json). Prints which
+//	    book+locale pairs need a translation refresh; makes no changes.
+//
+//	n5e-i18n translate-book <slug> -db <rules.db> -locale es [-glossary <file>] [-pending <file>] [-status machine|reviewed] [-force] [-pro]
+//	    Chains export -> glossary-gate -> DeepL -> import for every
+//	    translatable table (internal/i18n.TranslatableFields), scoped to one
+//	    sourcebook's rows (see internal/sources.OfficialBooks for slugs).
+//	    Before sending a field to DeepL, scans its English text for terms
+//	    FindUnglossaried can't resolve against glossary.md or the DB's own
+//	    known names -- an unresolved row is held back in -pending (default
+//	    internal/i18n/glossary-pending.json) instead of being translated or
+//	    blocking the rest of the book, and is re-checked (and cleared) on
+//	    every subsequent run once glossary.md covers its terms. Updates
+//	    -state on success, so a later check-drive run sees this book+locale
+//	    as current. Requires DEEPL_API_KEY in the environment.
 package main
 
 import (
@@ -93,7 +113,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: n5e-i18n export|import|report|catalog-translate ...")
+		return fmt.Errorf("usage: n5e-i18n export|translate|import|report|catalog-translate|audit|verify|normalize-glossary|check-drive|translate-book ...")
 	}
 	switch args[0] {
 	case "export":
@@ -110,6 +130,12 @@ func run(args []string) error {
 		return cmdAudit(args[1:])
 	case "verify":
 		return cmdVerify(args[1:])
+	case "translate-book":
+		return cmdTranslateBook(args[1:])
+	case "check-drive":
+		return cmdCheckDrive(args[1:])
+	case "normalize-glossary":
+		return cmdNormalizeGlossary(args[1:])
 	default:
 		return fmt.Errorf("unknown subcommand %q", args[0])
 	}
@@ -403,7 +429,7 @@ func cmdVerify(args []string) error {
 	var findings []i18n.VerifyFinding
 
 	for _, t := range tables {
-		rowsData, err := loadEnglishValues(db, t)
+		rowsData, err := loadEnglishValues(db, t, "")
 		if err != nil {
 			return err
 		}
@@ -669,8 +695,13 @@ type rowValues struct {
 // loadEnglishValues reads every row of table, projecting the key column(s)
 // (per i18n.KeyColumnsFor) and every field in i18n.TranslatableFields[table].
 // Shared by export (to know what needs translating) and report (to detect
-// staleness against the live English text).
-func loadEnglishValues(db *sql.DB, table string) ([]rowValues, error) {
+// staleness against the live English text). If bookSlug is non-empty and
+// the table has its own source_book column, rows are scoped to that book
+// (see translate-book); tables with no source_book column of their own
+// (mostly child tables of a book-scoped parent -- class_option_entries,
+// clan_traits, and similar) fall back to every row, since resolving them
+// would need a per-table join map this command doesn't otherwise need.
+func loadEnglishValues(db *sql.DB, table, bookSlug string) ([]rowValues, error) {
 	fields, ok := i18n.TranslatableFields[table]
 	if !ok || len(fields) == 0 {
 		return nil, fmt.Errorf("table %q has no translatable fields registered in internal/i18n.TranslatableFields", table)
@@ -679,7 +710,12 @@ func loadEnglishValues(db *sql.DB, table string) ([]rowValues, error) {
 
 	cols := append(append([]string{}, keyCols...), fields...)
 	query := "SELECT " + strings.Join(quoteIdents(cols), ", ") + " FROM " + quoteIdent(table)
-	rows, err := db.Query(query)
+	var args []any
+	if bookSlug != "" && tableHasColumn(db, table, "source_book") {
+		query += " WHERE source_book = ?"
+		args = append(args, bookSlug)
+	}
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query %s: %w", table, err)
 	}
@@ -733,6 +769,40 @@ func normalizeForTranslation(table, field, text string) string {
 	return statlines.StripForTranslation(text)
 }
 
+// tableHasColumn reports whether table has a column named col, via
+// PRAGMA table_info -- used to decide whether a book-slug filter can be
+// applied directly, since not every content table carries its own
+// source_book column.
+func tableHasColumn(db *sql.DB, table, col string) bool {
+	rows, err := db.Query("PRAGMA table_info(" + quoteIdent(table) + ")")
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		return false
+	}
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return false
+		}
+		for i, c := range cols {
+			if c == "name" {
+				if name, ok := vals[i].(string); ok && name == col {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
 func quoteIdents(ss []string) []string {
 	out := make([]string, len(ss))
@@ -769,13 +839,14 @@ func cmdExport(args []string) error {
 	dbPath := fs.String("db", "", "rules database to read from")
 	locale := fs.String("locale", "", "target locale, e.g. es")
 	table := fs.String("table", "", "content table to export (see internal/i18n.TranslatableFields)")
+	book := fs.String("book", "", "limit to rows whose source_book matches this slug (default: every book)")
 	out := fs.String("out", "", "output JSONL path (default: stdout)")
 	force := fs.Bool("force", false, "re-export every translatable field, even ones already translated and fresh")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *dbPath == "" || *locale == "" || *table == "" {
-		return fmt.Errorf("usage: n5e-i18n export -db <path> -locale <code> -table <name> [-out <file>] [-force]")
+		return fmt.Errorf("usage: n5e-i18n export -db <path> -locale <code> -table <name> [-book <slug>] [-out <file>] [-force]")
 	}
 
 	db, err := openRulesDB(*dbPath)
@@ -784,7 +855,7 @@ func cmdExport(args []string) error {
 	}
 	defer db.Close()
 
-	rowsData, err := loadEnglishValues(db, *table)
+	rowsData, err := loadEnglishValues(db, *table, *book)
 	if err != nil {
 		return err
 	}
@@ -861,9 +932,54 @@ func cmdImport(args []string) error {
 	}
 	defer f.Close()
 
-	tx, err := db.Begin()
+	var records []importRecord
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	for lineNo := 1; sc.Scan(); lineNo++ {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var rec importRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			return fmt.Errorf("parse line %d: %w", lineNo, err)
+		}
+		if !i18n.IsTranslatable(rec.Table, rec.Field) {
+			return fmt.Errorf("line %d: %s.%s is not a registered translatable field", lineNo, rec.Table, rec.Field)
+		}
+		if strings.TrimSpace(rec.Value) == "" {
+			return fmt.Errorf("line %d: empty translated value for %s/%s/%s", lineNo, rec.Table, rec.Slug, rec.Field)
+		}
+		records = append(records, rec)
+	}
+	if err := sc.Err(); err != nil {
+		return err
+	}
+
+	count, err := applyImportRecords(db, *locale, *status, records)
 	if err != nil {
 		return err
+	}
+	fmt.Fprintf(os.Stderr, "import %s: %d row(s) upserted\n", *locale, count)
+	return nil
+}
+
+// applyImportRecords upserts a batch of already-translated records into
+// content_translations for one locale, in a single transaction -- the
+// write core shared by cmdImport (reading a JSONL file written by a
+// separate `translate` run) and translate-book (writing DeepL's output
+// directly, with no JSONL round-trip).
+func applyImportRecords(db *sql.DB, locale, status string, records []importRecord) (int, error) {
+	if status != "machine" && status != "reviewed" {
+		return 0, fmt.Errorf("status must be %q or %q, got %q", "machine", "reviewed", status)
+	}
+	if len(records) == 0 {
+		return 0, nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
 	}
 	stmt, err := tx.Prepare(`
 		INSERT INTO content_translations (table_name, slug, locale, field, value, status, en_hash, updated_at)
@@ -873,46 +989,24 @@ func cmdImport(args []string) error {
 			en_hash = excluded.en_hash, updated_at = excluded.updated_at`)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 	defer stmt.Close()
 
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	count := 0
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
-			continue
-		}
-		var rec importRecord
-		if err := json.Unmarshal([]byte(line), &rec); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("parse line %d: %w", count+1, err)
-		}
-		if !i18n.IsTranslatable(rec.Table, rec.Field) {
-			tx.Rollback()
-			return fmt.Errorf("line %d: %s.%s is not a registered translatable field", count+1, rec.Table, rec.Field)
-		}
+	for i, rec := range records {
 		if strings.TrimSpace(rec.Value) == "" {
 			tx.Rollback()
-			return fmt.Errorf("line %d: empty translated value for %s/%s/%s", count+1, rec.Table, rec.Slug, rec.Field)
+			return 0, fmt.Errorf("record %d: empty translated value for %s/%s/%s", i, rec.Table, rec.Slug, rec.Field)
 		}
-		if _, err := stmt.Exec(rec.Table, rec.Slug, *locale, rec.Field, rec.Value, *status, rec.EnHash); err != nil {
+		if _, err := stmt.Exec(rec.Table, rec.Slug, locale, rec.Field, rec.Value, status, rec.EnHash); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("line %d: %w", count+1, err)
+			return 0, fmt.Errorf("record %d: %w", i, err)
 		}
-		count++
-	}
-	if err := sc.Err(); err != nil {
-		tx.Rollback()
-		return err
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return 0, err
 	}
-	fmt.Fprintf(os.Stderr, "import %s: %d row(s) upserted\n", *locale, count)
-	return nil
+	return len(records), nil
 }
 
 func cmdReport(args []string) error {
@@ -946,7 +1040,7 @@ func cmdReport(args []string) error {
 	fmt.Printf("%-28s %8s %8s %8s %8s %8s\n", "table", "total", "done", "stale", "missing", "reviewed")
 	var gTotal, gDone, gStale, gReviewed int
 	for _, t := range tables {
-		rowsData, err := loadEnglishValues(db, t)
+		rowsData, err := loadEnglishValues(db, t, "")
 		if err != nil {
 			return err
 		}

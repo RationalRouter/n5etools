@@ -3,22 +3,23 @@ package store
 import (
 	"testing"
 
+	"github.com/sergio/n5e/internal/classcharts"
 	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/sheet"
 )
 
-var mastersheet = SourceBook{
-	Slug: "sheet/mastersheet", Title: "N5E Community Mastersheet",
-	Version: "3.1", FileName: "mastersheet.xlsx", FileSHA256: "feed",
+var curated = SourceBook{
+	Slug: "curated/class-charts", Title: "N5E Toolkit curated charts",
+	Version: "1.0", FileName: "internal/classcharts",
 }
 
-func sampleChart() sheet.ClassChart {
+func sampleChart() classcharts.Class {
 	known := 6
-	c := sheet.ClassChart{Name: "Scout-Nin", HitDie: 8, ChakraDie: 10}
+	c := classcharts.Class{Slug: "class/scout-nin"}
 	for lvl := 1; lvl <= 20; lvl++ {
-		lr := sheet.LevelRow{Level: lvl, ProfBonus: 3 + (lvl-1)/3, JutsuKnown: &known}
+		prof := 3 + (lvl-1)/3
+		lr := classcharts.Level{Level: lvl, ProficiencyBonus: &prof, JutsuKnown: &known}
 		if lvl >= 3 {
-			lr.Resources = []sheet.Resource{{Name: "Superiority Dice", Value: "1d6"}}
+			lr.Resources = []classcharts.Resource{{Name: "Superiority Dice", Value: "1d6", Status: "auto"}}
 		}
 		c.Levels = append(c.Levels, lr)
 	}
@@ -31,19 +32,20 @@ func TestLoadClassLevels(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	charts := []sheet.ClassChart{sampleChart(), {Name: "Nowhere", HitDie: 8, ChakraDie: 8}}
-	r, err := LoadClassLevels(db, mastersheet, charts)
+	charts := []classcharts.Class{sampleChart(), {Slug: "class/nowhere"}}
+	r, err := LoadClassLevels(db, curated, charts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Created != 20 || len(r.Skipped) != 1 {
+	// 20 level rows + 18 charted resource rows (levels 3-20).
+	if r.Created != 38 || len(r.Skipped) != 1 {
 		t.Errorf("first load: %+v", r)
 	}
-	r, err = LoadClassLevels(db, mastersheet, charts)
+	r, err = LoadClassLevels(db, curated, charts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Created != 0 || r.Unchanged != 20 {
+	if r.Created != 0 || r.Unchanged != 38 {
 		t.Errorf("second load must be a no-op: %+v", r)
 	}
 
@@ -68,9 +70,10 @@ func TestLoadClassLevels(t *testing.T) {
 		WHERE class_slug='class/scout-nin' AND level=1`); err != nil {
 		t.Fatal(err)
 	}
-	changed := []sheet.ClassChart{sampleChart()}
-	changed[0].Levels[0].ProfBonus = 4
-	r, err = LoadClassLevels(db, mastersheet, changed)
+	changed := []classcharts.Class{sampleChart()}
+	newProf := 4
+	changed[0].Levels[0].ProficiencyBonus = &newProf
+	r, err = LoadClassLevels(db, curated, changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,5 +88,63 @@ func TestLoadClassLevels(t *testing.T) {
 	}
 	if status != "needs_review" || override != 7 {
 		t.Errorf("after change: status=%s override=%d", status, override)
+	}
+}
+
+// The Mastersheet has real column gaps filled in by hand as 'manual' rows,
+// and v_class_level_resources prefers value_override over value. Neither may
+// be touched by a re-ingest, and a row the chart never carries must be
+// reported as vanished rather than deleted.
+func TestLoadClassLevelsPreservesManualResources(t *testing.T) {
+	db := testDB(t)
+	if _, err := LoadClassBook(db, classBook, []parse.Class{sampleClass()}, nil); err != nil {
+		t.Fatal(err)
+	}
+	charts := []classcharts.Class{sampleChart()}
+	if _, err := LoadClassLevels(db, curated, charts); err != nil {
+		t.Fatal(err)
+	}
+
+	// A hand-added row for a column the sheet does not carry at all.
+	if _, err := db.Exec(`INSERT INTO class_level_resources
+		(class_slug, level, resource_name, value, detection_status)
+		VALUES ('class/scout-nin', 5, 'Wood Tier', '3', 'manual')`); err != nil {
+		t.Fatal(err)
+	}
+	// An override on a row the sheet DOES carry.
+	if _, err := db.Exec(`UPDATE class_level_resources
+		SET value_override = '9d9', detection_status = 'verified'
+		WHERE class_slug='class/scout-nin' AND level=3 AND resource_name='Superiority Dice'`); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := LoadClassLevels(db, curated, charts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var value, status string
+	if err := db.QueryRow(`SELECT value, detection_status FROM class_level_resources
+		WHERE class_slug='class/scout-nin' AND level=5 AND resource_name='Wood Tier'`).
+		Scan(&value, &status); err != nil {
+		t.Fatalf("manual row destroyed by re-ingest: %v", err)
+	}
+	if value != "3" || status != "manual" {
+		t.Errorf("manual row = %q/%s, want 3/manual", value, status)
+	}
+
+	var override string
+	if err := db.QueryRow(`SELECT value_override, detection_status FROM class_level_resources
+		WHERE class_slug='class/scout-nin' AND level=3 AND resource_name='Superiority Dice'`).
+		Scan(&override, &status); err != nil {
+		t.Fatal(err)
+	}
+	if override != "9d9" || status != "verified" {
+		t.Errorf("override row = %q/%s, want 9d9/verified", override, status)
+	}
+
+	// The hand-added row is not in the chart, so it reports as vanished.
+	if len(r.Vanished) != 1 || r.Vanished[0] != "class/scout-nin/level/5/Wood Tier" {
+		t.Errorf("vanished = %v", r.Vanished)
 	}
 }

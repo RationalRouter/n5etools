@@ -447,6 +447,169 @@ var curatedCorrections = []curatedCorrection{
 		"You gain a +3 bonus to AC and resistance to Bludgeoning, piercing and slashing damage"},
 	{"you can make a third attack against a creature in range, this time with an additional -2 penalties.",
 		"you can make a third attack against a creature in range, this time with an additional -2 penalty."},
+
+	// --- third pass, from the pt/es glossary drift investigation, 2026-09-13 ---
+	// Keys here are written against the text AFTER straycaps has run (pass
+	// 9), which is why "Fires" already appears lowercased below.
+	{"creating a shockwave the fires out in all directions overwhelming all enemies",
+		"creating a shockwave that fires out in all directions, overwhelming all enemies"},
+	{"to Succeed a Constitution saving throw", "to succeed on a Constitution saving throw"},
+	{"they must Succeed a Constitution saving throw", "they must succeed on a Constitution saving throw"},
+	{"and must Succeed a Constitution saving throw", "and must succeed on a Constitution saving throw"},
+	// Dust Spear deals three separate damage types (piercing, earth,
+	// bludgeoning — see the jutsu's own description); the missing serial
+	// commas made "Piercing earth" read as one compound, which is exactly
+	// how the Portuguese translated it ("dano de perfuração na terra").
+	{"increase the Piercing earth and bludgeoning damage by 1d8 each",
+		"increase the piercing, earth, and bludgeoning damage by 1d8 each"},
+	{"the bonus to damage from second instance of bruised is halved",
+		"the bonus to damage from the second instance of Bruised is halved"},
+	// The ordinary noun, not the Light weapon property — the capital made
+	// the glossary check read it as the mechanic.
+	{"you emit a painfully bright Light.", "you emit a painfully bright light."},
+
+	// --- fourth pass, the stray-capitalization audit, 2026-09-13 ---
+	//
+	// Sentences the sourcebook runs together with no terminal punctuation at
+	// all, which is why the following word's capital is the only thing marking
+	// the break. The general commacaps/midcaps rules cannot help here: there is
+	// no comma to anchor on, and lowercasing the capital would turn a missing
+	// period into a run-on rather than fixing anything. Each needs a human to
+	// decide whether the break is a period (two independent clauses) or a comma
+	// (a level/timing header the book writes as a fragment).
+	//
+	// Keys for the five entries the midcaps pass reaches first are written
+	// against its output, not the raw corpus text — curatedFix runs last.
+	{"pushed back 10 feet If used near a sufficient source of water",
+		"pushed back 10 feet. If used near a sufficient source of water"},
+	{"visual limitations upon them select one hostile creature",
+		"visual limitations upon them. Select one hostile creature"},
+	{"spend your action to make a melee or Ranged Genjutsu Attack",
+		"spend your action to make a melee or ranged Genjutsu Attack"},
+	{"use it to fuel your attack If this is in Reaction to an ally",
+		"use it to fuel your attack. If this is in Reaction to an ally"},
+	{"feel the moonlight on your skin Your arrow glows silver",
+		"feel the moonlight on your skin. Your arrow glows silver"},
+	{"1 rank of Bleeding for each failure If this jutsu is cast as a Chain 2",
+		"1 rank of Bleeding for each failure. If this jutsu is cast as a Chain 2"},
+	{"until the end of your next turn If this jutsu is cast as a Chain 2",
+		"until the end of your next turn. If this jutsu is cast as a Chain 2"},
+	{"impenetrable barrier of steel and chain When you or an ally",
+		"impenetrable barrier of steel and chain. When you or an ally"},
+	{"Strength based ability and skill checks When this jutsu ends",
+		"Strength based ability and skill checks. When this jutsu ends"},
+	{"their chakra efficiency or their chakra recovery If you choose to aid",
+		"their chakra efficiency or their chakra recovery. If you choose to aid"},
+	{"symbolizing your Chakra. For the duration increase your AC by +1",
+		"symbolizing your Chakra. For the duration, increase your AC by +1"},
+	{"it becomes a +2 weapons If cast at S-Rank",
+		"it becomes a +2 weapon. If cast at S-Rank"},
+	{"Reality Marble Genjutsu pledge When you are in an area",
+		"Reality Marble Genjutsu pledge. When you are in an area"},
+	{"contested by the target’s Charisma Saving throw If you have Mastery",
+		"contested by the target’s Charisma Saving throw. If you have Mastery"},
+	{"any Armory upgrades. If taken using If taken using a Silver or higher tier slot",
+		"any Armory upgrades. If taken using a Silver or higher tier slot"},
+	{"cast Chakra Mark to instead have Your seals take the shape",
+		"cast Chakra Mark to instead have your seals take the shape"},
+	{"you can pay the Drain cost and Your weapon gains the Double property",
+		"you can pay the Drain cost and your weapon gains the Double property"},
+	{"It is not considered concentrated on However it is only last until the end of your next turn",
+		"It is not considered concentrated on. However, it only lasts until the end of your next turn"},
+	{"It is not considered concentrated on However it only lasts until the end of your next turn",
+		"It is not considered concentrated on. However, it only lasts until the end of your next turn"},
+	{"per short rest.  When active This tool has a sensor",
+		"per short rest. When active, this tool has a sensor"},
+	{"does not cost chakra to concentrate however If you are attacked",
+		"does not cost chakra to concentrate. However, if you are attacked"},
+	{"Make a Ninjutsu Attack roll This attack deals Force damage",
+		"Make a Ninjutsu Attack roll. This attack deals Force damage"},
+	{"Beginning at 15th level When you would pass a saving throw",
+		"Beginning at 15th level, when you would pass a saving throw"},
+	{"At 7th level When you would make a Dexterity, Wisdom, or Charisma",
+		"At 7th level, when you would make a Dexterity, Wisdom, or Charisma"},
+	{"You can only take this ability If you already have Sharingan Dodge 2",
+		"You can only take this ability if you already have Sharingan Dodge 2"},
+	{"You can only take this ability If you already have Aggressive Jutsu Augmentation",
+		"You can only take this ability if you already have Aggressive Jutsu Augmentation"},
+	{"all 3 prerequisite genjutsu at once If you would end the effect",
+		"all 3 prerequisite genjutsu at once. If you would end the effect"},
+	{"advantage on attack rolls against a creature If at least one of your allies",
+		"advantage on attack rolls against a creature if at least one of your allies"},
+	{"while Hidden does not automatically reveal you This includes attacks",
+		"while Hidden does not automatically reveal you. This includes attacks"},
+	{"+2 bonuses to Saving throws The number of bonuses you can choose",
+		"+2 bonuses to Saving throws. The number of bonuses you can choose"},
+	{"listed at the end of this subclass and The creation points spent",
+		"listed at the end of this subclass. The creation points spent"},
+	{"Wisdom (Illusions) Shadow sword This jutsu can take on the shape",
+		"Wisdom (Illusions). Shadow Sword: this jutsu can take on the shape"},
+	{"9th Phantasmal killer This jutsu gains the Medical Keyword",
+		"9th Phantasmal Killer: this jutsu gains the Medical Keyword"},
+	{"only be used with a Web Short or Longbow or When you can a Tsuchigumo clan Hijutsu",
+		"only be used with a Web Short or Longbow, or when you cast a Tsuchigumo clan Hijutsu"},
+	{"long dragon made of pure lightning, this dragon flies in a straight line",
+		"long dragon made of pure lightning. This dragon flies in a straight line"},
+	{"needle like hair protruding from it., For the duration",
+		"needle-like hair protruding from it. For the duration"},
+
+	// --- fifth pass, the dropped-possessive sweep, 2026-09-13 ---
+	//
+	// The plural-possessive residue of that sweep. possessiveDetRe and
+	// possessiveNounRe both insert "’s", which is wrong wherever the head
+	// noun really is plural ("all targets AC", "both casters unarmed
+	// damage"); possessivePluralContextRe holds those back deliberately and
+	// they are corrected here one at a time, because the right rendering is a
+	// judgment call rather than a mechanical apostrophe move — some read best
+	// as a plural possessive ("creatures’ saving throws"), others as a
+	// distributive singular ("an affected creature’s AC is reduced"), and the
+	// grammatical number of the verb that follows is what decides which.
+	// ("grant the affected creatures temporary hit points" is in neither
+	// group: it is ditransitive, already correct, and deliberately untouched.)
+	{"Affected creatures AC is reduced by 1", "An affected creature’s AC is reduced by 1"},
+	{"Affected creatures AC is reduced by 2", "An affected creature’s AC is reduced by 2"},
+	{"affected creatures AC is instead reduced by 3", "an affected creature’s AC is instead reduced by 3"},
+	{"Affected creatures senses are damaged", "An affected creature’s senses are damaged"},
+	{"Affected creatures jutsu they are casting has its shape size reduced",
+		"An affected creature’s jutsu has its shape size reduced"},
+	{"the affected creatures speed is reduced", "the affected creature’s speed is reduced"},
+	{"the cost of the affected creatures jutsu", "the cost of the affected creature’s jutsu"},
+	{"the collective total of all Casters Ninjutsu Save DC",
+		"the collective total of all Casters’ Ninjutsu Save DCs"},
+	{"the single attack roll with all targets AC", "the single attack roll with each target’s AC"},
+	{"contested by all hostile creatures passive perception",
+		"contested by all hostile creatures’ passive Perception"},
+	{"manipulate other creatures perception of momentum",
+		"manipulate other creatures’ perception of momentum"},
+	{"manipulating other creatures perception of time",
+		"manipulating other creatures’ perception of time"},
+	{"a -1 penalty to creatures saving throws", "a -1 penalty to creatures’ saving throws"},
+	{"the target takes all casters unarmed damage", "the target takes all casters’ unarmed damage"},
+	{"equal to both casters unarmed damage", "equal to both casters’ unarmed damage"},
+	{"Both casters Unarmed Damage", "Both casters’ Unarmed Damage"},
+
+	// A mis-pluralized head noun rather than a dropped apostrophe — the
+	// -ly guard in possessiveExtFix exists so this one is not "corrected"
+	// into a possessive it never was.
+	{"When a Creatures currently under the effects", "When a Creature currently under the effects"},
+
+	// Grammar slips found in the same rows while reviewing the sweep's hits.
+	{"the target gains a ranked of Staggered", "the target gains a rank of Staggered"},
+	// Keyed against the possessive pass's own output, which runs first.
+	{"ability to exert is fore of will is hindered", "ability to exert its force of will is hindered"},
+	{"you and Any friendly creatures behind this radius, are considered",
+		"you and any friendly creatures behind this radius are considered"},
+
+	// Stray ".," left by the PDF extraction, in the three rows where the
+	// comma is not the start of a real clause.
+	{"triggers an Attack of opportunity.,", "triggers an Attack of opportunity."},
+	{"as your levels in this class grows., becoming", "as your levels in this class grow, becoming"},
+	{"(Chapter 6., SHB)", "(Chapter 6, SHB)"},
+
+	// The two outcome lines missing the comma after their "On a ..." opener.
+	// Every other outcome line in the corpus punctuates it.
+	{"On a Success you treat this attack as a hit", "On a Success, you treat this attack as a hit"},
+	{"On a Failure deal 1d6 of additional psychic damage", "On a Failure, deal 1d6 of additional psychic damage"},
 }
 
 // CuratedJutsuNameFixes corrects jutsu.Name source-book data-entry typos
