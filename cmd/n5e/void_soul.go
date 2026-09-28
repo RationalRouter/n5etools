@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // This file is Trickster Scout's Void Soul Awakening (3rd level,

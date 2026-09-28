@@ -9,11 +9,21 @@ import (
 
 // The sourcebook PDFs are not committed (size + copyright); extraction tests
 // run only on machines that have them. CI-safe: they skip when absent.
-const sourcebookDir = "/home/sergio/Documents/N5E"
+// Overridable via N5E_SOURCEBOOK_DIR so this works on any machine.
+func sourcebookDir() string {
+	if d := os.Getenv("N5E_SOURCEBOOK_DIR"); d != "" {
+		return d
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "Documents", "N5E")
+}
 
 func openBook(t *testing.T, name string) *Document {
 	t.Helper()
-	path := filepath.Join(sourcebookDir, name)
+	path := filepath.Join(sourcebookDir(), name)
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook %s not available: %v", name, err)
 	}

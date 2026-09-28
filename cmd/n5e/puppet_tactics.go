@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // Puppet Master Tactics: "Tactics of the Craft" (class_features, level 2)

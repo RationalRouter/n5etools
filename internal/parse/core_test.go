@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 func TestParseFightingStancesFixture(t *testing.T) {
@@ -44,12 +44,26 @@ func TestParseFightingStancesFixture(t *testing.T) {
 	}
 }
 
+// sourcebookDir returns the local directory holding the (uncommitted, not
+// distributed) source PDFs, overridable via N5E_SOURCEBOOK_DIR so these
+// whole-book regressions can run on any machine that has them.
+func sourcebookDir() string {
+	if d := os.Getenv("N5E_SOURCEBOOK_DIR"); d != "" {
+		return d
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "Documents", "N5E")
+}
+
 // loadCoreBookLines opens the real core book and returns its lines (from
 // physical page 2 on), or nil after calling t.Skip if the sourcebook isn't
 // present on this machine. Shared by every core-book whole-book regression.
 func loadCoreBookLines(t *testing.T) []Line {
 	t.Helper()
-	path := filepath.Join("/home/sergio/Documents/N5E", "Naruto 5e - Full Document.pdf")
+	path := filepath.Join(sourcebookDir(), "Naruto 5e - Full Document.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)
 		return nil

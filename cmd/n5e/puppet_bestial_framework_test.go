@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/puppetupgrades"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/puppetupgrades"
 )
 
 // seedSummonTribe inserts one minimal summon_tribes row plus an optional

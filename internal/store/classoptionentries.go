@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sergio/n5e/internal/textentries"
+	"github.com/RationalRouter/n5e/internal/textentries"
 )
 
 // knownEntrySplitFixes hand-corrects a small, closed list of real

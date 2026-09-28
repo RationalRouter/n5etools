@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charsheet"
 	_ "modernc.org/sqlite"
 )
 

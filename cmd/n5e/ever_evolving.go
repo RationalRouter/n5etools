@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // Ever Evolving (class/science-nin/group/scientific-inquiry/shinobi-ware/

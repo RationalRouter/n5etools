@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 // Fixture covering the real quirks: a bulleted role whose second entry
@@ -132,7 +132,7 @@ func mkLinesFor(lines []Line, marker string) []Line {
 // roles, 27 attacks, 295 rank-gated features, 100 progression rows (5 per
 // tribe), zero anomalies. Skips when the sourcebook is absent.
 func TestParseSummonTribesFullJutsuBook(t *testing.T) {
-	path := filepath.Join("/home/sergio/Documents/N5E", "Jiraiyas_Jutsu_Compendium.pdf")
+	path := filepath.Join(sourcebookDir(), "Jiraiyas_Jutsu_Compendium.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)
 	}

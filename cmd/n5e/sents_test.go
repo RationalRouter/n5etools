@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/features"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/features"
 )
 
 // seedSENTResources seeds the minimal rules content S.E.N.Ts' own gating

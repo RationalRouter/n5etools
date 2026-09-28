@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 // Fixture exercising the outline-anchored segmentation: group intro with

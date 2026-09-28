@@ -3,9 +3,9 @@ package main
 import (
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // This file wires Green Technique's own Bestial Framework catalog pick

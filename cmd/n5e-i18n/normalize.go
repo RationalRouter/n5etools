@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // normalize-glossary repairs translated rows that DeepL rendered with a

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // jutsuIsMedical reports whether a jutsu's keywords column names the

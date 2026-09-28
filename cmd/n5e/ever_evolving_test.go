@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charsheet"
 )
 
 // everEvolvingTestSeals: five Armor Seals, one per rank D through S —

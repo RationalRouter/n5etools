@@ -25,11 +25,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/correct"
-	"github.com/sergio/n5e/internal/extract"
-	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/schema"
-	"github.com/sergio/n5e/internal/store"
+	"github.com/RationalRouter/n5e/internal/correct"
+	"github.com/RationalRouter/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/store"
 )
 
 // NamedLoad pairs one store.LoadReport with the label the CLI has always

@@ -605,6 +605,13 @@ Portuguese returned the raw English, are treated as genuine gaps.
 |---|---|---|
 | Class | Classe | RPG character-class sense. Confirmed bug: DeepL non-deterministically mistranslated this as "aula"/"turma" (school-class sense) in ~17 UI catalog keys — hand-patched in `internal/i18n/locales/pt.json`, see [[project_i18n_deepl_pivot_status]] |
 | Classes | Classes | RPG character-class sense, plural. Same bug/fix as above |
+| Action | Ação | universal D&D-style action-economy term; ES already pins this under its own "Core mechanical terms" — PT had never pinned the bare (unprefixed) form, only ever seeing it as part of a full `"N Action"` casting-time string. Corroborated by the fan's independently-reviewed PT-BR spreadsheet (2026-09-28) |
+| Reaction | Reação | same gap/reasoning as Action above; ES's own "Core mechanical terms" table already has this pinned |
+| Bonus action | Ação Bônus | same gap/reasoning; matches the casing/word order already correctly produced for the prefixed `"N Bonus Action"` casting-time strings in this project's own PT content |
+| Touch | Toque | jutsu/weapon range value; not previously pinned for PT |
+| Permanent | Permanente | jutsu duration value; not previously pinned for PT |
+| Instant | Imediato | jutsu duration value, distinct from "Instantaneous" below — both appear as separate English words in source content and the fan's spreadsheet renders them distinctly, so both are pinned separately rather than merged |
+| Instantaneous | Instantâneo | jutsu duration value, see note on "Instant" above |
 
 ## Jutsu names — confirmed gaps (Spanish translated the same field, Portuguese didn't)
 
@@ -1177,6 +1184,46 @@ Spanish rows — also confirmed via web search that the official Spanish D&D 5e 
 "Personal" (alcance personal), not "Uno mismo." Hand-patched all 363 rows the same way as
 Portuguese; same `parseJutsuRange`-uses-raw-English confirmation applies, so this is display-only.
 
+## "Chakra" pluralized as "Chakras" in jutsu names — inconsistency found via a fan's independent PT-BR spreadsheet (found and patched 2026-09-28)
+
+A fan's separate, independently-reviewed PT-BR translation spreadsheet (built for their own
+adversary-generator tool, ~4,683 rows marked as human-reviewed/sourced rather than raw machine
+translation) was cross-referenced against every jutsu name this project already translates, as a
+sanity check on our own PT-BR quality. Of 912 jutsu names the two sources both cover, 910 already
+match exactly — strong independent confirmation that the existing PT jutsu-name translations are
+solid. Two disagreed:
+
+- **"Light" → ours "Luz", fan's spreadsheet "Leve."** Checked against the actual jutsu text (a
+  D&D-style "object sheds bright light" effect): "Luz" (illumination) is correct; "Leve"
+  (lightweight) is a mistranslation on the fan's side. **Not changed** — this is the exact kind of
+  case a "trusted reviewed source" still needs sanity-checking against actual game text before
+  merging, not blind adoption.
+- **"Chakra Hands" → ours "Mãos dos Chakras" (plural, "Hands of the Chakras"), fan's spreadsheet
+  "Mãos de Chakra" (singular, treating Chakra as the unchanged mass-noun loanword this glossary
+  already pins it as — see "Core mechanical terms" above). The fan's version is correct, and
+  checking every other Chakra-prefixed jutsu name already in this project's own PT translations
+  confirms it: 10 of 17 already use the correct singular form ("Golpe do Chakra," "Pulso do
+  Chakra," "Pele de Chakra," etc.) — "Chakra Hands" and 6 siblings are the outliers, not the norm.
+
+**Full list of the 7 outliers found (cross-checked 2026-09-28, confirmed against the majority
+pattern already established across this project's own 17 Chakra-prefixed jutsu names — not
+solely the fan's spreadsheet, which only independently corroborates the "Chakra Hands" row)**:
+
+| Jutsu (English) | Current (wrong) | Corrected |
+|---|---|---|
+| Chakra Distortion Field | Campo de Distorção dos Chakras | Campo de Distorção do Chakra |
+| Chakra Hands | Mãos dos Chakras | Mãos de Chakra |
+| Chakra Movement | Movimento dos Chakras | Movimento do Chakra |
+| Chakra-Seeking Rounds | Rodadas de Busca dos Chakras | Rodadas de Busca do Chakra |
+| Chakra Shield | Escudo dos Chakras | Escudo do Chakra |
+| Chakra Sphere | Esfera dos Chakras | Esfera do Chakra |
+| Sealing Art: Chakra Dispel | Arte do Selamento: Dissipação dos Chakras | Arte do Selamento: Dissipação do Chakra |
+
+**Status: hand-patched 2026-09-28**, same mechanism as the "Self"/"Weapons Range" fixes above —
+direct `UPDATE` on `content_translations` (table_name='jutsu', field='name', locale='pt') across
+all three `rules.db` copies (`out/`, `internal/embedded/`, `dist/`), matching the corrected values
+in the table above exactly.
+
 ## Confirmed false positives — left untranslated by design (pinned 2026-09-11)
 
 Verified during this audit's triage, each against the actual English source and (where relevant)
@@ -1189,6 +1236,13 @@ retranslation doesn't churn them, same treatment as "Kitsune Sessho-Seki" above.
 | Genjutsu: Ketsuryūgan! | Genjutsu: Ketsuryūgan! | `jutsu/chinoike/genjutsu-ketsuryugan`; same treatment as Sharingan above |
 | Tajū Kage Bunshin | Tajū Kage Bunshin | `subclass_features/class/scout-nin/group/scouting-technique/cloning-scout/feature/taju-kage-bunshin`; the actual Japanese name of the real Naruto "Shadow Clone Jutsu," not an invented game term |
 | 1 Fuma Shuriken | 1 Fuma Shuriken | `class_equipment_options` (class/intelligence-operative, group 2 choice 1); "Fuma Shuriken" is a real Naruto weapon name, same treatment as "Kunai" |
+
+**"Touch" glossary-verb false positive (found 2026-09-28, pinning "Touch"/"Toque" above)**: the
+`clan/shakuton` epithet "Too Hot to Touch" → "Quente demais para tocar" trips `verify`'s
+`missing-glossary-term` check, since "Touch" here is an ordinary verb, not the jutsu/weapon
+range value the glossary term pins. The pin itself is correct and worth keeping — confirmed 158
+`jutsu.range='Touch'` rows across the database, already consistently and correctly rendered as
+"Toque" — this epithet is the one narrow collision, not a sign the pin is wrong.
 
 **Known pre-existing inconsistency, not fixed here (out of scope for this pass)**: the
 `class_options/class/scout-nin/option/trickster-maneuvers/ramp-up-*` trio ("Ramp Up: Rakukaja/

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // pendingPackToolkitChoiceRow is one still-open toolkit pick left over from

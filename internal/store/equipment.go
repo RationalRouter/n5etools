@@ -15,8 +15,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sergio/n5e/internal/classcharts"
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/classcharts"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // LoadCuratedEquipment upserts the curated armor and weapon rows.

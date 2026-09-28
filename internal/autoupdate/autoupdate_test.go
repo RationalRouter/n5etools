@@ -13,10 +13,10 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/ingest"
-	"github.com/sergio/n5e/internal/schema"
-	"github.com/sergio/n5e/internal/sources"
-	"github.com/sergio/n5e/internal/store"
+	"github.com/RationalRouter/n5e/internal/ingest"
+	"github.com/RationalRouter/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/sources"
+	"github.com/RationalRouter/n5e/internal/store"
 )
 
 func testDB(t *testing.T) *sql.DB {

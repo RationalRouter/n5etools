@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sergio/n5e/internal/embedded"
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/embedded"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 // openRulesDB opens (or creates) a persistent, writable rules.db next to

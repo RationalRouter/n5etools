@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 func TestParseAdversaryRolesFixture(t *testing.T) {
@@ -168,7 +168,7 @@ func TestParseAdversaryRanksFixture(t *testing.T) {
 // nil after calling t.Skip if the sourcebook isn't present on this machine.
 func loadBingoBookLines(t *testing.T) []Line {
 	t.Helper()
-	path := filepath.Join("/home/sergio/Documents/N5E",
+	path := filepath.Join(sourcebookDir(),
 		"Bingo Book Pack 1 - Adversaries - Class, Freeform, Roles, Role Traits.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)

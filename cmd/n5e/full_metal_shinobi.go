@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // Shinobi-Ware's Full-Metal Shinobi (3rd level): "At Level 6 you choose to

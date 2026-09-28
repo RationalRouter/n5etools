@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 // Fixture mirroring the class template: flavor, inspirations, creation
@@ -418,7 +418,7 @@ func TestParseClassBookScoutNinNullLevelFixes(t *testing.T) {
 // Whole-book regression (verified 2026-07-17 against v3.12). Skips when the
 // sourcebook is absent.
 func TestParseClassBookFullCompendium(t *testing.T) {
-	path := filepath.Join("/home/sergio/Documents/N5E", "Orochimarus_Observation_Compendium.pdf")
+	path := filepath.Join(sourcebookDir(), "Orochimarus_Observation_Compendium.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)
 	}

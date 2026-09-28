@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/puppetupgrades"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/puppetupgrades"
 )
 
 // TestPuppetFoundationAbilityAdjust covers the trickiest part of

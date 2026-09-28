@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // statBlockColumnList is the 18 stat_block_* columns' names, in the exact

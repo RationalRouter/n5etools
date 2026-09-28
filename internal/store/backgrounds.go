@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // LoadBackgrounds upserts the parsed backgrounds and rebuilds their

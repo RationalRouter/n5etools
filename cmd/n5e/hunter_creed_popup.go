@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // hunter_creed_popup.go: the "Hunter's Creed" subclass tracker popup — each

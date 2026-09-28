@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // This file is a companion's own Saving Throws — computed, rollable, and

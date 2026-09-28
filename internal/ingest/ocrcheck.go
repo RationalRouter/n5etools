@@ -17,9 +17,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sergio/n5e/internal/ocr"
-	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/store"
+	"github.com/RationalRouter/n5e/internal/ocr"
+	"github.com/RationalRouter/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/store"
 )
 
 // OCRAnomaly is one page where an independent OCR reading disagreed with

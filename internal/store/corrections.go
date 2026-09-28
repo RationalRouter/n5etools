@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 
-	"github.com/sergio/n5e/internal/correct"
+	"github.com/RationalRouter/n5e/internal/correct"
 )
 
 // WriteTextCorrections appends a Sweep's Records to the text_corrections

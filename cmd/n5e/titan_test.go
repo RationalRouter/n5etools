@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // seedTitanRules inserts a minimal Science-Nin class, its Mech Crafter

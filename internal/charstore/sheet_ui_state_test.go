@@ -6,7 +6,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 func testCharDB(t *testing.T) *sql.DB {

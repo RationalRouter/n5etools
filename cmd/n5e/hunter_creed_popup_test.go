@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // This file covers the "Hunter's Creed" subclass tracker popup

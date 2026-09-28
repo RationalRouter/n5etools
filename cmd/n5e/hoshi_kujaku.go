@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // hoshiKujakuModeFeatureSlug identifies Hoshi Clan's Kujaku Mode

@@ -3,8 +3,8 @@ package main
 import (
 	"database/sql"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // wow_weapons.go: turns an Elemental Innovationist's W.O.W (Weapons of

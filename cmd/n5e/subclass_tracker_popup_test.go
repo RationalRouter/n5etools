@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // getPopup issues a GET against a real subclass-tracker-popup route through

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // seedNinjaneerCatalog seeds enough rules.db content for a Ninjaneer's own

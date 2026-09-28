@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // featSkillProficiencyRe matches the common "You gain Proficiency in/with

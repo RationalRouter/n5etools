@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // coreBook is the shared fixture for the core rulebook's loaders (stances,

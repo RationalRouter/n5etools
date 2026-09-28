@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // LoadAdversaryRoles upserts the five named Roles.

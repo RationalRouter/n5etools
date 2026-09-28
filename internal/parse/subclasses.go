@@ -30,7 +30,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 

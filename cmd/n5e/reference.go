@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // referenceFeatureEntry is one row in the Class Reference popup's single,

@@ -20,10 +20,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sergio/n5e/internal/fetch"
-	"github.com/sergio/n5e/internal/i18n"
-	"github.com/sergio/n5e/internal/schema"
-	"github.com/sergio/n5e/internal/store"
+	"github.com/RationalRouter/n5e/internal/fetch"
+	"github.com/RationalRouter/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/store"
 )
 
 const (

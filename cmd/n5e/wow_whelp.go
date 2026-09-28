@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // scienceNinDraconicGauntletWoWSlug is the Draconic Gauntlet W.o.W's own

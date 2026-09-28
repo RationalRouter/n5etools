@@ -28,8 +28,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/textentries"
+	"github.com/RationalRouter/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/textentries"
 )
 
 // embeddedSubclassOptionList describes one subclass_features row that is

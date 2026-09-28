@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 // A compact clan following the book's template, exercising: wrapped ability
@@ -127,7 +127,7 @@ func TestParseClanBookChoiceASINotFixed(t *testing.T) {
 // were eyeballed against the book's TOC and per-clan sections; all 37
 // anomalies are genuine missing-Keywords omissions in print.
 func TestParseClanBookFullCompendium(t *testing.T) {
-	path := filepath.Join("/home/sergio/Documents/N5E", "Tsunades_Studies_Compendium.pdf")
+	path := filepath.Join(sourcebookDir(), "Tsunades_Studies_Compendium.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)
 	}

@@ -22,7 +22,7 @@ import (
 	"database/sql"
 	"strconv"
 
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // GrantedFeatureRow is one auto-seeded, real class/subclass/clan feature a

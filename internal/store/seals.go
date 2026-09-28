@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // LoadEnhancementSeals upserts the weapon/armor seal entries. Two seals can

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // Three Puppet Master upgrades each print a small table granting specific

@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 func TestMartialDieSize(t *testing.T) {

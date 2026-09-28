@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 // Intelligence Operative's own mechanics, closing the base-class-wide gaps

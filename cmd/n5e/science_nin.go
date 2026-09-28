@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
-	"github.com/sergio/n5e/internal/statlines"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/statlines"
 )
 
 // Science-Nin's own mechanics, starting with the base class's Scientific

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // SourceBook identifies one ingested PDF for provenance rows.

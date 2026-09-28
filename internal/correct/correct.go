@@ -33,7 +33,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sergio/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/parse"
 )
 
 // Record is one applied correction, ready to be logged to the

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charsheet"
 )
 
 // Feat prerequisites are stored as the book's own prose — `feats.prerequisites`

@@ -11,8 +11,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/backup"
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/backup"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 // backupTestServer is testServer's file-backed counterpart: the backups

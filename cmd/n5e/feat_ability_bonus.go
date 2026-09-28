@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // featAbilityIncreaseRe matches the common "Increase your/the X [ability]

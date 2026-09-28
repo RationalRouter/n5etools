@@ -11,7 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sergio/n5e/internal/classcharts"
+	"github.com/RationalRouter/n5e/internal/classcharts"
 )
 
 // LoadClassLevels upserts one chart per class (20 rows each) and upserts its

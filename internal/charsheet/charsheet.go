@@ -22,9 +22,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/features"
-	"github.com/sergio/n5e/internal/puppetupgrades"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/features"
+	"github.com/RationalRouter/n5e/internal/puppetupgrades"
 )
 
 // Abilities lists the six abilities in the canonical order used

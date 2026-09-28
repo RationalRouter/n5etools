@@ -7,8 +7,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/parse"
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/parse"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 func TestSlugify(t *testing.T) {

@@ -99,9 +99,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/i18n"
-	"github.com/sergio/n5e/internal/schema"
-	"github.com/sergio/n5e/internal/statlines"
+	"github.com/RationalRouter/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/statlines"
 )
 
 func main() {

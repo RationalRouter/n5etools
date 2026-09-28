@@ -9,7 +9,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 // testCharDB opens a real file-backed characters.db (not :memory: — Create

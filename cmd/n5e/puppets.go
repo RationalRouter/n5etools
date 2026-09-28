@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/charsheet"
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/features"
-	"github.com/sergio/n5e/internal/i18n"
-	"github.com/sergio/n5e/internal/puppetupgrades"
+	"github.com/RationalRouter/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/features"
+	"github.com/RationalRouter/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/puppetupgrades"
 )
 
 // This file builds on companions.go's Puppet/Summon feature with the parts

@@ -11,7 +11,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/store"
+	"github.com/RationalRouter/n5e/internal/store"
 )
 
 // buildFixtureBundle creates a small SQLite file at path containing one

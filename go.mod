@@ -1,4 +1,4 @@
-module github.com/sergio/n5e
+module github.com/RationalRouter/n5e
 
 go 1.26.4
 

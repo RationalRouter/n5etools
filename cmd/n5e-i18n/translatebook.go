@@ -17,9 +17,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/sergio/n5e/internal/fetch"
-	"github.com/sergio/n5e/internal/i18n"
-	"github.com/sergio/n5e/internal/sources"
+	"github.com/RationalRouter/n5e/internal/fetch"
+	"github.com/RationalRouter/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/sources"
 )
 
 // knownNounColumns lists, per table, the columns whose raw text names a

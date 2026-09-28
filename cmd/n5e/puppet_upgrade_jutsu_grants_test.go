@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/sergio/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/charstore"
 )
 
 func TestLoadPuppetUpgradeJutsuGrantsLevelFilter(t *testing.T) {

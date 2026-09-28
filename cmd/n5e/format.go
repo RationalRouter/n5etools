@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sergio/n5e/internal/textentries"
+	"github.com/RationalRouter/n5e/internal/textentries"
 )
 
 // diceNotationPattern matches TTRPG dice notation like "3d6" or a bare

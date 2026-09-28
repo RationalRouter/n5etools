@@ -7,9 +7,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/features"
-	"github.com/sergio/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/features"
+	"github.com/RationalRouter/n5e/internal/schema"
 )
 
 func TestAbilityModifier(t *testing.T) {

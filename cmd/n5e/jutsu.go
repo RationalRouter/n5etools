@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 // jutsuRankOrder is a small fixed enum (E..S never changes book to book),

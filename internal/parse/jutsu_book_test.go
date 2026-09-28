@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sergio/n5e/internal/extract"
+	"github.com/RationalRouter/n5e/internal/extract"
 )
 
 // Whole-book regression test against the real jutsu compendium (v3.1).
@@ -14,7 +14,7 @@ import (
 // if a re-ingest changes them, something changed — the book or the parser —
 // and either way a human should look.
 func TestParseJutsuBookFullCompendium(t *testing.T) {
-	path := filepath.Join("/home/sergio/Documents/N5E", "Jiraiyas_Jutsu_Compendium.pdf")
+	path := filepath.Join(sourcebookDir(), "Jiraiyas_Jutsu_Compendium.pdf")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("sourcebook not available: %v", err)
 	}

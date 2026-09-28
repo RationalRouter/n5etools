@@ -36,8 +36,8 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/sergio/n5e/internal/charstore"
-	"github.com/sergio/n5e/internal/i18n"
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/i18n"
 )
 
 const tokenCookieName = "n5e_token"

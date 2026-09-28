@@ -46,10 +46,10 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sergio/n5e/internal/autoupdate"
-	"github.com/sergio/n5e/internal/backup"
-	"github.com/sergio/n5e/internal/schema"
-	"github.com/sergio/n5e/internal/sources"
+	"github.com/RationalRouter/n5e/internal/autoupdate"
+	"github.com/RationalRouter/n5e/internal/backup"
+	"github.com/RationalRouter/n5e/internal/schema"
+	"github.com/RationalRouter/n5e/internal/sources"
 )
 
 // backupInterval is how often the running server snapshots characters.db in

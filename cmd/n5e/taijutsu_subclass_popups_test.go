@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sergio/n5e/internal/features"
+	"github.com/RationalRouter/n5e/internal/features"
 )
 
 // This file covers the "Stancer" / "Passionate Flame" / "Ruin" subclass

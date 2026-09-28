@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sergio/n5e/internal/charsheet"
+	"github.com/RationalRouter/n5e/internal/charsheet"
 )
 
 // handleCharacterClanReference serves the "Clan Reference" popup — the
