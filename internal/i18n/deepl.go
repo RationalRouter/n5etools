@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"math/rand"
 	"net/http"
@@ -57,8 +58,12 @@ func PlaceholderTokens(s string) []string {
 // ignore-tagged placeholder DeepL won't translate or move, returning the
 // protected string. Pass the same string to RestorePlaceholders after
 // translation to put the original verbs back.
+//
+// Translate sends text with tag_handling: html, so the plain text is
+// HTML-escaped first: a literal "&" or "<" in the English would otherwise be
+// parsed as markup. RestorePlaceholders decodes the entities again.
 func ProtectPlaceholders(s string) string {
-	return sprintfVerb.ReplaceAllStringFunc(s, func(verb string) string {
+	return sprintfVerb.ReplaceAllStringFunc(html.EscapeString(s), func(verb string) string {
 		return "<ph>" + verb + "</ph>"
 	})
 }
@@ -67,9 +72,11 @@ var phTag = regexp.MustCompile(`<ph>(.*?)</ph>`)
 
 // RestorePlaceholders reverses ProtectPlaceholders on a translated string --
 // DeepL passes ignored tags and their contents through untouched (that's
-// the whole point of ignore_tags), so this just strips the wrapper back off.
+// the whole point of ignore_tags), so this strips the wrapper back off. It
+// then decodes HTML entities: in html mode DeepL returns escaped text
+// (e.g. "C&#x27;s"), which would otherwise be stored and shown verbatim.
 func RestorePlaceholders(s string) string {
-	return phTag.ReplaceAllString(s, "$1")
+	return html.UnescapeString(phTag.ReplaceAllString(s, "$1"))
 }
 
 // DeepLClient is a small client for the parts of the DeepL API this project

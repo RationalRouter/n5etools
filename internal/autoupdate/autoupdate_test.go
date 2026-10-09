@@ -2,8 +2,10 @@ package autoupdate
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -106,6 +108,49 @@ func TestCheckOneUnchanged(t *testing.T) {
 	}
 }
 
+// TestCheckOneUnmarkedMigrationDoesNotReingest: a book last ingested at an
+// older migration is still current when no newer migration declares a
+// re-ingest for it. The startup check must stay at one HEAD request, with no
+// download and no ingest.
+func TestCheckOneUnmarkedMigrationDoesNotReingest(t *testing.T) {
+	db := testDB(t)
+	remoteMod := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	downloadCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Last-Modified", remoteMod.Format(http.TimeFormat))
+		if r.Method == http.MethodGet {
+			downloadCalled = true
+		}
+	}))
+	defer srv.Close()
+
+	book := sources.BookSource{Slug: "book/core", Title: "Test Book", DriveURL: fakeDriveURL}
+	if err := store.RecordSourceBookProvenance(db, store.SourceBook{
+		Slug: book.Slug, Title: book.Title, Version: "x", FileName: "x.pdf", FileSHA256: "x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSourceBookLastModified(db, book.Slug, remoteMod.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	required, err := schema.RequiredIngestVersion(schema.Rules, book.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSourceBookIngestVersion(db, book.Slug, required); err != nil {
+		t.Fatal(err)
+	}
+
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	if res.Action != "unchanged" {
+		t.Errorf("Action = %q, want %q (err: %v)", res.Action, "unchanged", res.Err)
+	}
+	if downloadCalled {
+		t.Error("an unmarked migration must not force a download")
+	}
+}
+
 // TestCheckOneVersionStaleForcesReingest pins the actual bug fix: even when
 // Drive's own Last-Modified says nothing changed, a book whose stored
 // ingest_schema_version doesn't match this binary's current one (here:
@@ -170,6 +215,61 @@ func TestCheckOneVersionStaleForcesReingest(t *testing.T) {
 	}
 	if !found || gotVersion != testVersion(t) {
 		t.Errorf("stamped ingest version = %q (found %v), want %q", gotVersion, found, testVersion(t))
+	}
+}
+
+// TestCheckOneHashMatchSkipsReingest: Drive's Last-Modified moved, but the
+// downloaded bytes hash identically to the last-ingested file and the ingest
+// version is current — no re-ingest, and the timestamp baseline advances so
+// the next startup doesn't download again.
+func TestCheckOneHashMatchSkipsReingest(t *testing.T) {
+	db := testDB(t)
+	remoteMod := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	pdfBody := []byte("%PDF-1.4\nidentical\n")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Last-Modified", remoteMod.Format(http.TimeFormat))
+		if r.Method == http.MethodGet {
+			w.Write(pdfBody)
+		}
+	}))
+	defer srv.Close()
+
+	const testSlug = "book/fixture-hash-match"
+	ingestCalled := false
+	ingestDispatch[testSlug] = func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
+		ingestCalled = true
+		return &ingest.Report{}, nil
+	}
+	t.Cleanup(func() { delete(ingestDispatch, testSlug) })
+
+	book := sources.BookSource{Slug: testSlug, Title: "Fixture Book", DriveURL: fakeDriveURL}
+	if err := store.RecordSourceBookProvenance(db, store.SourceBook{
+		Slug: book.Slug, Title: book.Title, Version: "x", FileName: "x.pdf",
+		FileSHA256: fmt.Sprintf("%x", sha256.Sum256(pdfBody)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSourceBookLastModified(db, book.Slug, remoteMod.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	version := testVersion(t)
+	if err := store.SetSourceBookIngestVersion(db, book.Slug, version); err != nil {
+		t.Fatal(err)
+	}
+
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), version, book)
+	if res.Action != "unchanged" {
+		t.Fatalf("Action = %q (err: %v), want %q", res.Action, res.Err, "unchanged")
+	}
+	if ingestCalled {
+		t.Error("ingest ran even though the downloaded file's hash matched the stored one")
+	}
+	got, found, err := store.GetSourceBookLastModified(db, book.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || !got.Equal(remoteMod) {
+		t.Errorf("drive_last_modified = %v (found %v), want %v", got, found, remoteMod)
 	}
 }
 

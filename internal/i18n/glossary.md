@@ -25,9 +25,46 @@ Naruto itself, since several class names are drawn directly from the source anim
 | Bonus action | Acción Adicional | FoundryVTT dnd5e-es |
 | Reaction | Reacción | FoundryVTT dnd5e-es |
 | Concentration | Concentración | FoundryVTT dnd5e-es |
-| Casting at higher rank ("upcasting") | Lanzado/a a un rango superior | adapted from official SRD's "lanzado a un nivel superior" — this game uses jutsu ranks (E-S), not spell levels, so "nivel" becomes "rango" |
+| Casting at higher rank ("upcasting") | Lanzado/a a un nivel superior | the official SRD's own "lanzado a un nivel superior", unchanged — see the Rank row below |
+| Rank | Nivel | covers jutsu rank (E–S), Shinobi rank, adversary rank and condition rank. **changed 2026-10-08 by direction** from "rango" (jutsu/adversary ranks) and "grado" (condition ranks): "Rango D" → "Nivel D", "1 grado de Sangrado" → "1 nivel de Sangrado". Matches Portuguese ("Nível D") and the official SRD's "nivel de agotamiento". Character/class level is also "nivel"; the rank letter or the number keeps the two apart. Exceptions that stay as-is: "rango de amenaza (crítica)" = critical threat **range**, "rango Bronce" etc. in the UI catalog = upgrade **tier**, and angles ("360 grados"). Applied to all existing es content_translations rows and es.json the same day |
+| Ranks | Niveles | plural of the row above |
 | Mastery (this game's own stacking rank system) | Maestría | homebrew system, no D&D precedent to check against — approved as our own call |
 | Class Feature | Rasgo de Clase | confirmed via the official Spanish SRD mirror's own class pages (e.g. Guerrero) and nivel20.com — NOT "Característica de Clase" (initially guessed wrong): "Característica" is already reserved for ability scores (see "Ability check → Prueba de Característica" above), so reusing it here would collide with that meaning. "Rasgo" (trait) is the correct word |
+
+## Core mechanics canonical renderings (pinned 2026-10-08)
+
+One mechanic, one rendering, in `es.json` and in every es `content_translations` row. Verified
+against the official Spanish SRD 5.1 (srd.nosolorol.com) and the FoundryVTT `dnd5e-es`
+translation (`lang/es.json`: "Tirada de Salvación", "CD Salvación", "Dados de Golpe", "Puntos
+de Golpe" / "PG"). "Saving throw → Tirada de Salvación" is already pinned in the core table
+above; the short form "salvación" (column headers, "Wisdom save") follows it.
+
+| English | Spanish | Source |
+|---|---|---|
+| Save DC | CD de salvación | FoundryVTT dnd5e-es "CD Salvación"; official SRD "CD de la tirada de salvación". Replaces "Salvad a DC", "Salvación: DC =" and "CD de tirada de salvación". Bare "DC" is always "CD" (never "DC" or "CC"), and CD is feminine ("la CD", "tu CD") |
+| DC | CD | official SRD 5.1 |
+| Death saving throw | tirada de salvación contra la muerte | official SRD 5.1 |
+| Hit Die | Dado de Golpe | official SRD 5.1 and FoundryVTT dnd5e-es. Replaces "dado de vida" (79 content rows), which is the pt/2024 wording, not the Spanish 5e term; "Dado de Daño" is a damage die and is never used for this |
+| Hit Dice | Dados de Golpe | plural of the row above |
+| Hit points | puntos de golpe | official SRD 5.1 and FoundryVTT dnd5e-es; pairs with Dado de Golpe. Replaces "puntos de vida" (~1,320 content rows) |
+| HP | PG | abbreviation of the row above; replaces "PV" |
+| Chakra Die | Dado de Chakra | homebrew, built on "Dado de Golpe" (same construction); previously left as untranslated "Chakra Die" in `classes.chakra_die` |
+| Chakra Dice | Dados de Chakra | plural of the row above |
+
+The Flurry die stays "Dado de Ráfaga" (pinned in the Subclass Features section below).
+
+Applied with `n5e-i18n normalize-terms` (see the Portuguese section's matching heading for
+the tool), plus hand fixes for UI labels it does not cover.
+
+### Jutsu cost lines (`jutsu.cost_text`)
+
+`n5e-i18n translate` renders a jutsu's cost line itself instead of sending it to DeepL
+(`cmd/n5e-i18n/jutsu_cost.go`), because DeepL mangled the bare lines without context ("Los 5
+Chakras", "Chakra de 13", "4. Chakra"). The rendering, for es and pt alike, is "N de Chakra",
+"Especial (N de Chakra)", "N de Chakra Estelar", and for es / pt: "o" / "ou", "N Calorías" /
+"N Calorias", "N Dado(s) de Golpe" / "N Dado(s) de Vida" (plural by the count, so the book's
+"2 Hit Die" becomes plural), "X de Furia" / "X de Fúria". The few sentence-like costs are
+listed verbatim in that file. Applied to every existing es/pt row on 2026-10-08.
 
 ## UI navigation categories (must match between nav bar and any other reference to the same category)
 
@@ -403,6 +440,49 @@ already applied to the `jutsu.components` labels — every time a new machine-pa
 in scope for translation via the UI catalog; only the raw parsed data column itself stays
 untranslated. Apply this by default from now on without asking again.
 
+## Adversary / Encounter Generator terms (Bingo Book, Pack 1, Adversary Builder sheet)
+
+Added 2026-10-08, before the first DeepL pass over the Bingo Book NPC templates, the Pack 1
+enrichment tables, and the community Adversary Builder sheet. The earlier `adversary_roles` pass ran
+without a Portuguese column and rendered the roles as sports positions: es "Delantero"/"Defensa"/
+"Simpatizante", pt "Zagueiro"/"Apoiante". Those rows were corrected to the values below in the same
+pass. Rank names match the UI catalog's `npc_templates.class_*` keys.
+
+| English | Spanish | Portuguese | Note |
+|---|---|---|---|
+| Striker | Atacante | Atacante | adversary role; D&D 4e Devir Spanish |
+| Defender | Defensor | Defensor | adversary role; D&D 4e Devir Spanish |
+| Controller | Controlador | Controlador | adversary role |
+| Lurker | Acechador | Espreitador | adversary role; homebrew call, no 4e citation |
+| Supporter | Apoyo | Apoiador | adversary role; homebrew call (pt matches the existing role description's own usage) |
+| Minion | Esbirro | Lacaio | adversary rank |
+| Elite | Élite | Elite | adversary rank |
+| Solo | Solitario | Solo | adversary rank; pt keeps the loanword, as the UI catalog already does |
+| Tenacity | Tenacidad | Tenacidade | adversary resource |
+| Optional Classification | Clasificación Opcional | Classificação Opcional | |
+| Iconic | Icónico | Icônico | classification tier |
+| Epic | Épico | Épico | classification tier |
+| Battlefield Domain | Dominio del Campo de Batalla | Domínio do Campo de Batalha | |
+| Elite Action | Acción de Élite | Ação de Elite | |
+| Specialist Jutsu | Jutsu de Especialista | Jutsu de Especialista | |
+| General Traits | Rasgos Generales | Traços Gerais | Bingo Book section |
+| Adversary | Adversario | Adversário | |
+| GM | DJ | Mestre | matches existing UI-catalog usage |
+| Melee Weapon Attack | Ataque con arma cuerpo a cuerpo | Ataque Corpo a Corpo com Arma | stat-block attack line |
+| Ranged Weapon Attack | Ataque con arma a distancia | Ataque à Distância com Arma | stat-block attack line |
+| +N to hit | +N a impactar | +N para atingir | stat-block attack line |
+| Hit: (damage) | Impacto: | Acerto: | stat-block attack line |
+
+The stat-block attack lines follow the published 5e (2014) stat-block wording. The Spanish
+"Impacto" is confirmed by the official Spanish SRD's monster-reading guide
+(srd.nosolorol.com/DD5/aventuras/monstruos.html). "a impactar" and the Portuguese
+(Galápagos-style) phrasing were not re-verified online on 2026-10-08. The SRD site's stat-block
+pages render client-side and couldn't be fetched.
+
+DeepL's raw output varied across the first pass ("Si acierta", "al golpear", "Ataque com arma
+branca", "de longo alcance", "Acertando"). It was normalized to the table above after
+translation. Expect the same drift on future runs and re-check these lines.
+
 ## Combat actions (verified against official Spanish SRD)
 
 | English | Spanish | Source |
@@ -485,7 +565,7 @@ apply this same substitution whenever a class's own name is referenced generical
 > **Poisonous Lock**: Una cerradura de resorte con una púa Intoxicante cerca del ojo de la
 > cerradura; rompiendo la cerradura no la desactiva. Intentando abrirla o forzarla sin la llave
 > correcta activa un pinchazo, obligando a una salvación para evitar quedar Intoxicado durante 1
-> hora (3 rangos de Intoxicado si se falla por 5 o más).
+> hora (3 niveles de Intoxicado si se falla por 5 o más).
 >
 > **Hidden Pit Trap**: Una trampilla sobre un pozo cuadrado de 10 pies, de 30 pies de profundidad,
 > con 5 pies de agua en el fondo. Una criatura que camine sobre ella cae y recibe daño por caída
@@ -564,7 +644,7 @@ below); results land in a separate report before this becomes a live editing tas
 > ataque que realice contra el objetivo.
 >
 > **Bola de Fuego de Éter** (Costo: 5 de Chakra). Ataque de Arma a Distancia: Alcance 90 pies, un
-> objetivo. Impacto: 4d10+4 de daño de fuego. Con una tirada de 17 a 20, el objetivo obtiene 1 rango
+> objetivo. Impacto: 4d10+4 de daño de fuego. Con una tirada de 17 a 20, el objetivo obtiene 1 nivel
 > de Quemado.
 >
 > **Aliento de Éter** (Costo: 10 de Chakra). La Cría exhala un gran cono de fuego alquímico. Ataque
@@ -576,7 +656,7 @@ below); results land in a separate report before this becomes a live editing tas
 > **Meteoro de Éter** (Costo: 25 de Chakra) [Recarga 5-6]. La Cría exhala un sigilo dracónico de
 > llamas sobre el suelo, en un espacio dentro de 120 pies. Grandes bolas de fuego alquímico
 > comienzan a manifestarse en el cielo, tratando el área como si estuviera siendo el objetivo del
-> Ninjutsu de Fuego Tormenta de Fuego de Rango A.
+> Ninjutsu de Fuego Tormenta de Fuego de Nivel A.
 
 # Portuguese (pt) translation glossary
 
@@ -612,6 +692,65 @@ Portuguese returned the raw English, are treated as genuine gaps.
 | Permanent | Permanente | jutsu duration value; not previously pinned for PT |
 | Instant | Imediato | jutsu duration value, distinct from "Instantaneous" below — both appear as separate English words in source content and the fan's spreadsheet renders them distinctly, so both are pinned separately rather than merged |
 | Instantaneous | Instantâneo | jutsu duration value, see note on "Instant" above |
+
+## Core mechanics canonical renderings (pinned 2026-10-08)
+
+One mechanic, one rendering, in `pt.json` and in every pt `content_translations` row. Before
+this pass, "saving throw" appeared as "jogada de resistência", "jogada de salvamento", "jogo de
+defesa", "teste de salvação", "teste de defesa" and "salvaguarda", and "Save DC" as "CD de
+Defesa", "CD de Salvação", "CD de Jogo de Defesa", "DC de Defesa" and "Salve DC".
+
+**Source**: the 2014 official PT-BR D&D 5e (Galápagos Jogos) Livro do Jogador and its character
+sheet, which use "teste de resistência", "CD de resistência", "Dados de Vida" and "pontos de
+vida" / "PV". This game is a 2014-5e hack and already used "teste de resistência" in ~2,050
+content rows, and `translation_methodology.md` uses it too.
+
+**Considered and rejected**: "salvaguarda" from the 2024 PT-BR Livro do Jogador (Asmodee, May
+2026), which the community Foundry `pt-BR` module also follows ("salvaguarda", "CD de Magia").
+It is now official, but it is the 2024 rules' vocabulary, while every other term this game
+borrows (Hit Dice, proficiency, the 2014 class/condition set) follows the 2014 books. Mixing
+both editions' terms is worse than consistently using the 2014 one. Revisit this if the game
+ever rebases on the 2024 rules.
+
+| English | Portuguese | Source |
+|---|---|---|
+| Saving throw | teste de resistência | Galápagos 2014 PT-BR. Plural "testes de resistência". The short English "save" ("Wisdom save", "on a failed save") also maps here, never to bare "resistência", which is damage resistance in this ruleset. "teste" is masculine: "o teste", "bem-sucedido", "um teste" |
+| Save DC | CD de resistência | Galápagos 2014 PT-BR "CD de resistência (de magia)". CD (classe de dificuldade) is **feminine**: "a CD", "sua CD", "na CD". UI labels use "CD de Resistência" |
+| DC | CD | Galápagos 2014 PT-BR; never "DC" |
+| Death saving throw | teste de resistência contra a morte | Galápagos 2014 PT-BR; replaces "teste de morte" |
+| Hit Die | Dado de Vida | Galápagos 2014 PT-BR. Replaces "Dado de Dano" (`classes.hit_die`), which means damage die |
+| Hit Dice | Dados de Vida | plural of the row above |
+| Hit points | pontos de vida | Galápagos 2014 PT-BR (unchanged, already consistent) |
+| Chakra Die | Dado de Chakra | homebrew, built on "Dado de Vida"; previously left as untranslated "Chakra Die" in `classes.chakra_die` |
+| Chakra Dice | Dados de Chakra | plural of the row above |
+| Flurry Die | Dado de Rajada | homebrew; the majority pt rendering. Replaces "Matriz Flurry", "dado de Flurry", "dado de série" and "dado de enxurrada" |
+| Flurry Technique | Técnica de Rajada | homebrew, matches Dado de Rajada. Named techniques are quoted after it: Técnica de Rajada “Desvio Aprimorado”. Replaces "técnica de série de ataques", "técnica de ataque em sequência" and "Técnica Flurry" |
+| Weapon Flurry | Rajada com Armas | Weapon Specialist class feature; replaces "Série de Golpes com Armas" and "Flurry com Arma" |
+| Superior Weapon Flurry | Rajada com Armas Superior | Weapon Specialist class feature; replaces "Série de Ataques com Armas Superiores", where "Superior" wrongly modified the weapons |
+| Enhanced Flurry | Rajada Aprimorada | Taijutsu Specialist (Passionate Flame) feature; replaces the untranslated "Flurry Aprimorado". es "Ráfaga mejorada" uses the same family |
+| Disturbance Flurry | Rajada de Perturbação | Taijutsu Specialist (Disturbance) feature; replaces "Oleada de perturbações", where "Oleada" is Spanish |
+| Cooking Die | Dado de Cozinha | homebrew; always capitalized as a resource name. Replaces "Dado de Culinária" and "dado de culinária". "Kit de Culinária" / "Ferramenta de Culinária" (the Cooking Kit / Tool) are a different thing and stay |
+| Cooking Dice | Dados de Cozinha | plural of the row above |
+| Attack roll | jogada de ataque | Galápagos 2014 PT-BR. Replaces "teste de ataque" and "lançamento de ataque". "jogada" is feminine: "a jogada", "sua próxima jogada de ataque bem-sucedida", "nas jogadas de ataque" |
+| Attack rolls | jogadas de ataque | plural of the row above |
+
+Out of scope for this pin: the Taijutsu Specialist's "Flurry of Blows" (its own Martial
+Technique, "Enxurrada de golpes"), and "Gama Flurry" (a toad summon's proper name, kept as-is
+in es too).
+
+### `n5e-i18n normalize-terms`
+
+`cmd/n5e-i18n/normalize_terms.go` rewrites the drifted variants above to the pinned
+renderings, in a catalog (`-catalog internal/i18n/locales/pt.json`) or in a rules DB's
+`content_translations` (`-db out/rules.db`). It is a dry run unless `-apply` is given. For pt it
+also fixes grammatical agreement around the rewritten noun: "a jogada de resistência
+bem-sucedida" becomes "o teste de resistência bem-sucedido", and "o seu CD" becomes "a sua CD".
+Each rule is gated on the English source containing the matching term, so an unrelated
+"defesa" (defense) is never touched. It was run on 2026-10-08 against both catalogs and against
+`out/rules.db` and `dist/rules.db`: 787 pt rows and 854 es rows, plus 83 pt and 25 es catalog
+keys. The Cooking Die and attack-roll rules were added the same day and rewrote 497 more pt rows
+and 5 catalog keys; the two remaining hand fixes were "é necessário uma jogada de ataque" →
+"necessária".
 
 ## Jutsu names — confirmed gaps (Spanish translated the same field, Portuguese didn't)
 

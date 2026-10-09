@@ -1,0 +1,49 @@
+[
+  {
+    "slug": "adversary-template/kashu-genin",
+    "name": "Kashu Genin",
+    "page": 47,
+    "rank": "D", "size": "Medium", "clan": "Kashu", "clan_slug": "kashu", "role": "Controller",
+    "class": "standard", "affiliation": "Sound Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 14, "ac_note": "M. Armor", "dr": 2, "initiative": 5,
+    "speed": "30 ft.", "hp": "26", "cp": 33,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 12, "mod": 1, "save": 4},
+    "con": {"score": 12, "mod": 1, "save": 6},
+    "int": {"score": 8, "mod": -1, "save": 2},
+    "wis": {"score": 14, "mod": 2, "save": 7},
+    "cha": {"score": 10, "mod": 0, "save": 3},
+    "skills": [
+      {"name": "Acrobatics", "mod": 5},
+      {"name": "Illusions", "mod": 6},
+      {"name": "Intimidation", "mod": 4},
+      {"name": "Performance", "mod": 4}
+    ],
+    "condition_resistances": "Disoriented",
+    "passive_perception": 12,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Auditory Ninja Tool", "tags": "Attack", "text": "You gain an Auditory Ninja Tool, a weapon with the Light and Finesse qualities with which you are proficient. This weapon deals either 1d4 bludgeoning damage or Xd4 psychic damage, where X = your level / 4. Attacks that deal psychic damage use your Genjutsu modifier for damage instead of Strength or Dexterity. You may use this tool as a component of any Genjutsu you cast with the Auditory keyword, replacing the Hand Sign (HS) component (if any) and increasing the first instance of damage dealt by +1 damage die."},
+        {"name": "Get Into Position", "tags": "Mobility, Buff", "text": "When you would withhold your action to cast a jutsu in response to a hostile or allied creature's actions, you can, as part of the same action, command up to 2 allies to move up to 30 feet into any space that can hold them."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kashu Genin may make two attacks with its currently equipped weapons."},
+        {"name": "Auditory Ninja Tool", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 1) bludgeoning or 5 (1d4 + 2) psychic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 1) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Feather Burst", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Amped Shot", "Frigid Thoughts", "Psychic Enhancement", "Thought Film", "Soundless Blinding Echo"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace"]}
+      ]}
+    ]
+  }
+]

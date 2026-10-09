@@ -27,23 +27,53 @@ var diceNotationPattern = regexp.MustCompile(`\b(\d*)d(\d+)\b`)
 // free. A no-op on text with no dice notation, so it's safe to apply
 // unconditionally rather than needing a per-field "is this actually a
 // dice field" check.
+//
+// Dice inside a stat block's own "average (formula)" parenthetical —
+// "Hit: 20 (2d12 + 7)" — are left alone: the average is already printed in
+// front, and annotating again would read "20 (2d12 (13) + 7)".
 func diceAvg(s string) string {
-	return diceNotationPattern.ReplaceAllStringFunc(s, func(m string) string {
-		sub := diceNotationPattern.FindStringSubmatch(m)
+	matches := diceNotationPattern.FindAllStringSubmatchIndex(s, -1)
+	if matches == nil {
+		return s
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range matches {
+		b.WriteString(s[last:m[1]])
+		last = m[1]
+		if insideAverageParen(s[:m[0]]) {
+			continue
+		}
 		count := 1
-		if sub[1] != "" {
-			n, err := strconv.Atoi(sub[1])
+		if m[2] != m[3] {
+			n, err := strconv.Atoi(s[m[2]:m[3]])
 			if err != nil {
-				return m
+				continue
 			}
 			count = n
 		}
-		sides, err := strconv.Atoi(sub[2])
+		sides, err := strconv.Atoi(s[m[4]:m[5]])
 		if err != nil || sides == 0 {
-			return m
+			continue
 		}
-		return m + " (" + diceAverageText(count, sides) + ")"
-	})
+		b.WriteString(" (" + diceAverageText(count, sides) + ")")
+	}
+	b.WriteString(s[last:])
+	return b.String()
+}
+
+// averageParenPrefix matches text ending in a number followed by an opening
+// parenthesis, the "20 (" in "20 (2d12 + 7)".
+var averageParenPrefix = regexp.MustCompile(`\d\s*\($`)
+
+// insideAverageParen reports whether the end of before sits inside a still-
+// open parenthetical that directly follows a number.
+func insideAverageParen(before string) bool {
+	open := strings.LastIndexByte(before, '(')
+	if open < 0 || strings.IndexByte(before[open:], ')') >= 0 {
+		return false
+	}
+	return averageParenPrefix.MatchString(before[:open+1])
 }
 
 // diceAverageText computes an NdM roll's average as exact halves-of-an-

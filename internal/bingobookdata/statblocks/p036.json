@@ -1,0 +1,48 @@
+[
+  {
+    "slug": "adversary-template/fuma-genin",
+    "name": "Fuma Genin",
+    "page": 36,
+    "rank": "D", "size": "Medium", "clan": "Fuma", "clan_slug": "fuma", "role": "Generalist",
+    "class": "standard", "affiliation": "Factionless", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 14, "ac_note": "L. Armor", "dr": 2, "initiative": 6,
+    "speed": "30 ft.", "hp": "22", "cp": 22,
+    "str": {"score": 6, "mod": -2, "save": 0},
+    "dex": {"score": 14, "mod": 2, "save": 6},
+    "con": {"score": 8, "mod": -1, "save": 1},
+    "int": {"score": 12, "mod": 1, "save": 5},
+    "wis": {"score": 12, "mod": 1, "save": 3},
+    "cha": {"score": 10, "mod": 0, "save": 2},
+    "skills": [
+      {"name": "Acrobatics", "mod": 6},
+      {"name": "Investigation", "mod": 5},
+      {"name": "Martial Arts", "mod": 6},
+      {"name": "Perception", "mod": 5}
+    ],
+    "passive_perception": 15,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Amazing Accuracy", "tags": "Attack", "text": "When you target a creature, ignore all cover short of total cover."},
+        {"name": "Improved Critical", "tags": "Attack", "text": "Critical hits increase their damage die by 1/6th of your level."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Fuma Genin may make two attacks with its currently equipped weapons."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Falling Heaven: Divide", "Falling Heaven: Split", "Falling Heaven: Storm"]}
+      ]}
+    ]
+  }
+]

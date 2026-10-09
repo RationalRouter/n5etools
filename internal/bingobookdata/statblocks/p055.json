@@ -1,0 +1,49 @@
+[
+  {
+    "slug": "adversary-template/yuki-genin",
+    "name": "Yuki Genin",
+    "page": 55,
+    "rank": "D", "size": "Medium", "clan": "Yuki", "clan_slug": "yuki", "role": "Controller",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 12, "ac_note": "L. Armor", "dr": 2, "initiative": 5,
+    "speed": "30 ft.", "hp": "22", "cp": 29,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 12, "mod": 1, "save": 6},
+    "con": {"score": 10, "mod": 0, "save": 3},
+    "int": {"score": 14, "mod": 2, "save": 7},
+    "wis": {"score": 12, "mod": 1, "save": 4},
+    "cha": {"score": 8, "mod": -1, "save": 2},
+    "skills": [
+      {"name": "Acrobatics", "mod": 5},
+      {"name": "Chakra Control", "mod": 4},
+      {"name": "Investigation", "mod": 6},
+      {"name": "Ninshou", "mod": 6}
+    ],
+    "condition_resistances": "Chilled",
+    "passive_perception": 11,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Entanglement", "tags": "Control", "text": "The ground in a 30 ft. radius around this adversary is treated as difficult terrain for hostile creatures. Each hostile creature that starts its turn in that area must succeed on a Strength saving throw against DC 10 + level or have its speed reduced to 0 until the end of its current turn. This trait can be temporarily deactivated if this adversary becomes dazed, stunned, or concussed. The aura remains deactivated until the end of this adversary's next turn."},
+        {"name": "Terrain Advantage", "tags": "Control", "text": "Immunity to difficult terrain. Gain a +10 bonus to speed while in an area of difficult terrain."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Yuki Genin may make two attacks with its currently equipped weapon."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 1) piercing damage."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +5 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 1) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Hidden Mist", "Ice Daggers", "Ice Dome of Nothingness"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Breath of Rain: Cumulous"]}
+      ]}
+    ]
+  }
+]

@@ -610,6 +610,16 @@ var curatedCorrections = []curatedCorrection{
 	// Every other outcome line in the corpus punctuates it.
 	{"On a Success you treat this attack as a hit", "On a Success, you treat this attack as a hit"},
 	{"On a Failure deal 1d6 of additional psychic damage", "On a Failure, deal 1d6 of additional psychic damage"},
+
+	// "chakras die": a stray plural on "chakra" where the resource is the
+	// Chakra Die. The corpus's own singular "N Chakra die" phrasing is left
+	// alone; these four have both words wrong.
+	{"Spend a number of chakras die up to your proficiency bonus.",
+		"Spend a number of Chakra Dice up to your proficiency bonus."},
+	{"can spend up to two chakras die, regaining", "can spend up to two Chakra Dice, regaining"},
+	{"spend 3 or more chakras die, you regain 1 chakra die at",
+		"spend 3 or more Chakra Dice, you regain 1 Chakra Die at"},
+	{"you spend 2 chakras die and create a keycard", "you spend 2 Chakra Dice and create a keycard"},
 }
 
 // CuratedJutsuNameFixes corrects jutsu.Name source-book data-entry typos

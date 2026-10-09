@@ -1,0 +1,98 @@
+[
+  {
+    "slug": "adversary-template/hebi-genin",
+    "name": "Hebi Genin",
+    "page": 41,
+    "rank": "D", "size": "Medium", "clan": "Hebi", "clan_slug": "hebi", "role": "Lurker",
+    "class": "standard", "affiliation": "Sound Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 11, "ac_note": "L. Armor", "dr": 2, "initiative": 6,
+    "speed": "50 ft.", "hp": "25", "cp": 33,
+    "str": {"score": 6, "mod": -2, "save": 0},
+    "dex": {"score": 14, "mod": 2, "save": 6},
+    "con": {"score": 12, "mod": 1, "save": 3},
+    "int": {"score": 10, "mod": 0, "save": 4},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 12, "mod": 1, "save": 3},
+    "skills": [
+      {"name": "Acrobatics", "mod": 6},
+      {"name": "Deception", "mod": 5},
+      {"name": "Stealth", "mod": 6},
+      {"name": "Survival", "mod": 3}
+    ],
+    "passive_perception": 9,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Hebi Regeneration", "tags": "Healing", "text": "At the beginning of each of your turns, roll 1d8. On a roll of 5-8, regain a number of hit points equal to twice your level."},
+        {"name": "Primary Target", "tags": "Control", "text": "As a bonus action, mark one creature you can see within 60 feet. A creature marked by this feature cannot gain the benefits of stealth against you."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Hebi Genin may make two attacks with its currently equipped weapon."},
+        {"name": "Katana", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 2) slashing damage."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 2) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Adaptive Camouflage Technique", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Breath of Roses: Plum", "Formation of One Thousand Snakes", "Striking Stance: Cobra"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/hebi-chunin",
+    "name": "Hebi Chunin",
+    "page": 41,
+    "rank": "C", "size": "Medium", "clan": "Hebi", "clan_slug": "hebi", "role": "Lurker",
+    "class": "standard", "affiliation": "Sound Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 14, "ac_note": "L. Armor", "dr": 2, "initiative": 8,
+    "speed": "50 ft.", "hp": "54", "cp": 74,
+    "str": {"score": 6, "mod": -2, "save": 0},
+    "dex": {"score": 16, "mod": 3, "save": 8},
+    "con": {"score": 14, "mod": 2, "save": 4},
+    "int": {"score": 12, "mod": 1, "save": 6},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 14, "mod": 2, "save": 7},
+    "skills": [
+      {"name": "Acrobatics", "mod": 8},
+      {"name": "Deception", "mod": 7},
+      {"name": "Martial Arts", "mod": 8},
+      {"name": "Stealth", "mod": 8},
+      {"name": "Survival", "mod": 4}
+    ],
+    "passive_perception": 9,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Hebi Regeneration", "tags": "Healing", "text": "At the beginning of each of your turns, roll 1d8. On a roll of 5-8, regain a number of hit points equal to twice your level."},
+        {"name": "Sneak Attack", "tags": "Attack", "text": "Once per turn, you deal an extra 1d8 damage per two levels when you hit a target with an attack and have advantage on the attack roll, or when the target is within 5 feet of your ally, as long as you don't have disadvantage."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Hebi Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Katana", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 3) slashing damage."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +8 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 3) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Adaptive Camouflage Technique", "Poison Bullet", "Substitution Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Poison Weapon", "Python's Gaze"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Breath of Roses: Plum", "Formation of One Thousand Snakes", "Striking Stance: Cobra"]},
+        {"rank": "C", "cost": 9, "names": ["Mamba's Hardened Scales", "Poison Cobra Dance", "Striking Stance: Viper"]}
+      ]}
+    ],
+    "notes": "The Bukijutsu C-Rank line prints \"(Cost: 5)\"; corrected to 9."
+  }
+]

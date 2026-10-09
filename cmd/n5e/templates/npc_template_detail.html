@@ -1,0 +1,82 @@
+{{define "content"}}
+{{with .Template}}
+<p><a href="/encounters/npc-templates">{{T "npc_templates.all_templates"}}</a></p>
+<h1>{{.Name}}</h1>
+<p class="card-epithet">{{T "npc_templates.rank_class" .RankTier .Class}}{{if .Role}} &middot; {{.Role}}{{end}}</p>
+
+<dl class="fact-list">
+  {{if .ClanName}}<dt>{{T "npc_templates.clan"}}</dt><dd>{{.ClanName}}</dd>{{end}}
+  {{if .Affiliation}}<dt>{{T "npc_templates.affiliation"}}</dt><dd>{{.Affiliation}}</dd>{{end}}
+  {{if .Size}}<dt>{{T "npc_templates.size"}}</dt><dd>{{.Size}}</dd>{{end}}
+  <dt>{{T "npc_templates.level"}}</dt><dd>{{T "npc_templates.level_xp" .Level .XP}}</dd>
+  <dt>{{T "npc_templates.prof_bonus"}}</dt><dd>{{signed .ProfBonus}}</dd>
+  {{if .TenacityDie}}<dt>{{T "npc_templates.tenacity"}}</dt><dd>{{T "npc_templates.tenacity_value" .TenacityCount .TenacityDie}}</dd>{{end}}
+  <dt>{{T "npc_templates.ac"}}</dt><dd>{{.AC}}{{if .ACNote}} ({{.ACNote}}){{end}}</dd>
+  <dt>{{T "npc_templates.dr"}}</dt><dd>{{.DR}}</dd>
+  <dt>{{T "npc_templates.hp"}}</dt><dd>{{.HPText}}</dd>
+  <dt>{{T "npc_templates.cp"}}</dt><dd>{{.CP}}</dd>
+  <dt>{{T "npc_templates.initiative"}}</dt><dd>{{signed .Initiative}}</dd>
+  <dt>{{T "npc_templates.speed"}}</dt><dd>{{.Speed}}</dd>
+  {{if .DamageResistances}}<dt>{{T "npc_templates.damage_resistances"}}</dt><dd>{{.DamageResistances}}</dd>{{end}}
+  {{if .DamageImmunities}}<dt>{{T "npc_templates.damage_immunities"}}</dt><dd>{{.DamageImmunities}}</dd>{{end}}
+  {{if .DamageVulnerabilities}}<dt>{{T "npc_templates.damage_vulnerabilities"}}</dt><dd>{{.DamageVulnerabilities}}</dd>{{end}}
+  {{if .ConditionResistances}}<dt>{{T "npc_templates.condition_resistances"}}</dt><dd>{{.ConditionResistances}}</dd>{{end}}
+  {{if .ConditionImmunities}}<dt>{{T "npc_templates.condition_immunities"}}</dt><dd>{{.ConditionImmunities}}</dd>{{end}}
+  <dt>{{T "npc_templates.senses"}}</dt><dd>{{if .Senses}}{{.Senses}}, {{end}}{{T "npc_templates.passive_perception" .PassivePerception}}</dd>
+</dl>
+
+<div class="table-scroll">
+  <table class="data-table npc-ability-table">
+    <thead><tr><th></th>{{range .Abilities}}<th>{{.Label}}</th>{{end}}</tr></thead>
+    <tbody>
+      <tr><th>{{T "npc_templates.score"}}</th>{{range .Abilities}}<td>{{.Score}}</td>{{end}}</tr>
+      <tr><th>{{T "npc_templates.modifier"}}</th>{{range .Abilities}}<td>{{signed .Mod}}</td>{{end}}</tr>
+      <tr><th>{{T "npc_templates.save"}}</th>{{range .Abilities}}<td>{{signed .Save}}</td>{{end}}</tr>
+    </tbody>
+  </table>
+</div>
+
+{{if .Skills}}
+<h2>{{T "npc_templates.skills"}}</h2>
+<p class="npc-skill-list">
+  {{range $i, $s := .Skills}}{{if $i}}, {{end}}<span class="npc-skill">{{$s.Name}} {{signed $s.Mod}}{{if $s.Stars}} <span class="npc-skill-stars">{{$s.Stars}}</span>{{end}}</span>{{end}}
+</p>
+{{end}}
+
+{{range .Sections}}
+<h2>{{.Title}}</h2>
+<div class="entry-list">
+  {{range .Entries}}
+  <div class="entry">
+    {{if .Name}}<h3>{{.Name}}{{if .Tags}} <span class="entry-level">({{.Tags}})</span>{{end}}</h3>{{end}}
+    {{formatDescription .Description}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{if .Jutsu}}
+<h2>{{T "npc_templates.jutsu"}}</h2>
+<div class="entry-list">
+  {{range .Jutsu}}
+  <div class="entry">
+    <h3>{{.Discipline}} <span class="entry-level">({{T "npc_templates.hit_dc" (signed .Hit) .DC}})</span></h3>
+    <ul class="plain-list">
+      {{range .Ranks}}
+      <li><strong>{{T "npc_templates.jutsu_rank_cost" .Rank .Cost}}</strong>
+        {{range $i, $j := .Jutsu}}{{if $i}}, {{end}}{{if $j.Slug}}<a href="/jutsu/{{$j.Slug}}">{{$j.Name}}</a>{{else}}{{$j.Name}}{{end}}{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{if .Notes}}
+<h2>{{T "npc_templates.transcription_notes"}}</h2>
+<p class="section-hint npc-template-notes">{{.Notes}}</p>
+{{end}}
+<p class="section-hint npc-template-notes">{{T "npc_templates.source_page" .SourcePage}}</p>
+{{end}}
+{{end}}

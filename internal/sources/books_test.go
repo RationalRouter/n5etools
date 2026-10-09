@@ -9,7 +9,8 @@ import "testing"
 func TestOfficialBooks(t *testing.T) {
 	wantSlugs := map[string]bool{
 		"book/core": true, "book/class-compendium": true, "book/clan-compendium": true,
-		"book/jutsu-compendium": true, "book/kage-guide": true, "book/bingo-book": true,
+		"book/jutsu-compendium": true, "book/kage-guide": true,
+		"book/bingo-book-pack-1": true, "book/bingo-book": true,
 	}
 	seen := map[string]bool{}
 	requiredCount := 0
@@ -28,10 +29,10 @@ func TestOfficialBooks(t *testing.T) {
 			requiredCount++
 		}
 	}
-	if len(OfficialBooks) != 6 {
-		t.Errorf("got %d books, want 6", len(OfficialBooks))
+	if len(OfficialBooks) != 7 {
+		t.Errorf("got %d books, want 7", len(OfficialBooks))
 	}
-	if requiredCount != 4 {
-		t.Errorf("required books = %d, want 4 (Kage Guide and the Bingo Book are the optional, GM-facing ones)", requiredCount)
+	if requiredCount != 5 {
+		t.Errorf("required books = %d, want 5 (Kage Guide and Bingo Book Pack 1 are the optional, GM-facing ones)", requiredCount)
 	}
 }

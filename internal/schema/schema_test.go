@@ -121,3 +121,46 @@ func mustExec(t *testing.T, db *sql.DB, query string, args ...any) {
 		t.Fatalf("%s: %v", query, err)
 	}
 }
+
+func TestMigrationReingests(t *testing.T) {
+	body := "-- Re-parses the jutsu book.\n-- reingest: book/jutsu-compendium, book/clan-compendium\nSELECT 1;\n"
+	for slug, want := range map[string]bool{
+		"book/jutsu-compendium": true,
+		"book/clan-compendium":  true,
+		"book/core":             false,
+	} {
+		if got := migrationReingests(body, slug); got != want {
+			t.Errorf("migrationReingests(%q) = %v, want %v", slug, got, want)
+		}
+	}
+	if !migrationReingests("-- reingest: all\n", "book/core") {
+		t.Error(`"-- reingest: all" should cover every book`)
+	}
+	if migrationReingests("-- A data fix; no re-ingest needed.\nUPDATE jutsu SET name = name;\n", "book/core") {
+		t.Error("a migration without a reingest marker must not require a re-ingest")
+	}
+}
+
+// TestRequiredIngestVersionIgnoresUnmarkedMigrations: rules migrations after
+// the legacy cutoff carry no reingest marker (0081 backfills itself in SQL),
+// so the required version stays at the cutoff even though LatestMigration
+// has moved past it.
+func TestRequiredIngestVersionIgnoresUnmarkedMigrations(t *testing.T) {
+	latest, err := LatestMigration(Rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, slug := range []string{"book/core", "book/jutsu-compendium", "book/clan-compendium"} {
+		got, err := RequiredIngestVersion(Rules, slug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got > latest || got < legacyReingestCutoff {
+			t.Errorf("RequiredIngestVersion(%q) = %q, want between %q and %q", slug, got, legacyReingestCutoff, latest)
+		}
+		if got != legacyReingestCutoff {
+			t.Errorf("RequiredIngestVersion(%q) = %q, want %q: no migration after the cutoff declares a re-ingest yet",
+				slug, got, legacyReingestCutoff)
+		}
+	}
+}

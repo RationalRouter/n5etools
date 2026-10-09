@@ -1,0 +1,69 @@
+[
+  {
+    "slug": "adversary-template/inuzuka-jonin",
+    "name": "Inuzuka Jonin",
+    "page": 45,
+    "rank": "B", "size": "Medium", "clan": "Inuzuka", "clan_slug": "inuzuka", "role": "Generalist",
+    "class": "elite", "affiliation": "Leaf Shinobi", "prof": 5,
+    "level": 9, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 4,
+    "ac": 21, "ac_note": "L. Armor", "dr": 2, "initiative": 14,
+    "speed": "50 ft.", "hp": "145/87/43", "cp": 145,
+    "str": {"score": 14, "mod": 2, "save": 7},
+    "dex": {"score": 18, "mod": 4, "save": 9},
+    "con": {"score": 16, "mod": 3, "save": 8},
+    "int": {"score": 6, "mod": -2, "save": 0},
+    "wis": {"score": 12, "mod": 1, "save": 3},
+    "cha": {"score": 8, "mod": -1, "save": 1},
+    "skills": [
+      {"name": "Acrobatics", "mod": 12},
+      {"name": "Animal Handling", "mod": 9},
+      {"name": "Intimidation", "mod": 7},
+      {"name": "Perception", "mod": 9},
+      {"name": "Stealth", "mod": 12},
+      {"name": "Survival", "mod": 9}
+    ],
+    "condition_immunities": "Charmed, Demoralized, plus any mind alteration or control",
+    "passive_perception": 19,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Beast Master", "tags": "Defense, Mobility", "text": "When your Nin-Dog would take damage, you can command it, as a reaction, to reposition itself to a space adjacent to you. When it does, it gains resistance to that instance of damage and moves up to twice its full movement to accomplish your order."},
+        {"name": "Bestial Fury", "tags": "Attack", "text": "When an allied beast within 30 feet of you hits with an attack, you can use your reaction to cast an Inuzuka clan jutsu."},
+        {"name": "Explorer", "tags": "Mobility", "text": "You gain a +20 bonus to movement speed, can climb, water walk, and wall walk without any movement penalty, and ignore difficult terrain and terrain that imposes movement penalties."},
+        {"name": "Indomitable", "tags": "Defense", "text": "You are immune to any effects that would alter your mind or will. This includes Charmed and Fear. You cannot be mind-controlled or influenced by external forces."},
+        {"name": "Savage Attack", "tags": "Attack", "text": "While under the effects of an Inuzuka Hijutsu that you cast on yourself, you add both your Strength and Dexterity modifiers to your unarmed attack damage. If a Taijutsu would add one modifier to damage, you instead add both. If a Taijutsu would add neither Strength nor Dexterity to damage, you may add your Strength or Dexterity modifier to the damage, whichever is greater."},
+        {"name": "Superior Skill", "tags": "Utility", "text": "When you make an ability check with a skill you are proficient in, you may add 1d6 to your check. Additionally, if your ability checks are ever contested, you instead add 2d6."}
+      ]},
+      {"kind": "passives", "title": "Inuzuka Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary is always one with its pet. While this adversary is within 15 feet of its pet, both it and its pet gain +2 to their AC as they protect each other."},
+        {"name": "Elite Generalist", "text": "This adversary gains a +3 bonus to initiative and ability checks."},
+        {"name": "Generalist Passive", "text": "You cannot make ability checks or saving throws at disadvantage."},
+        {"name": "Generalist Action", "text": "Cost: 2 Tenacity dice. Effect: Overwrite. The next jutsu cast gains the damage type and inflicts the same conditions as any other jutsu on this creature's known list, in addition to any this jutsu would normally inflict. If the jutsu does not force a save, it now forces a Constitution saving throw to inflict its conditions."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Inuzuka Jonin may make three unarmed attacks or three attacks with its currently equipped weapons."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) bludgeoning or slashing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 9 (2d4 + 4) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Inuzuka Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 3, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Four Legs Technique", "Sensing Technique", "Substitution Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Iron Fangs"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Thought Film"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Clawing Swift Fang", "Iron Strike", "Mirage Blitz", "Tunneling Fang"]},
+        {"rank": "C", "cost": 9, "names": ["Beast", "Fang Tearing Fang"]},
+        {"rank": "B", "cost": 14, "names": ["After Image Technique", "Hunter's Feast"]}
+      ]}
+    ],
+    "notes": "Thought Film's line is printed \"E-Ranks (Cost: 5)\"; corrected to D-Rank. After Image Technique is printed \"Afterimage Technique\"."
+  }
+]

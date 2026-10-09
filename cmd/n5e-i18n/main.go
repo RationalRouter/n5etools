@@ -85,6 +85,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -113,7 +114,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: n5e-i18n export|translate|import|report|catalog-translate|audit|verify|normalize-glossary|check-drive|translate-book ...")
+		return fmt.Errorf("usage: n5e-i18n export|translate|import|report|catalog-translate|audit|verify|normalize-glossary|normalize-terms|check-drive|translate-book ...")
 	}
 	switch args[0] {
 	case "export":
@@ -136,6 +137,8 @@ func run(args []string) error {
 		return cmdCheckDrive(args[1:])
 	case "normalize-glossary":
 		return cmdNormalizeGlossary(args[1:])
+	case "normalize-terms":
+		return cmdNormalizeTerms(args[1:])
 	default:
 		return fmt.Errorf("unknown subcommand %q", args[0])
 	}
@@ -320,6 +323,17 @@ func readCatalog(path string) (map[string]string, error) {
 	return cat, nil
 }
 
+// marshalCatalogString encodes s as a JSON string without escaping &, < and
+// >, matching how the catalogs on disk are written so a rewrite leaves
+// untouched values byte-identical.
+func marshalCatalogString(s string) []byte {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(s)
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+}
+
 func writeCatalog(path string, cat map[string]string) error {
 	keys := make([]string, 0, len(cat))
 	for k := range cat {
@@ -330,8 +344,8 @@ func writeCatalog(path string, cat map[string]string) error {
 	var b strings.Builder
 	b.WriteString("{\n")
 	for i, k := range keys {
-		kb, _ := json.Marshal(k)
-		vb, _ := json.Marshal(cat[k])
+		kb := marshalCatalogString(k)
+		vb := marshalCatalogString(cat[k])
 		b.WriteString("  ")
 		b.Write(kb)
 		b.WriteString(": ")
@@ -610,19 +624,38 @@ func cmdTranslate(args []string) error {
 		return nil
 	}
 
-	ctx := context.Background()
-	client := i18n.NewDeepLClient(apiKey, *pro)
-
-	glossaryID, err := setUpGlossary(ctx, client, "translate", "n5e-content", *locale, *glossaryPath, targetLang)
-	if err != nil {
-		return err
+	// Jutsu costs render deterministically (see renderJutsuCost); only the
+	// rest go to DeepL.
+	var rendered []importRecord
+	var toDeepL []exportRecord
+	for _, rec := range records {
+		if rec.Table == "jutsu" && rec.Field == "cost_text" {
+			if v, ok := renderJutsuCost(*locale, rec.EnText); ok {
+				rendered = append(rendered, importRecord{Table: rec.Table, Slug: rec.Slug, Field: rec.Field, EnHash: rec.EnHash, Value: v})
+				continue
+			}
+		}
+		toDeepL = append(toDeepL, rec)
 	}
+	records = toDeepL
 
-	protected := make([]string, len(records))
-	for i, rec := range records {
-		protected[i] = i18n.ProtectPlaceholders(rec.EnText)
+	var translated []string
+	var translateErr error
+	if len(records) > 0 {
+		ctx := context.Background()
+		client := i18n.NewDeepLClient(apiKey, *pro)
+
+		glossaryID, err := setUpGlossary(ctx, client, "translate", "n5e-content", *locale, *glossaryPath, targetLang)
+		if err != nil {
+			return err
+		}
+
+		protected := make([]string, len(records))
+		for i, rec := range records {
+			protected[i] = i18n.ProtectPlaceholders(rec.EnText)
+		}
+		translated, translateErr = client.Translate(ctx, protected, targetLang, glossaryID)
 	}
-	translated, translateErr := client.Translate(ctx, protected, targetLang, glossaryID)
 	// Write whatever batches did complete even on error -- DeepL bills
 	// each completed batch regardless of whether a later one in this call
 	// fails, so a partial output file still saves the spent quota's work
@@ -634,6 +667,11 @@ func cmdTranslate(args []string) error {
 	defer f.Close()
 	bw := bufio.NewWriter(f)
 	enc := json.NewEncoder(bw)
+	for _, rec := range rendered {
+		if err := enc.Encode(rec); err != nil {
+			return err
+		}
+	}
 	for i := 0; i < len(translated); i++ {
 		rec := records[i]
 		if err := enc.Encode(importRecord{
@@ -652,7 +690,7 @@ func cmdTranslate(args []string) error {
 	if translateErr != nil {
 		return fmt.Errorf("translating (%d/%d record(s) completed and saved to %s before the error): %w", len(translated), len(records), *out, translateErr)
 	}
-	fmt.Fprintf(os.Stderr, "translate: %d record(s) translated, written to %s\n", len(records), *out)
+	fmt.Fprintf(os.Stderr, "translate: %d record(s) translated, %d jutsu cost(s) rendered, written to %s\n", len(records), len(rendered), *out)
 	return nil
 }
 

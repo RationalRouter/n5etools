@@ -1,0 +1,98 @@
+[
+  {
+    "slug": "adversary-template/kurama-genin",
+    "name": "Kurama Genin",
+    "page": 53,
+    "rank": "D", "size": "Medium", "clan": "Kurama", "clan_slug": "kurama", "role": "Striker (Genjutsu)",
+    "class": "standard", "affiliation": "Factionless", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 16, "ac_note": "M. Armor", "dr": 2, "initiative": 3,
+    "speed": "45 ft.", "hp": "34", "cp": 23,
+    "str": {"score": 6, "mod": -2, "save": -1},
+    "dex": {"score": 12, "mod": 1, "save": 2},
+    "con": {"score": 12, "mod": 1, "save": 2},
+    "int": {"score": 8, "mod": -1, "save": 0},
+    "wis": {"score": 10, "mod": 0, "save": 3},
+    "cha": {"score": 14, "mod": 2, "save": 5},
+    "skills": [
+      {"name": "Chakra Control", "mod": 5},
+      {"name": "Illusions", "mod": 4},
+      {"name": "Insight", "mod": 4},
+      {"name": "Persuasion", "mod": 6}
+    ],
+    "passive_perception": 10,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Careful Genjutsu", "tags": "Utility", "text": "When you cast a Genjutsu that forces creatures to make a saving throw, you can choose to have your allies be unaffected."},
+        {"name": "Revenge", "tags": "Attack", "text": "You can deal 2d6 bonus damage to any creature that harmed you in any way in the previous round. (This includes damage, penalties, conditions, or forced movement.)"}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kurama Genin may make two attacks with its currently equipped weapon or one Mind Sliver attack."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 1) slashing damage."},
+        {"name": "Mind Sliver", "text": "Ranged Genjutsu Attack: +6 to hit, range 60 ft., one target. Hit: 4 (1d6) psychic damage, and the target must succeed on an Intelligence saving throw or suffer a 1d4 penalty on the next saving throw it makes before the end of its next turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 3, "dc": 10, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Body Camouflage", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Mind Film", "Night: Frigid Pain", "Psionics: Meditate", "Psionics: Strike"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/kurama-chunin",
+    "name": "Kurama Chunin",
+    "page": 53,
+    "rank": "C", "size": "Medium", "clan": "Kurama", "clan_slug": "kurama", "role": "Striker (Genjutsu)",
+    "class": "standard", "affiliation": "Factionless", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 19, "ac_note": "M. Armor", "dr": 2, "initiative": 7,
+    "speed": "45 ft.", "hp": "78", "cp": 50,
+    "str": {"score": 6, "mod": -2, "save": -1},
+    "dex": {"score": 14, "mod": 2, "save": 3},
+    "con": {"score": 14, "mod": 2, "save": 3},
+    "int": {"score": 8, "mod": -1, "save": 3},
+    "wis": {"score": 12, "mod": 1, "save": 5},
+    "cha": {"score": 16, "mod": 3, "save": 7},
+    "skills": [
+      {"name": "Chakra Control", "mod": 7},
+      {"name": "Illusions", "mod": 6},
+      {"name": "Insight", "mod": 6},
+      {"name": "Perception", "mod": 6},
+      {"name": "Persuasion", "mod": 8}
+    ],
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Jutsu of War", "tags": "Attack", "text": "Each time you cast a jutsu, you can make an additional weapon or Mind Sliver attack as part of the same action used to cast the jutsu."},
+        {"name": "Layered Genjutsu", "tags": "Control", "text": "When a creature under the effects of your Genjutsu succeeds on a saving throw, you can use your reaction to cast a second Genjutsu on the same creature."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kurama Chunin may make two attacks with its currently equipped weapon or one Mind Sliver attack."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) slashing damage."},
+        {"name": "Mind Sliver", "text": "Ranged Genjutsu Attack: +8 to hit, range 60 ft., one target. Hit: 7 (2d6) psychic damage, and the target must succeed on an Intelligence saving throw or suffer a 1d4 penalty on the next saving throw it makes before the end of its next turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Body Camouflage", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Mind Film", "Night: Frigid Pain", "Psionics: Meditate", "Psionics: Strike", "Puppets of Darkness"]},
+        {"rank": "C", "cost": 9, "names": ["Mental Barrier", "Mind Spike"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Weapon Break"]}
+      ]}
+    ]
+  }
+]

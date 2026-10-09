@@ -1,0 +1,52 @@
+[
+  {
+    "slug": "adversary-template/fuma-chunin",
+    "name": "Fuma Chunin",
+    "page": 37,
+    "rank": "C", "size": "Medium", "clan": "Fuma", "clan_slug": "fuma", "role": "Generalist",
+    "class": "standard", "affiliation": "Factionless", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 17, "ac_note": "L. Armor", "dr": 2, "initiative": 8,
+    "speed": "30 ft.", "hp": "42", "cp": 42,
+    "str": {"score": 6, "mod": -2, "save": 0},
+    "dex": {"score": 16, "mod": 3, "save": 8},
+    "con": {"score": 8, "mod": -1, "save": 4},
+    "int": {"score": 14, "mod": 2, "save": 7},
+    "wis": {"score": 14, "mod": 2, "save": 4},
+    "cha": {"score": 12, "mod": 1, "save": 3},
+    "skills": [
+      {"name": "Acrobatics", "mod": 8},
+      {"name": "Crafting", "mod": 7},
+      {"name": "Investigation", "mod": 7},
+      {"name": "Martial Arts", "mod": 8},
+      {"name": "Perception", "mod": 7}
+    ],
+    "passive_perception": 17,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Lethal Precision", "tags": "Attack", "text": "Critical hits made with ranged weapon attacks add +2 damage dice to the result."},
+        {"name": "Lethal Hunter", "tags": "Attack", "text": "Ranged weapon attacks gain a +1 bonus to damage die (already added), and increase damage dealt with ranged taijutsu attacks using that weapon by 1 die."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Fuma Chunin may make two attacks with its currently equipped weapons."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +8 to hit, range 30/120 ft., one target. Hit: 8 (2d4 + 3) slashing damage."},
+        {"name": "Fuma Shuriken", "text": "Ranged Weapon Attack: +8 to hit, range 30/120 ft., one target. Hit: 12 (2d8 + 3) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Chakra Shield", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Breath of Echo: Reverb", "Falling Heaven: Divide", "Falling Heaven: Split", "Falling Heaven: Storm"]},
+        {"rank": "C", "cost": 9, "names": ["Falling Heaven: Penetrate", "Falling Heaven: Protect", "Lethal Ammo Technique"]}
+      ]}
+    ],
+    "notes": "Falling Heaven: Storm is printed \"Falling Heaven: Falling Heaven: Storm\"."
+  }
+]

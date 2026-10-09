@@ -1,0 +1,25 @@
+{{define "content"}}
+<p><a href="/encounters">{{T "encounters.title"}}</a></p>
+<h1>{{T "npc_templates.title"}}</h1>
+<p class="page-subtitle">{{T "npc_templates.subtitle"}}</p>
+<p><a href="/encounters/general-traits">{{T "npc_templates.general_traits_link"}}</a></p>
+
+{{if not .Groups}}<p class="npc-empty-state">{{T "npc_templates.empty"}}</p>{{end}}
+{{range .Groups}}
+<section class="npc-template-group">
+  <h2>{{.Clan}}</h2>
+  <div class="card-grid">
+    {{range .Templates}}
+    <a class="card" href="/encounters/npc-templates/{{.Path}}">
+      <h2>{{.Name}}</h2>
+      <p class="card-epithet">{{T "npc_templates.rank_class" .RankTier .Class}}</p>
+      <dl>
+        <dt>{{T "npc_templates.level"}}</dt><dd>{{.Level}}</dd>
+        <dt>{{T "npc_templates.role"}}</dt><dd>{{.Role}}</dd>
+      </dl>
+    </a>
+    {{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

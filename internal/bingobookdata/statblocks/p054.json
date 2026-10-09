@@ -1,0 +1,75 @@
+[
+  {
+    "slug": "adversary-template/kurama-jonin",
+    "name": "Kurama Jonin",
+    "page": 54,
+    "rank": "B", "size": "Medium", "clan": "Kurama", "clan_slug": "kurama", "role": "Striker (Genjutsu)",
+    "class": "elite", "affiliation": "Factionless", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 23, "ac_note": "M. Armor", "dr": 3, "initiative": 11,
+    "speed": "45 ft.", "hp": "211/126/63", "cp": 161,
+    "str": {"score": 8, "mod": -1, "save": 1},
+    "dex": {"score": 16, "mod": 3, "save": 5},
+    "con": {"score": 16, "mod": 3, "save": 5},
+    "int": {"score": 10, "mod": 0, "save": 5},
+    "wis": {"score": 14, "mod": 2, "save": 7},
+    "cha": {"score": 18, "mod": 4, "save": 9},
+    "skills": [
+      {"name": "Chakra Control", "mod": 9},
+      {"name": "Deception", "mod": 10},
+      {"name": "Illusions", "mod": 8},
+      {"name": "Insight", "mod": 8},
+      {"name": "Perception", "mod": 8},
+      {"name": "Persuasion", "mod": 10}
+    ],
+    "damage_resistances": "Psychic",
+    "condition_immunities": "Charmed, Demoralized, plus mind alteration and control",
+    "passive_perception": 18,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Adept Elementalist", "tags": "Attack, Defense", "text": "You gain resistance to psychic damage and increase your psychic damage by +1 damage die."},
+        {"name": "Genjutsu Conversion", "tags": "Utility", "text": "You can use your Genjutsu DC, attack bonus, and ability score for Ninjutsu of C-Rank or lower."},
+        {"name": "Indomitable", "tags": "Defense", "text": "You are immune to any effects that would alter your mind or will. This includes Charmed and Fear. You cannot be mind-controlled or influenced by external forces."},
+        {"name": "Jutsu of War", "tags": "Attack", "text": "Each time you cast a jutsu, you can make an additional weapon attack or Mind Sliver attack as part of the same action used to cast the jutsu."},
+        {"name": "Layered Genjutsu", "tags": "Control", "text": "When a creature under the effects of your Genjutsu succeeds on a saving throw, you can use your reaction to cast a second Genjutsu on the same creature."},
+        {"name": "Sure-Footed", "tags": "Defense", "text": "Advantage on Dexterity saving throws and ability checks."}
+      ]},
+      {"kind": "passives", "title": "Kurama Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary has the unstoppable power of Fiction to Fact. By spending 1 Tenacity die, this adversary can turn one jutsu it casts into a Genjutsu, changing its saving throw, if any, into a Wisdom save."},
+        {"name": "Elite Striker (Genjutsu)", "text": "You gain a +1 bonus to Genjutsu and weapon attack bonuses. Also, increase the number of weapon attacks by 1 (added)."},
+        {"name": "Striker (Genjutsu) Passive 1", "text": "Once per turn, your Genjutsu damage triggers any conditional damage a creature may be suffering from."},
+        {"name": "Striker (Genjutsu) Passive 2", "text": "Once per turn, your Genjutsu damage ignores temporary hit points."},
+        {"name": "Striker (Genjutsu) Action", "text": "By spending 4 Tenacity dice, this adversary can Overpower the next Genjutsu it casts. The overpowered jutsu adds the Tenacity die to its damage and imposes a 1d4 penalty on creatures forced to make a saving throw against the jutsu cast. Additionally, if the jutsu cast scores a critical hit, increase the attack's damage die by 1 step."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kurama Jonin may make four attacks with its currently equipped weapon or two Mind Sliver attacks."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 8 (2d4 + 3) slashing damage."},
+        {"name": "Mind Sliver", "text": "Ranged Genjutsu Attack: +11 to hit, range 60 ft., one target. Hit: 14 (4d6) psychic damage, and the target must succeed on an Intelligence saving throw or suffer a 1d4 penalty on the next saving throw it makes before the end of its next turn."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Kurama Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]},
+      {"kind": "other", "title": "Jutsu Note", "entries": [
+        {"text": "The Kurama Jonin's Ninjutsu of C-Rank and below are cast as Genjutsu."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Body Camouflage", "Chakra Shield", "Flame Strike", "Hellfire Rejection", "Substitution Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Fire Dragon Bullet", "Great Fireball"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 11, "dc": 22, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Mind Film", "Night: Frigid Pain", "Psionics: Meditate", "Psionics: Strike", "Puppets of Darkness"]},
+        {"rank": "C", "cost": 9, "names": ["Mental Barrier", "Mind Spike"]},
+        {"rank": "B", "cost": 14, "names": ["Frenzy: Blades", "Invisibility", "Tree Binding Death"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Weapon Break"]}
+      ]}
+    ],
+    "notes": "The Multiattack is printed as \"The Kurama Chunin may make four attacks\"; corrected to the Kurama Jonin. The Jutsu Note is a footnote printed under the Ninjutsu list."
+  }
+]

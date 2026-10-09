@@ -11,21 +11,38 @@
 <body>
   <nav class="nav">
     <a class="nav-brand" href="/">N5etools</a>
-    <div class="nav-links">
-      <a href="/characters">{{T "nav.characters"}}</a>
-      <a href="/backups">{{T "nav.backups"}}</a>
-      <a href="/clans">{{T "nav.clans"}}</a>
-      <a href="/jutsu">{{T "nav.jutsu"}}</a>
-      <a href="/classes">{{T "nav.classes"}}</a>
-      <a href="/feats">{{T "nav.feats"}}</a>
-      <a href="/backgrounds">{{T "nav.backgrounds"}}</a>
-      <a href="/stances">{{T "nav.stances"}}</a>
-      <a href="/seals">{{T "nav.seals"}}</a>
-      <a href="/items">{{T "nav.items"}}</a>
-      <a href="/properties">{{T "nav.properties"}}</a>
-      <a href="/traps">{{T "nav.traps"}}</a>
-      <a href="/poisons">{{T "nav.poisons"}}</a>
+    {{/* Plain visual dividers between the brand/Backups/the two dropdown
+         menus -- provisional per the request that added them; if dropped
+         later, removing these three spans and the .nav-divider CSS rule is
+         the whole change. */}}
+    <span class="nav-divider" aria-hidden="true">|</span>
+    <a href="/backups">{{T "nav.backups"}}</a>
+    <span class="nav-divider" aria-hidden="true">|</span>
+    <div class="nav-dropdown" id="nav-dropdown-player-references">
+      <button type="button" class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "nav.player_references"}}</button>
+      <div class="nav-dropdown-panel">
+        <a href="/characters">{{T "nav.characters"}}</a>
+        <a href="/clans">{{T "nav.clans"}}</a>
+        <a href="/jutsu">{{T "nav.jutsu"}}</a>
+        <a href="/classes">{{T "nav.classes"}}</a>
+        <a href="/feats">{{T "nav.feats"}}</a>
+        <a href="/backgrounds">{{T "nav.backgrounds"}}</a>
+        <a href="/stances">{{T "nav.stances"}}</a>
+        <a href="/seals">{{T "nav.seals"}}</a>
+        <a href="/items">{{T "nav.items"}}</a>
+        <a href="/properties">{{T "nav.properties"}}</a>
+        <a href="/traps">{{T "nav.traps"}}</a>
+        <a href="/poisons">{{T "nav.poisons"}}</a>
+      </div>
     </div>
+    <span class="nav-divider" aria-hidden="true">|</span>
+    <div class="nav-dropdown" id="nav-dropdown-dm-tools">
+      <button type="button" class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "nav.dungeon_master_tools"}}</button>
+      <div class="nav-dropdown-panel">
+        <a href="/encounters">{{T "nav.encounters"}}</a>
+      </div>
+    </div>
+    <div class="nav-spacer"></div>
     <div class="nav-info">
       <a href="/about">{{T "nav.about"}}</a>
       <a href="/bugs">{{T "nav.bugs"}}</a>
@@ -92,6 +109,7 @@
        fetch-and-swap submit handler further down can act on a form it
        needs to gate. */}}
   <script src="/static/js/confirm-submit.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/nav-dropdown.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/lang-switcher.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/search.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/tooltip-position.js?v={{assetVersion}}" defer></script>
@@ -113,9 +131,12 @@
   {{/* Before both of its callers (items-filter.js and sheet-library.js) —
        defer keeps execution in document order, and each of them reaches for
        window.n5eEquipmentSubfilters as it initialises. */}}
+  <script src="/static/js/encounters.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/encounter-builder.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/equipment-subfilter.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/items-filter.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/jutsu-filter.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/adversary-builder-traits-filter.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/creation-picker.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/class-level-confirm.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/create-abilities.js?v={{assetVersion}}" defer></script>

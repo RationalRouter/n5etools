@@ -1,0 +1,55 @@
+{{/* An adversary's computed stat block: its Class, Rank and role, the
+     headline numbers with their formula tooltips, abilities, saves and
+     attacks. Shared by the Adversary Builder's live stat block and the
+     turn-order tracker's unit card. Call with a filled
+     encounterAdversaryView. */}}
+{{define "encounter_unit_stats"}}
+{{$s := .Stats}}
+<p class="encounter-builder-hint">{{T "encounters.summary_class_rank" .ClassName .AdvRank}} · {{.RoleName}}</p>
+<dl class="encounter-builder-statlist">
+  <dt>{{T "encounters.builder_stat_hp"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{$s.HPMax}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "hp"}}{{if $s.HPPhases}}<span>{{T "encounters.hp_phases_hint" (index $s.HPPhases 0) (index $s.HPPhases 1)}}</span>{{end}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_cp"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{$s.CPMax}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "cp"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_ac"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{$s.AC}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "ac"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_init"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{signed $s.Init}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "init"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_speed"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{T "encounters.builder_stat_speed_value" $s.Speed}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "speed"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_dr"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{$s.DR}}</span>
+    <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index $s.Breakdown "dr"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_prof"}}</dt>
+  <dd>{{signed $s.Prof}}</dd>
+  <dt>{{T "encounters.builder_stat_damage"}}</dt>
+  <dd><span class="tooltip" tabindex="0"><span class="tooltip-trigger">{{$s.DamagePerAction}}</span>
+    <span class="tooltip-content">{{T "encounters.damage_hint"}}</span></span></dd>
+  <dt>{{T "encounters.builder_stat_traits"}}</dt>
+  <dd>{{$s.TraitSlots}}</dd>
+  <dt>{{T "encounters.builder_stat_jutsu"}}</dt>
+  <dd>{{$s.JutsuTotal}}</dd>
+  {{if $s.TenacityMax}}
+  <dt>{{T "encounters.builder_stat_tenacity"}}</dt>
+  <dd>{{$s.TenacityMax}}</dd>
+  {{end}}
+</dl>
+
+<h3>{{T "encounters.builder_stat_abilities"}}</h3>
+<ul class="encounter-builder-abilities-row">
+  {{range .StatAbilityRows}}<li><span>{{T (print "characters.stat_" .Key)}}</span> {{signed .Value}}</li>{{end}}
+</ul>
+<h3>{{T "encounters.builder_stat_saves"}}</h3>
+<ul class="encounter-builder-abilities-row">
+  {{range .StatAbilityRows}}<li{{if .SaveProf}} class="encounter-save-prof"{{end}}><span>{{T (print "characters.stat_" .Key)}}</span> {{signed .Save}}</li>{{end}}
+</ul>
+<h3>{{T "encounters.builder_stat_attacks"}}</h3>
+<ul class="encounter-builder-attacks">
+  {{range .AttackRows}}<li>{{T (print "encounters.attack_" .Key)}}: {{signed .Attack}}{{if .DC}}, {{T "encounters.dc_value" .DC}}{{end}}</li>{{end}}
+</ul>
+{{end}}

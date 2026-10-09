@@ -437,6 +437,9 @@ var proseFields = map[reflect.Type][]string{
 	reflect.TypeOf(parse.SummonRole{}):         {"Description"},
 	reflect.TypeOf(parse.SummonAttack{}):       {"Description"},
 	reflect.TypeOf(parse.SummonFeature{}):      {"Description"},
-	reflect.TypeOf(parse.AdversaryRole{}):      {"Description"},
-	reflect.TypeOf(parse.AdversaryRoleTrait{}): {"Description"},
+	reflect.TypeOf(parse.AdversaryRole{}):          {"Description"},
+	reflect.TypeOf(parse.AdversaryRoleTrait{}):     {"Description"},
+	reflect.TypeOf(parse.AdversaryClarification{}): {"Description"},
+	reflect.TypeOf(parse.TransformationBuff{}):     {"Description"},
+	reflect.TypeOf(parse.AdversaryBuilderTrait{}):  {"Description"},
 }

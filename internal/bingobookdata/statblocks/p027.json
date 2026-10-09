@@ -1,0 +1,73 @@
+[
+  {
+    "slug": "adversary-template/sarutobi-jonin",
+    "name": "Sarutobi Jonin",
+    "page": 27,
+    "rank": "B", "size": "Medium", "clan": "Sarutobi", "clan_slug": "sarutobi", "role": "Caster (Ninjutsu)",
+    "class": "elite", "affiliation": "Leaf Shinobi", "prof": 6,
+    "level": 14, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 24, "ac_note": "H. Armor", "dr": 3, "initiative": 12,
+    "speed": "30 ft.", "hp": "325/195/97", "cp": 423,
+    "str": {"score": 12, "mod": 1, "save": 5},
+    "dex": {"score": 16, "mod": 3, "save": 9},
+    "con": {"score": 16, "mod": 3, "save": 9},
+    "int": {"score": 18, "mod": 4, "save": 10},
+    "wis": {"score": 8, "mod": -1, "save": 2},
+    "cha": {"score": 14, "mod": 2, "save": 5},
+    "skills": [
+      {"name": "Chakra Control", "mod": 9},
+      {"name": "History", "mod": 10},
+      {"name": "Ninshou", "mod": 10},
+      {"name": "Perception", "mod": 5},
+      {"name": "Persuasion", "mod": 8},
+      {"name": "Stealth", "mod": 9}
+    ],
+    "damage_resistances": "Specialist Damage Types",
+    "condition_resistances": "Stunned, Specialized Damage Conditions",
+    "passive_perception": 15,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Adept Elementalist", "tags": "Offense, Defense", "text": "Select one damage type. Increase damage dealt with that type by 1 die and gain resistance to it."},
+        {"name": "Advanced Chakra Transformation", "tags": "Defense", "text": "You cannot have your chakra molding removed by any means."},
+        {"name": "Evasive", "tags": "Defense", "text": "When subjected to a Dexterity saving throw, take no damage on a success."},
+        {"name": "Torque Casting", "tags": "Attack, Healing", "text": "Once per round, when casting a Ninjutsu or Genjutsu while affected by an Elemental Condition, reduce its rank by 1 and add 1 damage die to your jutsu. That jutsu gains the release keyword that would inflict that condition."},
+        {"name": "Unlimited Potential", "tags": "Attack", "text": "When you Clash, you roll with advantage; your opponent rolls with disadvantage."},
+        {"name": "Zenith", "tags": "Attack, Defense", "text": "All of your jutsu are automatically upcast by 1 rank."}
+      ]},
+      {"kind": "passives", "title": "Sarutobi Jonin's Clan/Role Passives", "entries": [
+        {"name": "Will of Fire (Reaction)", "text": "When an ally is reduced to 0 HP within 60 ft., gain 1 Legendary Resistance (max 2)."},
+        {"name": "Caster Passive 1", "text": "Effects that prevent chakra molding end at the end of your turn."},
+        {"name": "Caster Passive 2", "text": "Area-damaging Ninjutsu (Cone, Line, Radius, Cylinder) can be reshaped: Cone = 30 ft. | Line = 60 ft./5 ft. | Radius = 25 ft. | Cylinder = 20 ft. wide/30 ft. tall."},
+        {"name": "Caster Action", "text": "Cost: 2 Tenacity dice. Overcharge: the next Ninjutsu cast cannot be interrupted. Add spent dice to damage. If 2+ creatures fail the save or the jutsu beats AC by 5+, the target is Staggered until the end of their next turn."}
+      ]},
+      {"kind": "other", "title": "Sarutobi Elemental Specialization", "entries": [
+        {"text": "All Sarutobi adversaries gain access to an additional Nature Release and its related jutsu (see Specialist Jutsu Lists). They also gain bonus defensive jutsu depending on their releases: Blue Fire, Water Shield, Bedrock Skin, Blurring Wind, Lightning Repel."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 3 attacks. May spend a bonus action for a fourth."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 8 (2d4 + 3) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 8 (2d4 + 3) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "Takes 1 Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain an extra reaction. Regains Elite Actions at the start of its turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 13, "dc": 25, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Chakra Bolt", "Chakra Shield", "Body Camouflage", "Body Flicker"]},
+        {"rank": "C", "cost": 9, "names": ["Shadow Shuriken Technique"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 10, "dc": 22, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Feather Burst"]},
+        {"rank": "C", "cost": 9, "names": ["Mental Barrier"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 8, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Grass-Cutting Strike"], "new": ["Grass-Cutting Strike"]},
+        {"rank": "C", "cost": 9, "names": ["Shadow Shuriken Technique", "Afterglow"]}
+      ]}
+    ],
+    "notes": "The Sarutobi Elemental Specialization sidebar on p.26 applies to every Sarutobi block and is repeated on each."
+  }
+]

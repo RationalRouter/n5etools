@@ -295,3 +295,44 @@ func TestParseJutsuBookDuplicateLabelFlagged(t *testing.T) {
 		t.Errorf("anomalies = %+v, want duplicate-label and missing-Description flags", anomalies)
 	}
 }
+
+// The clan books label the keyword line "Keyword:" (singular). It must start
+// the Keywords field rather than be absorbed into Cost, whether it sits on
+// its own line or is glued onto the Cost line.
+func TestParseJutsuBookSingularKeywordLabel(t *testing.T) {
+	for _, costLines := range [][]string{
+		{"Cost: 5 Chakra", "Keyword: Hijutsu, Taijutsu"},
+		{"Cost: 5 Chakra Keyword: Hijutsu, Taijutsu"},
+	} {
+		lines := mkLines(12, "CHINOIKE JUTSU", "BLOODLETTING WEAPONRY",
+			"Classification: Hijutsu", "Rank: D-Rank", "Casting Time: 1 Action",
+			"Range: Self", "Duration: 1 Minute", "Components: CM")
+		lines = append(lines, mkLines(12, costLines...)...)
+		lines = append(lines, mkLines(12, "Description: You harden your blood.")...)
+		jutsu, _ := ParseJutsuBook(lines)
+		if len(jutsu) != 1 {
+			t.Fatalf("%q: got %d jutsu, want 1", costLines, len(jutsu))
+		}
+		j := jutsu[0]
+		if j.CostText != "5 Chakra" {
+			t.Errorf("%q: CostText = %q, want %q", costLines, j.CostText, "5 Chakra")
+		}
+		if j.Keywords != "Hijutsu, Taijutsu" {
+			t.Errorf("%q: Keywords = %q, want %q", costLines, j.Keywords, "Hijutsu, Taijutsu")
+		}
+	}
+}
+
+func TestTrimCostPunct(t *testing.T) {
+	for in, want := range map[string]string{
+		"9 Chakra,":            "9 Chakra",
+		"21 Chakra.":           "21 Chakra",
+		"Special (36 Chakra).": "Special (36 Chakra)",
+		"20 Chakra a Week for 52 weeks consistently.": "20 Chakra a Week for 52 weeks consistently.",
+		"12 Chakra. Special":                          "12 Chakra. Special",
+	} {
+		if got := trimCostPunct(in); got != want {
+			t.Errorf("trimCostPunct(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -1,0 +1,59 @@
+[
+  {
+    "slug": "adversary-template/ryu-dragons-fist",
+    "name": "Ryu, Dragon's Fist",
+    "page": 31,
+    "rank": "B", "size": "Medium", "clan": "Ryu", "clan_slug": "ryu", "role": "Striker (Taijutsu)",
+    "class": "elite", "affiliation": "", "prof": 6,
+    "level": 11, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 5,
+    "ac": 23, "ac_note": "Light Armor", "dr": 2, "initiative": 9,
+    "speed": "45 ft.", "hp": "257/154/77", "cp": 224,
+    "str": {"score": 18, "mod": 4, "save": 10},
+    "dex": {"score": 16, "mod": 3, "save": 9},
+    "con": {"score": 16, "mod": 3, "save": 9},
+    "int": {"score": 8, "mod": -1, "save": 1},
+    "wis": {"score": 10, "mod": 0, "save": 3},
+    "cha": {"score": 12, "mod": 1, "save": 7},
+    "skills": [
+      {"name": "Athletics", "mod": 10},
+      {"name": "Perception", "mod": 6},
+      {"name": "Acrobatics", "mod": 8},
+      {"name": "Martial Arts", "mod": 10},
+      {"name": "Chakra Control", "mod": 8}
+    ],
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Ryūken Stance", "text": "As a reaction, mark a creature for 1 minute. The marked target takes a 1d4 AC penalty when targeted by your unarmed attacks (until the end of the turn)."},
+        {"name": "Ryū Aura", "text": "Ryu Hijutsu use Strength instead of Intelligence."},
+        {"name": "Dragon Energy", "text": "Once per turn, your Taijutsu and Bukijutsu damage ignores temporary hit points."},
+        {"name": "Dragon's Assault", "text": "Spend a bonus action to make 2 additional unarmed/weapon attacks. These attacks cannot be made at disadvantage."},
+        {"name": "Dragon's Dance", "text": "When using a Ryu Hijutsu, gain +5 ft. speed and +2 damage to Ryu Hijutsu/unarmed attacks. Applies up to 2 times per turn, max +25 ft./+10 damage."},
+        {"name": "Ryū Form", "text": "Spend an Elite Action and 1 Tenacity die to increase your Draconic Stage by 1: • Stage 1: +1 AC, +1 unarmed damage die. • Stage 2: Ryu Hijutsu damage increases by your current Stage. • Stage 3: Unarmed attacks gain Reach 2; Ryu Hijutsu can't be dispelled by equal/lower rank jutsu. • Stage 4: +1 AC, +1 unarmed damage die. • Stage 5: Cannot lose concentration on Ryu Hijutsu."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 3 attacks or 1 Dragon Tail attack."},
+        {"name": "Punch", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 6 (3d6 + 3) elemental damage."},
+        {"name": "Kick", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 10 (5d6 + 3) elemental damage."},
+        {"name": "Dragon Tail", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 10 (8d6 + 8) elemental damage. The target must make a Strength save (DC 18) or be knocked prone. Recharge 5-6."}
+      ]},
+      {"kind": "elite", "title": "Elite Traits", "entries": [
+        {"name": "Elite Action", "text": "Can take one Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain an extra reaction. Regains it at the start of its turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 10, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Dragon Aegis", "Dragon Aura", "Dragon Breath", "Dragon Vision"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Bomb", "Dragon Strike", "Dragon's Wrath"]},
+        {"rank": "B", "cost": 14, "names": ["Destructive Wave", "Dragon Cloak"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 10, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Dragon Palm Strike", "Falling Dragon", "Rising Dragon"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Tail Foot"]},
+        {"rank": "B", "cost": 14, "names": ["Dragon Break", "Dragon Crush", "Glimmer Dragon"]}
+      ]}
+    ],
+    "notes": "The metadata line names no affiliation. Both B-Rank jutsu lines print \"(Cost: 15)\"; transcribed as the standard B-Rank cost of 14. The printed average damage figures for Punch, Kick and Dragon Tail do not match their dice; kept as printed."
+  }
+]

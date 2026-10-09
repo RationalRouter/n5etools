@@ -1,0 +1,157 @@
+{{/* Turn-order tracker for a saved encounter (encounter_turn_order.go).
+     Call with a turnOrderView. Structural actions swap this whole fragment
+     (encounter-roster-form, data-target="encounter-turn-order"); the HP and
+     note fields save on their own (encounter-turn-plain-form) and write the
+     resolved value back, so tabbing between fields keeps focus. Rows are
+     reordered by dragging the ⠿ handle (or Arrow Up/Down on it), which
+     posts the full top-to-bottom id list to .../turns/reorder. The unit
+     card at the bottom shows the stat block of the entry whose turn it is,
+     so Next Turn swaps it along with the rest. */}}
+{{define "encounter_turn_order"}}
+{{$root := .}}
+<details id="encounter-turn-order" class="encounter-turn-order" open data-refresh-url="/encounters/turn-order/{{.EncounterID}}">
+  <summary><h2>{{T "encounters.turn_order_heading"}}</h2></summary>
+  <div class="encounter-turn-toolbar">
+    <span class="encounter-turn-round">{{T "encounters.turn_round" .Round}}</span>
+    <form method="post" action="/encounters/{{.EncounterID}}/turns/next" class="encounter-roster-form" data-target="encounter-turn-order">
+      <button type="submit" class="btn-primary"{{if not .Entries}} disabled{{end}}>{{T "encounters.turn_next"}}</button>
+    </form>
+    <form method="post" action="/encounters/{{.EncounterID}}/turns/reset" class="encounter-roster-form" data-target="encounter-turn-order" data-confirm="{{T "encounters.turn_confirm_reset"}}">
+      <button type="submit" class="btn-danger"{{if not .Entries}} disabled{{end}}>{{T "encounters.turn_reset"}}</button>
+    </form>
+  </div>
+
+  {{if .Entries}}
+  <div class="table-scroll">
+  <table class="data-table encounter-turn-table">
+    <thead>
+      <tr>
+        <th><span class="visually-hidden">{{T "encounters.turn_col_order"}}</span></th>
+        <th>{{T "encounters.turn_col_initiative"}}</th>
+        <th>{{T "encounters.col_name"}}</th>
+        <th>{{T "encounters.turn_col_hp"}}</th>
+        <th>{{T "encounters.turn_col_note"}}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody data-turn-reorder-url="/encounters/{{.EncounterID}}/turns/reorder">
+    {{range .Entries}}
+      <tr class="encounter-turn-row{{if .Current}} encounter-turn-current{{end}}" data-turn-id="{{.ID}}"{{if .Current}} aria-current="step"{{end}}>
+        <td class="encounter-turn-handle-cell">
+          <button type="button" class="encounter-turn-handle" aria-label="{{T "sheet.drag_to_reorder_named" .Name}}" title="{{T "encounters.turn_drag_hint"}}">⠿</button>
+        </td>
+        <td>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/turns/{{.ID}}/initiative" class="encounter-roster-form" data-target="encounter-turn-order">
+            <input type="text" inputmode="numeric" name="value" class="encounter-turn-autosubmit encounter-turn-init"
+                   value="{{if .Initiative.Valid}}{{.Initiative.Int64}}{{end}}" placeholder="—"
+                   aria-label="{{T "encounters.turn_col_initiative"}}">
+          </form>
+        </td>
+        <td>
+          <span class="encounter-turn-name">{{.Name}}</span>
+          <span class="encounter-turn-kind">{{T (print "encounters.turn_kind_" .Kind)}}</span>
+        </td>
+        <td class="encounter-turn-hp-cell">
+          <form method="post" action="/encounters/{{$root.EncounterID}}/turns/{{.ID}}/hp" class="encounter-turn-plain-form">
+            <input type="text" inputmode="numeric" name="value" class="encounter-turn-plain-field encounter-turn-hp"
+                   value="{{if .HPCurrent.Valid}}{{.HPCurrent.Int64}}{{end}}" placeholder="—"
+                   aria-label="{{T "encounters.turn_col_hp"}}" title="{{T "encounters.turn_hp_hint"}}">
+          </form>
+          <span class="encounter-turn-sep">/</span>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/turns/{{.ID}}/hp_max" class="encounter-roster-form" data-target="encounter-turn-order">
+            <input type="text" inputmode="numeric" name="value" class="encounter-turn-autosubmit encounter-turn-hp"
+                   value="{{if .HPMax.Valid}}{{.HPMax.Int64}}{{end}}" placeholder="—"
+                   aria-label="{{T "sheet.max_hp_label"}}" title="{{T "encounters.turn_hp_max_hint"}}">
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/turns/{{.ID}}/note" class="encounter-turn-plain-form">
+            <input type="text" name="value" class="encounter-turn-plain-field encounter-turn-note" value="{{.Note}}"
+                   aria-label="{{T "encounters.turn_col_note"}}" placeholder="{{T "encounters.turn_note_placeholder"}}">
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/turns/{{.ID}}/delete" class="encounter-roster-form" data-target="encounter-turn-order">
+            <button type="submit" class="btn-danger">{{T "encounters.remove"}}</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <p class="encounter-turn-empty">{{T "encounters.turn_empty"}}</p>
+  {{end}}
+
+  {{if .Adversaries}}
+  <form method="post" action="/encounters/{{.EncounterID}}/turns/add-adversary" class="encounter-roster-form creation-form-inline encounter-turn-add" data-target="encounter-turn-order">
+    <label for="encounter-turn-adversary">{{T "encounters.turn_add_adversary_label"}}</label>
+    <select id="encounter-turn-adversary" name="adversary_id" class="sheet-option-tooltip-select">
+      <option value="all" data-description="{{T "encounters.turn_add_all_hint"}}">{{T "encounters.turn_add_all"}}</option>
+      {{range .Adversaries}}
+      <option value="{{.ID}}" data-description="{{T "encounters.turn_init_bonus_hint" (signed .InitBonus)}}">{{.Name}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{T "encounters.turn_add_all_hint"}}</span>
+    </span>
+    <button type="submit">{{T "encounters.turn_add"}}</button>
+  </form>
+  {{end}}
+
+  <form method="post" action="/encounters/{{.EncounterID}}/turns/add-manual" class="encounter-roster-form creation-form-inline encounter-turn-add" data-target="encounter-turn-order">
+    <label for="encounter-turn-name">{{T "encounters.turn_add_manual_label"}}</label>
+    <input type="text" id="encounter-turn-name" name="name" required>
+    <select name="kind" class="sheet-option-tooltip-select" aria-label="{{T "encounters.turn_kind_label"}}">
+      <option value="player" data-description="{{T "encounters.turn_kind_player_hint"}}">{{T "encounters.turn_kind_player"}}</option>
+      <option value="ally" data-description="{{T "encounters.turn_kind_ally_hint"}}">{{T "encounters.turn_kind_ally"}}</option>
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{T "encounters.turn_kind_player_hint"}}</span>
+    </span>
+    <input type="text" inputmode="numeric" name="initiative" class="encounter-turn-init" placeholder="{{T "encounters.turn_col_initiative"}}" aria-label="{{T "encounters.turn_col_initiative"}}">
+    <button type="submit">{{T "encounters.turn_add"}}</button>
+  </form>
+  {{with .Unit}}
+  <section class="encounter-unit-card" aria-live="polite" data-jutsu-error="{{T "encounters.builder_jutsu_detail_error"}}">
+    <h3 class="encounter-unit-name">{{.Name}} <span class="encounter-turn-kind">{{T (print "encounters.turn_kind_" .Kind)}}</span></h3>
+    {{if .Row}}
+    <div class="encounter-unit-grid">
+      <div class="encounter-builder-stats encounter-unit-stats">
+        {{template "encounter_unit_stats" .Row}}
+      </div>
+      <div class="encounter-unit-details">
+        {{if .Row.Traits}}
+        <h4>{{T "encounters.unit_traits"}}</h4>
+        <dl class="encounter-unit-entries">
+          {{range .Row.Traits}}<dt>{{.Name}}{{if .Rank}} ({{.Rank}}){{end}}</dt><dd>{{.Description}}</dd>{{end}}
+        </dl>
+        {{end}}
+        {{if .Passives}}
+        <h4>{{T "encounters.unit_passives"}}</h4>
+        <dl class="encounter-unit-entries">
+          {{range .Passives}}<dt>{{.Name}} <span class="encounter-unit-source">· {{.Source}}</span></dt><dd>{{.Description}}</dd>{{end}}
+        </dl>
+        {{end}}
+        {{if .Row.Jutsu}}
+        <h4>{{T "encounters.col_jutsu"}}</h4>
+        {{range .Row.Jutsu}}
+        <details class="encounter-unit-jutsu" data-jutsu-slug="{{.Slug}}">
+          <summary>{{.Name}} ({{.Rank}}) · {{.Classification}}{{if .CostText}} · {{.CostText}}{{end}}</summary>
+          <div class="encounter-unit-jutsu-body"></div>
+        </details>
+        {{end}}
+        {{end}}
+        <p class="encounter-unit-edit"><a href="/encounters/builder/{{$root.EncounterID}}/{{.Row.ID}}">{{T "encounters.builder_edit"}}</a></p>
+      </div>
+    </div>
+    {{else}}
+    <p class="encounter-turn-empty">{{T "encounters.turn_unit_none"}}</p>
+    {{end}}
+  </section>
+  {{end}}
+</details>
+{{end}}

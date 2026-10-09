@@ -1,0 +1,89 @@
+[
+  {
+    "slug": "adversary-template/inuzuka-genin",
+    "name": "Inuzuka Genin",
+    "page": 43,
+    "rank": "D", "size": "Medium", "clan": "Inuzuka", "clan_slug": "inuzuka", "role": "Generalist",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 3,
+    "level": 3, "xp": 10,
+    "ac": 14, "ac_note": "L. Armor", "dr": 2, "initiative": 5,
+    "speed": "50 ft.", "hp": "25", "cp": 25,
+    "str": {"score": 12, "mod": 1, "save": 4},
+    "dex": {"score": 14, "mod": 2, "save": 5},
+    "con": {"score": 12, "mod": 1, "save": 2},
+    "int": {"score": 4, "mod": -3, "save": -2},
+    "wis": {"score": 10, "mod": 0, "save": 1},
+    "cha": {"score": 8, "mod": -1, "save": 0},
+    "skills": [
+      {"name": "Acrobatics", "mod": 5},
+      {"name": "Animal Handling", "mod": 3},
+      {"name": "Perception", "mod": 3},
+      {"name": "Survival", "mod": 3}
+    ],
+    "passive_perception": 13,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Explorer", "tags": "Mobility", "text": "You gain a +20 bonus to movement speed, can climb, water walk, and wall walk without any movement penalty, and ignore difficult terrain and terrain that imposes movement penalties."},
+        {"name": "Feral Ability", "tags": "Utility", "text": "So long as you can smell, your passive Perception cannot be lowered."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Inuzuka Genin may make two unarmed attacks or two attacks with its currently equipped weapons."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 2) bludgeoning or slashing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +5 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 0, "dc": 10, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Four Legs Technique", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Clawing Swift Fang", "Mirage Blitz", "Tunneling Fang"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/nin-dog-pup",
+    "name": "Nin-Dog Pup",
+    "page": 43,
+    "rank": "D", "size": "Small", "clan": "Beast", "clan_slug": "inuzuka", "role": "Striker (Taijutsu)",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 3,
+    "level": 2, "xp": 10,
+    "ac": 14, "ac_note": "natural", "dr": 2, "initiative": 4,
+    "speed": "45 ft.", "hp": "20", "cp": 14,
+    "str": {"score": 14, "mod": 2, "save": 4},
+    "dex": {"score": 12, "mod": 1, "save": 3},
+    "con": {"score": 10, "mod": 0, "save": 0},
+    "int": {"score": 4, "mod": -3, "save": -3},
+    "wis": {"score": 12, "mod": 1, "save": 1},
+    "cha": {"score": 6, "mod": -2, "save": -2},
+    "skills": [
+      {"name": "Acrobatics", "mod": 4},
+      {"name": "Athletics", "mod": 5},
+      {"name": "Perception", "mod": 4},
+      {"name": "Survival", "mod": 4}
+    ],
+    "passive_perception": 24,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Bestial Senses", "tags": "Utility", "text": "Gain a +10 bonus to Perception."},
+        {"name": "Terrain Advantage", "tags": "Mobility", "text": "Immunity to difficult terrain. Gain a +10 bonus to speed while in an area of difficult terrain."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Bite", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage. If this attack deals damage, the Nin-Dog Pup may attempt to grapple the target as a free action."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 0, "dc": 10, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Beast-Human Clone", "Dynamic Marking"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Tunneling Fang"]}
+      ]}
+    ],
+    "waive": ["passive"],
+    "notes": "Printed as a Small Beast companion of the Inuzuka clan; clan_slug groups it with the Inuzuka templates. Passive Perception 24 includes Bestial Senses' +10 on top of the +4 Perception skill."
+  }
+]

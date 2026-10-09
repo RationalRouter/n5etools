@@ -1,0 +1,93 @@
+[
+  {
+    "slug": "adversary-template/kaguya-genin",
+    "name": "Kaguya Genin",
+    "page": 24,
+    "rank": "D", "size": "Small", "clan": "Kaguya", "clan_slug": "kaguya", "role": "Striker (Taijutsu)",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 15, "ac_note": "Light Armor", "dr": 2, "initiative": 6,
+    "speed": "45 ft.", "hp": "50", "cp": 42,
+    "str": {"score": 10, "mod": 0, "save": 2},
+    "dex": {"score": 14, "mod": 2, "save": 6},
+    "con": {"score": 12, "mod": 1, "save": 3},
+    "int": {"score": 6, "mod": -2, "save": 0},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 12, "mod": 1, "save": 5},
+    "skills": [
+      {"name": "Stealth", "mod": 6},
+      {"name": "Perception", "mod": 5, "stars": 1},
+      {"name": "Ninshou", "mod": 2},
+      {"name": "Martial Arts", "mod": 4},
+      {"name": "Chakra Control", "mod": 1},
+      {"name": "Illusions", "mod": -1}
+    ],
+    "passive_perception": 15,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Light-Footed", "tags": "Mobility", "text": "You can Disengage or Dash as a bonus action. When an enemy moves adjacent to you, you can spend your reaction to move away up to half your speed."},
+        {"name": "Bone Weapon Enhancement", "tags": "Attack", "text": "Bone weapons you summon increase their damage die by 1 step."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kaguya Genin may make 1 attack with its Bone Katana or 2 attacks with its Bone Kunai."},
+        {"name": "Bone Katana", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) slashing damage."},
+        {"name": "Bone Kunai", "text": "Ranged Weapon Attack: +6 to hit, range 30/60 ft., one target. Hit: 5 (1d6 + 2) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Sword Aura: Red", "Dancing Fool's Dance", "Pain Dance", "Soul Mark"], "new": ["Sword Aura: Red"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/kaguya-chunin",
+    "name": "Kaguya Chunin",
+    "page": 24,
+    "rank": "C", "size": "Small", "clan": "Kaguya", "clan_slug": "kaguya", "role": "Striker (Taijutsu)",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 19, "ac_note": "Light Armor", "dr": 2, "initiative": 8,
+    "speed": "45 ft.", "hp": "116", "cp": 96,
+    "str": {"score": 12, "mod": 1, "save": 6},
+    "dex": {"score": 16, "mod": 3, "save": 8},
+    "con": {"score": 14, "mod": 2, "save": 4},
+    "int": {"score": 6, "mod": -2, "save": 0},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 14, "mod": 2, "save": 7},
+    "skills": [
+      {"name": "Stealth", "mod": 8},
+      {"name": "Perception", "mod": 6, "stars": 1},
+      {"name": "Ninshou", "mod": 3},
+      {"name": "Martial Arts", "mod": 6},
+      {"name": "Chakra Control", "mod": 2},
+      {"name": "Illusions", "mod": -1}
+    ],
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Battle Hungry", "tags": "Attack", "text": "+1 damage per turn when using bone weapons or Kaguya Hijutsu. Lost if other actions are taken."},
+        {"name": "Dead Bone Pulse", "tags": "Attack", "text": "Bone weapons and jutsu cannot be made at disadvantage."},
+        {"name": "Very Pointy Bones", "text": "Once per turn, your weapon, Taijutsu, and Bukijutsu damage ignore up to 10 DR."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kaguya Chunin may make 2 attacks with its Bone Katana or 3 attacks with its Bone Kunai."},
+        {"name": "Bone Katana", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) slashing damage."},
+        {"name": "Bone Kunai", "text": "Ranged Weapon Attack: +6 to hit, range 30/60 ft., one target. Hit: 5 (1d6 + 2) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Dance of the Camellia", "Dance of the Larch", "Dance of Bullet Seedlings", "Dance of the Katsura"]},
+        {"rank": "C", "cost": 9, "names": ["Disarming Riposte", "Sword Aura: Orange", "Dance of the Willow", "Dance of the Setsugekka", "Ten-Finger Drilling Bullets"], "new": ["Disarming Riposte", "Sword Aura: Orange"]}
+      ]}
+    ]
+  }
+]

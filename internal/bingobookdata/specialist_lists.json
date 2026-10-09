@@ -1,0 +1,9 @@
+[
+  {"name": "Fire", "jutsu": ["Erupting Flame", "Dragon Flame Bombs", "Great Flame Bomb", "Fire Storm"]},
+  {"name": "Water", "jutsu": ["Water Shuriken", "Raging Tide", "Explosive Colliding Shockwave", "Water Formation Wall"]},
+  {"name": "Earth", "jutsu": ["Rock Shuriken", "Earth Flow Spears", "Stone Bamboo Shoot", "Stone Needle"]},
+  {"name": "Wind", "jutsu": ["Slicing Airwaves", "1,000 Blades of the Wind", "Divine Mountain Wind", "Drilling Wind Bullet"]},
+  {"name": "Lightning", "jutsu": ["Shock Whip", "Static Falcon", "Banquet of Thunder", "Lightning Rat"]},
+  {"name": "Genjutsu", "jutsu": ["Night: Frigid Pain", "Psionics: Psycho Cut!", "Effortless Paralysis", "Mind Break"]},
+  {"name": "Medical", "jutsu": ["Adept Healing", "Restorative", "Body Pathway Derangement", "Death Ward", "Healing Wave"]}
+]

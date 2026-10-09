@@ -1,0 +1,74 @@
+[
+  {
+    "slug": "adversary-template/generic-jonin",
+    "name": "Generic Jonin",
+    "page": 20,
+    "rank": "A", "size": "Medium", "clan": "Non-Clan", "clan_slug": "", "role": "Generalist",
+    "class": "elite", "affiliation": "Factionless", "prof": 7,
+    "level": 14, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 28, "ac_note": "Heavy Armor", "dr": 6, "initiative": 14,
+    "speed": "30 ft.", "hp": "360/216/108", "cp": 360,
+    "str": {"score": 15, "mod": 2, "save": 10},
+    "dex": {"score": 21, "mod": 5, "save": 13},
+    "con": {"score": 19, "mod": 4, "save": 8},
+    "int": {"score": 17, "mod": 3, "save": 7},
+    "wis": {"score": 11, "mod": 0, "save": 8},
+    "cha": {"score": 8, "mod": -1, "save": 7},
+    "skills": [
+      {"name": "Stealth", "mod": 12},
+      {"name": "Perception", "mod": 11, "stars": 2},
+      {"name": "Ninshou", "mod": 12, "stars": 1},
+      {"name": "Martial Arts", "mod": 9},
+      {"name": "Chakra Control", "mod": 11},
+      {"name": "Illusions", "mod": 7}
+    ],
+    "damage_resistances": "Bludgeoning, Piercing, Slashing",
+    "passive_perception": 21,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Hard to Hit", "tags": "Defense", "text": "While standing and unrestrained, attacks against you suffer a 1d6 penalty unless adjacent to 2+ enemies."},
+        {"name": "Superior Skill", "tags": "Utility", "text": "Add 1d6 to checks with proficient skills. In contested checks, add 2d6 instead."},
+        {"name": "Superior Power", "tags": "Attack", "text": "Twice per turn, add your level (14) to damage instead of your ability modifier."},
+        {"name": "Limitless Potential", "tags": "Utility", "text": "Twice per encounter, add 1d6 to an attack roll, ability check, or saving throw."},
+        {"name": "Cunning Action", "tags": "Mobility, Utility", "text": "Can Dash, Disengage, or Hide as a bonus action."},
+        {"name": "Evasive", "tags": "Defense", "text": "On a successful Dex save, take no damage and suffer no effects."},
+        {"name": "Chakra Weapons", "tags": "Attack", "text": "Your weapons are considered chakra-enhanced. Gain +2 to hit and damage."},
+        {"name": "Ranged Weapon Expert", "tags": "Attack", "text": "Gain +1 additional ranged/thrown weapon attack per Attack action (already factored in)."}
+      ]},
+      {"kind": "passives", "title": "Generic Jonin's Clan/Role Passives", "entries": [
+        {"name": "Battle Tested Skills", "text": "Weapons are chakra-enhanced and gain +2 to hit/damage. Also grants 1 extra ranged/thrown weapon attack per Attack action."},
+        {"name": "Well-Rounded Elite", "text": "Cannot roll ability checks or saving throws at disadvantage."},
+        {"name": "Tabula Rasa", "text": "At the start of your turn, choose one benefit until your next turn: • +1d4 to attack rolls • +1d6 to damage rolls • +1d8 to skill checks"}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 3 attacks, or 4 attacks with a ranged or thrown weapon."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +14 to hit, reach 5 ft. Hit: (1d4 + 6) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +14 to hit, range 30/60 ft. Hit: (1d4 + 6) piercing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Traits", "entries": [
+        {"name": "Elite Action", "text": "Takes 1 Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain an extra reaction. Regains all Elite Actions at the start of its turn."},
+        {"name": "Legendary Resistance (4/Day)", "text": "When the Generic Jonin fails a saving throw, it may choose to succeed instead."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 11, "dc": 22, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Body Flicker", "Bind", "Body Camouflage", "Chakra Shield"]},
+        {"rank": "C", "cost": 9, "names": ["Shadow Clone Technique", "Chakra Dispel"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 10, "dc": 21, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Feather Burst"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Shatter"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 8, "dc": 19, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Achilles Heel", "Burst Fire", "Bursting Fling"], "new": ["Achilles Heel", "Bursting Fling"]},
+        {"rank": "C", "cost": 9, "names": ["Fuma Kotaro's Skill", "Straight Return", "Tanuki's Trickery"], "new": ["Straight Return"]},
+        {"rank": "B", "cost": 14, "names": ["After Image Technique", "Binding Shot", "Bomb Arrows", "Silent Killing"], "new": ["Bomb Arrows"]},
+        {"rank": "A", "cost": 20, "names": ["Armor Pierce", "Assassin's Breath", "Burst Ammo"], "new": ["Armor Pierce", "Assassin's Breath", "Burst Ammo"]}
+      ]}
+    ],
+    "notes": "Legendary Resistance printed \"When Jenrique fails a saving throw, he may choose to succeed instead\", a leftover character name; transcribed generically."
+  }
+]

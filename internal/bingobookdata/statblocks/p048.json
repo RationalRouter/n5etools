@@ -1,0 +1,52 @@
+[
+  {
+    "slug": "adversary-template/kashu-chunin",
+    "name": "Kashu Chunin",
+    "page": 48,
+    "rank": "C", "size": "Medium", "clan": "Kashu", "clan_slug": "kashu", "role": "Controller",
+    "class": "standard", "affiliation": "Sound Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 17, "ac_note": "M. Armor", "dr": 2, "initiative": 7,
+    "speed": "30 ft.", "hp": "58", "cp": 74,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 14, "mod": 2, "save": 5},
+    "con": {"score": 14, "mod": 2, "save": 8},
+    "int": {"score": 8, "mod": -1, "save": 5},
+    "wis": {"score": 16, "mod": 3, "save": 9},
+    "cha": {"score": 12, "mod": 1, "save": 4},
+    "skills": [
+      {"name": "Acrobatics", "mod": 7},
+      {"name": "Illusions", "mod": 8},
+      {"name": "Intimidation", "mod": 6},
+      {"name": "Perception", "mod": 8},
+      {"name": "Performance", "mod": 6}
+    ],
+    "condition_resistances": "Disoriented",
+    "passive_perception": 18,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Auditory Ninja Tool", "tags": "Attack", "text": "You gain an Auditory Ninja Tool, a weapon with the Light and Finesse qualities with which you are proficient. This weapon deals either 1d4 bludgeoning damage or Xd4 psychic damage, where X = your level / 4. Attacks that deal psychic damage use your Genjutsu modifier for damage instead of Strength or Dexterity. You may use this tool as a component of any Genjutsu you cast with the Auditory keyword, replacing the Hand Sign (HS) component (if any) and increasing the first instance of damage dealt by +1 damage die."},
+        {"name": "Disorienting Genjutsu", "tags": "Control", "text": "Auditory Genjutsu you cast impose a rank of disorientation on a failed save."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kashu Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Auditory Ninja Tool", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) bludgeoning damage or 8 (2d4 + 3) psychic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +7 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Chakra Shield", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Feather Burst", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Amped Shot", "Frigid Thoughts", "Insinuation", "Psychic Enhancement", "Thought Film", "Soundless Blinding Echo"]},
+        {"rank": "C", "cost": 9, "names": ["Hypnotic Music", "Psychic Interruption", "Ringing Bell Distortion"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace"]}
+      ]}
+    ],
+    "notes": "Disorienting Genjutsu is printed \"Disorientating Genjutsu\"."
+  }
+]

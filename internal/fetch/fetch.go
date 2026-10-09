@@ -16,6 +16,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,6 +49,56 @@ func directDownloadURL(fileID string) string {
 // already established in this codebase.
 func defaultClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout}
+}
+
+// downloadClient is the nil-client default for full-file downloads. It has
+// no total timeout: Drive throttles some files to well under 100 KB/s (the
+// 18 MB Bingo Book took about 5 minutes), so any fixed whole-request budget
+// either fails slow-but-healthy transfers on every launch or is too long to
+// catch a dead one. A dead transfer is caught by stallTimeout instead, and
+// the caller's context still bounds the total.
+func downloadClient() *http.Client {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.ResponseHeaderTimeout = 30 * time.Second
+	return &http.Client{Transport: t}
+}
+
+// stallTimeout is how long a download may go without receiving a single
+// byte before it is abandoned. A var so tests can shorten it.
+var stallTimeout = 60 * time.Second
+
+var errStalled = errors.New("download stalled")
+
+// stallGuard derives a context that is cancelled once no progress has been
+// reported for stallTimeout. Call progress after every successful read and
+// stop once the transfer is over.
+func stallGuard(ctx context.Context) (guarded context.Context, progress func(), stop func()) {
+	guarded, cancel := context.WithCancelCause(ctx)
+	timer := time.AfterFunc(stallTimeout, func() { cancel(errStalled) })
+	return guarded, func() { timer.Reset(stallTimeout) }, func() { timer.Stop(); cancel(nil) }
+}
+
+// progressReader calls onRead after every read that returned data.
+type progressReader struct {
+	r      io.Reader
+	onRead func()
+}
+
+func (p progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	if n > 0 {
+		p.onRead()
+	}
+	return n, err
+}
+
+// stallError replaces err with a clear message when the transfer was
+// cancelled by stallGuard rather than failing on its own.
+func stallError(ctx context.Context, err error) error {
+	if errors.Is(context.Cause(ctx), errStalled) {
+		return fmt.Errorf("no data received for %s: %w", stallTimeout, errStalled)
+	}
+	return err
 }
 
 // HeadLastModified does a cheap HEAD request against a book's canonical
@@ -103,7 +154,7 @@ func Download(ctx context.Context, client *http.Client, driveURL, destPath strin
 		return "", err
 	}
 	if client == nil {
-		client = defaultClient(2 * time.Minute)
+		client = downloadClient()
 	}
 	return downloadTo(ctx, client, directDownloadURL(id), destPath)
 }
@@ -111,23 +162,25 @@ func Download(ctx context.Context, client *http.Client, driveURL, destPath strin
 // downloadTo is Download's actual HTTP-handling logic, split out the same
 // way and for the same reason as headLastModified above.
 func downloadTo(ctx context.Context, client *http.Client, target, destPath string) (string, error) {
+	ctx, progress, stop := stallGuard(ctx)
+	defer stop()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return "", err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", stallError(ctx, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GET %s: unexpected status %s", target, resp.Status)
 	}
 
-	br := bufio.NewReader(resp.Body)
+	br := bufio.NewReader(progressReader{resp.Body, progress})
 	sniff, err := br.Peek(4)
 	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("reading response from %s: %w", target, err)
+		return "", fmt.Errorf("reading response from %s: %w", target, stallError(ctx, err))
 	}
 	if string(sniff) != "%PDF" {
 		return "", fmt.Errorf("response from %s is not a PDF (got %q) — likely a Drive virus-scan interstitial page", target, sniff)
@@ -141,7 +194,7 @@ func downloadTo(ctx context.Context, client *http.Client, target, destPath strin
 
 	h := sha256.New()
 	if _, err := io.Copy(io.MultiWriter(out, h), br); err != nil {
-		return "", fmt.Errorf("writing %s: %w", destPath, err)
+		return "", fmt.Errorf("writing %s: %w", destPath, stallError(ctx, err))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

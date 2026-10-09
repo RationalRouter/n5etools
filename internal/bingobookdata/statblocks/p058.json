@@ -1,0 +1,102 @@
+[
+  {
+    "slug": "adversary-template/yamanaka-genin",
+    "name": "Yamanaka Genin",
+    "page": 58,
+    "rank": "D", "size": "Small", "clan": "Yamanaka", "clan_slug": "yamanaka", "role": "Controller",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 15, "ac_note": "C. Armor Cha", "dr": 2, "initiative": 4,
+    "speed": "30 ft.", "hp": "22", "cp": 29,
+    "str": {"score": 7, "mod": -2, "save": 3},
+    "dex": {"score": 9, "mod": -1, "save": 3},
+    "con": {"score": 11, "mod": 0, "save": 3},
+    "int": {"score": 12, "mod": 1, "save": 6},
+    "wis": {"score": 12, "mod": 1, "save": 6},
+    "cha": {"score": 14, "mod": 2, "save": 5},
+    "skills": [
+      {"name": "Deception", "mod": 6},
+      {"name": "Insight", "mod": 7, "stars": 1},
+      {"name": "Illusions", "mod": 5},
+      {"name": "Ninshou", "mod": 1},
+      {"name": "Chakra Control", "mod": 4},
+      {"name": "Perception", "mod": 1}
+    ],
+    "passive_perception": 11,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Awakened Mind", "tags": "Utility", "text": "You gain telepathy with a range of 60 feet."},
+        {"name": "Get Into Position", "tags": "Mobility, Buff", "text": "When you would withhold your action to cast a jutsu in response to a hostile or allied creature's actions, you can, as part of the same action, command up to 2 allies to move up to 30 feet into any space that can hold them."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Yamanaka Genin may make one attack with its currently equipped weapon."},
+        {"name": "Tanto", "text": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 2 (1d6 - 1) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow", "String Light Formation"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release"]},
+        {"rank": "D", "cost": 5, "names": ["Mind Body Transfer", "Mind Detection Technique", "Psionics: Delay!", "Sanctuary"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/yamanaka-chunin",
+    "name": "Yamanaka Chunin",
+    "page": 58,
+    "rank": "C", "size": "Medium", "clan": "Yamanaka", "clan_slug": "yamanaka", "role": "Controller",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 5,
+    "level": 6, "xp": 10,
+    "ac": 16, "ac_note": "C. Armor Cha", "dr": 2, "initiative": 5,
+    "speed": "30 ft.", "hp": "50", "cp": 66,
+    "str": {"score": 7, "mod": -2, "save": 3},
+    "dex": {"score": 9, "mod": -1, "save": 3},
+    "con": {"score": 13, "mod": 1, "save": 4},
+    "int": {"score": 14, "mod": 2, "save": 8},
+    "wis": {"score": 15, "mod": 2, "save": 8},
+    "cha": {"score": 16, "mod": 3, "save": 9},
+    "skills": [
+      {"name": "Deception", "mod": 8},
+      {"name": "Insight", "mod": 9, "stars": 1},
+      {"name": "Perception", "mod": 14, "stars": 1},
+      {"name": "Illusions", "mod": 7},
+      {"name": "Ninshou", "mod": 2},
+      {"name": "Chakra Control", "mod": 5}
+    ],
+    "passive_perception": 24,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Uncanny Senses", "tags": "General", "text": "Immune to the surprised condition. +5 bonus to Perception (already added)."},
+        {"name": "Adept Transfer", "tags": "Control", "text": "A creature that fails a saving throw inflicted by a Genjutsu you cast suffers a 1d4 penalty."}
+      ]},
+      {"kind": "passives", "title": "Yamanaka Chunin's Passives", "entries": [
+        {"name": "Controller Passive 1", "text": "Jutsu you cast that would inflict a condition of any type cannot have their saving throws (if any) made with a jutsu-based bonus that lets the target roll an additional die other than a d20 (such as Bless)."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Yamanaka Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Tanto", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 2 (1d6 - 1) slashing damage."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 1 (1d4 + 1) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +6 to hit, range 30/60 ft., one target. Hit: 1 (1d4 + 1) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow", "Release", "Escape Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Mobility Restriction"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform", "Voice Change"]},
+        {"rank": "D", "cost": 5, "names": ["Mind Body Disturbance", "Mind Body Transfer", "Mind Detection Technique", "Night: Bitter Light", "Sanctuary"]},
+        {"rank": "C", "cost": 9, "names": ["False Visions", "Mind Clone Technique", "Mind Connection Technique"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Crippling Strike", "Shatter Shot"]},
+        {"rank": "C", "cost": 9, "names": ["Front Beheading"]}
+      ]}
+    ],
+    "notes": "Both Kunai attacks print an average damage of 1 for 1d4 + 1; kept as printed."
+  }
+]

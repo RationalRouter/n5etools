@@ -1,0 +1,55 @@
+[
+  {
+    "slug": "adversary-template/generic-genin",
+    "name": "Generic Genin",
+    "page": 18,
+    "rank": "D", "size": "Small", "clan": "Non-Clan", "clan_slug": "", "role": "Generalist",
+    "class": "standard", "affiliation": "Factionless", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 15, "ac_note": "L. Armor", "dr": 2, "initiative": 6,
+    "speed": "30 ft.", "hp": "42", "cp": 42,
+    "str": {"score": 12, "mod": 1, "save": 3},
+    "dex": {"score": 15, "mod": 2, "save": 6},
+    "con": {"score": 11, "mod": 0, "save": 2},
+    "int": {"score": 12, "mod": 1, "save": 3},
+    "wis": {"score": 9, "mod": -1, "save": 3},
+    "cha": {"score": 7, "mod": -2, "save": 0},
+    "skills": [
+      {"name": "Stealth", "mod": 6},
+      {"name": "Perception", "mod": 5, "stars": 1},
+      {"name": "Ninshou", "mod": 5},
+      {"name": "Martial Arts", "mod": 5},
+      {"name": "Chakra Control", "mod": 0},
+      {"name": "Illusions", "mod": -1}
+    ],
+    "passive_perception": 15,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Light-Footed", "tags": "Mobility", "text": "You can Disengage or Dash as a bonus action. When an enemy moves adjacent to you, you can spend your reaction to move away up to half your speed."},
+        {"name": "Pincer Movement", "tags": "Mobility", "text": "When an ally moves adjacent to an enemy, you can spend your reaction to move up to your speed towards that same enemy."}
+      ]},
+      {"kind": "passives", "title": "Generic Genin Role Passives", "entries": [
+        {"text": "This adversary is one of versatility. This adversary can select 2 additional Traits from any category it qualifies for."},
+        {"name": "Tabula Rasa", "text": "At the beginning of each of this adversary's turns, select one benefit that it will benefit from until the beginning of its next turn: • Attacks it makes gain a 1d4 bonus to hit. • Damage it deals gains a 1d6 bonus. • Skill checks it makes gain a 1d8 bonus."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 1 attack with a melee weapon, or 2 attacks with a ranged or thrown weapon."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft. Hit: (1d4 + 2) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +6 to hit, range 30/60 ft. Hit: (1d4 + 2) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique", "Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Bind", "Chakra Shield"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Achilles Heel", "Burst Fire", "Bursting Fling", "Paper Bomb Barrage"], "new": ["Achilles Heel", "Bursting Fling"]}
+      ]}
+    ],
+    "notes": "Cha modifier printed as \"+-2\"; transcribed as -2."
+  }
+]

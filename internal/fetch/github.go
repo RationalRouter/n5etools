@@ -80,19 +80,21 @@ func headETag(ctx context.Context, client *http.Client, target string) (string, 
 // client may be nil.
 func DownloadAsset(ctx context.Context, client *http.Client, assetURL, destPath string) (etag string, err error) {
 	if client == nil {
-		client = defaultClient(2 * time.Minute)
+		client = downloadClient()
 	}
 	return downloadAssetTo(ctx, client, assetURL, destPath)
 }
 
 func downloadAssetTo(ctx context.Context, client *http.Client, target, destPath string) (string, error) {
+	ctx, progress, stop := stallGuard(ctx)
+	defer stop()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return "", err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", stallError(ctx, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -105,8 +107,8 @@ func downloadAssetTo(ctx context.Context, client *http.Client, target, destPath 
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		return "", fmt.Errorf("writing %s: %w", destPath, err)
+	if _, err := io.Copy(out, progressReader{resp.Body, progress}); err != nil {
+		return "", fmt.Errorf("writing %s: %w", destPath, stallError(ctx, err))
 	}
 	return resp.Header.Get("ETag"), nil
 }

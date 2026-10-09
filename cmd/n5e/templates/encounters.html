@@ -1,0 +1,108 @@
+{{define "content"}}
+{{if .Detail}}
+{{with .Detail}}
+<p><a href="/encounters">{{T "encounters.all_encounters"}}</a></p>
+<h1>{{.Name}}</h1>
+<p class="page-subtitle">{{T "encounters.party_size"}}: {{.PartySize}} &middot; {{T "encounters.party_level"}}: {{.PartyLevel}} &middot; {{T "encounters.difficulty"}}: {{T (print "encounters.difficulty_" .Difficulty)}}</p>
+{{template "encounter_roster_card" .}}
+{{template "encounter_turn_order" $.TurnOrder}}
+<form method="post" action="/encounters/{{.EncounterID}}/delete" data-confirm="{{T "encounters.confirm_delete" .Name}}">
+  <button type="submit" class="btn-danger">{{T "encounters.delete"}}</button>
+</form>
+{{end}}
+
+{{else}}
+<h1>{{T "encounters.title"}}</h1>
+<p class="page-subtitle">{{T "encounters.generator_subtitle"}}</p>
+<p><a href="/encounters/adversary-traits">{{T "adversary_traits.browse_link"}}</a></p>
+<p><a href="/encounters/npc-templates">{{T "npc_templates.browse_link"}}</a></p>
+<p><a href="/encounters/general-traits">{{T "npc_templates.general_traits_link"}}</a></p>
+
+<form method="post" action="/encounters/generate" class="creation-form">
+  <label for="party_size">{{T "encounters.party_size"}}</label>
+  <input type="number" id="party_size" name="party_size" min="1" max="20" value="{{if .Preview}}{{.Preview.PartySize}}{{else}}4{{end}}" required>
+
+  <label for="party_level">{{T "encounters.party_level"}}</label>
+  <input type="number" id="party_level" name="party_level" min="1" max="20" value="{{if .Preview}}{{.Preview.PartyLevel}}{{else}}1{{end}}" required>
+
+  <label for="difficulty">{{T "encounters.difficulty"}}</label>
+  <div class="creation-form-inline">
+    <select id="difficulty" name="difficulty" class="sheet-option-tooltip-select">
+      {{range $d := .Difficulties}}
+      <option value="{{$d}}" data-description="{{T (print "encounters.difficulty_hint_" $d)}}"{{if and $.Preview (eq $.Preview.Difficulty $d)}} selected{{end}}>{{T (print "encounters.difficulty_" $d)}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{T "encounters.difficulty_hint_standard"}}</span>
+    </span>
+  </div>
+
+  <label for="clan_tag">{{T "encounters.clan_label"}}</label>
+  <div class="creation-form-inline">
+    <select id="clan_tag" name="clan_tag" class="sheet-option-tooltip-select">
+      {{range .ClanOptions}}
+      <option value="{{.Tag}}" data-description="{{.Description}}"{{if eq $.GenClan .Tag}} selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{T "encounters.clan_none_hint"}}</span>
+    </span>
+  </div>
+
+  <label for="affiliation_tag">{{T "encounters.affiliation_label"}}</label>
+  <div class="creation-form-inline">
+    <select id="affiliation_tag" name="affiliation_tag" class="sheet-option-tooltip-select">
+      {{range .AffiliationOptions}}
+      <option value="{{.Tag}}" data-description="{{.Description}}"{{if eq $.GenAffiliation .Tag}} selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content">{{T "encounters.affiliation_none_hint"}}</span>
+    </span>
+  </div>
+
+  <button type="submit" class="btn-primary">{{T "encounters.generate"}}</button>
+</form>
+
+{{if .Preview}}
+{{template "encounter_roster_card" .Preview}}
+{{end}}
+
+<h2>{{T "encounters.saved_heading"}}</h2>
+{{if .Encounters}}
+<div class="table-scroll">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>{{T "encounters.col_name"}}</th>
+      <th>{{T "encounters.party_size"}}</th>
+      <th>{{T "encounters.party_level"}}</th>
+      <th>{{T "encounters.difficulty"}}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Encounters}}
+    <tr>
+      <td><a href="/encounters/{{.ID}}">{{.Name}}</a></td>
+      <td>{{.PartySize}}</td>
+      <td>{{.PartyLevel}}</td>
+      <td>{{T (print "encounters.difficulty_" .Difficulty)}}</td>
+      <td>
+        <form method="post" action="/encounters/{{.ID}}/delete" data-confirm="{{T "encounters.confirm_delete" .Name}}">
+          <button type="submit" class="btn-danger">{{T "encounters.delete"}}</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p>{{T "encounters.empty_state"}}</p>
+{{end}}
+{{end}}
+{{end}}

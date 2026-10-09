@@ -1,0 +1,49 @@
+[
+  {
+    "slug": "adversary-template/chinoike-genin",
+    "name": "Chinoike Genin",
+    "page": 33,
+    "rank": "D", "size": "Medium", "clan": "Chinoike", "clan_slug": "chinoike", "role": "Supporter",
+    "class": "standard", "affiliation": "Factionless", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 14, "ac_note": "M. Armor", "dr": 2, "initiative": 3,
+    "speed": "35 ft.", "hp": "22", "cp": 22,
+    "str": {"score": 12, "mod": 1, "save": 2},
+    "dex": {"score": 8, "mod": -1, "save": 0},
+    "con": {"score": 10, "mod": 0, "save": 3},
+    "int": {"score": 12, "mod": 1, "save": 2},
+    "wis": {"score": 14, "mod": 2, "save": 5},
+    "cha": {"score": 6, "mod": -2, "save": -1},
+    "skills": [
+      {"name": "Chakra Control", "mod": 4},
+      {"name": "Illusions", "mod": 6},
+      {"name": "Medicine", "mod": 6},
+      {"name": "Ninshou", "mod": 5}
+    ],
+    "passive_perception": 12,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Helpful", "tags": "Utility", "text": "You can perform the Help action as a bonus action, targeting up to 2 allied creatures up to 30 feet away."},
+        {"name": "Sanguine Prowess", "tags": "Attack, Healing, Utility", "text": "When you cast a jutsu with the Water Release keyword, you can, as part of the same action, release a small amount of blood, infusing it with the jutsu. The jutsu gains the benefits of being near a sufficient source of water, and gains a +1 to damage die, healing die, and save DC. If the jutsu gains no benefits for being near a sufficient source of water, double these bonuses."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Chinoike Genin may make two attacks with its currently equipped weapon."},
+        {"name": "Blood Weapon", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 1) necrotic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +5 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 1) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Virtue"]},
+        {"rank": "D", "cost": 5, "names": ["Bloodletting Weaponry", "Blood Daggers", "Enhanced Circulation", "Healing Waters"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Genjutsu: Blood Lake", "Genjutsu: Ichorous Illusions!", "Genjutsu: Ketsuryūgan!", "Insinuation", "Mind Film"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Blade of Sin: Sloth", "Weapon Deflect"]}
+      ]}
+    ]
+  }
+]

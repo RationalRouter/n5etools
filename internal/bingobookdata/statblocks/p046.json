@@ -1,0 +1,62 @@
+[
+  {
+    "slug": "adversary-template/nin-dog-alpha",
+    "name": "Nin-Dog Alpha",
+    "page": 46,
+    "rank": "B", "size": "Large", "clan": "Beast", "clan_slug": "inuzuka", "role": "Striker (Taijutsu)",
+    "class": "elite", "affiliation": "Leaf Shinobi", "prof": 5,
+    "level": 8, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 4,
+    "ac": 19, "ac_note": "natural", "dr": 2, "initiative": 9,
+    "speed": "45 ft.", "hp": "128/76/38", "cp": 94,
+    "str": {"score": 16, "mod": 3, "save": 7},
+    "dex": {"score": 14, "mod": 2, "save": 6},
+    "con": {"score": 12, "mod": 1, "save": 2},
+    "int": {"score": 6, "mod": -2, "save": -1},
+    "wis": {"score": 14, "mod": 2, "save": 6},
+    "cha": {"score": 8, "mod": -1, "save": 0},
+    "skills": [
+      {"name": "Acrobatics", "mod": 7},
+      {"name": "Athletics", "mod": 8},
+      {"name": "Insight", "mod": 7},
+      {"name": "Perception", "mod": 7},
+      {"name": "Stealth", "mod": 7},
+      {"name": "Survival", "mod": 7}
+    ],
+    "damage_resistances": "Slashing",
+    "condition_immunities": "Surprised",
+    "passive_perception": 32,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Frightening Aura", "tags": "Control", "text": "All hostile creatures within 10 feet must make a Wisdom saving throw against your highest saving throw. On a failed save, they gain 1 rank of Fear while inside this aura, or for one minute. A feared creature remakes this saving throw at the end of each of its turns."},
+        {"name": "Bestial Aggression", "tags": "Attack", "text": "You have innate aggressive tendencies based on your species. You gain advantage on your first attack made against the last creature that targeted you with an attack."},
+        {"name": "Bestial Senses", "tags": "Utility", "text": "Gain a +10 bonus to Perception."},
+        {"name": "Uncanny Senses", "tags": "Utility", "text": "Immune to the surprised condition. +5 bonus to Perception (already added)."}
+      ]},
+      {"kind": "passives", "title": "Nin-Dog Alpha's Clan/Role Passives", "entries": [
+        {"text": "This adversary is one born of the wild. It gains a +1 bonus to hit and damage for every allied creature within 5 feet of it."},
+        {"name": "Elite Striker", "text": "This adversary gains a +1 bonus to Taijutsu, Bukijutsu, and weapon attack bonuses. Also, increase the number of weapon attacks by 1 (added)."},
+        {"name": "Striker (Taijutsu) Passive", "text": "Once per turn, your weapon, Taijutsu, and Bukijutsu damage ignores up to 10 damage reduction."},
+        {"name": "Striker (Taijutsu) Action", "text": "By spending 4 Tenacity dice, this adversary can Overpower the next Taijutsu or Bukijutsu it casts. The overpowered jutsu adds the Tenacity die to its damage and imposes a 1d4 penalty on creatures forced to make a saving throw against the jutsu cast. Additionally, if the jutsu cast scores a critical hit, increase the attack's damage die by 1 step."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Nin-Dog Alpha may make three bite attacks."},
+        {"name": "Bite", "text": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 12 (2d8 + 3) piercing damage. If this attack deals damage, the Nin-Dog Alpha may attempt to grapple the target as a free action. It has advantage on grapple checks against creatures smaller than itself."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Nin-Dog Alpha takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 3, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Beast-Human Clone", "Dynamic Marking"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 9, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Tunneling Fang"]},
+        {"rank": "C", "cost": 9, "names": ["Fang Over Fang"]}
+      ]}
+    ],
+    "waive": ["passive"],
+    "notes": "Printed as a Large Beast companion of the Inuzuka clan; clan_slug groups it with the Inuzuka templates. Passive Perception 32 is 10 + the +7 Perception skill + Bestial Senses' +10 + Uncanny Senses' +5, although Uncanny Senses says its +5 is already included in the skill."
+  }
+]

@@ -79,8 +79,31 @@ var TranslatableFields = map[string][]string{
 	"adversary_role_traits": {
 		"name", "description",
 	},
-	"poisons":        {"name", "description"},
-	"trap_templates": {"name", "description", "vs_ability", "time_to_build", "toolkit_required"},
+	"adversary_ranks":                   {"name"},
+	"adversary_clarifications":          {"term", "description"},
+	"adversary_transformation_buffs":    {"name", "description"},
+	"adversary_rule_breaks":             {"name", "description"},
+	"adversary_transformation_examples": {"name", "description"},
+	"adversary_battlefield_domains":     {"name", "description"},
+	"adversary_builder_sheet_traits":    {"name", "description"},
+	// Adversary Builder roles (migration 0082). The other 0082 charts are
+	// numbers keyed by tag; their few text notes go through the UI catalog.
+	"adversary_builder_roles": {"name"},
+	// The Bingo Book NPC template library (migration 0080). Skill names
+	// (adversary_template_skills), jutsu names (adversary_template_jutsu)
+	// and the Specialist Jutsu Lists are deliberately excluded: jutsu names
+	// are matched against the jutsu table by name at runtime to link each
+	// entry to its full jutsu row (which carries its own translation), and
+	// skill names are translated through the UI catalog's skill keys.
+	"adversary_template_statblocks": {
+		"name", "clan_name", "role", "affiliation", "size", "ac_note", "speed",
+		"damage_resistances", "damage_immunities", "damage_vulnerabilities",
+		"condition_resistances", "condition_immunities", "senses", "notes",
+	},
+	"adversary_template_entries":    {"section_title", "name", "tags", "description"},
+	"adversary_beta_general_traits": {"name", "keywords", "description", "notes"},
+	"poisons":                       {"name", "description"},
+	"trap_templates":                {"name", "description", "vs_ability", "time_to_build", "toolkit_required"},
 	"summon_tribes": {
 		"name", "description", "defensive_ability", "saving_throws", "skills",
 		"senses", "jutsu_save_dc_text", "jutsu_attack_bonus_text", "jutsu_specialty_text",
@@ -133,16 +156,17 @@ func IsTranslatable(table, field string) bool {
 // "slug" column directly. Joined with KeySeparator to form the value stored
 // in content_translations.slug.
 var KeyColumns = map[string][]string{
-	"clan_traits":             {"clan_slug", "name"},
-	"summon_tribe_roles":      {"tribe_slug", "role_name"},
-	"summon_tribe_attacks":    {"tribe_slug", "name"},
-	"puppet_tool_stat_block":  {"class_slug"},
-	"puppet_swarm_stat_block": {"class_slug"},
-	"titan_unit_card":         {"class_slug"},
-	"class_proficiencies":     {"class_slug", "kind", "value"},
-	"class_equipment_options": {"class_slug", "group_idx", "choice_idx"},
-	"class_levels":            {"class_slug", "level"},
-	"class_multiclass_rules":  {"class_slug"},
+	"clan_traits":                {"clan_slug", "name"},
+	"summon_tribe_roles":         {"tribe_slug", "role_name"},
+	"summon_tribe_attacks":       {"tribe_slug", "name"},
+	"puppet_tool_stat_block":     {"class_slug"},
+	"puppet_swarm_stat_block":    {"class_slug"},
+	"titan_unit_card":            {"class_slug"},
+	"class_proficiencies":        {"class_slug", "kind", "value"},
+	"class_equipment_options":    {"class_slug", "group_idx", "choice_idx"},
+	"class_levels":               {"class_slug", "level"},
+	"class_multiclass_rules":     {"class_slug"},
+	"adversary_template_entries": {"statblock_slug", "section_order", "sort_order"},
 }
 
 // KeySeparator joins multi-column keys (see KeyColumns) into the single

@@ -396,6 +396,11 @@ func TestDiceAvg(t *testing.T) {
 		{"", ""},
 		{"2 (1 use)", "2 (1 use)"}, // plain numbers must not be mistaken for dice
 		{"Deal 1d8 fire damage, then 2d4 more.", "Deal 1d8 (4.5) fire damage, then 2d4 (5) more."},
+		// A stat block's printed "average (formula)" already carries the average.
+		{"Hit: 20 (2d12 + 7) slashing damage.", "Hit: 20 (2d12 + 7) slashing damage."},
+		{"Hit: 15 (2d6 + 1d8 + 3) damage.", "Hit: 15 (2d6 + 1d8 + 3) damage."},
+		{"Hit: (1d4 + 2) piercing damage.", "Hit: (1d4 (2.5) + 2) piercing damage."},
+		{"10 (3d6) fire damage, then 1d6 more.", "10 (3d6) fire damage, then 1d6 (3.5) more."},
 	}
 	for _, c := range cases {
 		if got := diceAvg(c.in); got != c.want {

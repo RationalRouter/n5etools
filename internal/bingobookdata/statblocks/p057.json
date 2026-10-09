@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "adversary-template/yuki-jonin",
+    "name": "Yuki Jonin",
+    "page": 57,
+    "rank": "B", "size": "Medium", "clan": "Yuki", "clan_slug": "yuki", "role": "Controller",
+    "class": "elite", "affiliation": "Mist Shinobi", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 20, "ac_note": "L. Armor", "dr": 2, "initiative": 11,
+    "speed": "30 ft.", "hp": "163/97/48", "cp": 192,
+    "str": {"score": 8, "mod": -1, "save": 3},
+    "dex": {"score": 16, "mod": 3, "save": 10},
+    "con": {"score": 14, "mod": 2, "save": 6},
+    "int": {"score": 18, "mod": 4, "save": 11},
+    "wis": {"score": 16, "mod": 3, "save": 10},
+    "cha": {"score": 10, "mod": 0, "save": 4},
+    "skills": [
+      {"name": "Acrobatics", "mod": 9},
+      {"name": "Chakra Control", "mod": 8},
+      {"name": "Investigation", "mod": 10},
+      {"name": "Ninshou", "mod": 10},
+      {"name": "Perception", "mod": 9},
+      {"name": "Stealth", "mod": 9}
+    ],
+    "damage_resistances": "Cold",
+    "condition_resistances": "Chilled",
+    "passive_perception": 19,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Entanglement", "tags": "Control", "text": "The ground in a 30 ft. radius around this adversary is treated as difficult terrain for hostile creatures. Each hostile creature that starts its turn in that area must succeed on a Strength saving throw against DC 10 + level or have its speed reduced to 0 until the end of its current turn. This trait can be temporarily deactivated if this adversary becomes dazed, stunned, or concussed. The aura remains deactivated until the end of this adversary's next turn."},
+        {"name": "Aura: Chakra Disruption", "tags": "Control", "text": "When a hostile creature would attempt to cast a jutsu that requires Chakra Molding while within 30 feet of this adversary, it must make a Constitution save against DC 10 + level. On a failed save, its jutsu fails and its chakra is spent. This trait can be temporarily deactivated if this adversary becomes dazed, stunned, or concussed. The aura remains deactivated until the end of this adversary's next turn."},
+        {"name": "Chilled Body", "tags": "Defense", "text": "You have resistance to cold damage."},
+        {"name": "Cunning Action", "tags": "Mobility, Utility", "text": "Dash, Disengage, or Hide as a bonus action."},
+        {"name": "Evasive", "tags": "Defense", "text": "When subjected to a Dexterity saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Ice Release", "tags": "Attack", "text": "When you cast a jutsu with the Wind Release or Water Release keyword, you can change its damage type to cold and deal an additional die of damage."}
+      ]},
+      {"kind": "passives", "title": "Yuki Jonin's Clan/Role Passives", "entries": [
+        {"text": "Liquid this adversary steps on instantly freezes in a 5-by-5 square, becoming difficult terrain for everyone who isn't a Yuki until melted back into water. Additionally, when this adversary would inflict a 6th rank of Chilled on a hostile creature, the cold energy explodes, petrifying the target until the end of its next turn."},
+        {"name": "Elite Controller", "text": "This adversary gains a +2 bonus to all jutsu save DCs."},
+        {"name": "Controller Passive 1", "text": "Jutsu you cast that would inflict a condition of any type cannot have their saving throws (if any) made with a jutsu-based bonus that lets the target roll an additional die other than a d20 (such as Bless)."},
+        {"name": "Controller Passive 2", "text": "Once per turn, jutsu you cast that would inflict a penalty of any type also always inflict 1 rank of Concussed."},
+        {"name": "Controller Action", "text": "By spending 3 Tenacity dice and its action, this adversary can create a chakra surge. When it does, all hostile creatures within 30 feet of this adversary must make a Constitution or Wisdom saving throw (your choice) against your highest save DC. On a failure, they lose the ability to cast jutsu with their actions or bonus actions until the end of your next turn. Once you use this ability, you must spend 5 Tenacity dice to recharge it."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Yuki Jonin may make two attacks with its Ice Needle or three attacks with shuriken."},
+        {"name": "Ice Needle", "text": "Melee Ninjutsu Attack: +10 to hit, reach 5 ft., one target. Hit: 15 (2d10 + 4) cold damage."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 8 (2d4 + 3) piercing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Yuki Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 10, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Hidden Mist", "Ice Daggers", "Ice Dome of Nothingness", "Ice Needle", "Ice Prison", "Slicing Airwaves", "Zephyr Strike"]},
+        {"rank": "C", "cost": 9, "names": ["Certain Kill Ice Spears", "Frozen Capturing Field", "Ten Thousand Ice Petals"]},
+        {"rank": "B", "cost": 14, "names": ["Tearing Dragon Fierce Tiger", "Twin Dragon Whirlwind"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 9, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Clone Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Frigid Sight", "Frigid Thoughts"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 9, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Breath of Rain: Cumulous"]},
+        {"rank": "C", "cost": 9, "names": ["Breath of Rain: Drizzle"]}
+      ]}
+    ],
+    "notes": "Slicing Airwaves is printed \"Slicing Airwaeves\". The Multiattack names shuriken, but the block's only ranged attack is Senbon; kept as printed."
+  }
+]

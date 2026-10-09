@@ -1,0 +1,52 @@
+[
+  {
+    "slug": "adversary-template/konjiki-genin",
+    "name": "Konjiki Genin",
+    "page": 50,
+    "rank": "D", "size": "Medium", "clan": "Konjiki", "clan_slug": "konjiki", "role": "Defender",
+    "class": "standard", "affiliation": "Earth Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 19, "ac_note": "H. Armor", "dr": 4, "initiative": 3,
+    "speed": "40 ft.", "hp": "54", "cp": 46,
+    "str": {"score": 12, "mod": 1, "save": 5},
+    "dex": {"score": 8, "mod": -1, "save": 1},
+    "con": {"score": 12, "mod": 1, "save": 5},
+    "int": {"score": 14, "mod": 2, "save": 4},
+    "wis": {"score": 6, "mod": -2, "save": 0},
+    "cha": {"score": 10, "mod": 0, "save": 2},
+    "skills": [
+      {"name": "Athletics", "mod": 5},
+      {"name": "Insight", "mod": 2},
+      {"name": "Investigation", "mod": 6},
+      {"name": "Ninshou", "mod": 6}
+    ],
+    "passive_perception": 8,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Protector", "tags": "Buff, Defense", "text": "As a bonus action, mark one allied creature. A marked allied creature cannot be knocked prone and has advantage on saving throws to resist physical conditions."},
+        {"name": "Weapon Formation", "tags": "Attack, Control", "text": "When you cast a Konjiki Hijutsu, you can choose to deal bludgeoning, piercing, slashing, or earth damage, giving the jutsu the following effects: • Bludgeoning: Trigger the damage bonus of the Bruised condition an additional time per turn if the target is Bruised. Give the target one rank of Bruised if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Piercing: Ignore an amount of the target's DR equal to your proficiency bonus. Give the target one rank of Weakened if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Slashing: Increase the range of the jutsu by +10 ft., and any area of effect by 5 feet in all directions. Give the target one rank of Lacerated if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Earth: Increase the damage of your jutsu by your proficiency bonus. Give the target the Dazed condition if you critically hit it or it critically fails its saving throw (fails by 5 or more)."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Konjiki Genin may make two attacks with its currently equipped weapon."},
+        {"name": "Steel Melee Weapon", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 1) variable damage."},
+        {"name": "Steel Thrown Weapon", "text": "Ranged Weapon Attack: +5 to hit, range 30/120 ft., one target. Hit: 6 (1d8 + 1) variable damage."}
+      ]},
+      {"kind": "other", "title": "Konjiki Steel Weapons", "entries": [
+        {"text": "As a bonus action, a Konjiki adversary can conjure a melee weapon or a stack of thrown weapons from chakra-enhanced steel. This weapon possesses the Ammunition quality if it's a thrown weapon. A Konjiki adversary is always considered proficient with its conjured weapons. Steel weapons deal the damage type associated with the weapon they imitate. Genin may conjure simple weapons, Chunin may conjure martial weapons, and Jonin may conjure exotic weapons."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow", "Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Impervious Armor", "Steel Projectile"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Breath of Earth: Smash"]}
+      ]}
+    ],
+    "notes": "Chakra Blow is printed \"Chkara Blow\". The Konjiki Steel Weapons sidebar printed beside this block applies to all three Konjiki templates and is repeated on each."
+  }
+]

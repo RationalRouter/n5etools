@@ -1,0 +1,298 @@
+{{/* Adversary Builder (Bingo Book p.6): the ten steps in book order in one
+     form, with the stat block beside them. Elements marked
+     data-builder-live depend on the choices; /encounters/builder/preview
+     answers encounter_builder_live with fresh copies, swapped in by id
+     (encounter-builder.js). Call with a builderView. */}}
+{{define "content"}}
+{{with .Builder}}
+<p><a href="/encounters/{{.EncounterID}}">{{T "encounters.builder_back" .EncounterName}}</a></p>
+<h1>{{T "encounters.builder_title"}}</h1>
+<p class="page-subtitle">{{T "encounters.builder_subtitle"}}</p>
+
+<form id="encounter-builder-form" method="post" action="/encounters/{{.EncounterID}}/builder/save"
+      class="encounter-builder" data-preview-url="/encounters/builder/preview">
+  <input type="hidden" name="encounter_id" value="{{.EncounterID}}">
+  <input type="hidden" name="adversary_id" value="{{.AdversaryID}}">
+
+  <div class="encounter-builder-steps creation-form">
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_rank"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-adv-rank" "Name" "adv_rank" "Label" (T "encounters.builder_rank_label") "Options" .RankOptions)}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_class"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-class" "Name" "class_slug" "Label" (T "encounters.builder_class_label") "Options" .ClassOptions)}}
+      <p class="encounter-builder-hint">{{T "encounters.builder_players" .Players}}</p>
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_level"}}</h2>
+      <label for="builder-level">{{T "encounters.builder_level_label"}}</label>
+      <input type="number" id="builder-level" name="level" min="{{.LevelMin}}" max="{{.LevelMax}}" value="{{.Row.Level}}" required>
+      {{template "builder_abilities" .}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_clan"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-clan" "Name" "clan_tag" "Label" (T "encounters.clan_label") "Options" .ClanOptions)}}
+      {{template "builder_select" (dict "ID" "builder-class-mod" "Name" "class_mod_tag" "Label" (T "encounters.builder_class_mod_label") "Options" .ClassModOptions)}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_affiliation"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-affiliation" "Name" "affiliation_tag" "Label" (T "encounters.affiliation_label") "Options" .AffiliationOptions)}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_role"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-role" "Name" "role_slug" "Label" (T "encounters.builder_role_label") "Options" .RoleOptions)}}
+      {{template "builder_select" (dict "ID" "builder-armor" "Name" "armor" "Label" (T "encounters.builder_armor_label") "Options" .ArmorOptions)}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_traits"}}</h2>
+      {{template "builder_traits" .}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_passives"}}</h2>
+      {{template "builder_passives" .}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_jutsu"}}</h2>
+      {{template "builder_jutsu" .}}
+      <fieldset class="encounter-builder-jutsu-filters">
+        <legend>{{T "encounters.builder_jutsu_find"}}</legend>
+        <label>{{T "encounters.builder_jutsu_class"}}
+          <select name="jutsu_class">
+            <option value="">{{T "encounters.builder_jutsu_any"}}</option>
+            {{range .JutsuClassOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </label>
+        <label>{{T "encounters.builder_jutsu_rank"}}
+          <select name="jutsu_rank">
+            <option value="">{{T "encounters.builder_jutsu_any"}}</option>
+            {{range .JutsuRankOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </label>
+        <label>{{T "encounters.builder_jutsu_search"}}
+          <input type="search" id="builder-jutsu-q" name="jutsu_q" value="{{.JutsuFilter.Query}}" data-builder-search autocomplete="off">
+        </label>
+      </fieldset>
+      {{template "builder_jutsu_pool" .}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "encounters.builder_step_finalize"}}</h2>
+      {{template "builder_select" (dict "ID" "builder-classification" "Name" "classification" "Label" (T "encounters.col_classification") "Options" .ClassificationOptions)}}
+      {{template "builder_narrative" .}}
+
+      <fieldset class="encounter-builder-adjust">
+        <legend>{{T "encounters.builder_adjust_label"}}</legend>
+        <p class="encounter-builder-hint">{{T "encounters.builder_adjust_hint"}}</p>
+        <div class="encounter-builder-adjust-grid">
+          <label>{{T "encounters.builder_adj_hp"}} <input type="number" name="adj_hp" value="{{.Row.Adjust.HP}}"></label>
+          <label>{{T "encounters.builder_adj_cp"}} <input type="number" name="adj_cp" value="{{.Row.Adjust.CP}}"></label>
+          <label>{{T "encounters.builder_adj_ac"}} <input type="number" name="adj_ac" value="{{.Row.Adjust.AC}}"></label>
+          <label>{{T "encounters.builder_adj_init"}} <input type="number" name="adj_init" value="{{.Row.Adjust.Init}}"></label>
+          <label>{{T "encounters.builder_adj_speed"}} <input type="number" name="adj_speed" value="{{.Row.Adjust.Speed}}" step="5"></label>
+          <label>{{T "encounters.builder_adj_dr"}} <input type="number" name="adj_dr" value="{{.Row.Adjust.DR}}"></label>
+        </div>
+      </fieldset>
+
+      <label for="builder-name">{{T "encounters.builder_name_label"}}</label>
+      <div class="creation-form-inline encounter-builder-name">
+        <input type="text" id="builder-name" name="name" value="{{.Row.Name}}" placeholder="{{T "encounters.builder_name_hint"}}" maxlength="120">
+        <button type="button" class="encounter-builder-name-roll" data-builder-name-roll>{{T "encounters.builder_name_generate"}}</button>
+      </div>
+
+      <div class="encounter-builder-actions">
+        <button type="submit">{{T "encounters.builder_save"}}</button>
+        <a href="/encounters/{{.EncounterID}}">{{T "encounters.builder_cancel"}}</a>
+      </div>
+    </section>
+  </div>
+
+  <aside class="encounter-builder-aside">
+    {{template "builder_stats" .}}
+    <section id="builder-jutsu-detail" class="encounter-builder-jutsu-detail" aria-live="polite"
+             data-error="{{T "encounters.builder_jutsu_detail_error"}}" hidden>
+      <div class="encounter-builder-jutsu-detail-head">
+        <h3>{{T "encounters.builder_jutsu_detail_heading"}}</h3>
+        <button type="button" class="encounter-builder-jutsu-detail-close" data-jutsu-detail-close aria-label="{{T "encounters.builder_jutsu_detail_close"}}">×</button>
+      </div>
+      <div class="encounter-builder-jutsu-detail-body"></div>
+    </section>
+  </aside>
+</form>
+{{end}}
+{{end}}
+
+{{/* A labelled picker with a rollover description of the chosen option
+     (sheet-option-tooltip.js, via data-tooltip-for). */}}
+{{define "builder_select"}}
+<label for="{{.ID}}">{{.Label}}</label>
+<div class="creation-form-inline">
+  <select id="{{.ID}}" name="{{.Name}}" class="sheet-option-tooltip-select" data-tooltip-for="{{.ID}}-tip">
+    {{range .Options}}
+    <option value="{{.Value}}" data-description="{{.Description}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{.ID}}-tip">{{.Options.Current}}</span>
+  </span>
+</div>
+{{end}}
+
+{{define "encounter_builder_live"}}
+{{template "builder_abilities" .}}
+{{template "builder_traits" .}}
+{{template "builder_passives" .}}
+{{template "builder_jutsu" .}}
+{{template "builder_jutsu_pool" .}}
+{{template "builder_narrative" .}}
+{{template "builder_stats" .}}
+{{end}}
+
+{{define "builder_abilities"}}
+<div id="builder-abilities" data-builder-live>
+  <p class="encounter-builder-hint">{{T "encounters.builder_array" .ArrayText}}</p>
+  <p class="encounter-builder-hint">{{T "encounters.builder_abilities_hint"}}</p>
+  {{if .PinsOffArray}}<p class="encounter-builder-warning">{{T "encounters.builder_pins_off_array"}}</p>{{end}}
+  <div class="table-scroll">
+  <table class="data-table encounter-builder-abilities">
+    <thead>
+      <tr>
+        <th>{{T "encounters.builder_col_ability"}}</th>
+        <th>{{T "encounters.builder_col_modifier"}}</th>
+        <th>{{T "encounters.builder_col_save_prof"}}</th>
+        <th>{{T "encounters.builder_col_save"}}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .AbilityRows}}
+      {{$row := .}}
+      <tr>
+        <td><label for="builder-ab-{{.Key}}">{{T (print "characters.stat_" .Key)}}</label></td>
+        <td>
+          <select id="builder-ab-{{.Key}}" name="ab_{{.Key}}">
+            <option value=""{{if not .Pinned}} selected{{end}}>{{T "encounters.builder_ability_auto" (signed .Value)}}</option>
+            {{range .Options}}
+            <option value="{{.}}"{{if eq $row.Pinned (print .)}} selected{{end}}>{{signed .}}</option>
+            {{end}}
+          </select>
+        </td>
+        <td><input type="checkbox" id="builder-save-{{.Key}}" name="save_{{.Key}}" value="1"{{if .SaveChecked}} checked{{end}} aria-label="{{T "encounters.builder_col_save_prof"}}: {{T (print "characters.stat_" .Key)}}"></td>
+        <td>{{signed .Save}}{{if .SaveProf}} <span class="encounter-builder-hint">{{T "encounters.save_proficient"}}</span>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+{{define "builder_traits"}}
+<div id="builder-traits" data-builder-live>
+  <p class="encounter-builder-hint">{{T "encounters.builder_traits_count" .TraitsChosen .Row.Stats.TraitSlots .Row.Stats.MaxTraitRank}}</p>
+  {{if gt .TraitsChosen .Row.Stats.TraitSlots}}<p class="encounter-builder-warning">{{T "encounters.builder_traits_over"}}</p>{{end}}
+  {{range .TraitGroups}}
+  <details class="encounter-builder-trait-group" id="builder-traits-{{.Key}}"{{if or (eq .Key "role") (eq .Key "outside") .Checked}} open{{end}}>
+    <summary>{{T (print "encounters.builder_traits_group_" .Key)}} ({{.Checked}} / {{len .Traits}})</summary>
+    <ul class="encounter-builder-trait-list">
+      {{range .Traits}}
+      <li>
+        <label class="tooltip" tabindex="0">
+          <input type="checkbox" id="builder-trait-{{.Slug}}" name="trait" value="{{.Slug}}"{{if .Checked}} checked{{end}}>
+          <span class="tooltip-trigger">{{.Name}}{{if .Rank}} ({{.Rank}}){{end}}</span>
+          <span class="tooltip-content">{{.Description}}</span>
+        </label>
+      </li>
+      {{end}}
+    </ul>
+  </details>
+  {{end}}
+</div>
+{{end}}
+
+{{define "builder_passives"}}
+<div id="builder-passives" data-builder-live>
+  {{if or .Passives .Notes}}
+  <ul class="encounter-builder-passives">
+    {{range .Passives}}
+    <li><strong>{{.Source}}: {{.Name}}.</strong> {{.Description}}</li>
+    {{end}}
+    {{range .Notes}}
+    <li>{{.}}</li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="encounter-builder-hint">{{T "encounters.builder_passives_none"}}</p>
+  {{end}}
+</div>
+{{end}}
+
+{{define "builder_jutsu"}}
+<div id="builder-jutsu" data-builder-live>
+  {{if .Row.Stats.Jutsu}}
+  <ul class="encounter-builder-passives">
+    {{range .Row.Stats.Jutsu}}<li>{{T "encounters.builder_jutsu_quota" .Count .Rank}}</li>{{end}}
+  </ul>
+  {{else}}
+  <p class="encounter-builder-hint">{{T "encounters.builder_jutsu_none"}}</p>
+  {{end}}
+  {{if .JutsuMaxRank}}<p class="encounter-builder-hint">{{T "encounters.builder_jutsu_count" (len .JutsuChosen) .Row.Stats.JutsuTotal .JutsuMaxRank}}</p>{{end}}
+  {{if gt (len .JutsuChosen) .Row.Stats.JutsuTotal}}<p class="encounter-builder-warning">{{T "encounters.builder_jutsu_over"}}</p>
+  {{else if .JutsuRankOver}}<p class="encounter-builder-warning">{{T "encounters.builder_jutsu_rank_over"}}</p>{{end}}
+  {{if .JutsuChosen}}
+  <ul class="encounter-builder-trait-list">
+    {{range .JutsuChosen}}{{template "builder_jutsu_item" .}}{{end}}
+  </ul>
+  {{end}}
+</div>
+{{end}}
+
+{{define "builder_jutsu_pool"}}
+<div id="builder-jutsu-pool" data-builder-live>
+  {{if .JutsuCandidates}}
+  <p class="encounter-builder-hint">{{T "encounters.builder_jutsu_pick_hint"}}</p>
+  <p class="encounter-builder-hint">{{if gt .JutsuMatches (len .JutsuCandidates)}}{{T "encounters.builder_jutsu_showing" (len .JutsuCandidates) .JutsuMatches}}{{else}}{{T "encounters.builder_jutsu_matches" .JutsuMatches}}{{end}}</p>
+  <ul class="encounter-builder-trait-list">
+    {{range .JutsuCandidates}}{{template "builder_jutsu_item" .}}{{end}}
+  </ul>
+  {{else}}
+  <p class="encounter-builder-hint">{{T "encounters.builder_jutsu_no_matches"}}</p>
+  {{end}}
+</div>
+{{end}}
+
+{{/* Only the checkbox adds or removes the jutsu; the name opens its full
+     card in the aside (encounter-builder.js). */}}
+{{define "builder_jutsu_item"}}
+<li class="encounter-builder-jutsu-item">
+  <input type="checkbox" id="builder-jutsu-{{.Slug}}" name="jutsu" value="{{.Slug}}" aria-label="{{T "encounters.builder_jutsu_add" .Name}}"{{if .Checked}} checked{{end}}>
+  <span class="tooltip">
+    <button type="button" class="tooltip-trigger encounter-builder-jutsu-tile" data-jutsu-detail="{{.Slug}}" aria-controls="builder-jutsu-detail" aria-pressed="false">{{.Name}} ({{.Rank}})</button>
+    <span class="tooltip-content"><strong>{{.Classification}}{{if .CostText}} · {{.CostText}}{{end}}</strong>{{if .Description}}<br>{{.Description}}{{end}}</span>
+  </span>
+</li>
+{{end}}
+
+{{define "builder_narrative"}}
+<div id="builder-narrative" data-builder-live>
+  {{if .IsSolo}}
+  {{template "builder_select" (dict "ID" "builder-transformation" "Name" "transformation_slug" "Label" (T "encounters.builder_transformation_label") "Options" .TransformationOptions)}}
+  {{template "builder_select" (dict "ID" "builder-domain" "Name" "battlefield_domain_slug" "Label" (T "encounters.builder_domain_label") "Options" .DomainOptions)}}
+  {{end}}
+</div>
+{{end}}
+
+{{define "builder_stats"}}
+<div id="builder-stats" class="encounter-builder-stats" data-builder-live>
+  <h2>{{.DisplayName}}</h2>
+  {{template "encounter_unit_stats" .Row}}
+</div>
+{{end}}

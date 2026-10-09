@@ -1,0 +1,75 @@
+[
+  {
+    "slug": "adversary-template/konjiki-jonin",
+    "name": "Konjiki Jonin",
+    "page": 52,
+    "rank": "B", "size": "Medium", "clan": "Konjiki", "clan_slug": "konjiki", "role": "Defender",
+    "class": "elite", "affiliation": "Earth Shinobi", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 26, "ac_note": "H. Armor", "dr": 7, "initiative": 7,
+    "speed": "40 ft.", "hp": "298/178/89", "cp": 262,
+    "str": {"score": 16, "mod": 3, "save": 9},
+    "dex": {"score": 8, "mod": -1, "save": 2},
+    "con": {"score": 16, "mod": 3, "save": 9},
+    "int": {"score": 18, "mod": 4, "save": 10},
+    "wis": {"score": 10, "mod": 0, "save": 3},
+    "cha": {"score": 14, "mod": 2, "save": 5},
+    "skills": [
+      {"name": "Athletics", "mod": 9},
+      {"name": "History", "mod": 10},
+      {"name": "Insight", "mod": 6},
+      {"name": "Investigation", "mod": 10},
+      {"name": "Ninshou", "mod": 10},
+      {"name": "Perception", "mod": 6}
+    ],
+    "damage_resistances": "Bludgeoning, Earth, Slashing",
+    "senses": "Tremorsense 60 ft.",
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Chakra Protection", "tags": "Defense", "text": "Select two damage types. Gain resistance to the selected damage types. If you have vulnerability to a chosen damage type as the result of a different trait, you cannot gain resistance to that chosen damage type (already included)."},
+        {"name": "Fortress", "tags": "Defense", "text": "The first instance of damage you take each turn is reduced by your level. This trait can be temporarily deactivated if this adversary is targeted by a B-Rank Chakra Dispel. The trait is deactivated until the end of this adversary's next turn."},
+        {"name": "Fortuitous", "tags": "Defense", "text": "When subjected to a Constitution saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Protector", "tags": "Buff, Defense", "text": "As a bonus action, mark one allied creature. A marked allied creature cannot be knocked prone and has advantage on saving throws to resist physical conditions."},
+        {"name": "Reinforced and Pressurized", "tags": "Defense", "text": "When you cast a jutsu with the Earth Release keyword that creates a construct or gives temporary hit points, the construct or the target creature gains additional temporary hit points or hit points equal to your level."},
+        {"name": "Weapon Formation", "tags": "Attack, Control", "text": "When you cast a Konjiki Hijutsu, you can choose to deal bludgeoning, piercing, slashing, or earth damage, giving the jutsu the following effects: • Bludgeoning: Trigger the damage bonus of the Bruised condition an additional time per turn if the target is Bruised. Give the target one rank of Bruised if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Piercing: Ignore an amount of the target's DR equal to your proficiency bonus. Give the target one rank of Weakened if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Slashing: Increase the range of the jutsu by +10 ft., and any area of effect by 5 feet in all directions. Give the target one rank of Lacerated if you critically hit it or it critically fails its saving throw (fails by 5 or more). • Earth: Increase the damage of your jutsu by your proficiency bonus. Give the target the Dazed condition if you critically hit it or it critically fails its saving throw (fails by 5 or more)."}
+      ]},
+      {"kind": "passives", "title": "Konjiki Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary wields the power of Steel Release, which reinforces Earth style with metal. This adversary ignores difficult terrain and gains 60 feet of tremorsense. When you cast a jutsu with the Earth Release keyword, increase the damage dealt by 1 step, or, if you summon a construct, remove any vulnerability to lightning and increase its hit points or temporary hit points by your level. Lastly, as a bonus action, you can create any weapon out of steel. Weapons made this way gain the Returning, Thrown, and Finesse properties."},
+        {"name": "Elite Defender", "text": "This adversary gains a +3 bonus to armor damage reduction (added)."},
+        {"name": "Defender Passive 1", "text": "At the beginning of each of your turns, you gain temporary hit points equal to your level."},
+        {"name": "Defender Passive 2", "text": "Allied creatures (excluding yourself) within 10 feet that the Defender can see gain 10 damage reduction against all damage types."},
+        {"name": "Defender Action", "text": "By spending 2 Tenacity dice and a reaction, it can Overguard. When it does, this adversary's allies gain one of the following benefits: • All of its allies' AC becomes equal to this adversary's until the end of the current turn. • All of its allies treat the result of all of their saves as this adversary's AC, until the beginning of this adversary's next turn. • All of its allies reduce damage they take from all sources by this adversary's AC, until the end of the next turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Konjiki Jonin may make three attacks with its currently equipped weapon."},
+        {"name": "Steel Melee Weapon", "text": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 12 (2d8 + 3) variable damage."},
+        {"name": "Steel Thrown Weapon", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 12 (2d8 + 3) variable damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Konjiki Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]},
+      {"kind": "other", "title": "Konjiki Steel Weapons", "entries": [
+        {"text": "As a bonus action, a Konjiki adversary can conjure a melee weapon or a stack of thrown weapons from chakra-enhanced steel. This weapon possesses the Ammunition quality if it's a thrown weapon. A Konjiki adversary is always considered proficient with its conjured weapons. Steel weapons deal the damage type associated with the weapon they imitate. Genin may conjure simple weapons, Chunin may conjure martial weapons, and Jonin may conjure exotic weapons."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 10, "dc": 20, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow", "Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Impervious Armor", "Steel Projectile", "Steel Manipulation", "Steel Rain"]},
+        {"rank": "C", "cost": 9, "names": ["Steel Shield Technique", "Storm of Steel", "Steel Spear", "Mud Wolf"]},
+        {"rank": "B", "cost": 14, "names": ["Metal Binding Chains", "Steel Suit"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Feather Burst"]},
+        {"rank": "D", "cost": 5, "names": ["Thought Film"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 9, "dc": 19, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Breath of Dust: Sokusei", "Breath of Earth: Smash"]},
+        {"rank": "C", "cost": 9, "names": ["Breath of Earth: Bipolar", "Crescent Moon Crippling", "Crescent Moon Impact"]}
+      ]}
+    ],
+    "notes": "Chakra Blow is printed \"Chkara Blow\". The Ninjutsu B-Rank cost is printed 11; corrected to 14. Weapon Formation is printed as a cross-reference (\"see Konjiki Genin for details\"); the Konjiki Genin's full text is used here."
+  }
+]

@@ -1,0 +1,73 @@
+[
+  {
+    "slug": "adversary-template/kaguya-jonin",
+    "name": "Kaguya Jonin",
+    "page": 25,
+    "rank": "A", "size": "Medium", "clan": "Kaguya", "clan_slug": "kaguya", "role": "Striker (Taijutsu)",
+    "class": "elite", "affiliation": "Mist Shinobi", "prof": 7,
+    "level": 14, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 28, "ac_note": "Heavy Armor", "dr": 6, "initiative": 14,
+    "speed": "45 ft.", "hp": "384/230/115", "cp": 335,
+    "str": {"score": 14, "mod": 2, "save": 10},
+    "dex": {"score": 20, "mod": 5, "save": 13},
+    "con": {"score": 18, "mod": 4, "save": 8},
+    "int": {"score": 10, "mod": 0, "save": 4},
+    "wis": {"score": 8, "mod": -1, "save": 7},
+    "cha": {"score": 16, "mod": 3, "save": 11},
+    "skills": [
+      {"name": "Stealth", "mod": 12},
+      {"name": "Perception", "mod": 10, "stars": 2},
+      {"name": "Ninshou", "mod": 9, "stars": 1},
+      {"name": "Martial Arts", "mod": 9},
+      {"name": "Chakra Control", "mod": 11},
+      {"name": "Illusions", "mod": 6},
+      {"name": "Acrobatics", "mod": 12}
+    ],
+    "damage_resistances": "Bludgeoning, Piercing, Slashing",
+    "passive_perception": 20,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Reckless", "tags": "Attack", "text": "Gain advantage on melee attacks or damage, but enemies gain the same vs. you until your next turn."},
+        {"name": "Dead Bone Pulse", "tags": "Attack", "text": "Bone weapons and jutsu cannot be made at disadvantage."},
+        {"name": "Savage Battle Instincts", "tags": "Defense", "text": "Cannot be surprised; enemies can't gain advantage on attacks vs. you."},
+        {"name": "Backstab", "tags": "Attack", "text": "With advantage, add your level to the triggering attack's damage."},
+        {"name": "Savage Assault", "tags": "Attack", "text": "Once per turn, if you hit with a Ninjutsu attack, you can make another at -5. If that hits, attack once more. Enemies gain advantage on attacks vs. you until your next turn."},
+        {"name": "Battle Hungry", "tags": "Attack", "text": "+1 to damage each turn you use your action to hit with a bone weapon or Kaguya Hijutsu (max +5)."},
+        {"name": "Shikotsumyaku Technique", "tags": "Attack", "text": "Twice per combat, all enemies of your choice make a Dex save vs. your Taijutsu DC or take Xd6 + mod damage and gain 3 Bleed. X = level."},
+        {"name": "Dangerous Body", "tags": "Attack, Clan", "text": "When damaged in melee, creatures within 5 ft. take 3d6 piercing damage as bones erupt from your body."}
+      ]},
+      {"kind": "passives", "title": "Kaguya Jonin's Clan/Role Passives", "entries": [
+        {"name": "Passive", "text": "Gains +1 damage per melee hit (max +5). Has a permanent bone katana (1d8 + mod)."},
+        {"name": "Very Pointy Bones", "text": "Ignores up to 10 DR once per turn."},
+        {"name": "Very Penetratey Bones", "text": "Ignores temporary hit points once per turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kaguya Jonin may make 3 attacks with its Bone Katana or 4 attacks with its Bone Kunai."},
+        {"name": "Bone Katana", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 5) slashing damage."},
+        {"name": "Bone Kunai", "text": "Ranged Weapon Attack: +6 to hit, range 30/60 ft., one target. Hit: 5 (1d6 + 5) piercing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Kaguya Jonin takes one Elite Action at the end of another creature's turn, once each round, to move, attack, cast a jutsu, or gain an additional reaction. It regains all Elite Actions at the start of its turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 19, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Body Flicker"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Dispel"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 10, "dc": 21, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Feather Burst"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Shatter"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Sword Aura: Red"], "new": ["Sword Aura: Red"]},
+        {"rank": "C", "cost": 9, "names": ["Sword Aura: Orange", "Disarming Riposte"], "new": ["Sword Aura: Orange", "Disarming Riposte"]},
+        {"rank": "B", "cost": 14, "names": ["After Image Technique", "Lashing Attack", "Sword Aura: Green"], "new": ["Lashing Attack", "Sword Aura: Green"]},
+        {"rank": "A", "cost": 20, "names": ["Iron Vanguard", "Whip Like Strikes", "Sword Aura: Indigo"], "new": ["Iron Vanguard", "Whip Like Strikes", "Sword Aura: Indigo"]}
+      ]}
+    ]
+  }
+]

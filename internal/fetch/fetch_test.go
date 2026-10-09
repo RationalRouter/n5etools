@@ -3,6 +3,7 @@ package fetch
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -133,5 +134,48 @@ func TestDownloadToBadStatus(t *testing.T) {
 	destPath := filepath.Join(t.TempDir(), "book.pdf")
 	if _, err := downloadTo(context.Background(), srv.Client(), srv.URL, destPath); err == nil {
 		t.Fatal("expected an error for a non-200 status, got nil")
+	}
+}
+
+func TestDownloadAbandonsStalledTransfer(t *testing.T) {
+	old := stallTimeout
+	stallTimeout = 200 * time.Millisecond
+	defer func() { stallTimeout = old }()
+
+	release := make(chan struct{})
+	defer close(release)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("%PDF-1.7\n"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+
+	_, err := downloadTo(context.Background(), srv.Client(), srv.URL, filepath.Join(t.TempDir(), "x.pdf"))
+	if !errors.Is(err, errStalled) {
+		t.Fatalf("err = %v, want errStalled", err)
+	}
+}
+
+func TestDownloadSlowButSteadyTransferSucceeds(t *testing.T) {
+	old := stallTimeout
+	stallTimeout = 200 * time.Millisecond
+	defer func() { stallTimeout = old }()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("%PDF-1.7\n"))
+		for i := 0; i < 8; i++ { // 8 x 100ms: longer than stallTimeout in total, never idle that long
+			time.Sleep(100 * time.Millisecond)
+			w.Write([]byte("chunk\n"))
+			w.(http.Flusher).Flush()
+		}
+	}))
+	defer srv.Close()
+
+	if _, err := downloadTo(context.Background(), srv.Client(), srv.URL, filepath.Join(t.TempDir(), "x.pdf")); err != nil {
+		t.Fatalf("slow but steady download failed: %v", err)
 	}
 }

@@ -7,7 +7,7 @@ import (
 )
 
 var bingoBook = SourceBook{
-	Slug: "book/bingo-book", Title: "Bingo Book Pack 1 — Adversaries",
+	Slug: "book/bingo-book-pack-1", Title: "Bingo Book Pack 1 — Adversaries",
 	Version: "1", FileName: "test.pdf", FileSHA256: "bingo",
 }
 

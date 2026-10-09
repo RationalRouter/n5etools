@@ -1,0 +1,57 @@
+[
+  {
+    "slug": "adversary-template/generic-chunin",
+    "name": "Generic Chunin",
+    "page": 19,
+    "rank": "C", "size": "Medium", "clan": "Non-Clan", "clan_slug": "", "role": "Generalist",
+    "class": "standard", "affiliation": "Factionless", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 20, "ac_note": "M. Armor", "dr": 2, "initiative": 8,
+    "speed": "30 ft.", "hp": "106", "cp": 106,
+    "str": {"score": 12, "mod": 1, "save": 3},
+    "dex": {"score": 16, "mod": 3, "save": 8},
+    "con": {"score": 14, "mod": 2, "save": 4},
+    "int": {"score": 14, "mod": 2, "save": 4},
+    "wis": {"score": 8, "mod": -1, "save": 4},
+    "cha": {"score": 6, "mod": -2, "save": 3},
+    "skills": [
+      {"name": "Stealth", "mod": 8},
+      {"name": "Perception", "mod": 6, "stars": 1},
+      {"name": "Ninshou", "mod": 7},
+      {"name": "Martial Arts", "mod": 6},
+      {"name": "Chakra Control", "mod": 4, "stars": 1},
+      {"name": "Illusions", "mod": 4}
+    ],
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Light-Footed", "tags": "Mobility", "text": "You can Disengage or Dash as a bonus action. When an enemy moves adjacent to you, you can spend your reaction to move away up to half your speed."},
+        {"name": "Lethal Hunter", "tags": "Attack", "text": "Ranged weapon attacks gain a +1 bonus to damage die, and increase damage dealt with ranged taijutsu attacks using that weapon by 1 die."}
+      ]},
+      {"kind": "passives", "title": "Generic Chunin's Passives", "entries": [
+        {"name": "Generalist Passive 1", "text": "You cannot make ability checks or saving throws at disadvantage."},
+        {"name": "Tabula Rasa", "text": "At the beginning of each of this adversary's turns, select one benefit that it will benefit from until the beginning of its next turn: • Attacks it makes gain a 1d4 bonus to hit. • Damage it deals gains a 1d6 bonus. • Skill checks it makes gain a 1d8 bonus."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 attacks with a melee weapon, or 3 attacks with a ranged or thrown weapon."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft. Hit: (1d4 + 3) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +8 to hit, range 30/60 ft. Hit: (1d4 + 3) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Bind", "Chakra Shield"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Dispel", "Shadow Clone Technique", "Mobility Restriction"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Mental Barrier"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Achilles Heel", "Burst Fire", "Bursting Fling", "Paper Bomb Barrage"], "new": ["Achilles Heel", "Bursting Fling"]},
+        {"rank": "C", "cost": 9, "names": ["Crescent Moon Impact", "Lethal Ammo Technique"]}
+      ]}
+    ]
+  }
+]

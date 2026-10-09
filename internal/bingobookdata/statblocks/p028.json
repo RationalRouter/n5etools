@@ -1,0 +1,97 @@
+[
+  {
+    "slug": "adversary-template/uzumaki-genin",
+    "name": "Uzumaki Genin",
+    "page": 28,
+    "rank": "D", "size": "Medium", "clan": "Uzumaki", "clan_slug": "uzumaki", "role": "Controller",
+    "class": "standard", "affiliation": "Factionless", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 15, "ac_note": "Medium Armor", "dr": 2, "initiative": 3,
+    "speed": "30 ft.", "hp": "46", "cp": 66,
+    "str": {"score": 12, "mod": 1, "save": 3},
+    "dex": {"score": 8, "mod": -1, "save": 1},
+    "con": {"score": 14, "mod": 2, "save": 6},
+    "int": {"score": 10, "mod": 0, "save": 2},
+    "wis": {"score": 6, "mod": -2, "save": 0},
+    "cha": {"score": 12, "mod": 1, "save": 5},
+    "skills": [
+      {"name": "Athletics", "mod": 5},
+      {"name": "Chakra Control", "mod": 6},
+      {"name": "Ninshou", "mod": 4},
+      {"name": "Perception", "mod": 2}
+    ],
+    "damage_resistances": "Chakra",
+    "passive_perception": 12,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Believe It!", "tags": "Attack, Defense, Utility", "text": "Once per encounter, gain advantage on all attack rolls, ability checks, or saving throws until the end of your next turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 attacks with an equipped weapon."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 1) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +5 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 1) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Adamantine Striking Chains", "Flash Anchor", "Sealing Art: Fracture", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Exorcism", "Brace"]}
+      ]}
+    ],
+    "notes": "Genjutsu E-Rank line prints \"(Cost:)\" with no number; transcribed as the standard E-Rank cost of 2."
+  },
+  {
+    "slug": "adversary-template/uzumaki-chunin",
+    "name": "Uzumaki Chunin",
+    "page": 28,
+    "rank": "C", "size": "Medium", "clan": "Uzumaki", "clan_slug": "uzumaki", "role": "Controller",
+    "class": "standard", "affiliation": "Factionless", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 18, "ac_note": "Medium Armor", "dr": 2, "initiative": 4,
+    "speed": "30 ft.", "hp": "104", "cp": 154,
+    "str": {"score": 14, "mod": 2, "save": 4},
+    "dex": {"score": 8, "mod": -1, "save": 1},
+    "con": {"score": 16, "mod": 3, "save": 8},
+    "int": {"score": 14, "mod": 2, "save": 4},
+    "wis": {"score": 6, "mod": -2, "save": 3},
+    "cha": {"score": 12, "mod": 1, "save": 6},
+    "skills": [
+      {"name": "Athletics", "mod": 7},
+      {"name": "Chakra Control", "mod": 8},
+      {"name": "Ninshou", "mod": 7},
+      {"name": "Perception", "mod": 3},
+      {"name": "Stealth", "mod": 4}
+    ],
+    "condition_resistances": "Chakra",
+    "passive_perception": 13,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Believe It!", "tags": "Attack, Defense, Utility", "text": "Once per encounter, gain advantage on all attack rolls, ability checks, or saving throws until the end of your next turn."},
+        {"name": "Fuinjutsu Master", "tags": "Attack", "text": "Ninjutsu with the Fuinjutsu keyword has an increased DC of +1 (already included)."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 attacks with an equipped weapon. You may replace one attack with a Seal attack."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +7 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."},
+        {"name": "Seal", "text": "Melee Ninjutsu Attack: +7 to hit, reach 5 ft., one target. Hit: 7 (2d4 + 2) force damage. The target must succeed on a DC 18 Charisma save or take an equal amount of chakra damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 7, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Adamantine Striking Chains", "Chakra Shield", "Flash Anchor", "Sealing Art: Fracture", "Substitution Technique", "Basic Seal"]},
+        {"rank": "C", "cost": 9, "names": ["Adamantine Binding Chains", "Sealing Art: Splinter"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 3, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Feather Burst (2d8)"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Exorcism", "Brace", "Iron Strike"]}
+      ]}
+    ]
+  }
+]

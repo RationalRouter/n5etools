@@ -1,0 +1,21 @@
+{{define "content"}}
+<p><a href="/encounters">{{T "encounters.title"}}</a></p>
+<h1>{{T "adversary_traits.title"}}</h1>
+<p class="page-subtitle">{{T "adversary_traits.subtitle"}}</p>
+
+<input type="text" id="adversary-traits-search" placeholder="{{T "adversary_traits.search_placeholder"}}">
+
+{{range .Groups}}
+<section data-category-section>
+  <h2>{{.Label}}</h2>
+  <ul class="tooltip-list">
+    {{range .Traits}}
+    <li class="tooltip adversary-trait-row" tabindex="0" data-filter="{{.FilterKey}}">
+      <span class="tooltip-trigger">{{.Name}}{{if .Rank}} ({{.Rank}}){{end}} &mdash; {{.CategoryTag}}</span>
+      <span class="tooltip-content">{{formatDescription .Description}}</span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}

@@ -53,9 +53,33 @@ var OfficialBooks = []BookSource{
 		Required: false,
 	},
 	{
-		Slug:     "book/bingo-book",
+		Slug:     "book/bingo-book-pack-1",
 		Title:    "Bingo Book Pack 1 — Adversaries",
 		DriveURL: "https://drive.google.com/file/d/14XB-_aiLeSPnqDHad--q0A9rhw4_b7in/view?usp=sharing",
 		Required: false, // GM-facing, like the Kage Guide
 	},
+	{
+		// The actual community Bingo Book — a 70-page bestiary/encounter-
+		// building document. Pack 1 above is only its latest official
+		// update layer; where the two conflict, Pack 1's already-ingested
+		// numbers win. Unlike Pack 1, this is treated as a core resource,
+		// not DM-only content.
+		Slug:     "book/bingo-book",
+		Title:    "Bingo Book",
+		DriveURL: "https://drive.google.com/file/d/14vx9CGOshIjd74K5EbIz1nzFbtUb_r1D/view",
+		Required: true,
+	},
+	// The community Adversary Builder spreadsheet the Bingo Book links to
+	// from its "Build Your Adversary" page (p.6). Disabled: the charts the
+	// app needs from it (Rank Die, Base Adversary Statistics by Level, Role,
+	// Clan and automatic-bonus charts) are seeded as data by rules migration
+	// 0082, and its trait catalog is ingested by hand with
+	// `n5e-ingest adversary-builder-sheet`, so nothing downloads or polls it.
+	// Kept for future work that may need to read it directly.
+	// {
+	// 	Slug:     "book/adversary-builder-sheet",
+	// 	Title:    "Adversary Builder (community sheet)",
+	// 	DriveURL: "https://docs.google.com/spreadsheets/d/1Z3rKOI6uk6EEdPvJYnkX6gf1tq90VTsYL37A54EfvMo/edit?gid=824831608#gid=824831608",
+	// 	Required: false,
+	// },
 }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+	"strings"
 )
 
 //go:embed migrations/rules/*.sql migrations/characters/*.sql
@@ -92,12 +93,9 @@ func Apply(db *sql.DB, series Series) error {
 // or "" if the series has no migrations at all (never happens for either
 // series in practice, but handled rather than panicking on an empty slice).
 //
-// This is the one signal internal/autoupdate needs to detect "this binary's
-// own parser/schema logic has moved on since a book was last ingested, even
-// though the book's own Drive copy hasn't changed" — every change that adds
-// a table needing a content backfill ships as a new migration file, so the
-// latest filename already embeds a real, zero-maintenance version number
-// with no separate constant to remember to bump.
+// internal/autoupdate stamps it on a book after each successful ingest, and
+// the translation bundles are named by it. Whether a book needs re-ingesting
+// is decided by RequiredIngestVersion, not by this.
 func LatestMigration(series Series) (string, error) {
 	names, err := migrationNames(series)
 	if err != nil {
@@ -107,6 +105,63 @@ func LatestMigration(series Series) (string, error) {
 		return "", nil
 	}
 	return names[len(names)-1], nil
+}
+
+// legacyReingestCutoff is the last rules migration from before re-ingest
+// became opt-in. Every migration up to and including it still counts as
+// requiring a re-ingest of every parsed book, so an install whose books were
+// last ingested before one of those migrations still catches up.
+const legacyReingestCutoff = "0080_bingo_book_npc_templates.sql"
+
+// reingestMarker opens the header line a migration uses to declare that its
+// change can only reach existing installs through a real re-parse of a
+// sourcebook: "-- reingest: book/jutsu-compendium, book/clan-compendium", or
+// "-- reingest: all". A migration without it (a schema change, or a data fix
+// that backfills itself in SQL) never triggers a download or re-ingest.
+const reingestMarker = "-- reingest:"
+
+// RequiredIngestVersion returns the newest migration filename that requires
+// bookSlug to be re-ingested: the latest migration naming it (or "all") in
+// a reingest marker, or legacyReingestCutoff if none newer does. A book
+// whose stored ingest_schema_version sorts below this is stale. Filenames
+// are zero-padded, so string order is apply order.
+func RequiredIngestVersion(series Series, bookSlug string) (string, error) {
+	names, err := migrationNames(series)
+	if err != nil {
+		return "", err
+	}
+	required := ""
+	for _, name := range names {
+		if name <= legacyReingestCutoff {
+			required = name
+			continue
+		}
+		body, err := fs.ReadFile(migrationFS, "migrations/"+string(series)+"/"+name)
+		if err != nil {
+			return "", fmt.Errorf("reading migration %s: %w", name, err)
+		}
+		if migrationReingests(string(body), bookSlug) {
+			required = name
+		}
+	}
+	return required, nil
+}
+
+// migrationReingests reports whether a migration's reingest marker names
+// bookSlug or "all".
+func migrationReingests(body, bookSlug string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), reingestMarker)
+		if !ok {
+			continue
+		}
+		for _, slug := range strings.Split(rest, ",") {
+			if s := strings.TrimSpace(slug); s == "all" || s == bookSlug {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // migrationNames lists a series' .sql files in apply order.

@@ -1,0 +1,98 @@
+[
+  {
+    "slug": "adversary-template/futton-genin",
+    "name": "Futton Genin",
+    "page": 39,
+    "rank": "D", "size": "Medium", "clan": "Futton", "clan_slug": "futton", "role": "Defender",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 19, "ac_note": "H. Armor", "dr": 4, "initiative": 2,
+    "speed": "40 ft.", "hp": "36", "cp": 26,
+    "str": {"score": 14, "mod": 2, "save": 6},
+    "dex": {"score": 6, "mod": -2, "save": 0},
+    "con": {"score": 12, "mod": 1, "save": 5},
+    "int": {"score": 12, "mod": 1, "save": 3},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 10, "mod": 0, "save": 2},
+    "skills": [
+      {"name": "Athletics", "mod": 6},
+      {"name": "Intimidation", "mod": 4},
+      {"name": "Martial Arts", "mod": 6},
+      {"name": "Perception", "mod": 3}
+    ],
+    "passive_perception": 13,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Got Your Back", "tags": "Buff, Defense", "text": "When standing within 15 ft. of an ally or attacking target, you can spend your reaction to redirect the attack onto yourself."},
+        {"name": "Iron Fist", "tags": "Attack", "text": "The first taijutsu or unarmed attack you make each turn adds +1d4 to the attack and damage rolls."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Futton Genin may make two attacks with its currently equipped weapon."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 2) bludgeoning damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Skilled Mist", "Steam Bullet", "Substitution Technique", "Water Evaporation/Fire Extinguish"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Bolting Blossom", "Erupting Propulsion", "Erupting Physique"]}
+      ]}
+    ]
+  },
+  {
+    "slug": "adversary-template/futton-chunin",
+    "name": "Futton Chunin",
+    "page": 39,
+    "rank": "C", "size": "Medium", "clan": "Futton", "clan_slug": "futton", "role": "Defender",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 21, "ac_note": "H. Armor", "dr": 4, "initiative": 3,
+    "speed": "40 ft.", "hp": "82", "cp": 58,
+    "str": {"score": 16, "mod": 3, "save": 8},
+    "dex": {"score": 6, "mod": -2, "save": 3},
+    "con": {"score": 14, "mod": 2, "save": 7},
+    "int": {"score": 14, "mod": 2, "save": 4},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 12, "mod": 1, "save": 3},
+    "skills": [
+      {"name": "Acrobatics", "mod": 3},
+      {"name": "Athletics", "mod": 8},
+      {"name": "Intimidation", "mod": 6},
+      {"name": "Martial Arts", "mod": 8},
+      {"name": "Perception", "mod": 4}
+    ],
+    "passive_perception": 14,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Got Your Back", "tags": "Defense", "text": "When standing within 15 ft. of an ally or attacking target, you can spend your reaction to redirect the attack onto yourself."},
+        {"name": "Iron Fist", "tags": "Attack", "text": "The first taijutsu or unarmed attack you make each turn adds +1d4 to the attack and damage rolls."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Futton Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 3) bludgeoning damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +8 to hit, range 30/120 ft., one target. Hit: 6 (1d4 + 3) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Skilled Mist", "Steam Bullet", "Substitution Technique", "Water Evaporation/Fire Extinguish"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Flame Bombs", "Steam Armor", "Wall of Water"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Bolting Blossom", "Erupting Propulsion", "Erupting Physique"]},
+        {"rank": "C", "cost": 9, "names": ["Corrosive Viper Fang", "Elementania", "Unrivaled Strength"]}
+      ]}
+    ],
+    "notes": "The Ninjutsu line prints +5 to hit, DC 15, the same values as the Futton Genin's; kept as printed."
+  }
+]

@@ -1,0 +1,96 @@
+[
+  {
+    "slug": "adversary-template/inuzuka-chunin",
+    "name": "Inuzuka Chunin",
+    "page": 44,
+    "rank": "C", "size": "Medium", "clan": "Inuzuka", "clan_slug": "inuzuka", "role": "Generalist",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 6, "xp": 10,
+    "ac": 16, "ac_note": "L. Armor", "dr": 2, "initiative": 7,
+    "speed": "30 ft.", "hp": "52", "cp": 52,
+    "str": {"score": 14, "mod": 2, "save": 6},
+    "dex": {"score": 16, "mod": 3, "save": 7},
+    "con": {"score": 14, "mod": 2, "save": 6},
+    "int": {"score": 6, "mod": -2, "save": 0},
+    "wis": {"score": 10, "mod": 0, "save": 2},
+    "cha": {"score": 8, "mod": -1, "save": 1},
+    "skills": [
+      {"name": "Acrobatics", "mod": 7},
+      {"name": "Athletics", "mod": 6},
+      {"name": "Perception", "mod": 4},
+      {"name": "Stealth", "mod": 7},
+      {"name": "Survival", "mod": 4}
+    ],
+    "passive_perception": 14,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Beast Master", "tags": "Defense, Mobility", "text": "When your Nin-Dog would take damage, you can command it, as a reaction, to reposition itself to a space adjacent to you. When it does, it gains resistance to that instance of damage and moves up to twice its full movement to accomplish your order."},
+        {"name": "Superior Skill", "tags": "Utility", "text": "When you make an ability check with a skill you are proficient in, you may add 1d6 to your check. Additionally, if your ability checks are ever contested, you instead add 2d6."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Inuzuka Chunin may make two unarmed attacks or two attacks with its currently equipped weapons."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 7 (1d6 + 3) bludgeoning or slashing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +7 to hit, range 30/120 ft., one target. Hit: 6 (1d4 + 3) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Four Legs Technique", "Substitution Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Fang Over Fang", "Iron Fangs"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 4, "dc": 14, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Clawing Swift Fang", "Iron Strike", "Mirage Blitz", "Tunneling Fang"]},
+        {"rank": "C", "cost": 9, "names": ["Beast", "Fang Tearing Fang"]}
+      ]}
+    ],
+    "notes": "Fang Over Fang is printed \"Fang Over Fant\"."
+  },
+  {
+    "slug": "adversary-template/nin-dog",
+    "name": "Nin-Dog",
+    "page": 44,
+    "rank": "C", "size": "Medium", "clan": "Beast", "clan_slug": "inuzuka", "role": "Striker (Taijutsu)",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 5, "xp": 10,
+    "ac": 15, "ac_note": "natural", "dr": 2, "initiative": 5,
+    "speed": "45 ft.", "hp": "42", "cp": 25,
+    "str": {"score": 16, "mod": 3, "save": 6},
+    "dex": {"score": 12, "mod": 1, "save": 4},
+    "con": {"score": 10, "mod": 0, "save": 1},
+    "int": {"score": 6, "mod": -2, "save": -1},
+    "wis": {"score": 14, "mod": 2, "save": 5},
+    "cha": {"score": 8, "mod": -1, "save": 0},
+    "skills": [
+      {"name": "Acrobatics", "mod": 5},
+      {"name": "Athletics", "mod": 7},
+      {"name": "Perception", "mod": 6},
+      {"name": "Stealth", "mod": 5},
+      {"name": "Survival", "mod": 6}
+    ],
+    "passive_perception": 26,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Bestial Senses", "tags": "Utility", "text": "Gain a +10 bonus to Perception."},
+        {"name": "Terrain Advantage", "tags": "Mobility", "text": "Immunity to difficult terrain. Gain a +10 bonus to speed while in an area of difficult terrain."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Nin-Dog may make two bite attacks."},
+        {"name": "Bite", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 9 (1d10 + 3) piercing damage. If this attack deals damage, the Nin-Dog may attempt to grapple the target as a free action."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 2, "dc": 10, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Beast-Human Clone", "Dynamic Marking"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Tunneling Fang"]},
+        {"rank": "C", "cost": 9, "names": ["Fang Over Fang"]}
+      ]}
+    ],
+    "waive": ["passive"],
+    "notes": "Printed as a Medium Beast companion of the Inuzuka clan; clan_slug groups it with the Inuzuka templates. Passive Perception 26 includes Bestial Senses' +10 on top of the +6 Perception skill."
+  }
+]

@@ -1,0 +1,84 @@
+[
+  {
+    "slug": "adversary-template/uchiha-genin",
+    "name": "Uchiha Genin",
+    "page": 32,
+    "rank": "D", "size": "Medium", "clan": "Uchiha", "clan_slug": "uchiha", "role": "Caster",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 16, "dr": 0, "initiative": 3,
+    "speed": "30 ft.", "hp": "22", "cp": 38,
+    "str": {"score": 7, "mod": -2, "save": 1},
+    "dex": {"score": 12, "mod": 1, "save": 3},
+    "con": {"score": 12, "mod": 1, "save": 3},
+    "int": {"score": 10, "mod": 0, "save": 2},
+    "wis": {"score": 14, "mod": 2, "save": 6},
+    "cha": {"score": 8, "mod": -1, "save": 1},
+    "skills": [
+      {"name": "Illusions", "mod": 5},
+      {"name": "Chakra Control", "mod": 5}
+    ],
+    "damage_resistances": "Psychic",
+    "passive_perception": 18,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Sharingan Dodge", "text": "As a reaction, add +2 to AC and Dex saves until the start of your next turn."},
+        {"name": "Hold Still", "text": "When casting a Ninjutsu that requires an attack roll against a target who's moved less than 15 ft. this turn, make the attack at advantage."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Can attack with Katana or Kunai. If using Kunai, can make an additional attack as a bonus action."},
+        {"name": "Katana", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 1) slashing damage."},
+        {"name": "Kunai", "text": "Ranged Weapon Attack: +5 to hit, range 30/60 ft., one target. Hit: 4 (1d4 + 1) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Genjutsu", "hit": 5, "dc": 13, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Feather Burst", "Mind Sliver"]},
+        {"rank": "D", "cost": 5, "names": ["Shadow Bite", "Absorb Heat", "Hypnosis"]}
+      ]}
+    ],
+    "notes": "XP is not printed; 10 XP, as on every other Level 4 block. No DR is printed. Passive Perception is printed as 18 although the block lists no Perception skill and Wis +2 (which gives 12); kept as printed.",
+    "waive": ["passive"]
+  },
+  {
+    "slug": "adversary-template/akimichi-defender",
+    "name": "Akimichi Defender",
+    "page": 32,
+    "rank": "D", "size": "Medium", "clan": "Akimichi", "clan_slug": "akimichi", "role": "Defender",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 18, "dr": 3, "initiative": 3,
+    "speed": "40 ft.", "hp": "37", "cp": 27,
+    "str": {"score": 14, "mod": 2, "save": 6},
+    "dex": {"score": 12, "mod": 1, "save": 1},
+    "con": {"score": 12, "mod": 1, "save": 4},
+    "int": {"score": 9, "mod": -1, "save": 2},
+    "wis": {"score": 7, "mod": -2, "save": -2},
+    "cha": {"score": 8, "mod": -1, "save": -1},
+    "skills": [
+      {"name": "Martial Arts", "mod": 5},
+      {"name": "Athletics", "mod": 4}
+    ],
+    "damage_resistances": "Piercing, Bludgeoning",
+    "passive_perception": 3,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Impenetrable", "text": "Has resistance to piercing damage."},
+        {"name": "Protector", "text": "Bonus action: mark an ally. They can't be knocked prone and have advantage on saves vs. physical conditions."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Makes one Shoulder Bash and one Arm Swing each turn."},
+        {"name": "Shoulder Bash", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 2) bludgeoning damage."},
+        {"name": "Arm Swing", "text": "Melee Weapon Attack: +6 to hit, 5 ft. radius. Hit: 6 (1d4 + 2) bludgeoning damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 4, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Defense", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Body Fat Cushion", "Partial Expansion", "Empty Crash"]}
+      ]}
+    ],
+    "notes": "The metadata line names no role; Defender is taken from the block's name. XP is not printed; 10 XP, as on every other Level 4 block. Passive Perception is printed as 3 although Wis -2 with no Perception skill gives 8; kept as printed.",
+    "waive": ["passive"]
+  }
+]

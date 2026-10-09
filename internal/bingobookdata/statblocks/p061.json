@@ -1,0 +1,54 @@
+[
+  {
+    "slug": "adversary-template/shikigami-chunin",
+    "name": "Shikigami Chunin",
+    "page": 61,
+    "rank": "C", "size": "Medium", "clan": "Shikigami", "clan_slug": "shikigami", "role": "Caster (Ninjutsu)",
+    "class": "standard", "affiliation": "Rain Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 15, "ac_note": "C. Armor Int", "dr": 2, "initiative": 7,
+    "speed": "30 ft.", "hp": "46", "cp": 126,
+    "str": {"score": 8, "mod": -1, "save": 2},
+    "dex": {"score": 14, "mod": 2, "save": 7},
+    "con": {"score": 14, "mod": 2, "save": 4},
+    "int": {"score": 16, "mod": 3, "save": 8},
+    "wis": {"score": 12, "mod": 1, "save": 6},
+    "cha": {"score": 8, "mod": -1, "save": 2},
+    "skills": [
+      {"name": "Ninshou", "mod": 10, "stars": 1},
+      {"name": "Sleight of Hand", "mod": 9, "stars": 1},
+      {"name": "Crafting", "mod": 8},
+      {"name": "Stealth", "mod": 7},
+      {"name": "Chakra Control", "mod": 7},
+      {"name": "Perception", "mod": 1}
+    ],
+    "passive_perception": 11,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Paper Expert", "tags": "Utility", "text": "You always have paper-based ninja tools to use."},
+        {"name": "Papercraft", "tags": "Attack, Control", "text": "When you use a paper-based ninja tool, its save DCs become your Ninjutsu save DC (already applied to affixed kunai)."}
+      ]},
+      {"kind": "passives", "title": "Shikigami Chunin's Passives", "entries": [
+        {"name": "Caster Passive 1", "text": "Effects that would prevent you from Chakra Molding all end at the end of each of your turns."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Shikigami Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft. Hit: (1d4 + 2) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +7 to hit, range 30/60 ft. Hit: (1d4 + 2) piercing damage."},
+        {"name": "Paper Bomb Affixed Kunai", "text": "Ranged Weapon Attack: +7 to hit, range 30/60 ft. Hit: (1d4 + 2) piercing damage. Regardless of the attack result, all creatures within 10 feet of the target creature (including the target creature) must make a DC 18 Dexterity saving throw, taking 8d4 fire damage on a failure, or half as much damage on a success. If this attack hits the target creature, the target creature makes its saving throw with disadvantage."},
+        {"name": "Flash Tag Affixed Kunai", "text": "Ranged Weapon Attack: +7 to hit, range 30/60 ft. Hit: (1d4 + 2) piercing damage. Regardless of the attack result, all creatures within 10 feet of the target creature (including the target creature) must make a DC 18 Wisdom saving throw. On a failure, a creature gains the Blinded condition until the end of its next turn and gains 1 rank of Dazzled. If this attack hits the target creature, the target creature makes its saving throw with disadvantage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement", "Escape Technique", "Mending"]},
+        {"rank": "D", "cost": 5, "names": ["Lock/Release", "Paper Shuriken", "Paper Substitution", "Paper Trap", "Sealing Art: Bind", "Tracking Tag"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Dispel", "Paper Clone", "Paper Drizzle", "Origami Servitor", "Sealing Art: Splinter"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Thoughts", "True Strike"]}
+      ]}
+    ],
+    "notes": "The Strength modifier is printed as -11; corrected to -1."
+  }
+]

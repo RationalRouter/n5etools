@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "adversary-template/ryu-martial-artist",
+    "name": "Ryu Martial Artist",
+    "page": 30,
+    "rank": "C", "size": "Medium", "clan": "Ryu", "clan_slug": "ryu", "role": "Striker (Taijutsu)",
+    "class": "standard", "affiliation": "", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 18, "ac_note": "L. Armor", "dr": 2, "initiative": 7,
+    "speed": "45 ft.", "hp": "116", "cp": 96,
+    "str": {"score": 16, "mod": 3, "save": 8},
+    "dex": {"score": 14, "mod": 2, "save": 4},
+    "con": {"score": 14, "mod": 2, "save": 7},
+    "int": {"score": 8, "mod": -1, "save": 1},
+    "wis": {"score": 6, "mod": -2, "save": 0},
+    "cha": {"score": 12, "mod": 1, "save": 6},
+    "skills": [
+      {"name": "Athletics", "mod": 8},
+      {"name": "Perception", "mod": 3},
+      {"name": "Acrobatics", "mod": 7},
+      {"name": "Martial Arts", "mod": 8},
+      {"name": "Chakra Control", "mod": 7}
+    ],
+    "passive_perception": 13,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Ryū-dera Training", "text": "As a bonus action, you can make a punch or kick attack."},
+        {"name": "Ryūken Stance", "text": "You can mark a creature as a reaction. The marked creature remains marked for 1 minute or until another creature is marked. A marked creature suffers a 1d4 penalty to its AC when you would target it with unarmed attacks until the end of the current turn."},
+        {"name": "Ryū Aura", "text": "Your Ryu Hijutsu use Strength instead of Intelligence as their main attribute."},
+        {"name": "Dragon Energy", "text": "Once per turn, your weapon, Taijutsu and Bukijutsu damage ignores temporary hit points."}
+      ]},
+      {"kind": "actions", "title": "Attacks", "entries": [
+        {"name": "Multiattack", "text": "The Ryu Martial Artist can make 3 attacks or 1 Dragon Tail."},
+        {"name": "Punch", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 6 (2d6 + 3) damage of one elemental type."},
+        {"name": "Kick", "text": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (3d6 + 3) damage of one elemental type."},
+        {"name": "Dragon Tail", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 10 (5d6 + 6) damage of one elemental type. On a hit, the target must make a Strength saving throw vs. DC 18 or be knocked prone (Recharge 6)."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Dragon Aegis", "Dragon Aura", "Dragon Breath", "Dragon Vision"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Bomb", "Dragon Strike", "Dragon's Wrath"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Dragon Palm Strike", "Falling Dragon", "Rising Dragon"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Tail Foot"]}
+      ]}
+    ],
+    "notes": "The metadata line names no affiliation. The printed average damage figures for Punch, Kick and Dragon Tail do not match their dice; kept as printed."
+  }
+]

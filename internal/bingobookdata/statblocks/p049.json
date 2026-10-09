@@ -1,0 +1,70 @@
+[
+  {
+    "slug": "adversary-template/kashu-jonin",
+    "name": "Kashu Jonin",
+    "page": 49,
+    "rank": "B", "size": "Medium", "clan": "Kashu", "clan_slug": "kashu", "role": "Controller",
+    "class": "elite", "affiliation": "Sound Shinobi", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 21, "ac_note": "M. Armor", "dr": 3, "initiative": 11,
+    "speed": "30 ft.", "hp": "175/105/52", "cp": 204,
+    "str": {"score": 8, "mod": -1, "save": 3},
+    "dex": {"score": 16, "mod": 3, "save": 7},
+    "con": {"score": 16, "mod": 3, "save": 10},
+    "int": {"score": 10, "mod": 0, "save": 7},
+    "wis": {"score": 18, "mod": 4, "save": 11},
+    "cha": {"score": 14, "mod": 2, "save": 6},
+    "skills": [
+      {"name": "Acrobatics", "mod": 9},
+      {"name": "Illusions", "mod": 10},
+      {"name": "Intimidation", "mod": 8},
+      {"name": "Performance", "mod": 8},
+      {"name": "Perception", "mod": 10},
+      {"name": "Stealth", "mod": 9}
+    ],
+    "damage_resistances": "Psychic",
+    "condition_resistances": "Disoriented",
+    "passive_perception": 20,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Adept Elementalist", "tags": "Attack, Defense", "text": "You gain resistance to psychic damage and increase all psychic damage you deal by +1 die."},
+        {"name": "Auditory Ninja Tool", "tags": "Attack", "text": "You gain an Auditory Ninja Tool, a weapon with the Light and Finesse qualities with which you are proficient. This weapon deals either 1d4 bludgeoning damage or Xd4 psychic damage, where X = your level / 4. Attacks that deal psychic damage use your Genjutsu modifier for damage instead of Strength or Dexterity. You may use this tool as a component of any Genjutsu you cast with the Auditory keyword, replacing the Hand Sign (HS) component (if any) and increasing the first instance of damage dealt by +1 damage die."},
+        {"name": "Disorienting Genjutsu", "tags": "Control", "text": "Auditory Genjutsu you cast impose a rank of disorientation on a failed save."},
+        {"name": "Fortuitous", "tags": "Defense", "text": "When subjected to a Constitution saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Stance Break", "tags": "Control, Attack", "text": "You can use your reaction to initiate a Clash with a creature's jutsu by casting a jutsu you know with a casting time of 1 action. Additionally, the triggering creature rolls at disadvantage."},
+        {"name": "Maximum Volume", "tags": "Attack, Control", "text": "Genjutsu with the Auditory keyword have their range or area of effect doubled."}
+      ]},
+      {"kind": "passives", "title": "Kashu Jonin's Clan/Role Passives", "entries": [
+        {"name": "Elite Controller", "text": "This adversary gains a +2 bonus to all jutsu save DCs."},
+        {"name": "Controller Passive 1", "text": "Jutsu you cast that would inflict a condition of any type cannot have their saving throws (if any) made with a jutsu-based bonus that lets the target roll an additional die other than a d20 (such as Bless)."},
+        {"name": "Controller Passive 2", "text": "Once per turn, jutsu you cast that would inflict a penalty of any type also always inflict 1 rank of Concussed."},
+        {"name": "Controller Action", "text": "By spending 3 Tenacity dice and its action, this adversary can create a chakra surge. When it does, all hostile creatures within 30 feet of this adversary must make a Constitution or Wisdom saving throw (your choice) against your highest save DC. On a failure, they lose the ability to cast jutsu with their actions or bonus actions until the end of your next turn. Once you use this ability, you must spend 5 Tenacity dice to recharge it."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Kashu Jonin may make three attacks with its currently equipped weapon."},
+        {"name": "Auditory Ninja Tool", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 8 (2d4 + 3) bludgeoning damage or 17 (3d4 + 4) psychic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 8 (2d4 + 3) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Kashu Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Chakra Shield", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 10, "dc": 22, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Feather Burst", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Amped Shot", "Frigid Thoughts", "Insinuation", "Psychic Enhancement", "Thought Film", "Soundless Blinding Echo"]},
+        {"rank": "C", "cost": 9, "names": ["Hypnotic Music", "Psychic Interruption", "Ringing Bell Distortion"]},
+        {"rank": "B", "cost": 14, "names": ["Amped Wave", "Song of War", "Trio Requiem"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Exorcism", "Iron Strike"]}
+      ]}
+    ],
+    "notes": "The Ninjutsu E-Rank cost is printed blank \"(Cost: )\"; filled in as 2. Disorienting Genjutsu is printed \"Disorientating Genjutsu\"."
+  }
+]

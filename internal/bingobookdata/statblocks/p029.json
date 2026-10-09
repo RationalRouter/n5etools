@@ -1,0 +1,73 @@
+[
+  {
+    "slug": "adversary-template/uzumaki-jonin",
+    "name": "Uzumaki Jonin",
+    "page": 29,
+    "rank": "B", "size": "Medium", "clan": "Uzumaki", "clan_slug": "uzumaki", "role": "Controller",
+    "class": "elite", "affiliation": "Factionless", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 23, "ac_note": "Medium Armor", "dr": 3, "initiative": 5,
+    "speed": "30 ft.", "hp": "256/153/76", "cp": 346,
+    "str": {"score": 16, "mod": 3, "save": 6},
+    "dex": {"score": 8, "mod": -1, "save": 5},
+    "con": {"score": 18, "mod": 4, "save": 10},
+    "int": {"score": 10, "mod": 0, "save": 6},
+    "wis": {"score": 14, "mod": 2, "save": 5},
+    "cha": {"score": 16, "mod": 3, "save": 6},
+    "skills": [
+      {"name": "Chakra Control", "mod": 10},
+      {"name": "Illusions", "mod": 8},
+      {"name": "Ninshou", "mod": 6},
+      {"name": "Perception", "mod": 8},
+      {"name": "Persuasion", "mod": 9},
+      {"name": "Stealth", "mod": 5}
+    ],
+    "damage_resistances": "Chakra",
+    "condition_resistances": "Sealed",
+    "passive_perception": 23,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Believe It!", "tags": "Attack, Defense, Utility", "text": "Once per encounter, gain advantage on all attack rolls, ability checks, or saving throws until the end of your next turn."},
+        {"name": "Crippling Strike", "tags": "Attack", "text": "Creatures who fail a saving throw from a jutsu you cast cannot use the Mobility (M) component until the end of their next turn."},
+        {"name": "Fuinjutsu Master", "tags": "Attack", "text": "Ninjutsu with the Fuinjutsu keyword has an increased DC of +1 (already included)."},
+        {"name": "Fundamental Difference", "tags": "Defense", "text": "You may use Constitution for attack rolls, damage rolls, and save DCs of Ninjutsu with the Fuinjutsu keyword."},
+        {"name": "Overwhelming Presence", "tags": "Control, Utility", "text": "Creatures making Wisdom or Charisma checks against you do so at disadvantage. You roll Charisma ability checks at advantage."},
+        {"name": "Strength of Will", "tags": "Defense", "text": "You gain advantage on Wisdom saving throws and ability checks."}
+      ]},
+      {"kind": "passives", "title": "Uzumaki Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary has resistance to chakra damage and absorption. Fuinjutsu cast by this adversary gains +15 ft. range."},
+        {"name": "Controller Passive 1", "text": "Jutsu you cast that inflict conditions cannot have their saving throws enhanced by non-d20 bonuses (e.g. Bless)."},
+        {"name": "Controller Passive 2", "text": "Once per turn, your jutsu that apply penalties also apply 1 rank of Concussed."},
+        {"name": "Controller Action", "text": "Cost: 3 Tenacity dice. All hostile creatures within 30 ft. must make a Constitution or Wisdom saving throw (your choice) vs. your highest save DC. On a failure, they cannot cast jutsu using their action or bonus action until the end of your next turn. Recharge: 5 Tenacity dice."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 attacks with an equipped weapon. You may replace one attack with a Seal attack."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 8 (2d4 + 3) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +9 to hit, range 30/120 ft., one target. Hit: 9 (2d4 + 3) slashing damage."},
+        {"name": "Seal", "text": "Melee Ninjutsu Attack: +10 to hit, reach 5 ft., one target. Hit: 12 (3d4 + 4) force damage. The target must succeed on a DC 21 Charisma save or take an equal amount of chakra damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Uzumaki Jonin may take one Elite Action at the end of another creature's turn, once each round, to move, attack, cast a jutsu, or gain an extra reaction. It regains all Elite Actions at the start of its turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 10, "dc": 21, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Adamantine Striking Chains", "Body Camouflage", "Flash Anchor", "Sealing Art: Bind", "Sealing Art: Fracture", "Substitution Technique", "Basic Seal"]},
+        {"rank": "C", "cost": 9, "names": ["Adamantine Binding Chains", "5-Pronged Seal", "Sealing Art: Splinter"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique", "Uzumaki Break"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Feather Burst (3d8)"]},
+        {"rank": "D", "cost": 5, "names": ["Sealing Art: Delusions"]},
+        {"rank": "C", "cost": 9, "names": ["Corruption: Cruelty"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 9, "dc": 19, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Exorcism", "Brace", "Iron Strike"]},
+        {"rank": "C", "cost": 9, "names": ["Grass Palm"]}
+      ]}
+    ],
+    "notes": "Passive Perception is printed as 23 although Perception is printed as +8 (which gives 18); both kept as printed.",
+    "waive": ["passive"]
+  }
+]

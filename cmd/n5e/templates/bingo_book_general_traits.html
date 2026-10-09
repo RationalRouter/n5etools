@@ -1,0 +1,33 @@
+{{define "content"}}
+<p><a href="/encounters">{{T "encounters.title"}}</a></p>
+<h1>{{T "npc_templates.general_traits_title"}}</h1>
+<p class="page-subtitle">{{T "npc_templates.general_traits_subtitle"}}</p>
+
+{{if not .Groups}}<p class="npc-empty-state">{{T "npc_templates.empty"}}</p>{{end}}
+<input type="text" id="adversary-traits-search" placeholder="{{T "adversary_traits.search_placeholder"}}">
+
+{{range .Groups}}
+<section data-category-section>
+  <h2>{{.Label}}</h2>
+  <ul class="tooltip-list">
+    {{range .Traits}}
+    <li class="tooltip adversary-trait-row" tabindex="0" data-filter="{{.FilterKey}}">
+      <span class="tooltip-trigger">{{.Name}}{{if .Keywords}} &mdash; {{.Keywords}}{{end}}</span>
+      <span class="tooltip-content">{{formatDescription .Description}}{{if .Notes}}<em class="npc-template-notes">{{.Notes}}</em>{{end}}</span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+
+{{if .SpecialistLists}}
+<h2>{{T "npc_templates.specialist_lists_title"}}</h2>
+<p class="section-hint npc-specialist-hint">{{T "npc_templates.specialist_lists_hint"}}</p>
+<dl class="fact-list">
+  {{range .SpecialistLists}}
+  <dt>{{.Name}}</dt>
+  <dd>{{range $i, $j := .Jutsu}}{{if $i}}, {{end}}{{if $j.Slug}}<a href="/jutsu/{{$j.Slug}}">{{$j.Name}}</a>{{else}}{{$j.Name}}{{end}}{{end}}</dd>
+  {{end}}
+</dl>
+{{end}}
+{{end}}

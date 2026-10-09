@@ -1,0 +1,68 @@
+[
+  {
+    "slug": "adversary-template/shikigami-jonin",
+    "name": "Shikigami Jonin",
+    "page": 62,
+    "rank": "A", "size": "Medium", "clan": "Shikigami", "clan_slug": "shikigami", "role": "Caster (Ninjutsu)",
+    "class": "elite", "affiliation": "Rain Shinobi", "prof": 7,
+    "level": 14, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 24, "ac_note": "C. Armor Int", "dr": 2, "initiative": 12,
+    "speed": "30 ft.", "hp": "199/119/59", "cp": 395,
+    "str": {"score": 8, "mod": -1, "save": 3},
+    "dex": {"score": 16, "mod": 3, "save": 10},
+    "con": {"score": 16, "mod": 3, "save": 10},
+    "int": {"score": 22, "mod": 6, "save": 13},
+    "wis": {"score": 14, "mod": 2, "save": 9},
+    "cha": {"score": 10, "mod": 0, "save": 3},
+    "skills": [
+      {"name": "Ninshou", "mod": 15, "stars": 1},
+      {"name": "Sleight of Hand", "mod": 12, "stars": 1},
+      {"name": "Crafting", "mod": 13},
+      {"name": "Stealth", "mod": 12, "stars": 1},
+      {"name": "Chakra Control", "mod": 10},
+      {"name": "Perception", "mod": 9},
+      {"name": "Investigation", "mod": 10}
+    ],
+    "passive_perception": 19,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Paper Expert", "tags": "Utility", "text": "You always have paper-based ninja tools to use."},
+        {"name": "Papercraft", "tags": "Attack, Control", "text": "When you use a paper-based ninja tool, its save DCs become your Ninjutsu save DC (already applied to affixed kunai)."},
+        {"name": "Divine Shikigami", "tags": "Attack, Control", "text": "You gain the Divine Shikigami clan feature."},
+        {"name": "Potent Casting", "tags": "Utility", "text": "Twice per combat, you may maximize the damage of one Ninjutsu or Genjutsu you cast. Once you use this trait, you cannot use it again until you spend at least 1 round not casting Ninjutsu or Genjutsu with your action or bonus action."},
+        {"name": "Ricochet", "tags": "Attack", "text": "If you cast a Ninjutsu that requires an attack roll and you would miss, you can choose to spend double the jutsu's cost to reroll the attack. You can only use this trait once per casting."},
+        {"name": "Semi-Permanent Paper Form", "tags": "Unique", "text": "At the beginning of your turn, you may spend 10 chakra. Until the beginning of your next turn, you gain immunity to the Grappled and Restrained conditions. Additionally, you gain immunity to bludgeoning, slashing, and piercing damage, but gain vulnerability to fire damage."}
+      ]},
+      {"kind": "passives", "title": "Shikigami Jonin's Clan/Role Passives", "entries": [
+        {"name": "Shikigami Passive", "text": "This adversary is the apex of creativity. It can create 1 paper-based tool of a quality equal to its rank at the beginning of each of its turns, Elite Actions, or Legendary Actions: D-Rank: Normal, C-Rank: Greater, B-Rank: Superior, A-Rank+: Supreme."},
+        {"name": "Caster Passive 1", "text": "Effects that would prevent you from Chakra Molding all end at the end of each of your turns."},
+        {"name": "Caster Passive 2", "text": "Damaging Ninjutsu you cast that affect an area (Cone, Line, Radius/Sphere, Cylinder) can have their shape changed to another shape: Cone = 30 ft. | Line = 60 ft. long/5 ft. wide | Radius/Sphere = 25 ft. | Cylinder = 20 ft. wide/30 ft. tall."},
+        {"name": "Caster Ability", "text": "Cost: 2 Tenacity dice. Effect: Overcharge. The next Ninjutsu cast cannot be interrupted and adds the spent dice to the damage roll. If the jutsu would cause 2 or more creatures to fail its saving throw, or the jutsu's attack beats the target's AC by 5 or more, the target is Staggered until the end of its next turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 3 attacks, or 4 attacks with a ranged or thrown weapon."},
+        {"name": "Kunai (Melee)", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft. Hit: (1d4 + 2) piercing damage."},
+        {"name": "Kunai (Ranged)", "text": "Ranged Weapon Attack: +7 to hit, range 30/60 ft. Hit: (1d4 + 2) piercing damage."},
+        {"name": "Paper Bomb Affixed Kunai", "text": "Ranged Weapon Attack: +10 to hit, range 30/60 ft. Hit: (1d4 + 3) piercing damage. Regardless of the attack result, all creatures within 10 feet of the target creature (including the target creature) must make a DC 25 Dexterity saving throw, taking 8d4 fire damage on a failure, or half as much damage on a success. If this attack hits the target creature, the target creature makes its saving throw with disadvantage."},
+        {"name": "Flash Tag Affixed Kunai", "text": "Ranged Weapon Attack: +10 to hit, range 30/60 ft. Hit: (1d4 + 3) piercing damage. Regardless of the attack result, all creatures within 10 feet of the target creature (including the target creature) must make a DC 25 Wisdom saving throw. On a failure, a creature gains the Blinded condition until the end of its next turn and gains 1 rank of Dazzled. If this attack hits the target creature, the target creature makes its saving throw with disadvantage."}
+      ]},
+      {"kind": "elite", "title": "Elite Traits", "entries": [
+        {"name": "Elite Action", "text": "Takes 1 Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain an extra reaction. Regains all Elite Actions at the start of its turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 13, "dc": 25, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Lock/Release", "Paper Shuriken", "Paper Substitution", "Paper Trap", "Sealing Art: Bind", "Tracking Tag"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Dispel", "Paper Clone", "Paper Drizzle", "Origami Servitor", "Sealing Art: Splinter"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique", "Circle of Authority", "Warding Seal", "Paper Coffin", "Displacement Sealing Trap", "Paper Chakram"]},
+        {"rank": "A", "cost": 20, "names": ["Seal of Discord", "Tethered Essence"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Thoughts", "True Strike"]}
+      ]}
+    ],
+    "notes": "The Kunai (Melee/Ranged) attacks print +7 and 1d4 + 2 while the affixed kunai print +10 and 1d4 + 3; kept as printed. Paper Bomb Affixed Kunai keeps the Chunin's 8d4 fire damage as printed."
+  }
+]

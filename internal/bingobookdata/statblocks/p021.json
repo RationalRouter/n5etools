@@ -1,0 +1,49 @@
+[
+  {
+    "slug": "adversary-template/jiton-genin",
+    "name": "Jiton Genin",
+    "page": 21,
+    "rank": "D", "size": "Small", "clan": "Jiton", "clan_slug": "jiton", "role": "Defender",
+    "class": "standard", "affiliation": "Sand Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 19, "ac_note": "Dust Cloak", "dr": 4, "initiative": 5,
+    "speed": "40 ft.", "hp": "54", "cp": 46,
+    "str": {"score": 6, "mod": -2, "save": 0},
+    "dex": {"score": 12, "mod": 1, "save": 5},
+    "con": {"score": 12, "mod": 1, "save": 3},
+    "int": {"score": 14, "mod": 2, "save": 4},
+    "wis": {"score": 8, "mod": -1, "save": 3},
+    "cha": {"score": 10, "mod": 0, "save": 2},
+    "skills": [
+      {"name": "Stealth", "mod": 5},
+      {"name": "Perception", "mod": 5, "stars": 1},
+      {"name": "Ninshou", "mod": 6},
+      {"name": "Martial Arts", "mod": 2},
+      {"name": "Chakra Control", "mod": 1},
+      {"name": "Illusions", "mod": -1}
+    ],
+    "passive_perception": 15,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Protector", "tags": "Buff, Defense", "text": "As a bonus action, mark one allied creature. A marked allied creature cannot be knocked prone, and has advantage on saving throws to resist Physical Conditions."},
+        {"name": "Silica Sand", "tags": "Clan, Defense, Control", "text": "You control Silica Sand: • You emit a 10-foot aura of swirling sand. This aura is considered difficult terrain for enemies. Enemies have disadvantage on saving throws against your Jiton Hijutsu if they are affected by the difficult terrain of this feature. • When you would cast Dust Cloak, it is automatically upcast 1 rank, ignoring rank restrictions. • When you would cast a Jiton Hijutsu which would create a Quake Shard or grant temporary hit points, you may add your Constitution modifier to the hit points of the associated jutsu."},
+        {"name": "Gold Dust", "tags": "Clan, Attack, Control", "text": "You control Gold Dust: • When you cast a Jiton Clan Hijutsu that deals damage, you may give it the Clash keyword. • When you initiate a Clash with a Jiton Clan Hijutsu, add +1d6 to your Clash Check. • When you deal damage with a Jiton Hijutsu, pierce an amount of DR equal to twice your Constitution modifier."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Jiton Genin may make 1 attack with its Spear or 1 attack with its Dust Blast."},
+        {"name": "Spear", "text": "Melee Weapon Attack: +2 to hit, reach 10 ft., one target. Hit: 2 (1d6 - 1) piercing damage."},
+        {"name": "Dust Blast", "text": "Ranged Ninjutsu Attack: +6 to hit, range 120 ft., one target. Hit: 7 (1d8 + 2) earth damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique", "Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Rock Shuriken", "Dust Cloak", "Dust Particle Drizzle", "Dust Shield"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique"]}
+      ]}
+    ],
+    "notes": "AC note printed \"Dust Coat\"; transcribed as Dust Cloak, the jutsu the block names elsewhere. Silica Sand printed \"You control Sandy Sand\". Clone Technique is printed under a Taijutsu header, transcribed as printed."
+  }
+]

@@ -1,0 +1,75 @@
+[
+  {
+    "slug": "adversary-template/chinoike-jonin",
+    "name": "Chinoike Jonin",
+    "page": 35,
+    "rank": "B", "size": "Medium", "clan": "Chinoike", "clan_slug": "chinoike", "role": "Supporter",
+    "class": "elite", "affiliation": "Factionless", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 21, "ac_note": "M. Armor", "dr": 3, "initiative": 8,
+    "speed": "35 ft.", "hp": "175/105/52", "cp": 175,
+    "str": {"score": 14, "mod": 2, "save": 4},
+    "dex": {"score": 10, "mod": 0, "save": 2},
+    "con": {"score": 16, "mod": 3, "save": 8},
+    "int": {"score": 16, "mod": 3, "save": 8},
+    "wis": {"score": 18, "mod": 4, "save": 9},
+    "cha": {"score": 8, "mod": -1, "save": 1},
+    "skills": [
+      {"name": "Chakra Control", "mod": 9},
+      {"name": "Illusions", "mod": 10},
+      {"name": "Medicine", "mod": 10},
+      {"name": "Ninshou", "mod": 9},
+      {"name": "Perception", "mod": 10},
+      {"name": "Insight", "mod": 10}
+    ],
+    "damage_resistances": "Necrotic",
+    "condition_immunities": "Bleeding",
+    "senses": "Chakra Sight 60 ft.",
+    "passive_perception": 20,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Lethal Ferocity", "tags": "Buff", "text": "Allies within 30 ft. of you cannot gain disadvantage on attacks they make from hostile effects. This trait can be temporarily deactivated if the adversary gains the stunned, dazed, or concussed condition. The aura is deactivated until the end of this adversary's next turn."},
+        {"name": "Aura: Recovery", "tags": "Healing, Buff", "text": "Allies within 30 ft. of you who would regain hit points regain additional hit points equal to half your level."},
+        {"name": "Fortuitous", "tags": "Defense", "text": "When subjected to a Constitution saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Helpful", "tags": "Utility", "text": "You can perform the Help action as a bonus action, targeting up to 2 allied creatures up to 30 feet away."},
+        {"name": "Plasmaic Supercharge", "tags": "Attack, Defense, Mobility, Buff", "text": "(Recharge 5-6) As an action, you can grant all allies within 30 feet a +2 bonus to attack and damage rolls, +1 AC, +20 feet of movement speed, and an additional reaction. These effects last until the end of each of their turns."},
+        {"name": "Sanguine Prowess", "tags": "Attack, Healing, Utility", "text": "When you cast a jutsu with the Water Release keyword, you can, as part of the same action, release a small amount of blood, infusing it with the jutsu. The jutsu gains the benefits of being near a sufficient source of water, and gains a +1 to damage die, healing die, and save DC. If the jutsu gains no benefits for being near a sufficient source of water, double these bonuses."}
+      ]},
+      {"kind": "passives", "title": "Chinoike Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary possesses the Ketsuryūgan, granting it the following benefits when active: • 60 feet of chakra sight. • Resistance to necrotic damage and immunity to bleeding. • When you deal cold damage, you can change the damage type to necrotic and add your Wisdom modifier to the damage dealt, or increase the save DC by +1. • When a hostile creature in combat takes damage from the bleeding condition, increase the damage dealt by 1 step."},
+        {"name": "Elite Supporter", "text": "You gain a +5 bonus to Chakra Control skill checks."},
+        {"name": "Supporter Passive 1", "text": "Jutsu you cast that would provide an allied creature a Boost, Boon or bonus of any type, and that require concentration, make those checks at advantage."},
+        {"name": "Supporter Passive 2", "text": "Jutsu you cast that would heal or remove conditions from an allied creature can only be interrupted or dispelled by a jutsu that is at least 1 or more ranks higher than it. (You cannot cast jutsu that would heal or remove conditions from an allied creature at your highest rank, and must instead always cast them 1 rank below your highest possible.)"},
+        {"name": "Supporter Action", "text": "By spending 5 Tenacity dice and a full-turn action, this adversary can create a rejuvenating pulse. When it does, all allied creatures within 30 feet of it (including itself) lose 3 ranks of all conditions they may be afflicted by. If a condition has no ranks, that condition is cleansed. Once this adversary uses this ability, it cannot do so again until it takes a full-turn action to recharge this effect."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Chinoike Jonin may make three attacks with its currently equipped weapon."},
+        {"name": "Blood Weapon", "text": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 9 (2d6 + 2) necrotic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +8 to hit, range 30/120 ft., one target. Hit: 7 (2d4 + 2) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Chinoike Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Virtue"]},
+        {"rank": "D", "cost": 5, "names": ["Adept Healing", "Bloodletting Weaponry", "Blood Daggers", "Enhanced Circulation", "Healing Waters"]},
+        {"rank": "C", "cost": 9, "names": ["Red Death", "Poison Mist Technique", "Water Clone"]},
+        {"rank": "B", "cost": 14, "names": ["Blood Clot Spikes", "Blood Rot Curse"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 10, "dc": 22, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Genjutsu: Ichorous Illusions!", "Genjutsu: Ketsuryūgan!", "Insinuation", "Mind Film"]},
+        {"rank": "C", "cost": 9, "names": ["Genjutsu: Blood Lake", "Mind Body Recovery"]},
+        {"rank": "B", "cost": 14, "names": ["Effortless Paralysis", "Genjutsu: Numbness"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 8, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Blade of Sin: Sloth", "Weapon Deflect"]},
+        {"rank": "C", "cost": 9, "names": ["Falling Blade", "Front Beheading"]}
+      ]}
+    ],
+    "notes": "The Genjutsu C-Rank line prints \"Mind Body\", cut off where the B-Rank line begins on the same line; transcribed as Mind Body Recovery, the name printed on the Chinoike Chunin block."
+  }
+]

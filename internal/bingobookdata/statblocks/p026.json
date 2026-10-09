@@ -1,0 +1,102 @@
+[
+  {
+    "slug": "adversary-template/sarutobi-genin",
+    "name": "Sarutobi Genin",
+    "page": 26,
+    "rank": "D", "size": "Medium", "clan": "Sarutobi", "clan_slug": "sarutobi", "role": "Caster (Ninjutsu)",
+    "class": "standard", "affiliation": "Leaf Shinobi", "prof": 4,
+    "level": 4, "xp": 10,
+    "ac": 13, "ac_note": "C. Armor (Int)", "dr": 2, "initiative": 4,
+    "speed": "30 ft.", "hp": "38", "cp": 54,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 10, "mod": 0, "save": 3},
+    "con": {"score": 12, "mod": 1, "save": 5},
+    "int": {"score": 14, "mod": 2, "save": 6},
+    "wis": {"score": 8, "mod": -1, "save": 1},
+    "cha": {"score": 12, "mod": 1, "save": 3},
+    "skills": [
+      {"name": "Chakra Control", "mod": 5},
+      {"name": "History", "mod": 6},
+      {"name": "Ninshou", "mod": 6},
+      {"name": "Persuasion", "mod": 5}
+    ],
+    "passive_perception": 9,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Never Ending Drive", "tags": "Offense", "text": "If chakra would fall to 0, you may convert HP to chakra at a rate of 2 HP per 1 CP. You may continue to cast and activate features while at 0 CP."}
+      ]},
+      {"kind": "other", "title": "Sarutobi Elemental Specialization", "entries": [
+        {"text": "All Sarutobi adversaries gain access to an additional Nature Release and its related jutsu (see Specialist Jutsu Lists). They also gain bonus defensive jutsu depending on their releases: Blue Fire, Water Shield, Bedrock Skin, Blurring Wind, Lightning Repel."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 weapon attacks."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 3 (1d4) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 3 (1d4) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Chakra Bolt", "+Specialist Jutsu"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 2, "dc": 12, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash"]}
+      ]}
+    ],
+    "notes": "The Sarutobi Elemental Specialization sidebar on p.26 applies to every Sarutobi block and is repeated on each."
+  },
+  {
+    "slug": "adversary-template/sarutobi-chunin",
+    "name": "Sarutobi Chunin",
+    "page": 26,
+    "rank": "C", "size": "Medium", "clan": "Sarutobi", "clan_slug": "sarutobi", "role": "Caster (Ninjutsu)",
+    "class": "standard", "affiliation": "Grass Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 17, "ac_note": "M. Armor", "dr": 2, "initiative": 7,
+    "speed": "30 ft.", "hp": "86", "cp": 126,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 14, "mod": 2, "save": 5},
+    "con": {"score": 18, "mod": 4, "save": 8},
+    "int": {"score": 16, "mod": 3, "save": 9},
+    "wis": {"score": 10, "mod": 0, "save": 6},
+    "cha": {"score": 12, "mod": 1, "save": 4},
+    "skills": [
+      {"name": "Chakra Control", "mod": 11, "stars": 1},
+      {"name": "History", "mod": 8},
+      {"name": "Ninshou", "mod": 8},
+      {"name": "Perception", "mod": 6, "stars": 1},
+      {"name": "Persuasion", "mod": 6}
+    ],
+    "damage_resistances": "Specialized Damage Type",
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Adept Elementalist", "tags": "Offense, Defense", "text": "Select one damage type. Increase damage dealt with that type by 1 die and gain resistance to it."},
+        {"name": "Adaptive Elements", "tags": "Offense", "text": "Twice per encounter, when casting a nature Ninjutsu, you may change its damage type to match another elemental jutsu you know."}
+      ]},
+      {"kind": "other", "title": "Sarutobi Elemental Specialization", "entries": [
+        {"text": "All Sarutobi adversaries gain access to an additional Nature Release and its related jutsu (see Specialist Jutsu Lists). They also gain bonus defensive jutsu depending on their releases: Blue Fire, Water Shield, Bedrock Skin, Blurring Wind, Lightning Repel."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 attacks. You may spend your bonus action to make a third."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +7 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Chakra Bolt", "Chakra Shield", "+Specialist Jutsu"]},
+        {"rank": "C", "cost": 9, "names": ["Shadow Shuriken Technique", "+Specialist Jutsu"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 5, "dc": 15, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Feather Burst (2d8)"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash"]}
+      ]}
+    ],
+    "notes": "The Sarutobi Elemental Specialization sidebar on p.26 applies to every Sarutobi block and is repeated on each."
+  }
+]

@@ -1,0 +1,260 @@
+{{/* Encounter roster card — shared by the unsaved generator preview
+     (encounters.html, EncounterID == 0, the roster round-tripped through
+     each row's hidden roster_json field) and a saved encounter's own view
+     (encounter_detail.html via encounters.html's .Detail branch,
+     EncounterID != 0, each row's reroll form targeting its own saved
+     adversary_id instead). Call with an encounterRosterView. */}}
+{{define "encounter_stat_terms"}}{{range .}}<span>{{T (print "encounters.builder_term_" .Key)}} {{.Value}}</span>{{end}}{{end}}
+
+{{define "encounter_roster_card"}}
+{{$root := .}}
+<details id="encounter-roster" class="encounter-roster" open>
+  <summary><h2>{{if $root.EncounterID}}{{T "encounters.roster_heading"}}{{else}}{{T "encounters.preview_heading"}}{{end}}</h2></summary>
+  <p class="page-subtitle">{{T "encounters.budget_label"}}: {{.Budget}}</p>
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>{{T "encounters.col_name"}}</th>
+        <th>{{T "encounters.col_hp"}}</th>
+        <th>{{T "encounters.col_cp"}}</th>
+        <th>{{T "encounters.col_ac"}}</th>
+        <th>{{T "encounters.col_init"}}</th>
+        <th>{{T "encounters.col_saves"}}</th>
+        <th>{{T "encounters.col_attack_dc"}}</th>
+        <th>{{T "encounters.col_damage"}}</th>
+        <th>{{T "encounters.col_freeform_slots"}}</th>
+        <th>{{T "encounters.col_tenacity"}}</th>
+        <th>{{T "encounters.col_traits"}}</th>
+        <th>{{T "encounters.col_jutsu"}}</th>
+        <th>{{T "encounters.col_classification"}}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Adversaries}}
+      {{$adv := .}}
+      <tr>
+        <td class="encounter-roster-actions">
+          {{if $root.EncounterID}}
+          <a class="encounter-builder-edit" href="/encounters/builder/{{$root.EncounterID}}/{{.ID}}">{{T "encounters.builder_edit"}}</a>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/reroll" class="encounter-roster-form" data-target="encounter-roster">
+            <input type="hidden" name="adversary_id" value="{{.ID}}">
+            <button type="submit">{{T "encounters.reroll"}}</button>
+          </form>
+          <form method="post" action="/encounters/{{$root.EncounterID}}/adversary/{{.ID}}/delete" class="encounter-roster-form" data-target="encounter-roster" data-confirm="{{T "encounters.confirm_delete_adversary" .Name}}">
+            <button type="submit" class="btn-danger">{{T "encounters.remove"}}</button>
+          </form>
+          {{else}}
+          <form method="post" action="/encounters/generate/reroll" class="encounter-roster-form" data-target="encounter-roster">
+            <input type="hidden" name="roster_json" value="{{$root.RosterJSON}}">
+            <input type="hidden" name="party_size" value="{{$root.PartySize}}">
+            <input type="hidden" name="party_level" value="{{$root.PartyLevel}}">
+            <input type="hidden" name="difficulty" value="{{$root.Difficulty}}">
+            <input type="hidden" name="budget" value="{{$root.Budget}}">
+            <input type="hidden" name="adversary_index" value="{{.Index}}">
+            <button type="submit">{{T "encounters.reroll"}}</button>
+          </form>
+          <form method="post" action="/encounters/generate/adversary/delete" class="encounter-roster-form" data-target="encounter-roster" data-confirm="{{T "encounters.confirm_delete_adversary" .Name}}">
+            <input type="hidden" name="roster_json" value="{{$root.RosterJSON}}">
+            <input type="hidden" name="party_size" value="{{$root.PartySize}}">
+            <input type="hidden" name="party_level" value="{{$root.PartyLevel}}">
+            <input type="hidden" name="difficulty" value="{{$root.Difficulty}}">
+            <input type="hidden" name="budget" value="{{$root.Budget}}">
+            <input type="hidden" name="adversary_index" value="{{.Index}}">
+            <button type="submit" class="btn-danger">{{T "encounters.remove"}}</button>
+          </form>
+          {{end}}
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.Name}}</span>
+            <span class="tooltip-content encounter-terms">
+              <span>{{T "encounters.summary_class_rank" .ClassName .AdvRank}}</span>
+              <span>{{T "encounters.summary_role" .RoleName}}</span>
+              <span>{{T "encounters.summary_clan" .ClanName}}</span>
+              <span>{{T "encounters.summary_affiliation" .AffiliationName}}</span>
+              <span>{{T "encounters.summary_speed_dr" .Stats.Speed .Stats.DR}}</span>
+            </span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.Stats.HPMax}}</span>
+            <span class="tooltip-content encounter-terms">
+              {{template "encounter_stat_terms" index .Stats.Breakdown "hp"}}
+              {{if .Stats.HPPhases}}<span>{{T "encounters.hp_phases_hint" (index .Stats.HPPhases 0) (index .Stats.HPPhases 1)}}</span>{{end}}
+            </span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.Stats.CPMax}}</span>
+            <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index .Stats.Breakdown "cp"}}</span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.Stats.AC}}</span>
+            <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index .Stats.Breakdown "ac"}}</span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{signed .Stats.Init}}</span>
+            <span class="tooltip-content encounter-terms">{{template "encounter_stat_terms" index .Stats.Breakdown "init"}}</span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{range .SaveRows}}{{if .Prof}}<span class="encounter-save-prof">{{T (print "characters.stat_" .Ability)}} {{signed .Value}}</span> {{end}}{{end}}</span>
+            <span class="tooltip-content encounter-terms">
+              {{range .SaveRows}}<span>{{T (print "characters.stat_" .Ability)}} {{signed .Value}}{{if .Prof}} {{T "encounters.save_proficient"}}{{end}}</span>{{end}}
+            </span>
+          </span>
+        </td>
+        <td>
+          {{$main := .MainAttack}}
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{signed $main.Attack}}{{if $main.DC}} / {{T "encounters.dc_value" $main.DC}}{{end}}</span>
+            <span class="tooltip-content encounter-terms">
+              {{range .AttackRows}}<span>{{T (print "encounters.attack_" .Key)}}: {{signed .Attack}}{{if .DC}}, {{T "encounters.dc_value" .DC}}{{end}}</span>{{end}}
+            </span>
+          </span>
+        </td>
+        <td>
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.Stats.DamagePerAction}}</span>
+            <span class="tooltip-content">{{T "encounters.damage_hint"}}</span>
+          </span>
+        </td>
+        <td>{{.FreeformSlots}}</td>
+        <td>
+          {{if .TenacityMax}}
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{.TenacityMax}}</span>
+            <span class="tooltip-content">{{T "encounters.tenacity_hint"}}</span>
+          </span>
+          {{else}}
+          &mdash;
+          {{end}}
+        </td>
+        <td>
+          {{if .Traits}}
+          <ul class="tooltip-list">
+            {{range .Traits}}
+            <li class="tooltip" tabindex="0">
+              <span class="tooltip-trigger">{{.Name}} ({{.Rank}})</span>
+              <span class="tooltip-content">{{.Description}}</span>
+            </li>
+            {{end}}
+          </ul>
+          {{else}}
+          &mdash;
+          {{end}}
+        </td>
+        <td>
+          {{if .Jutsu}}
+          <span class="tooltip" tabindex="0">
+            <span class="tooltip-trigger">{{T "encounters.jutsu_count" (len .Jutsu)}}</span>
+            <span class="tooltip-content encounter-terms">
+              {{range .Jutsu}}<span>{{.Name}} ({{.Rank}}) · {{.Classification}}{{if .CostText}} · {{.CostText}}{{end}}</span>{{end}}
+            </span>
+          </span>
+          {{else}}
+          &mdash;
+          {{end}}
+        </td>
+        <td class="encounter-classify-cell">
+          <form method="post"
+                action="{{if $root.EncounterID}}/encounters/{{$root.EncounterID}}/adversary/{{.ID}}/classify{{else}}/encounters/generate/adversary/classify{{end}}"
+                class="encounter-roster-form encounter-classify-form" data-target="encounter-roster">
+            {{if $root.EncounterID}}
+            <input type="hidden" name="adversary_id" value="{{.ID}}">
+            {{else}}
+            <input type="hidden" name="roster_json" value="{{$root.RosterJSON}}">
+            <input type="hidden" name="party_size" value="{{$root.PartySize}}">
+            <input type="hidden" name="party_level" value="{{$root.PartyLevel}}">
+            <input type="hidden" name="difficulty" value="{{$root.Difficulty}}">
+            <input type="hidden" name="budget" value="{{$root.Budget}}">
+            <input type="hidden" name="adversary_index" value="{{.Index}}">
+            {{end}}
+            <div class="creation-form-inline">
+              <select name="classification" class="sheet-option-tooltip-select">
+                <option value="" data-description="{{T "encounters.classification_hint_none"}}"{{if not .Classification}} selected{{end}}>{{T "encounters.classification_none"}}</option>
+                <option value="iconic" data-description="{{T "encounters.classification_hint_iconic"}}"{{if eq .Classification "iconic"}} selected{{end}}>{{T "encounters.classification_iconic"}}</option>
+                <option value="epic" data-description="{{T "encounters.classification_hint_epic"}}"{{if eq .Classification "epic"}} selected{{end}}>{{T "encounters.classification_epic"}}</option>
+              </select>
+              <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+                <span class="tooltip-trigger">ⓘ</span>
+                <span class="tooltip-content">{{T "encounters.classification_hint_none"}}</span>
+              </span>
+            </div>
+            <p><a href="/encounters/adversary-traits" target="_blank">{{T "adversary_traits.iconic_reference_link"}}</a></p>
+            {{if eq .RankSlug "adversary-rank/solo"}}
+            <div class="creation-form-inline">
+              <select name="transformation_slug">
+                <option value=""{{if not .TransformationSlug}} selected{{end}}>{{T "encounters.transformation_none"}}</option>
+                {{range $root.Transformations}}
+                <option value="{{.Slug}}"{{if eq $adv.TransformationSlug .Slug}} selected{{end}}>{{.Name}}</option>
+                {{end}}
+              </select>
+              <select name="battlefield_domain_slug">
+                <option value=""{{if not .BattlefieldDomainSlug}} selected{{end}}>{{T "encounters.battlefield_domain_none"}}</option>
+                {{range $root.BattlefieldDomains}}
+                <option value="{{.Slug}}"{{if eq $adv.BattlefieldDomainSlug .Slug}} selected{{end}}>{{.Name}}</option>
+                {{end}}
+              </select>
+              <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+                <span class="tooltip-trigger">ⓘ</span>
+                <span class="tooltip-content">{{T "encounters.narrative_hint"}}</span>
+              </span>
+            </div>
+            {{end}}
+            <button type="submit">{{T "encounters.classify"}}</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{if $root.Ranks}}
+  <form method="post"
+        action="{{if $root.EncounterID}}/encounters/{{$root.EncounterID}}/adversary/add{{else}}/encounters/generate/adversary/add{{end}}"
+        class="encounter-roster-form creation-form-inline encounter-add-form" data-target="encounter-roster">
+    {{if not $root.EncounterID}}
+    <input type="hidden" name="roster_json" value="{{$root.RosterJSON}}">
+    <input type="hidden" name="party_size" value="{{$root.PartySize}}">
+    <input type="hidden" name="party_level" value="{{$root.PartyLevel}}">
+    <input type="hidden" name="difficulty" value="{{$root.Difficulty}}">
+    <input type="hidden" name="budget" value="{{$root.Budget}}">
+    {{end}}
+    <label for="encounter-add-rank">{{T "encounters.add_adversary_class"}}</label>
+    <select id="encounter-add-rank" name="rank_slug">
+      {{range $root.Ranks}}
+      <option value="{{.Slug}}">{{.Name}}</option>
+      {{end}}
+    </select>
+    <label for="encounter-add-level">{{T "encounters.add_adversary_level"}}</label>
+    <input type="number" id="encounter-add-level" name="level" min="1" max="20" value="{{$root.PartyLevel}}">
+    <button type="submit">{{T "encounters.add_adversary"}}</button>
+  </form>
+  {{end}}
+  {{if $root.EncounterID}}
+  <p class="encounter-builder-link"><a href="/encounters/builder/{{$root.EncounterID}}">{{T "encounters.builder_link"}}</a></p>
+  {{end}}
+  {{if not $root.EncounterID}}
+  <form method="post" action="/encounters" class="creation-form encounter-save-form">
+    <input type="hidden" name="roster_json" value="{{.RosterJSON}}">
+    <input type="hidden" name="party_size" value="{{.PartySize}}">
+    <input type="hidden" name="party_level" value="{{.PartyLevel}}">
+    <input type="hidden" name="difficulty" value="{{.Difficulty}}">
+    <input type="hidden" name="budget" value="{{.Budget}}">
+    <label for="encounter-name">{{T "encounters.name_label"}}</label>
+    <input type="text" id="encounter-name" name="name" required>
+    <button type="submit" class="btn-primary">{{T "encounters.save"}}</button>
+  </form>
+  {{end}}
+</details>
+{{end}}

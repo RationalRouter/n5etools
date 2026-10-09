@@ -108,13 +108,13 @@ var summonAnimals = map[string]string{
 var (
 	rankHeaderRe = regexp.MustCompile(`^([EDCBAS])-RANK:?\s*$`)
 	// A field line: "Casting Time: 1 Action". Field names are fixed.
-	fieldRe = regexp.MustCompile(`^(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords|Description|At Higher Ranks|At Higher Levels)\s*:\s*(.*)$`)
+	fieldRe = regexp.MustCompile(`^(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords?|Description|At Higher Ranks|At Higher Levels)\s*:\s*(.*)$`)
 	// The book has a handful of typos where a field label lost its colon
 	// ("Rank C-Rank", "Cost 12 Chakra", "Description You take..."). This
 	// lenient form recovers them — but it is only consulted when the strict
 	// form fails AND that field has not been seen yet in the entry, so prose
 	// lines that merely begin with a field word can't hijack a parsed value.
-	fieldNoColonRe = regexp.MustCompile(`^(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords|Description|At Higher Ranks|At Higher Levels)\s+(\S.*)$`)
+	fieldNoColonRe = regexp.MustCompile(`^(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords?|Description|At Higher Ranks|At Higher Levels)\s+(\S.*)$`)
 	// Entry names / headings are set in caps (small-caps in print). Allow
 	// digits and common punctuation: "SEALING ART: STRING LIGHT FORMATION",
 	// "8-INNER GATES: SEIMON", "AMMO HEART [NAME/ CHANGED]". \p{Lu} instead
@@ -276,7 +276,7 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 		case "Components":
 			entry.Components = v
 		case "Cost":
-			entry.CostText = fixDigitWordSquish(v)
+			entry.CostText = trimCostPunct(fixDigitWordSquish(v))
 			if m := leadingIntRe.FindStringSubmatch(v); m != nil {
 				if n, err := strconv.Atoi(m[1]); err == nil {
 					entry.CostChakra = &n
@@ -320,6 +320,7 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 		}
 
 		if m := fieldRe.FindStringSubmatch(text); m != nil {
+			m[1] = canonicalLabel(m[1])
 			if !startsLaterField(m[1]) {
 				// Out-of-order label: wrapped prose or a mislabeled field.
 				// Absorb into the current field. One case is provably benign
@@ -362,7 +363,8 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 		// forms a field line, consume both.
 		if len(strings.Fields(text)) <= 2 && i+1 < len(ls) {
 			joined := text + " " + ls[i+1].Text
-			if m := fieldRe.FindStringSubmatch(joined); m != nil && startsLaterField(m[1]) {
+			if m := fieldRe.FindStringSubmatch(joined); m != nil && startsLaterField(canonicalLabel(m[1])) {
+				m[1] = canonicalLabel(m[1])
 				setField()
 				currentField = m[1]
 				value.WriteString(m[2])
@@ -375,7 +377,8 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 		// ("Rank C-Rank", "Cost 12 Chakra"). Only taken for a field later in
 		// print order than the current one, so ordinary prose starting with
 		// a field word can't hijack a parsed value.
-		if m := fieldNoColonRe.FindStringSubmatch(text); m != nil && startsLaterField(m[1]) {
+		if m := fieldNoColonRe.FindStringSubmatch(text); m != nil && startsLaterField(canonicalLabel(m[1])) {
+			m[1] = canonicalLabel(m[1])
 			anomalies = append(anomalies, Anomaly{
 				Page: ls[i].Page, Subject: entry.Name,
 				Problem: "field " + m[1] + " printed without a colon (book typo; value recovered)",
@@ -468,7 +471,7 @@ func parseJutsuEntry(ls []Line, nameIdx, fieldIdx int, name string) (Jutsu, int,
 // midLabelRe finds a field label embedded mid-line, for the glued-label
 // recovery in parseJutsuEntry. \b keeps "D-Rank Casting Time:" from
 // matching at "Rank" (no colon there) while still matching "Casting Time:".
-var midLabelRe = regexp.MustCompile(`\b(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords|Description|At Higher Ranks|At Higher Levels)\s*:\s*`)
+var midLabelRe = regexp.MustCompile(`\b(Classification|Rank|Casting Time|Range|Duration|Components|Cost|Keywords?|Description|At Higher Ranks|At Higher Levels)\s*:\s*`)
 
 // digitWordSquishRe catches a real PDF-extraction artifact found in Casting
 // Time/Cost values specifically: a lost space between a leading digit and
@@ -489,12 +492,33 @@ func fixDigitWordSquish(s string) string {
 // print order than current, and splits s around it.
 func splitAtLaterLabel(s, current string) (label, before, after string, found bool) {
 	for _, m := range midLabelRe.FindAllStringSubmatchIndex(s, -1) {
-		lbl := s[m[2]:m[3]]
+		lbl := canonicalLabel(s[m[2]:m[3]])
 		if jutsuFieldOrder[lbl] > jutsuFieldOrder[current] {
 			return lbl, strings.TrimSpace(s[:m[0]]), strings.TrimSpace(s[m[1]:]), true
 		}
 	}
 	return "", "", "", false
+}
+
+// costStrayPunctRe matches a bare chakra cost ("9 Chakra,", "21 Chakra.",
+// "Special (36 Chakra).") that the book printed with a stray trailing comma
+// or period. Longer cost prose ("20 Chakra a Week for 52 weeks
+// consistently.") is a sentence and keeps its period.
+var costStrayPunctRe = regexp.MustCompile(`^((?:Special \(\d+ Chakra\))|(?:\d+ Chakra))[.,]$`)
+
+func trimCostPunct(s string) string {
+	return costStrayPunctRe.ReplaceAllString(s, "$1")
+}
+
+// canonicalLabel maps a label variant onto its jutsuFieldOrder key. The clan
+// books print "Keyword:" (singular) on their Hijutsu entries; without this
+// the label went unrecognized and the keyword list was glued onto the Cost
+// value ("5 Chakra Keyword: Hijutsu, Taijutsu").
+func canonicalLabel(l string) string {
+	if l == "Keyword" {
+		return "Keywords"
+	}
+	return l
 }
 
 // startsEntry reports whether the caps run beginning at i is followed by a

@@ -1,4 +1,8 @@
 :root {
+  /* The language bar (layout.html) sticks to the top of every page, so a
+     sticky panel's top offset has to clear it. */
+  --lang-bar-h: 2.9rem;
+  --sticky-top: calc(var(--lang-bar-h) + 1rem);
   --bg: #0b0c0f;
   --panel: #16181e;
   --panel-border: #2a2d38;
@@ -143,10 +147,10 @@ h1, h2, h3 { color: var(--gold); }
    content column where reaching it meant scrolling back to the page top. */
 .class-outline-column {
   position: sticky;
-  top: 1rem;
+  top: var(--sticky-top);
   flex: 0 0 240px;
   width: 240px;
-  max-height: calc(100vh - 2rem);
+  max-height: calc(100vh - var(--sticky-top) - 1rem);
   overflow-y: auto;
 }
 .class-outline-back { margin: 0 0 0.6rem; font-size: 0.85rem; }
@@ -420,8 +424,8 @@ h1, h2, h3 { color: var(--gold); }
 .browse-list-pane {
   flex: 0 0 320px;
   position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 2rem);
+  top: var(--sticky-top);
+  max-height: calc(100vh - var(--sticky-top) - 1rem);
   display: flex;
   flex-direction: column;
 }
@@ -521,6 +525,56 @@ dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin:
 }
 
 .nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; flex: 1; }
+
+/* Plain visual separators between the brand/Backups/the two nav dropdowns
+   (layout.html) -- provisional, may be dropped later; kept as a single
+   muted character rather than a border/pseudo-element so removing them is
+   a one-place change. */
+.nav-divider { color: var(--text-dim); user-select: none; }
+
+/* Nav bar dropdown menus ("Player References" / "Dungeon Master Tools") --
+   same click-to-toggle/outside-click-to-close shape as .lang-switcher
+   below, generalized over every .nav-dropdown by nav-dropdown.js instead of
+   one fixed element. */
+.nav-dropdown { position: relative; }
+.nav-dropdown-toggle {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0;
+  cursor: pointer;
+}
+.nav-dropdown-toggle:hover { color: var(--accent-hover); }
+.nav-dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  /* Above .lang-switcher-bar's own z-index: 25 (app.css, sticky strip
+     directly under the nav) -- otherwise that bar's opaque background
+     paints over whichever panel rows fall in its stacking region, cutting
+     the open panel's middle rows off from view without touching layout
+     (each row is still there and clickable, just visually hidden). */
+  z-index: 30;
+}
+.nav-dropdown-open .nav-dropdown-panel { display: flex; }
+.nav-dropdown-panel a { color: var(--text); }
+.nav-dropdown-panel a:hover { color: var(--accent); }
+
+/* Pushes .nav-info/.nav-search to the bar's right edge now that .nav-links
+   (which carried flex: 1 itself) no longer sits between the brand and
+   them. */
+.nav-spacer { flex: 1; }
 
 .nav-search { position: relative; }
 .nav-search input[type="search"] {
@@ -899,6 +953,12 @@ dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin:
 }
 
 .section-hint { margin: -0.5rem 0 0.75rem; color: var(--text-dim); font-size: 0.8rem; font-style: italic; }
+/* NPC template pages: these hints follow an h2 or a block, not a page h1. */
+.npc-specialist-hint, .npc-template-notes { margin-top: 0.25rem; }
+.npc-template-group { margin-bottom: 1.5rem; }
+.npc-empty-state { color: var(--text-dim); margin: 1rem 0; }
+.npc-skill-stars { color: var(--gold); }
+.tooltip-content .npc-template-notes { display: block; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
 
 .table-scroll { overflow-x: auto; margin-bottom: 1.5rem; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -994,6 +1054,12 @@ a.tooltip-trigger:hover { color: var(--accent-hover); }
      viewports/near the right edge — a real fix, not just a preference,
      since the fixed left:0 anchor has no edge-collision detection. */
   max-width: min(320px, 90vw);
+  /* white-space is inherited, and a trigger sitting inside a .data-table td
+     (which sets nowrap so table cells stay single-line) would otherwise
+     pass that nowrap down to this box -- the text would then never wrap
+     inside max-width above, laying out as one long unclipped line that
+     paints outward until it hits the table's own .table-scroll ancestor. */
+  white-space: normal;
   background: var(--panel);
   border: 1px solid var(--accent);
   border-radius: 8px;
@@ -1412,6 +1478,7 @@ body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
    right on top of "Choose 1 toolkit"). */
 .creation-form .section-hint { margin: 0.4rem 0 1rem; }
 .creation-form input[type="text"],
+.creation-form input[type="search"],
 .creation-form input[type="number"],
 .creation-form select,
 .creation-form textarea {
@@ -1425,6 +1492,7 @@ body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
   font-family: inherit;
 }
 .creation-form input[type="text"]:focus,
+.creation-form input[type="search"]:focus,
 .creation-form input[type="number"]:focus,
 .creation-form select:focus,
 .creation-form textarea:focus {
@@ -1434,6 +1502,245 @@ body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
 .creation-form textarea { min-height: 5rem; resize: vertical; }
 .creation-form input[type="number"] { width: 5rem; }
 .creation-form button.btn-primary { margin-top: 1.25rem; border: 1px solid var(--accent); cursor: pointer; }
+/* Pairs a .creation-form select with its rollover-tooltip "ⓘ" chip
+   (encounters.html's Difficulty picker) -- the select's own 100%-width
+   rule above would otherwise push the chip onto its own line below it. */
+.creation-form-inline { display: flex; align-items: center; gap: 0.5rem; }
+.creation-form-inline select { width: auto; flex: 1; }
+/* Builder step 10: the name field with its Generate name button. */
+.encounter-builder-name input { flex: 1; min-width: 0; }
+.encounter-builder-name button { flex: none; white-space: nowrap; }
+
+/* Encounter Generator (Dungeon Master Tools): the generated/saved roster
+   table and the reroll/add/remove/save/delete controls around it. */
+.encounter-roster { margin: 1rem 0 1.5rem; }
+.encounter-roster .encounter-save-form { margin-top: 1.25rem; }
+.encounter-roster-form { margin: 0; }
+.encounter-roster-form button { white-space: nowrap; }
+/* Reroll and Remove sit stacked in the same narrow table cell -- without an
+   explicit gap they'd read as one continuous control instead of two
+   distinct actions (see this project's own spacing-audit rule). Margin, not
+   flex gap: setting display:flex on the <td> itself would pull it out of
+   the table's own cell layout. */
+.encounter-roster-actions form + form { margin-top: 0.5rem; }
+.encounter-add-form { margin-top: 1.25rem; }
+.encounter-builder-link { margin: 0.75rem 0 0; }
+/* A computed stat's formula tooltip lists one term per line. */
+.encounter-terms > span { display: block; }
+.encounter-save-prof { white-space: nowrap; }
+
+/* Adversary Builder (encounters_builder.html): the ten steps beside a
+   sticky column holding the stat block and the jutsu detail panel, stacked
+   below the steps under 900px wide. On a viewport tall enough for the whole
+   stat block, only the detail panel scrolls, so the stat tooltips have no
+   scrolling ancestor to clip them; on a shorter one the column scrolls as a
+   whole, so nothing in it is ever out of reach. */
+.encounter-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+.encounter-builder-steps.creation-form { max-width: none; min-width: 0; }
+.encounter-builder-aside { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+@media (min-width: 900.02px) {
+  .encounter-builder-aside {
+    position: sticky;
+    top: var(--sticky-top);
+    max-height: calc(100vh - var(--sticky-top) - 1rem);
+    overflow-y: auto;
+  }
+}
+@media (min-width: 900.02px) and (min-height: 880px) {
+  .encounter-builder-aside { overflow-y: visible; }
+  .encounter-builder-aside .encounter-builder-stats { flex: none; }
+  .encounter-builder-jutsu-detail { flex: 0 1 auto; min-height: 6rem; overflow-y: auto; }
+}
+@media (max-width: 900px) {
+  .encounter-builder { grid-template-columns: minmax(0, 1fr); }
+}
+.encounter-builder-step {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+.encounter-builder-step h2 { margin: 0 0 0.6rem; font-size: 1.05rem; }
+.encounter-builder-hint { color: var(--text-dim); font-size: 0.85rem; margin: 0.4rem 0; }
+.encounter-builder-warning { color: var(--accent); font-size: 0.85rem; margin: 0.4rem 0; }
+/* .creation-form stacks every label as a block with a top margin; inside
+   the ability table, the trait checklist and the adjustment grid a label
+   sits beside its own control instead. */
+.creation-form .encounter-builder-abilities label,
+.creation-form .encounter-builder-trait-list label { display: inline; margin: 0; font-size: inherit; color: inherit; }
+.creation-form .encounter-builder-abilities select { width: auto; }
+.encounter-builder-trait-group { margin: 0.6rem 0; }
+.encounter-builder-trait-group summary { cursor: pointer; }
+.encounter-builder-trait-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.35rem 1rem;
+}
+.creation-form .encounter-builder-trait-list label.tooltip { display: inline-flex; gap: 0.4rem; align-items: center; }
+.encounter-builder-passives { margin: 0; padding-left: 1.2rem; }
+.encounter-builder-passives li + li { margin-top: 0.4rem; }
+.encounter-builder-adjust {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin: 1rem 0 0;
+}
+.encounter-builder-adjust-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.6rem 1rem;
+}
+.creation-form .encounter-builder-adjust-grid label { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; }
+.encounter-builder-jutsu-filters {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin: 1rem 0 0.6rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.6rem 1rem;
+}
+.creation-form .encounter-builder-jutsu-filters label { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; min-width: 0; }
+.creation-form .encounter-builder-jutsu-filters select,
+.creation-form .encounter-builder-jutsu-filters input { width: 100%; min-width: 0; }
+.encounter-builder-actions { display: flex; gap: 1.25rem; align-items: center; margin-top: 1.25rem; }
+.encounter-builder-stats {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+.encounter-builder-stats h2 { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.encounter-builder-jutsu-detail {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  overflow-wrap: anywhere;
+}
+.encounter-builder-jutsu-detail[hidden] { display: none; }
+.encounter-builder-jutsu-detail-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.encounter-builder-jutsu-detail-head h3 { margin: 0; font-size: 0.95rem; }
+.encounter-builder-jutsu-detail-close {
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font: inherit;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+.encounter-builder-jutsu-detail-close:hover { color: var(--text); }
+/* The card is the /jutsu page's own, whose title is a page-sized h1. */
+.encounter-builder-jutsu-detail-body h1 { font-size: 1.1rem; margin: 0.6rem 0 0.2rem; }
+.encounter-builder-jutsu-item { display: flex; gap: 0.5rem; align-items: center; min-width: 0; }
+.encounter-builder-jutsu-item > input { flex: none; }
+.encounter-builder-jutsu-item .tooltip { min-width: 0; }
+.encounter-builder-jutsu-tile { font: inherit; font-size: 0.85rem; text-align: left; cursor: pointer; }
+.encounter-builder-jutsu-tile[aria-pressed="true"] { border-color: var(--accent); }
+/* The open jutsu's card already shows in full beside the list. */
+.encounter-builder-jutsu-item .encounter-builder-jutsu-tile[aria-pressed="true"] + .tooltip-content { opacity: 0; visibility: hidden; }
+.encounter-builder-stats h3 { margin: 0.9rem 0 0.3rem; font-size: 0.95rem; }
+/* Two label/value pairs per row keep the block short enough to stay in
+   view while sticky. */
+.encounter-builder-statlist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.3rem 0.75rem;
+  align-items: center;
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+}
+.encounter-builder-statlist dt { color: var(--text-dim); }
+.encounter-builder-statlist dd { margin: 0; text-align: right; }
+/* .tooltip's at-rest overflow clip has no effect on an inline box; the
+   hidden tooltip of a right-aligned value would otherwise widen the page. */
+.encounter-builder-statlist .tooltip { display: inline-block; }
+.encounter-builder-abilities-row {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem 0.75rem;
+}
+.encounter-builder-abilities-row span { color: var(--text-dim); }
+.encounter-builder-attacks { margin: 0; padding-left: 1.2rem; }
+/* "Edit in Builder" above Reroll in the roster's action cell. */
+.encounter-roster-actions .encounter-builder-edit { display: block; margin-bottom: 0.5rem; white-space: nowrap; }
+/* Breathing room between the roster and the Delete Encounter button below
+   it on a saved encounter's own page (encounter detail branch). */
+#encounter-roster + form { margin-top: 1rem; }
+/* Turn-order tracker (saved encounters only, below the roster). */
+.encounter-turn-order { margin: 1.5rem 0; }
+.encounter-turn-order > summary { cursor: pointer; }
+.encounter-turn-order > summary h2 { display: inline; margin: 0; }
+.encounter-turn-order + form { margin-top: 1rem; }
+/* The roster collapses like the turn-order tracker. */
+.encounter-roster > summary { cursor: pointer; margin-bottom: 0.5rem; }
+.encounter-roster > summary h2 { display: inline; margin: 0; }
+/* Unit card under the tracker: the current entry's stat block beside its
+   traits, passives and jutsu; stacked on narrow screens. */
+.encounter-unit-card { margin-top: 1.5rem; }
+.encounter-unit-name { margin: 0 0 0.6rem; overflow-wrap: anywhere; }
+.encounter-unit-name .encounter-turn-kind { font-size: 0.8rem; font-weight: normal; }
+.encounter-unit-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+@media (min-width: 900px) {
+  .encounter-unit-grid { grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); align-items: start; }
+}
+.encounter-unit-details { min-width: 0; overflow-wrap: anywhere; }
+.encounter-unit-details h4 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.encounter-unit-details h4:not(:first-child) { margin-top: 1rem; }
+.encounter-unit-entries { margin: 0; font-size: 0.9rem; }
+.encounter-unit-entries dt { font-weight: 600; margin-top: 0.5rem; }
+.encounter-unit-entries dt:first-child { margin-top: 0; }
+.encounter-unit-entries dd { margin: 0.15rem 0 0; color: var(--text-dim); }
+.encounter-unit-source { font-weight: normal; color: var(--text-dim); }
+.encounter-unit-jutsu { font-size: 0.9rem; margin: 0.3rem 0; }
+.encounter-unit-jutsu > summary { cursor: pointer; }
+.encounter-unit-jutsu-body { padding: 0.25rem 0 0.5rem 1rem; }
+/* The card is the /jutsu page's own, whose title is a page-sized h1. */
+.encounter-unit-jutsu-body h1 { font-size: 1.05rem; margin: 0.4rem 0 0.2rem; }
+.encounter-unit-jutsu-body h2,
+.encounter-builder-jutsu-detail-body h2 { font-size: 0.95rem; margin: 0.8rem 0 0.3rem; }
+.encounter-unit-edit { margin: 1rem 0 0; }
+.encounter-turn-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin: 0.75rem 0; }
+.encounter-turn-round { font-weight: 600; color: var(--gold); }
+.encounter-turn-table input { width: 4.5rem; }
+.encounter-turn-table input.encounter-turn-note { width: 100%; min-width: 10rem; }
+.encounter-turn-hp-cell { white-space: nowrap; }
+.encounter-turn-hp-cell form { display: inline; }
+.encounter-turn-sep { margin: 0 0.35rem; color: var(--text-dim); }
+.encounter-turn-kind { display: block; font-size: 0.8em; color: var(--text-dim); }
+.encounter-turn-current > td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.encounter-turn-current > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.encounter-turn-add { margin-top: 1rem; flex-wrap: wrap; }
+.encounter-turn-add input.encounter-turn-init { width: 6rem; }
+.encounter-turn-empty { color: var(--text-dim); }
+.encounter-turn-handle-cell { width: 1.5rem; padding-right: 0; }
+.encounter-turn-handle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: grab;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.2rem;
+}
+.encounter-turn-handle:hover,
+.encounter-turn-handle:focus-visible { color: var(--accent); }
+.encounter-turn-dragging { opacity: 0.4; }
 .creation-form-error {
   margin: 1rem 0 0;
   padding: 0.6rem 0.8rem;
@@ -3072,7 +3379,7 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
 .sheet-notes-form h2 { margin: 0 0 0.4rem; }
 .sheet-notes-field { min-height: 10rem; }
 
-.sheet-sidebar { flex: 0 0 300px; position: sticky; top: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+.sheet-sidebar { flex: 0 0 300px; position: sticky; top: calc(var(--lang-bar-h) + 1.5rem); display: flex; flex-direction: column; gap: 1.25rem; }
 .sheet-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
 .sheet-chat-panel h2 { margin: 0; font-size: 1rem; }
 .sheet-chat-clear-btn {
@@ -3235,7 +3542,7 @@ body.n5e-can-roll .sheet-rest-form .sheet-rest-manual { display: none; }
    anchored and visible while the page scrolls, not the nav bar itself — a
    solid background keeps scrolled-past content from showing through once
    this strip sticks to the viewport's top edge. */
-.lang-switcher-bar { display: flex; padding: 0.4rem 1.5rem; position: sticky; top: 0; z-index: 25; background: var(--bg); }
+.lang-switcher-bar { display: flex; box-sizing: border-box; height: var(--lang-bar-h); padding: 0.4rem 1.5rem; position: sticky; top: 0; z-index: 25; background: var(--bg); }
 /* margin-left centers the globe button on the same vertical axis as the
    "N5etools" nav-brand text above it: (brand text width - toggle diameter)
    / 2, both measured from the shared 1.5rem left inset they each start at. */
@@ -4725,8 +5032,8 @@ summary.companion-card-header::before {
    why it isn't cramped into a much smaller box the rest of the time). */
 .sheet-box[data-box-id="puppets-reference"] {
   position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 2rem);
+  top: var(--sticky-top);
+  max-height: calc(100vh - var(--sticky-top) - 1rem);
   overflow-y: auto;
 }
 

@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "adversary-template/yuki-chunin",
+    "name": "Yuki Chunin",
+    "page": 56,
+    "rank": "C", "size": "Medium", "clan": "Yuki", "clan_slug": "yuki", "role": "Controller",
+    "class": "standard", "affiliation": "Mist Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 15, "ac_note": "L. Armor", "dr": 2, "initiative": 7,
+    "speed": "30 ft.", "hp": "50", "cp": 66,
+    "str": {"score": 6, "mod": -2, "save": 1},
+    "dex": {"score": 14, "mod": 2, "save": 8},
+    "con": {"score": 12, "mod": 1, "save": 4},
+    "int": {"score": 16, "mod": 3, "save": 9},
+    "wis": {"score": 14, "mod": 2, "save": 8},
+    "cha": {"score": 8, "mod": -1, "save": 2},
+    "skills": [
+      {"name": "Acrobatics", "mod": 7},
+      {"name": "Chakra Control", "mod": 6},
+      {"name": "Investigation", "mod": 8},
+      {"name": "Ninshou", "mod": 8},
+      {"name": "Perception", "mod": 7}
+    ],
+    "condition_resistances": "Chilled",
+    "passive_perception": 17,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Entanglement", "tags": "Control", "text": "The ground in a 30 ft. radius around this adversary is treated as difficult terrain for hostile creatures. Each hostile creature that starts its turn in that area must succeed on a Strength saving throw against DC 10 + level or have its speed reduced to 0 until the end of its current turn. This trait can be temporarily deactivated if this adversary becomes dazed, stunned, or concussed. The aura remains deactivated until the end of this adversary's next turn."},
+        {"name": "Ice Release", "tags": "Attack", "text": "When you cast a jutsu with the Wind Release or Water Release keyword, you can change its damage type to cold and deal an additional die of damage."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Yuki Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 2) piercing damage."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +7 to hit, range 30/120 ft., one target. Hit: 5 (1d4 + 2) piercing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Invisibility Cloak"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Hidden Mist", "Ice Daggers", "Ice Dome of Nothingness", "Ice Needle", "Ice Prison"]},
+        {"rank": "C", "cost": 9, "names": ["Certain Kill Ice Spears", "Frozen Capturing Field"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Transform", "Release", "Clone Technique"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Breath of Rain: Cumulous"]}
+      ]}
+    ]
+  }
+]

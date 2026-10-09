@@ -1,0 +1,69 @@
+[
+  {
+    "slug": "adversary-template/konan",
+    "name": "Konan",
+    "page": 63,
+    "rank": "A", "size": "Medium", "clan": "Shikigami", "clan_slug": "shikigami", "role": "Iconic Caster (Ninjutsu)",
+    "class": "elite", "affiliation": "Akatsuki", "prof": 7,
+    "level": 15, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 27, "ac_note": "Light Armor", "dr": 2, "initiative": 12,
+    "speed": "50 ft.", "hp": "422/253/126", "cp": 580,
+    "str": {"score": 10, "mod": 0, "save": 4},
+    "dex": {"score": 20, "mod": 5, "save": 13},
+    "con": {"score": 16, "mod": 3, "save": 11},
+    "int": {"score": 22, "mod": 6, "save": 14},
+    "wis": {"score": 16, "mod": 3, "save": 7},
+    "cha": {"score": 12, "mod": 1, "save": 5},
+    "skills": [
+      {"name": "Acrobatics", "mod": 12},
+      {"name": "Chakra Control", "mod": 16, "stars": 3},
+      {"name": "Crafting", "mod": 13},
+      {"name": "Deception", "mod": 8},
+      {"name": "Insight", "mod": 10},
+      {"name": "Investigation", "mod": 13},
+      {"name": "Ninshou", "mod": 17, "stars": 2},
+      {"name": "Perception", "mod": 10},
+      {"name": "Sleight of Hand", "mod": 16, "stars": 2},
+      {"name": "Stealth", "mod": 16, "stars": 2}
+    ],
+    "passive_perception": 20,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Iconic Focus", "tags": "Defense", "text": "You cannot lose concentration from damage. Saving throws against chakra disruption are made with advantage."},
+        {"name": "Scattershot", "tags": "Attack", "text": "Ninjutsu attack rolls apply to other creatures of your choice within 5 ft. of the target."},
+        {"name": "Ricochet", "tags": "Attack", "text": "On a missed Ninjutsu, you may spend double the CP to reroll the attack once."},
+        {"name": "Shikigami Techniques", "tags": "Attack", "text": "Twice per combat, increase Shikigami Hijutsu damage by 3 dice."},
+        {"name": "Divine Shikigami", "tags": "Attack, Control", "text": "You gain the Divine Shikigami clan feature."},
+        {"name": "Papercraft", "tags": "Control", "text": "Paper-based ninja tools use your Ninjutsu save DC."},
+        {"name": "Paper Expert", "tags": "Utility", "text": "You always have paper-based ninja tools."},
+        {"name": "Sea of Paper Bombs", "tags": "Attack", "text": "1/Combat. Full-turn action. All creatures other than yourself within a 1-mile radius must make a Dexterity saving throw (DC +3) with disadvantage. Failure: 30d12 + 60 fire damage (ignores DR and resistance). Success: half damage."},
+        {"name": "Amorphous", "tags": "Utility, Defense", "text": "Move through 1-inch spaces without squeezing. Escape a grapple or restraint with advantage."},
+        {"name": "Freedom of Movement", "tags": "Mobility", "text": "Immune to difficult terrain and movement reductions."}
+      ]},
+      {"kind": "passives", "title": "Konan's Clan/Role Passives", "entries": [
+        {"name": "Paper Arsenal", "text": "At the start of each turn or action (Elite or Legendary), create 1 paper-based tool of your rank. D-Rank: Normal | C-Rank: Greater | B-Rank: Superior | A-Rank+: Supreme."},
+        {"name": "Caster Passive 1", "text": "Effects preventing chakra molding end at the end of your turn."},
+        {"name": "Caster Passive 2", "text": "Area-effect jutsu (Cone, Line, Radius, Cylinder) can change shapes: Cone = 30 ft. | Line = 60 ft. long, 5 ft. wide | Radius/Sphere = 25 ft. | Cylinder = 20 ft. wide, 30 ft. tall."},
+        {"name": "Caster Action", "text": "Cost: 2 Tenacity dice. Overcharge a Ninjutsu, adding the Tenacity dice to its damage. If it causes 2 or more creatures to fail their saves or beats AC by 5 or more, they are Staggered."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 2 unarmed strikes or 3 Kunai attacks."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +14 to hit, reach 5 ft. Hit: 9 (1d8 + 5) bludgeoning damage."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +14 to hit, reach 5 ft. Hit: 7 (1d4 + 5) bludgeoning damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "Konan may take 1 Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain a reaction. She regains all Elite Actions at the start of her turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 14, "dc": 25, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Paper Shuriken", "Paper Substitution", "Paper Trap", "Sensing Technique", "Tracking Tag"]},
+        {"rank": "C", "cost": 9, "names": ["Origami Servitor", "Paper Clone", "Paper Drizzle"]},
+        {"rank": "B", "cost": 14, "names": ["Kagura's Mind Eye", "Paper Chakram", "Paper Coffin"]},
+        {"rank": "A", "cost": 20, "names": ["Dance of the Shikigami"]}
+      ]}
+    ],
+    "notes": "The Kunai attack's damage type is printed as bludgeoning; kept as printed. The Wisdom save (+7) is lower than the other proficient-looking saves; kept as printed. Sea of Paper Bombs prints its save DC as \"DC +3\" with no base; kept as printed."
+  }
+]

@@ -1,0 +1,70 @@
+[
+  {
+    "slug": "adversary-template/fuma-jonin",
+    "name": "Fuma Jonin",
+    "page": 38,
+    "rank": "B", "size": "Medium", "clan": "Fuma", "clan_slug": "fuma", "role": "Generalist",
+    "class": "elite", "affiliation": "Factionless", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 22, "ac_note": "L. Armor", "dr": 2, "initiative": 14,
+    "speed": "30 ft.", "hp": "154/92/46", "cp": 154,
+    "str": {"score": 8, "mod": -1, "save": 2},
+    "dex": {"score": 18, "mod": 4, "save": 10},
+    "con": {"score": 10, "mod": 0, "save": 6},
+    "int": {"score": 16, "mod": 3, "save": 9},
+    "wis": {"score": 16, "mod": 3, "save": 6},
+    "cha": {"score": 14, "mod": 2, "save": 5},
+    "skills": [
+      {"name": "Acrobatics", "mod": 13},
+      {"name": "Crafting", "mod": 12},
+      {"name": "Investigation", "mod": 12},
+      {"name": "Martial Arts", "mod": 13},
+      {"name": "Perception", "mod": 12},
+      {"name": "Stealth", "mod": 13}
+    ],
+    "passive_perception": 22,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Evasive", "tags": "Defense", "text": "When subjected to a Dexterity saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Falling Heaven", "tags": "Attack", "text": "Fuma Clan jutsu you cast ignore resistance and treat immunity as resistance."},
+        {"name": "Lethal Hunter", "tags": "Attack", "text": "Ranged weapon attacks gain a +1 bonus to damage die (already added), and increase damage dealt with ranged taijutsu attacks using that weapon by 1 die."},
+        {"name": "Light-Footed", "tags": "Mobility", "text": "You can Disengage or Dash as a bonus action. When an enemy moves adjacent to you, you can spend your reaction to move away up to half your speed."},
+        {"name": "Ranged Weapon Expert", "tags": "Attack", "text": "While wielding a ranged weapon or a weapon with the thrown property, you can make 1 additional attack with the Attack action (already added)."},
+        {"name": "Tireless Focus", "tags": "Attack", "text": "Ranged weapon attacks you make cannot be made at disadvantage."}
+      ]},
+      {"kind": "passives", "title": "Fuma Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary never misses. Once per turn, when this adversary misses with a weapon attack, it can remake the weapon attack targeting a different creature within range."},
+        {"name": "Elite Generalist", "text": "This adversary gains a +3 bonus to initiative and ability checks."},
+        {"name": "Generalist Passive 1", "text": "You cannot make ability checks or saving throws at disadvantage."},
+        {"name": "Generalist Passive 2", "text": "At the beginning of each of this adversary's turns, select one benefit that it will benefit from until the beginning of its next turn: • Attacks it makes gain a 1d4 bonus to hit. • Damage it deals gains a 1d6 bonus. • Skill checks it makes gain a 1d8 bonus."},
+        {"name": "Generalist Action", "text": "Cost: 2 Tenacity dice. Effect: Overwrite. The next jutsu cast gains the damage type and inflicts the same conditions as any other jutsu on this creature's known list, in addition to any this jutsu would normally inflict. If the jutsu does not force a save, it now forces a Constitution saving throw to inflict its conditions."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Fuma Jonin may make three attacks with its currently equipped melee weapon or four attacks with its currently equipped ranged weapon."},
+        {"name": "Kunai", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 9 (2d4 + 4) piercing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +10 to hit, range 30/120 ft., one target. Hit: 12 (3d4 + 4) slashing damage."},
+        {"name": "Monster Shuriken", "text": "Ranged Weapon Attack: +10 to hit, range 40/90 ft., one target. Hit: 23 (3d12 + 4) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Fuma Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 9, "dc": 19, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Movement"]},
+        {"rank": "D", "cost": 5, "names": ["Chakra Shield", "Substitution Technique"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 9, "dc": 19, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Thought Film"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 10, "dc": 20, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Breath of Echo: Reverb", "Falling Heaven: Divide", "Falling Heaven: Split", "Falling Heaven: Storm"]},
+        {"rank": "C", "cost": 9, "names": ["Falling Heaven: Cross", "Falling Heaven: Penetrate", "Falling Heaven: Protect"]},
+        {"rank": "B", "cost": 14, "names": ["Falling Heaven: Calamity", "Falling Heaven: Focus"]}
+      ]}
+    ],
+    "notes": "Falling Heaven: Storm is printed \"Falling Heaven: Falling Heaven: Storm\". \"Falling Heaven: Focus\" is printed without its colon."
+  }
+]

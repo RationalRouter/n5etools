@@ -653,10 +653,13 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	}, nil
 }
 
-// BingoBook parses Pack 1's adversary-building rules chapter (Ranks, Roles,
-// Role Traits — see internal/parse/bingobook.go's package comment for the
-// full scope) and loads them into db.
-func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
+// BingoBookPack1 parses Pack 1's adversary-building rules chapter (Ranks,
+// Roles, Role Traits — see internal/parse/bingobook.go's package comment
+// for the full scope) and loads them into db. This is the official chapter
+// — the latest update layer of the Bingo Book, not the book itself; see
+// BingoBook for the actual 70-page community bestiary/encounter-building
+// document that slug now belongs to.
+func BingoBookPack1(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	doc, err := extract.Open(pdfPath)
 	if err != nil {
 		return nil, err
@@ -667,13 +670,23 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/bingo-book", 1, doc.NumPages(), lines)
+	ocrAnomalies := crossValidatePages(pdfPath, "book/bingo-book-pack-1", 1, doc.NumPages(), lines)
 
 	roles, roleAnomalies := parse.ParseAdversaryRoles(lines)
 	traits, traitAnomalies := parse.ParseAdversaryRoleTraits(lines)
 	ranks, freeformSlots, rankAnomalies := parse.ParseAdversaryRanks(lines)
+	strikeTable, strikeAnomalies := parse.ParseFreeformStrikeTable(lines)
+	jutsuDamageTable, jutsuDamageAnomalies := parse.ParseFreeformJutsuDamageTable(lines)
+	classMods, classModAnomalies := parse.ParseClassificationModifiers(lines)
+	clarifications, clarificationAnomalies := parse.ParseAdversaryClarifications(lines)
+	transformBuffs, transformBuffAnomalies := parse.ParseTransformationBuffs(lines)
 	anomalies := append(roleAnomalies, traitAnomalies...)
 	anomalies = append(anomalies, rankAnomalies...)
+	anomalies = append(anomalies, strikeAnomalies...)
+	anomalies = append(anomalies, jutsuDamageAnomalies...)
+	anomalies = append(anomalies, classModAnomalies...)
+	anomalies = append(anomalies, clarificationAnomalies...)
+	anomalies = append(anomalies, transformBuffAnomalies...)
 
 	corrOpts := correctOptions(dbPath)
 	roleCorr, err := correct.Sweep(context.Background(), &roles, corrOpts)
@@ -681,6 +694,14 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 		return nil, err
 	}
 	traitCorr, err := correct.Sweep(context.Background(), &traits, corrOpts)
+	if err != nil {
+		return nil, err
+	}
+	clarificationCorr, err := correct.Sweep(context.Background(), &clarifications, corrOpts)
+	if err != nil {
+		return nil, err
+	}
+	transformBuffCorr, err := correct.Sweep(context.Background(), &transformBuffs, corrOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -695,8 +716,10 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 		byRole[t.RoleName]++
 		byRank[t.Rank]++
 	}
-	fmt.Fprintf(summary, "parsed %d adversary roles, %d role traits, %d ranks, %d freeform-slot rows\n\n",
+	fmt.Fprintf(summary, "parsed %d adversary roles, %d role traits, %d ranks, %d freeform-slot rows\n",
 		len(roles), len(traits), len(ranks), len(freeformSlots))
+	fmt.Fprintf(summary, "parsed %d freeform strike rows, %d freeform jutsu damage rows, %d classification modifiers, %d clarifications, %d transformation buffs\n\n",
+		len(strikeTable), len(jutsuDamageTable), len(classMods), len(clarifications), len(transformBuffs))
 	fmt.Fprintln(summary, "role traits by role:")
 	for _, r := range roles {
 		fmt.Fprintf(summary, "  %-12s %3d\n", r.Name, byRole[r.Name])
@@ -717,7 +740,7 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err := schema.Apply(db, schema.Rules); err != nil {
 		return nil, fmt.Errorf("preparing rules database: %w", err)
 	}
-	book, err := sourceBook("book/bingo-book", "Bingo Book Pack 1 — Adversaries", version, pdfPath)
+	book, err := sourceBook("book/bingo-book-pack-1", "Bingo Book Pack 1 — Adversaries", version, pdfPath)
 	if err != nil {
 		return nil, err
 	}
@@ -733,8 +756,27 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := store.LoadFreeformStrikeTable(db, book, strikeTable); err != nil {
+		return nil, err
+	}
+	if err := store.LoadFreeformJutsuDamageTable(db, book, jutsuDamageTable); err != nil {
+		return nil, err
+	}
+	if err := store.LoadClassificationModifiers(db, book, classMods); err != nil {
+		return nil, err
+	}
+	clarificationReport, err := store.LoadAdversaryClarifications(db, book, clarifications)
+	if err != nil {
+		return nil, err
+	}
+	transformBuffReport, err := store.LoadTransformationBuffs(db, book, transformBuffs)
+	if err != nil {
+		return nil, err
+	}
 
 	corrections := append(roleCorr.Records, traitCorr.Records...)
+	corrections = append(corrections, clarificationCorr.Records...)
+	corrections = append(corrections, transformBuffCorr.Records...)
 	if err := store.WriteTextCorrections(db, book, corrections); err != nil {
 		return nil, err
 	}
@@ -744,11 +786,13 @@ func BingoBook(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 
 	return &Report{
 		Summary:    summary.String(),
-		Correction: []*correct.Report{roleCorr, traitCorr},
+		Correction: []*correct.Report{roleCorr, traitCorr, clarificationCorr, transformBuffCorr},
 		Loads: []NamedLoad{
 			{Label: "adversary roles", Report: roleReport},
 			{Label: "adversary role traits", Report: traitReport},
 			{Label: "adversary ranks", Report: rankReport},
+			{Label: "adversary clarifications", Report: clarificationReport},
+			{Label: "transformation buffs", Report: transformBuffReport},
 		},
 		OCRAnomalies: ocrAnomalies,
 	}, nil

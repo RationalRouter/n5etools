@@ -1,0 +1,52 @@
+[
+  {
+    "slug": "adversary-template/chinoike-chunin",
+    "name": "Chinoike Chunin",
+    "page": 34,
+    "rank": "C", "size": "Medium", "clan": "Chinoike", "clan_slug": "chinoike", "role": "Supporter",
+    "class": "standard", "affiliation": "Factionless", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 16, "ac_note": "M. Armor", "dr": 2, "initiative": 4,
+    "speed": "35 ft.", "hp": "58", "cp": 58,
+    "str": {"score": 12, "mod": 1, "save": 2},
+    "dex": {"score": 8, "mod": -1, "save": 0},
+    "con": {"score": 14, "mod": 2, "save": 6},
+    "int": {"score": 14, "mod": 2, "save": 6},
+    "wis": {"score": 16, "mod": 3, "save": 7},
+    "cha": {"score": 6, "mod": -2, "save": -1},
+    "skills": [
+      {"name": "Chakra Control", "mod": 7},
+      {"name": "Illusions", "mod": 8},
+      {"name": "Medicine", "mod": 8},
+      {"name": "Ninshou", "mod": 7},
+      {"name": "Perception", "mod": 8}
+    ],
+    "passive_perception": 18,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Aura: Recovery", "tags": "Healing, Buff", "text": "Allies within 30 ft. of you who would regain hit points regain additional hit points equal to half your level."},
+        {"name": "Sanguine Prowess", "tags": "Attack, Healing, Utility", "text": "When you cast a jutsu with the Water Release keyword, you can, as part of the same action, release a small amount of blood, infusing it with the jutsu. The jutsu gains the benefits of being near a sufficient source of water, and gains a +1 to damage die, healing die, and save DC. If the jutsu gains no benefits for being near a sufficient source of water, double these bonuses."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Chinoike Chunin may make two attacks with its currently equipped weapon."},
+        {"name": "Blood Weapon", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 1) necrotic damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 1) slashing damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 7, "dc": 17, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Virtue"]},
+        {"rank": "D", "cost": 5, "names": ["Adept Healing", "Bloodletting Weaponry", "Blood Daggers", "Enhanced Circulation", "Healing Waters"]},
+        {"rank": "C", "cost": 9, "names": ["Red Death", "Water Clone"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Genjutsu: Ichorous Illusions!", "Genjutsu: Ketsuryūgan!", "Insinuation", "Mind Film"]},
+        {"rank": "C", "cost": 9, "names": ["Genjutsu: Blood Lake", "Mind Body Recovery", "Psionics: Dark Daze"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 6, "dc": 16, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Blade of Sin: Sloth", "Weapon Deflect"]}
+      ]}
+    ]
+  }
+]

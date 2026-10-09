@@ -174,13 +174,18 @@ func TestParseClanBookFullCompendium(t *testing.T) {
 	if totFeats != 150 {
 		t.Errorf("total clan feats = %d, want 150", totFeats)
 	}
+	// The 37 entries once reported here as "missing field Keywords" print
+	// the label as "Keyword:" (singular); the parser now reads it, so a
+	// clean parse has no anomalies and no Cost value carries a keyword list.
 	for _, a := range anomalies {
-		if !strings.Contains(a.Problem, "missing field Keywords") {
-			t.Errorf("unexpected anomaly p%d %s: %s", a.Page, a.Subject, a.Problem)
-		}
+		t.Errorf("unexpected anomaly p%d %s: %s", a.Page, a.Subject, a.Problem)
 	}
-	if len(anomalies) != 37 {
-		t.Errorf("got %d anomalies, want 37 known missing-Keywords omissions", len(anomalies))
+	for _, c := range clans {
+		for _, j := range c.Jutsu {
+			if strings.Contains(j.CostText, "Keyword") {
+				t.Errorf("%s: keyword list glued onto Cost: %q", j.Name, j.CostText)
+			}
+		}
 	}
 
 	// Bloodline Latents section of the same book (verified 2026-07-17 against

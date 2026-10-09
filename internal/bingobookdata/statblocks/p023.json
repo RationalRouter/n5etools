@@ -1,0 +1,65 @@
+[
+  {
+    "slug": "adversary-template/jiton-jonin",
+    "name": "Jiton Jonin",
+    "page": 23,
+    "rank": "A", "size": "Medium", "clan": "Jiton", "clan_slug": "jiton", "role": "Defender",
+    "class": "elite", "affiliation": "Sand Shinobi", "prof": 7,
+    "level": 14, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 28, "ac_note": "H. Armor", "dr": 8, "initiative": 12,
+    "speed": "40 ft.", "hp": "409/245/122", "cp": 360,
+    "str": {"score": 8, "mod": -1, "save": 7},
+    "dex": {"score": 16, "mod": 3, "save": 11},
+    "con": {"score": 18, "mod": 4, "save": 8},
+    "int": {"score": 20, "mod": 5, "save": 9},
+    "wis": {"score": 10, "mod": 0, "save": 8},
+    "cha": {"score": 14, "mod": 2, "save": 10},
+    "skills": [
+      {"name": "Stealth", "mod": 10},
+      {"name": "Perception", "mod": 9, "stars": 1},
+      {"name": "Ninshou", "mod": 12},
+      {"name": "Martial Arts", "mod": 6},
+      {"name": "Chakra Control", "mod": 13, "stars": 1},
+      {"name": "Illusions", "mod": 9, "stars": 1}
+    ],
+    "damage_resistances": "Bludgeoning, Piercing, Slashing, Earth",
+    "passive_perception": 19,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Heavy Defense", "tags": "Defense", "text": "Your defense is impenetrable. Creatures cannot ignore your temporary hit points, regardless of their features' effects."},
+        {"name": "Fortress", "tags": "Defense", "text": "The first instance of damage you take each turn is reduced by your level. This trait can be temporarily deactivated if this adversary is targeted by a B-Rank Chakra Dispel. The trait is deactivated until the end of this adversary's next turn."},
+        {"name": "Critical Defense", "tags": "Defense", "text": "Immune to critical hits and any critical hit based effects, unless you are already bloodied (50% HP). A critical hit does not guarantee an automatic hit against you."},
+        {"name": "Iron Sand", "tags": "Attack, Control", "text": "Damage from Envenomed inflicted by Jiton Hijutsu you cast has its die size increased by +1. Additionally, Jiton Clan Hijutsu that cause damage inflict +1 rank of Envenomed on a failed save."},
+        {"name": "Adept Elementalist", "tags": "Attack, Defense", "text": "Select one damage type. Increase damage done with the chosen damage type by +1 damage die and gain resistance to the chosen damage type."},
+        {"name": "Siege Master", "tags": "Attack", "text": "Deal quadruple damage to objects, structures and constructs."}
+      ]},
+      {"kind": "passives", "title": "Jiton Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary has the history of the Sand running through its blood. This adversary ignores difficult terrain as the result of the desert, and when it would take damage from a weapon made of metal, it reduces the damage taken by 1d8."},
+        {"name": "Self-Repairing Dust Cloak", "text": "At the beginning of each of your turns, you gain your level in temporary hit points, stacking with any temporary hit points granted from Dust Cloak. This trait can be temporarily deactivated if this adversary is targeted by an A-Rank Chakra Dispel. The trait is deactivated until the end of this adversary's next turn."},
+        {"name": "Defender Action", "text": "By spending 2 Tenacity dice and a reaction, it can Overguard. When it does, this adversary's allies gain one of the following benefits: • All of its allies' AC becomes equal to this adversary's until the end of the current turn. • All of its allies treat the result of all of their saves as this adversary's AC, until the beginning of this adversary's next turn. • All of its allies reduce damage they take from all sources by this adversary's AC, until the end of the next turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Jiton Jonin may make 2 attacks with its Spear or 3 attacks with its Dust Blast."},
+        {"name": "Spear", "text": "Melee Weapon Attack: +6 to hit, reach 10 ft., one target. Hit: 3 (1d6 - 1) piercing damage."},
+        {"name": "Dust Blast", "text": "Ranged Ninjutsu Attack: +12 to hit, range 120 ft., one target. Hit: 14 (2d8 + 5) earth damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Jiton Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, activate the bonus action component of Dust Cloak, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 13, "dc": 24, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Rock Shuriken", "Dust Cloak", "Dust Particle Drizzle", "Dust Shield", "Earthen Grasp"]},
+        {"rank": "C", "cost": 9, "names": ["Earth Flow Spears", "Sand Coffin Binding", "Dust Wings", "Magnet Wave", "Sealing Dust Barrier", "Sandstorm"]},
+        {"rank": "B", "cost": 14, "names": ["Explosive Substitution Technique", "Magnetic Dust Fist", "Imperial Dust Funeral", "Stone Bamboo Shoot", "Earth-Style Wall", "Bottomless Swamp"]},
+        {"rank": "A", "cost": 20, "names": ["Dust Particle World", "Stone Needle", "Stone Forest", "Ironstone Hardening"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 7, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Shatter", "Mental Barrier"]}
+      ]}
+    ]
+  }
+]

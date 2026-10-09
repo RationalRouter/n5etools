@@ -1,0 +1,65 @@
+[
+  {
+    "slug": "adversary-template/hidan",
+    "name": "Hidan",
+    "page": 64,
+    "rank": "A", "size": "Medium", "clan": "Undead", "clan_slug": "", "role": "Iconic Striker (Taijutsu)",
+    "class": "elite", "affiliation": "Jashin Follower", "prof": 7,
+    "level": 15, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 7,
+    "ac": 27, "ac_note": "Studded Leather", "dr": 5, "initiative": 8,
+    "speed": "65 ft.", "hp": "531/318/159", "cp": 400,
+    "str": {"score": 20, "mod": 5, "save": 12},
+    "dex": {"score": 16, "mod": 3, "save": 10},
+    "con": {"score": 20, "mod": 5, "save": 12},
+    "int": {"score": 10, "mod": 0, "save": 3},
+    "wis": {"score": 14, "mod": 2, "save": 5},
+    "cha": {"score": 10, "mod": 0, "save": 3},
+    "skills": [
+      {"name": "Athletics", "mod": 16, "stars": 2},
+      {"name": "Chakra Control", "mod": 14, "stars": 1},
+      {"name": "Insight", "mod": 9},
+      {"name": "Perception", "mod": 9},
+      {"name": "Stealth", "mod": 10},
+      {"name": "Martial Arts", "mod": 16, "stars": 2}
+    ],
+    "passive_perception": 19,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Revenge", "tags": "Attack", "text": "+2d6 bonus damage to any creature that harmed Hidan last round."},
+        {"name": "Reckless", "tags": "Attack", "text": "At the start of your turn, gain advantage on melee attack rolls or damage rolls; enemies gain the same against you."},
+        {"name": "Press the Attack", "tags": "Attack", "text": "+2 to Taijutsu attacks against creatures benefiting from AC bonuses from jutsu this round."},
+        {"name": "Grim", "tags": "Attack", "text": "Mark a creature. If its HP is below 50%, your attacks deal +2d8 necrotic damage. Only one creature may be marked at a time."},
+        {"name": "Chakra Weapons", "tags": "Attack", "text": "Weapons count as chakra-enhanced, gaining +2 to hit and damage."},
+        {"name": "Cunning Action", "tags": "Utility", "text": "Dash, Disengage, or Hide as a bonus action."},
+        {"name": "Fortitous", "tags": "Defense", "text": "On a Constitution saving throw, if you would pass, you take no damage and ignore its effects."},
+        {"name": "Stalwart", "tags": "Defense", "text": "Advantage against forced movement. You can't suffer penalties on such rolls."},
+        {"name": "Immortal Spirit", "tags": "Unique", "text": "While a creature is Marked and Hidan is within the Jashin Ritual circle, he cannot be reduced below 1 HP."},
+        {"name": "Jashin Ritual", "tags": "Unique", "text": "As an action, Hidan deals weapon damage and creates a 5 ft. blood circle. Targets are Marked for Pain."},
+        {"name": "Jashin's Judgement", "tags": "Unique", "text": "While inside the ritual circle, Hidan can damage himself to also damage the Marked creature. Only the Marked creature suffers any additional effects."}
+      ]},
+      {"kind": "passives", "title": "Hidan's Clan/Role Passives", "entries": [
+        {"name": "Striker Passive 1", "text": "Once per turn, weapon, Taijutsu, and Bukijutsu damage ignores 10 DR."},
+        {"name": "Striker Passive 2", "text": "Once per turn, weapon, Taijutsu, and Bukijutsu damage ignores temporary hit points."},
+        {"name": "Striker Action", "text": "Cost: 4 Tenacity dice. Overpower a Taijutsu or Bukijutsu, adding the dice to its damage. Creatures make their saves at -1d4. On a critical hit, increase the damage die size by one step."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "Make 3 melee attacks or 4 ranged attacks with shuriken."},
+        {"name": "Triple-Bladed Scythe", "text": "Melee Weapon Attack: +16 to hit, reach 15 ft., one target. Hit: 20 (2d12 + 7) slashing damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +12 to hit, range 60 ft., one target. Hit: 7 (1d4 + 5) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "Hidan may take 1 Elite Action at the end of another creature's turn to move, attack, cast a jutsu, or gain an extra reaction. He regains all Elite Actions at the start of his turn."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Taijutsu", "hit": 12, "dc": 23, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Chain Pull", "1-Strike Slash", "Danger Zone", "Exterminate"]},
+        {"rank": "C", "cost": 9, "names": ["Executioner's Swing", "Front Beheading", "Falling Blade", "Chain Kill"]},
+        {"rank": "B", "cost": 14, "names": ["Amputation Punishment", "Blue Moon", "Combo Vault"]},
+        {"rank": "A", "cost": 20, "names": ["Bestowal", "Crescent Moon Dance", "Flayed Awakening"]}
+      ]}
+    ],
+    "notes": "\"Undead\" occupies the clan slot of the header; it is not a clan in the rules. The trait name \"Fortitous\" is kept as printed (a Fortitude/Fortuitous pun in the source). The Shuriken attack's damage type is printed as slashing; kept as printed."
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "slug": "adversary-template/jiton-chunin",
+    "name": "Jiton Chunin",
+    "page": 22,
+    "rank": "C", "size": "Medium", "clan": "Jiton", "clan_slug": "jiton", "role": "Defender",
+    "class": "standard", "affiliation": "Sand Shinobi", "prof": 5,
+    "level": 8, "xp": 10,
+    "ac": 21, "ac_note": "Dust Cloak", "dr": 4, "initiative": 7,
+    "speed": "40 ft.", "hp": "126", "cp": 106,
+    "str": {"score": 6, "mod": -2, "save": 3},
+    "dex": {"score": 14, "mod": 2, "save": 7},
+    "con": {"score": 14, "mod": 2, "save": 4},
+    "int": {"score": 16, "mod": 3, "save": 5},
+    "wis": {"score": 8, "mod": -1, "save": 4},
+    "cha": {"score": 12, "mod": 1, "save": 6},
+    "skills": [
+      {"name": "Stealth", "mod": 7},
+      {"name": "Perception", "mod": 6, "stars": 1},
+      {"name": "Ninshou", "mod": 8},
+      {"name": "Martial Arts", "mod": 3},
+      {"name": "Chakra Control", "mod": 4, "stars": 1},
+      {"name": "Illusions", "mod": 4}
+    ],
+    "passive_perception": 16,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Heavy Defense", "tags": "Defense", "text": "Your defense is impenetrable. Creatures cannot ignore your temporary hit points, regardless of their features' effects."},
+        {"name": "Silica Sand", "tags": "Clan, Defense, Control", "text": "You control Silica Sand: • You emit a 10-foot aura of swirling sand. This aura is considered difficult terrain for enemies. Enemies have disadvantage on saving throws against your Jiton Hijutsu if they are affected by the difficult terrain of this feature. • When you would cast Dust Cloak, it is automatically upcast 1 rank, ignoring rank restrictions. • When you would cast a Jiton Hijutsu which would create a Quake Shard or grant temporary hit points, you may add your Constitution modifier to the hit points of the associated jutsu."},
+        {"name": "Gold Dust", "tags": "Clan, Attack, Control", "text": "You control Gold Dust: • When you cast a Jiton Clan Hijutsu that deals damage, you may give it the Clash keyword."}
+      ]},
+      {"kind": "passives", "title": "Jiton Chunin's Passives", "entries": [
+        {"name": "Sand Shinobi", "text": "This adversary has the history of the Sand running through its blood. This adversary ignores difficult terrain as the result of the desert, and when it would take damage from a weapon made of metal, it reduces the damage taken by 1d8."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Jiton Chunin may make 1 attack with its Spear or 2 attacks with its Dust Blast."},
+        {"name": "Spear", "text": "Melee Weapon Attack: +3 to hit, reach 10 ft., one target. Hit: 3 (1d6 - 2) piercing damage."},
+        {"name": "Dust Blast", "text": "Ranged Ninjutsu Attack: +8 to hit, range 120 ft., one target. Hit: 8 (1d8 + 3) earth damage."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Enhanced Resistance", "Chakra Movement", "Escape Technique"]},
+        {"rank": "D", "cost": 5, "names": ["Substitution Technique", "Rock Shuriken", "Dust Cloak", "Dust Particle Drizzle", "Dust Shield", "Earthen Grasp"]},
+        {"rank": "C", "cost": 9, "names": ["Earth Flow Spears", "Sand Coffin Binding", "Dust Wings", "Magnet Wave"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 3, "dc": 13, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Clone Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Chakra Shatter", "Mental Barrier"]}
+      ]}
+    ],
+    "notes": "Gold Dust lists only its first bullet as printed. Clone Technique is printed as a D-Rank here (E-Rank elsewhere), transcribed as printed."
+  }
+]

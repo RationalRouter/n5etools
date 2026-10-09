@@ -406,6 +406,20 @@ func GetSourceBookLastModified(db *sql.DB, slug string) (t time.Time, found bool
 	return t, true, nil
 }
 
+// GetSourceBookSHA256 reads the SHA-256 of the file a book was last
+// ingested from. found is false when the slug has no source_books row yet or
+// its file_sha256 is empty.
+func GetSourceBookSHA256(db *sql.DB, slug string) (sha string, found bool, err error) {
+	err = db.QueryRow(`SELECT file_sha256 FROM source_books WHERE slug = ?`, slug).Scan(&sha)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return sha, sha != "", nil
+}
+
 // SetSourceBookLastModified stamps the cheap-check baseline after a
 // successful auto-update download+ingest. It only updates an existing
 // source_books row — a book with no row yet (never ingested at all) has

@@ -1,0 +1,73 @@
+[
+  {
+    "slug": "adversary-template/hebi-jonin",
+    "name": "Hebi Jonin",
+    "page": 42,
+    "rank": "B", "size": "Medium", "clan": "Hebi", "clan_slug": "hebi", "role": "Lurker",
+    "class": "elite", "affiliation": "Sound Shinobi", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 19, "ac_note": "L. Armor", "dr": 2, "initiative": 12,
+    "speed": "50 ft., burrow 50 ft.", "hp": "168/100/50", "cp": 204,
+    "str": {"score": 8, "mod": -1, "save": 2},
+    "dex": {"score": 18, "mod": 4, "save": 10},
+    "con": {"score": 16, "mod": 3, "save": 6},
+    "int": {"score": 14, "mod": 2, "save": 8},
+    "wis": {"score": 10, "mod": 0, "save": 3},
+    "cha": {"score": 16, "mod": 3, "save": 9},
+    "skills": [
+      {"name": "Acrobatics", "mod": 10},
+      {"name": "Deception", "mod": 9},
+      {"name": "Insight", "mod": 5},
+      {"name": "Martial Arts", "mod": 5},
+      {"name": "Stealth", "mod": 10},
+      {"name": "Survival", "mod": 6}
+    ],
+    "damage_resistances": "Poison",
+    "senses": "Darkvision 30 ft., Tremorsense 15 ft.",
+    "passive_perception": 10,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Cunning Action", "tags": "Mobility, Utility", "text": "Dash, Disengage, or Hide as a bonus action."},
+        {"name": "Evasive", "tags": "Defense", "text": "When subjected to a Dexterity saving throw, if you would pass, you instead take no damage and suffer no effects."},
+        {"name": "Earth Glide", "tags": "Mobility", "text": "Gain a burrow speed equal to your movement speed."},
+        {"name": "Hebi Regeneration", "tags": "Healing", "text": "At the beginning of each of your turns, roll 1d8. On a roll of 5-8, regain a number of hit points equal to twice your level."},
+        {"name": "Serpent Senses", "tags": "Utility", "text": "You have 30 feet of darkvision and 15 feet of tremorsense."},
+        {"name": "Sneak Attack", "tags": "Attack", "text": "Once per turn, you deal an extra 1d8 damage per two levels when you hit a target with an attack and have advantage on the attack roll, or when the target is within 5 feet of your ally, as long as you don't have disadvantage."}
+      ]},
+      {"kind": "passives", "title": "Hebi Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary has the blood of the King of Hunters. At the beginning of each of this adversary's turns, it can spend 1 Tenacity die to regain hit points equal to 1/10th of its hit points. Additionally, it can spend 1 Tenacity die to coat its weapon in poison, increasing its damage die by +1 and making its damage type poison, in addition to whatever its previous damage type was."},
+        {"name": "Elite Lurker", "text": "You gain a +1 bonus to critical threat range on all attacks."},
+        {"name": "Lurker Passive 1", "text": "You cannot be seen by Chakra Sight."},
+        {"name": "Lurker Passive 2", "text": "You cannot be sensed by tremorsense or thermal vision. (You can still be seen normally, but these special senses cannot detect you.)"},
+        {"name": "Lurker Action", "text": "By spending 4 Tenacity dice and its action, this adversary can teleport to any space within 90 feet that it can see or is aware of and that would grant it full/total cover or heavily obscure it."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Hebi Jonin may make three attacks with its currently equipped weapon."},
+        {"name": "Katana", "text": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage, and once per turn the target must succeed on a DC 13 Constitution save against Serpent Venom (SHB p. 46)."},
+        {"name": "Senbon", "text": "Ranged Weapon Attack: +6 to hit, range 30/120 ft., one target. Hit: 9 (2d4 + 4) piercing damage, and once per turn the target must succeed on a DC 13 Constitution save against Serpent Venom (SHB p. 46)."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Hebi Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 8, "dc": 20, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Adaptive Camouflage Technique", "Poison Bullet", "Substitution Technique"]},
+        {"rank": "C", "cost": 9, "names": ["Poison Weapon", "Python's Gaze"]},
+        {"rank": "B", "cost": 14, "names": ["Serpent Adaptation"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 6, "dc": 18, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Cause Fear", "Cloak of Shadows"]}
+      ]},
+      {"discipline": "Bukijutsu", "hit": 10, "dc": 22, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["1-Strike Slash", "Breath of Roses: Plum", "Formation of One Thousand Snakes", "Striking Stance: Cobra"]},
+        {"rank": "C", "cost": 9, "names": ["Mamba's Hardened Scales", "Poison Cobra Dance", "Striking Stance: Viper"]},
+        {"rank": "B", "cost": 14, "names": ["Mamba Poisonous Blade", "Vipers Poisonous Wave"]}
+      ]}
+    ],
+    "notes": "Both weapon attacks print +6 to hit, below the Bukijutsu line's +10; kept as printed."
+  }
+]

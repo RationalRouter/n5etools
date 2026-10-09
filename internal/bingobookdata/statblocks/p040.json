@@ -1,0 +1,74 @@
+[
+  {
+    "slug": "adversary-template/futton-jonin",
+    "name": "Futton Jonin",
+    "page": 40,
+    "rank": "B", "size": "Medium", "clan": "Futton", "clan_slug": "futton", "role": "Defender",
+    "class": "elite", "affiliation": "Mist Shinobi", "prof": 6,
+    "level": 12, "xp": 25,
+    "tenacity_die": "d4", "tenacity_count": 6,
+    "ac": 25, "ac_note": "H. Armor", "dr": 9, "initiative": 7,
+    "speed": "40 ft.", "hp": "218/130/65", "cp": 175,
+    "str": {"score": 18, "mod": 4, "save": 10},
+    "dex": {"score": 8, "mod": -1, "save": 5},
+    "con": {"score": 16, "mod": 3, "save": 9},
+    "int": {"score": 16, "mod": 3, "save": 6},
+    "wis": {"score": 14, "mod": 2, "save": 5},
+    "cha": {"score": 10, "mod": 0, "save": 3},
+    "skills": [
+      {"name": "Athletics", "mod": 10},
+      {"name": "Insight", "mod": 8},
+      {"name": "Intimidation", "mod": 6},
+      {"name": "Martial Arts", "mod": 10},
+      {"name": "Perception", "mod": 8},
+      {"name": "Acrobatics", "mod": 5}
+    ],
+    "damage_immunities": "Acid",
+    "damage_resistances": "Fire, Slashing",
+    "damage_vulnerabilities": "Cold",
+    "condition_resistances": "Burned",
+    "passive_perception": 18,
+    "sections": [
+      {"kind": "traits", "title": "Traits", "entries": [
+        {"name": "Chakra Protection", "tags": "Defense", "text": "Select two damage types. Gain resistance to the selected damage types. If you have vulnerability to a chosen damage type as the result of a different trait, you cannot gain resistance to that chosen damage type."},
+        {"name": "Corrosive Aura", "tags": "Control", "text": "Once per turn, when you cast a Futton Clan Hijutsu, all creatures within 10 feet of you must make a Constitution save against your Ninjutsu save DC. On a failed save, they gain the corroded condition."},
+        {"name": "Expert Elementalist", "tags": "Attack, Defense", "text": "You gain immunity to acid damage, increase all acid damage you deal by +2 damage dice, and gain vulnerability to cold damage."},
+        {"name": "Got Your Back", "tags": "Defense", "text": "When standing within 15 ft. of an ally or attacking target, you can spend your reaction to redirect the attack onto yourself."},
+        {"name": "Fortress", "tags": "Defense", "text": "The first instance of damage you take each turn is reduced by your level. This trait can be temporarily deactivated if this adversary is targeted by a B-Rank Chakra Dispel. The trait is deactivated until the end of this adversary's next turn."},
+        {"name": "Iron Fist", "tags": "Attack", "text": "The first taijutsu or unarmed attack you make each turn adds +1d4 to the attack and damage rolls."}
+      ]},
+      {"kind": "passives", "title": "Futton Jonin's Clan/Role Passives", "entries": [
+        {"text": "This adversary is immensely powerful. When it would cast a Futton Clan Hijutsu, it can double the jutsu's cost to increase its range or affected radius by 10 feet."},
+        {"name": "Elite Defender", "text": "This adversary gains a +3 bonus to armor damage reduction (added)."},
+        {"name": "Defender Passive 1", "text": "At the beginning of each of your turns, you gain temporary hit points equal to your level."},
+        {"name": "Defender Passive 2", "text": "Allied creatures (excluding yourself) within 10 feet that the Defender can see gain 10 damage reduction against all damage types."},
+        {"name": "Defender Action", "text": "By spending 2 Tenacity dice and a reaction, it can Overguard. When it does, this adversary's allies gain one of the following benefits: • All of its allies' AC becomes equal to this adversary's until the end of the current turn. • All of its allies treat the result of all of their saves as this adversary's AC, until the beginning of this adversary's next turn. • All of its allies reduce damage they take from all sources by this adversary's AC, until the end of the next turn."}
+      ]},
+      {"kind": "actions", "title": "Actions", "entries": [
+        {"name": "Multiattack", "text": "The Futton Jonin may make three attacks with its currently equipped weapon."},
+        {"name": "Unarmed Strike", "text": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 15 (2d10 + 4) bludgeoning damage."},
+        {"name": "Shuriken", "text": "Ranged Weapon Attack: +10 to hit, range 30/120 ft., one target. Hit: 9 (2d4 + 4) slashing damage."}
+      ]},
+      {"kind": "elite", "title": "Elite Action", "entries": [
+        {"text": "The Futton Jonin takes one Elite Action at the end of another creature's turn, once each round, to either move, attack, cast a jutsu, or spend its Elite Action to gain an additional reaction. It regains spent Elite Actions at the beginning of each of its turns."}
+      ]}
+    ],
+    "jutsu": [
+      {"discipline": "Ninjutsu", "hit": 9, "dc": 21, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Chakra Blow"]},
+        {"rank": "D", "cost": 5, "names": ["Blue Fire", "Chakra Shield", "Skilled Mist", "Steam Bullet", "Substitution Technique", "Water Evaporation/Fire Extinguish"]},
+        {"rank": "C", "cost": 9, "names": ["Dragon Flame Bombs", "Steam Armor", "Wall of Water"]},
+        {"rank": "B", "cost": 14, "names": ["Acidic Dragon's Breath"]}
+      ]},
+      {"discipline": "Genjutsu", "hit": 8, "dc": 20, "ranks": [
+        {"rank": "E", "cost": 2, "names": ["Clone Technique", "Release", "Transform"]},
+        {"rank": "D", "cost": 5, "names": ["Cause Fear"]}
+      ]},
+      {"discipline": "Taijutsu", "hit": 10, "dc": 22, "ranks": [
+        {"rank": "D", "cost": 5, "names": ["Brace", "Bolting Blossom", "Erupting Propulsion", "Erupting Physique"]},
+        {"rank": "C", "cost": 9, "names": ["Corrosive Viper Fang", "Elementania", "Unrivaled Strength"]},
+        {"rank": "B", "cost": 14, "names": ["After Image Technique", "Scorpion's Stinger"]}
+      ]}
+    ]
+  }
+]

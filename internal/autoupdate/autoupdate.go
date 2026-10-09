@@ -3,30 +3,26 @@
 // on Google Drive, without a human ever running n5e-ingest by hand.
 //
 // For each internal/sources.OfficialBooks entry with a registered parser,
-// TWO independent staleness signals can force a real download+ingest even
-// when the other one says "unchanged": the stored drive_last_modified
-// baseline (internal/store.GetSourceBookLastModified) vs. a cheap HEAD
-// request (internal/fetch.HeadLastModified) — "has the PDF itself changed
-// on Drive" — and the stored ingest_schema_version baseline
-// (internal/store.GetSourceBookIngestVersion) vs. this binary's own
-// schema.LatestMigration(schema.Rules) — "has THIS BUILD's own
-// parsing/schema logic moved on since the last successful ingest,
-// regardless of whether Drive's copy changed at all." The second signal is
-// what closes a real gap found 2026-07-27: a migration adding a table that
-// needs a content backfill (jutsu_upcast_rules) applies structurally on
-// every startup regardless, but its content only gets populated by a real
-// ingest — which, before this signal existed, only ever ran when Drive's
-// own timestamp moved, so an existing install's newly-added-but-empty table
-// could sit empty forever if nothing about the upstream PDF happened to
-// change afterward. Both baselines are nullable/never-stamped on every
-// pre-existing row, which is exactly what makes this self-healing on
-// upgrade: an old install force-ingests every parsed book exactly once on
-// its first launch after picking up this change, then settles back into the
-// normal cheap-check cadence.
+// two signals can force a download:
 //
-// Once either signal says "stale," the PDF is downloaded and handed to the
-// matching internal/ingest function, the same parse-correct-load pipeline
-// cmd/n5e-ingest's subcommands already use. Every per-book step is isolated
+//   - Drive's copy changed: a HEAD request's Last-Modified
+//     (internal/fetch.HeadLastModified) is newer than the stored
+//     drive_last_modified baseline. This is the only network call on a
+//     normal startup; nothing is downloaded when Drive reports no change.
+//   - This build needs the book re-parsed: the stored ingest_schema_version
+//     sorts below schema.RequiredIngestVersion for that book. Only a
+//     migration carrying a "-- reingest:" marker for the book moves that,
+//     for a parser change whose effect cannot be backfilled in SQL. Schema
+//     changes and data fixes that backfill themselves never force one.
+//
+// A never-stamped baseline counts as stale, so a book that was never
+// ingested on this install is ingested once.
+//
+// Once either signal says "stale," the PDF is downloaded. If only the Drive
+// timestamp moved and the file's SHA-256 matches the one recorded at the
+// last ingest, the content is identical and nothing is re-ingested.
+// Otherwise the file is handed to the matching internal/ingest function,
+// the same parse-correct-load pipeline cmd/n5e-ingest's subcommands use. Every per-book step is isolated
 // so one book's failure (network, parser) can never stop the others from
 // being checked, matching this codebase's established "one bad row never
 // blocks the batch" philosophy already used inside internal/store's LoadX
@@ -70,9 +66,14 @@ type ingestFunc func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Repor
 // Kage Guide, which has no parser at all) is exactly what "no parser yet"
 // means; it is not an error.
 var ingestDispatch = map[string]ingestFunc{
-	"book/core":             ingest.Core,
-	"book/jutsu-compendium": ingest.Jutsu,
-	"book/bingo-book":       ingest.BingoBook,
+	"book/core":              ingest.Core,
+	"book/jutsu-compendium":  ingest.Jutsu,
+	"book/bingo-book-pack-1": ingest.BingoBookPack1,
+	"book/bingo-book":        ingest.BingoBook,
+	// Disabled with its sources.OfficialBooks entry; see the comment there.
+	// Enabling it needs an internal/ingest entry point wrapping what
+	// cmd/n5e-ingest's adversary-builder-sheet subcommand does today.
+	// "book/adversary-builder-sheet": ingest.AdversaryBuilderSheet,
 	"book/clan-compendium": func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
 		return ingest.Clans(db, dbPath, pdfPath, version, false)
 	},
@@ -95,7 +96,7 @@ var ingestDispatch = map[string]ingestFunc{
 // `n5e-ingest -db`, uncancellable by anything Run does here.
 const (
 	headTimeout     = 15 * time.Second
-	downloadTimeout = 3 * time.Minute
+	downloadTimeout = 30 * time.Minute
 )
 
 // Run checks every book in books against its canonical Drive location and
@@ -121,14 +122,9 @@ func Run(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *http.
 		return results
 	}
 
-	// Computed once per Run, not per book: this binary's own current version
-	// of the "does an ingested book's content need to be regenerated" signal
-	// (see the package doc comment). A read failure here is essentially
-	// impossible in practice — it's reading this same binary's own embedded
-	// migration files, not touching disk or network — but is fanned out as a
-	// per-book error result rather than a bare panic/return, same shape as
-	// the cache-dir failure just above, so every book still gets exactly one
-	// Result.
+	// The version stamped on each book after a successful ingest. A read
+	// failure (of this binary's own embedded migrations) is fanned out as a
+	// per-book error, same shape as the cache-dir failure above.
 	currentVersion, err := schema.LatestMigration(schema.Rules)
 	if err != nil {
 		results := make([]Result, len(books))
@@ -169,7 +165,12 @@ func checkOne(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *
 			res.Action, res.Err = "error", fmt.Errorf("reading stored ingest version: %w", err)
 			return res
 		}
-		versionStale = !foundVersion || storedVersion != currentVersion
+		required, err := schema.RequiredIngestVersion(schema.Rules, book.Slug)
+		if err != nil {
+			res.Action, res.Err = "error", fmt.Errorf("determining required ingest version: %w", err)
+			return res
+		}
+		versionStale = !foundVersion || storedVersion < required
 	}
 
 	headCtx, cancel := context.WithTimeout(ctx, headTimeout)
@@ -194,6 +195,26 @@ func checkOne(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *
 		return res
 	}
 	defer os.Remove(destPath)
+
+	// Drive's Last-Modified can move without the file's bytes changing. When
+	// the downloaded file hashes identically to the one last ingested and this
+	// build's ingest logic hasn't changed, the stored content is already
+	// current: re-baseline the timestamp and skip the re-ingest.
+	if hasParser && !versionStale {
+		storedSHA, foundSHA, err := store.GetSourceBookSHA256(db, book.Slug)
+		if err != nil {
+			res.Action, res.Err = "error", fmt.Errorf("reading stored sha256: %w", err)
+			return res
+		}
+		if foundSHA && storedSHA == sha {
+			if err := store.SetSourceBookLastModified(db, book.Slug, remote); err != nil {
+				res.Action, res.Err = "error", fmt.Errorf("stamping last-modified: %w", err)
+				return res
+			}
+			res.Action = "unchanged"
+			return res
+		}
+	}
 
 	// Honest provenance, not a fabricated printed version string: there is
 	// no human present to type the book's real "3.12"-style version, so the
