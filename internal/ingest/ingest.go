@@ -56,7 +56,8 @@ type Report struct {
 	// Loads is one entry per store.LoadReport produced, in display order.
 	Loads []NamedLoad
 	// OCRAnomalies is every page where an independent OCR reading disagreed
-	// with the text-layer parse enough to flag for review — see ocrcheck.go.
+	// with the text-layer parse enough to flag for review — see crosscheck.go.
+	// Always empty when no CrossCheck is installed (the player app).
 	// Advisory only; never affects what gets loaded.
 	OCRAnomalies []OCRAnomaly
 }
@@ -134,7 +135,7 @@ func Jutsu(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/jutsu-compendium", 4, doc.NumPages(), lines)
+	ocrAnomalies := crossCheck(pdfPath, "book/jutsu-compendium", 4, doc.NumPages(), lines)
 
 	jutsu, anomalies := parse.ParseJutsuBook(lines)
 	tribes, tribeAnomalies := parse.ParseSummonTribes(lines)
@@ -256,7 +257,7 @@ func Clans(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report, 
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/clan-compendium", 5, doc.NumPages(), lines)
+	ocrAnomalies := crossCheck(pdfPath, "book/clan-compendium", 5, doc.NumPages(), lines)
 
 	clans, anomalies := parse.ParseClanBook(lines)
 	latentFeat, latents, latentAnomalies := parse.ParseBloodlineLatents(lines)
@@ -378,7 +379,7 @@ func Classes(db *sql.DB, dbPath, pdfPath, version string, verbose bool) (*Report
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/class-compendium", 6, doc.NumPages(), lines)
+	ocrAnomalies := crossCheck(pdfPath, "book/class-compendium", 6, doc.NumPages(), lines)
 
 	classes, anomalies := parse.ParseClassBook(lines)
 
@@ -532,7 +533,7 @@ func Core(db *sql.DB, dbPath, pdfPath, version string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/core", 2, doc.NumPages(), lines)
+	ocrAnomalies := crossCheck(pdfPath, "book/core", 2, doc.NumPages(), lines)
 
 	stances, anomalies := parse.ParseFightingStances(lines)
 	feats, featAnomalies := parse.ParseCoreFeats(lines)
@@ -670,7 +671,7 @@ func BingoBookPack1(db *sql.DB, dbPath, pdfPath, version string) (*Report, error
 	if err != nil {
 		return nil, err
 	}
-	ocrAnomalies := crossValidatePages(pdfPath, "book/bingo-book-pack-1", 1, doc.NumPages(), lines)
+	ocrAnomalies := crossCheck(pdfPath, "book/bingo-book-pack-1", 1, doc.NumPages(), lines)
 
 	roles, roleAnomalies := parse.ParseAdversaryRoles(lines)
 	traits, traitAnomalies := parse.ParseAdversaryRoleTraits(lines)
