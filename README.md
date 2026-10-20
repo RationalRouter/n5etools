@@ -17,7 +17,7 @@ some HTML, CSS and JavaScript sprinkled in to make the web server ✨pop✨
 
 -Spanish (Castilian) 🇪🇸
 
--Portuguese (Brazilian) 🇧🇷
+-Portuguese (Brazilian) 🇧🇷 (Big thanks to @Sagadragneel and @mestredorpg3030 for help with the Portuguese translation)
 
 ## Download
 
