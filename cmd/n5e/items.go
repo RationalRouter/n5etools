@@ -70,6 +70,11 @@ type itemRow struct {
 	// every other item.
 	BaseName        string
 	BaseDescription string
+
+	// Crafted is set for a crafted/ slug (the Seal Crafting library): the
+	// item plays as its base weapon or armor, whose stats fill the rest of
+	// this row.
+	Crafted *craftedDetail
 }
 
 // computeHealText renders heal_amount/regain_type as one translated string —
@@ -576,14 +581,18 @@ func (s *server) handleItemDetail(w http.ResponseWriter, r *http.Request) {
 
 	// A custom/ slug is a local library entry (custom_items, characters.db),
 	// never a rules.db row — see loadCustomItem and CustomItem's doc
-	// comment. Same "slug prefix picks the table" dispatch inventoryRow.
+	// comment; a crafted/ slug is a Seal Crafting recipe (loadCraftedItem).
+	// Same "slug prefix picks the table" dispatch inventoryRow.
 	// DetailHref and lookupCarriedItem already use for this.
 	locale := localeFromContext(r.Context())
 	var item *itemRow
 	var err error
-	if strings.HasPrefix(slug, "custom/") {
+	switch {
+	case strings.HasPrefix(slug, "custom/"):
 		item, err = s.loadCustomItem(slug, locale)
-	} else {
+	case charstore.IsCraftedSlug(slug):
+		item, err = s.loadCraftedItem(r, slug)
+	default:
 		item, err = loadItem(s.rulesDB, slug, locale)
 	}
 	if err != nil {

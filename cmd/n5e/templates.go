@@ -325,6 +325,7 @@ func init() {
 		"items.html", "item_detail.html", "properties.html", "property_detail.html",
 		"traps.html", "trap_detail.html", "poisons.html", "poison_detail.html",
 		"encounters.html", "encounters_builder.html", "adversary_builder_traits.html",
+		"crafting.html", "crafting_editor.html",
 		"npc_templates.html", "npc_template_detail.html", "bingo_book_general_traits.html",
 		"about.html", "bugs.html", "faq.html", "technical.html",
 	} {

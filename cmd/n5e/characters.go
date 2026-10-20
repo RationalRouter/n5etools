@@ -3908,6 +3908,19 @@ type inventoryRow struct {
 	// "Contents:" — so the inventory can offer an Unpack button beside it
 	// (see handleSheetInventoryUnpack).
 	Unpackable bool
+	// Crafted marks a Seal Crafting item, whose seals can change numbers
+	// outside the inventory (saves, skills, speed, jutsu attacks), so its
+	// equip toggle refreshes those blocks too.
+	Crafted bool
+}
+
+// SealRefresh lists the sheet blocks a crafted item's seals can change, for
+// its equip toggle's data-also-refresh; "" for any other item.
+func (r inventoryRow) SealRefresh() string {
+	if !r.Crafted {
+		return ""
+	}
+	return "sheet-squares sheet-skills sheet-saves sheet-attack-mods sheet-attack-jutsu-table"
 }
 
 // DetailHref is the rules page this row's name links to, or "" for a
@@ -4224,6 +4237,9 @@ type attackRow struct {
 	// only exists because a weapon is equipped, so "delete this attack"
 	// can only sensibly mean "drop this weapon".
 	InventoryID int64
+	// SealReach is the Extending Seal's added reach or range on a crafted
+	// weapon, as a short note; "" otherwise.
+	SealReach string
 	// CritRangeThreshold: the lowest d20 result that counts as a critical
 	// hit for THIS attack roll — 0 means no widening (default 20), same
 	// "0 means untouched" shape companionAttackRow's own field
@@ -4498,6 +4514,12 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		if !item.Equipped || item.Slug == "" {
 			continue
 		}
+		// A crafted item attacks as its base weapon; every rules.db lookup
+		// and weapon-type match below uses the base slug.
+		mechSlug, err := charstore.ResolveMechanicalSlug(s.charDB, item.Slug)
+		if err != nil {
+			return nil, err
+		}
 		var kind string
 		var damageDice, damageType, properties sql.NullString
 		var saveDC sql.NullInt64
@@ -4530,7 +4552,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		} else {
 			err := s.rulesDB.QueryRow(
 				`SELECT kind, damage_dice, damage_type, properties, save_dc FROM equipment WHERE slug = ?`,
-				item.Slug,
+				mechSlug,
 			).Scan(&kind, &damageDice, &damageType, &properties, &saveDC)
 			if err == sql.ErrNoRows {
 				continue // stale slug after a rules update — already handled the same way in loadCharacterInventory
@@ -4568,7 +4590,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// Trecks weapon gets for its own identical clause. This replaces the
 		// derived ability outright (still overridable below by a manual
 		// per-weapon Adjust, same as every other bonus in this function).
-		isCookingTool := cookingToolSlug != "" && item.Slug == cookingToolSlug
+		isCookingTool := cookingToolSlug != "" && mechSlug == cookingToolSlug
 		if isCookingTool {
 			ability = "int"
 			if cookingToolDamageType != "" {
@@ -4588,7 +4610,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// a character holding both features simultaneously gets two
 		// independently-overridden equipped weapons, never one item with
 		// both bonuses stacked.
-		isCookingToolPipe := cookingToolPipeSlug != "" && item.Slug == cookingToolPipeSlug
+		isCookingToolPipe := cookingToolPipeSlug != "" && mechSlug == cookingToolPipeSlug
 		if isCookingToolPipe {
 			ability = "int"
 			if cookingToolPipeDamageType != "" {
@@ -4600,7 +4622,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// place of Dexterity for all weapon attack and damage rolls using
 		// S.E.N. Ts" — same "always-on once equipped, still overridable
 		// below" treatment as Cooking Tool Infusion's identical clause.
-		isSENT := sentWeaponSlug != "" && item.Slug == sentWeaponSlug
+		isSENT := sentWeaponSlug != "" && mechSlug == sentWeaponSlug
 		if isSENT {
 			ability = "int"
 		}
@@ -4622,6 +4644,12 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		opt, overridden := options[item.ID]
 		attackAbility, damageAbility := ability, ability
 		prof := charsheet.ProfFull
+		// A crafted weapon above the wielder's level grants no proficiency
+		// (crafting p.72); an explicit per-weapon override still wins.
+		sealItem := sheet.Seals.Item(item.Slug)
+		if sealItem != nil && sealItem.Gated {
+			prof = charsheet.ProfNone
+		}
 		if overridden {
 			if opt.AttackAbility != "" {
 				attackAbility = opt.AttackAbility
@@ -4641,7 +4669,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// type, on top of any per-weapon override above rather than
 		// replacing it.
 		weaponFocusBonus := 0
-		if focusSlugs[item.Slug] {
+		if focusSlugs[mechSlug] {
 			weaponFocusBonus = focusBonus
 		}
 
@@ -4684,7 +4712,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 				}
 			}
 		}
-		if wardenWeaponSlug != "" && item.Slug == wardenWeaponSlug {
+		if wardenWeaponSlug != "" && mechSlug == wardenWeaponSlug {
 			if wardenAggressiveAttack {
 				damageAbilityBonus = sheet.Abilities["str"].Modifier + sheet.Abilities["dex"].Modifier
 			}
@@ -4755,8 +4783,18 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		if isWoW {
 			sourceLabel = i18n.Translator(locale)("weapon_source_badge.weapon_of_wonder")
 		}
+		var sealReach string
+		if sealItem != nil && (sealItem.MeleeRange > 0 || sealItem.RangedRange > 0) {
+			tr := i18n.Translator(locale)
+			if strings.Contains(props, "range") || strings.Contains(props, "ammunition") {
+				sealReach = tr("sheet.seal_extending_range", sealItem.RangedRange)
+			} else {
+				sealReach = tr("sheet.seal_extending_reach", sealItem.MeleeRange)
+			}
+		}
 		row := attackRow{
 			Name:               item.Name,
+			SealReach:          sealReach,
 			Slug:               item.Slug,
 			InventoryID:        item.ID,
 			CritRangeThreshold: rowCritRangeThreshold,
@@ -4789,7 +4827,7 @@ func (s *server) buildAttacks(characterID int64, inventory []inventoryRow, sheet
 		// the exact same focusSlugs match weaponFocusBonus itself uses above,
 		// since both read "a weapon you have as your Weapon Focus" off the
 		// identical pick.
-		if enhancedStrikesDice != "" && focusSlugs[item.Slug] {
+		if enhancedStrikesDice != "" && focusSlugs[mechSlug] {
 			row.BonusDamageDice = enhancedStrikesDice
 			row.BonusDamageLabel = "Enhanced Strikes"
 			if m := damageDicePattern.FindStringSubmatch(enhancedStrikesDice); m != nil {
@@ -5720,6 +5758,24 @@ func (s *server) lookupCarriedItem(row *inventoryRow, locale string) error {
 			return err
 		}
 		row.Name, row.Kind, row.Bulk = item.Name, item.Kind, item.Bulk
+		return nil
+	}
+	// A crafted/ slug points at the Seal Crafting library (crafted_items):
+	// the name is the crafted item's own, the kind and bulk its base item's.
+	if charstore.IsCraftedSlug(row.Slug) {
+		item, err := charstore.GetCraftedItemBySlug(s.charDB, row.Slug)
+		if err == sql.ErrNoRows {
+			row.Name = row.Slug
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		err = s.rulesDB.QueryRow(`SELECT kind, bulk FROM equipment WHERE slug = ?`, item.Recipe.BaseSlug).Scan(&row.Kind, &row.Bulk)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		row.Name, row.Crafted = item.Recipe.Name, true
 		return nil
 	}
 	for _, source := range carriedItemKinds {
@@ -7002,6 +7058,7 @@ func (s *server) renderSheetFragment(w http.ResponseWriter, r *http.Request, cha
 			return
 		}
 		data["Bulk"] = computeInventoryBulk(inventory, sheet, featureBulkBonuses)
+		data["Seals"] = sheet.Seals
 	case "sheet_elemental_affinities":
 		grantedFeatures, err := s.loadGrantedFeatures(characterID, sheet.ClanSlug, sheet.Level, "")
 		if err != nil {
@@ -7918,8 +7975,18 @@ func (s *server) handleSheetInventoryAdd(w http.ResponseWriter, r *http.Request)
 }
 
 // carriedItemExists reports whether a slug names something a character can
-// carry — an equipment row, a poison, or a trap template.
+// carry — an equipment row, a poison, a trap template, or an item from the
+// local custom or crafted libraries.
 func (s *server) carriedItemExists(slug string) (bool, error) {
+	var count int
+	switch {
+	case strings.HasPrefix(slug, "custom/"):
+		err := s.charDB.QueryRow(`SELECT COUNT(*) FROM custom_items WHERE slug = ?`, slug).Scan(&count)
+		return count > 0, err
+	case charstore.IsCraftedSlug(slug):
+		err := s.charDB.QueryRow(`SELECT COUNT(*) FROM crafted_items WHERE slug = ?`, slug).Scan(&count)
+		return count > 0, err
+	}
 	table := "equipment"
 	for _, source := range carriedItemKinds {
 		if strings.HasPrefix(slug, source.prefix) {
@@ -7932,7 +7999,6 @@ func (s *server) carriedItemExists(slug string) (bool, error) {
 			break
 		}
 	}
-	var count int
 	// The table name is chosen from this fixed set above, never taken from
 	// the request, so interpolating it carries no injection risk; the slug
 	// itself stays a bound parameter.

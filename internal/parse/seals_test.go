@@ -41,8 +41,8 @@ func TestParseEnhancementSealsFixture(t *testing.T) {
 		t.Errorf("Bane Seal = %+v", bane)
 	}
 	hunter := seals[2]
-	if hunter.Rank != "A" { // tier word wins over the C-RANK heading it's under
-		t.Errorf("Hunter Seal rank = %q, want A (from its SUPERIOR tier)", hunter.Rank)
+	if hunter.Rank != "C" || hunter.Tier != "Refined" { // a D/C/B heading wins over a misprinted tier word
+		t.Errorf("Hunter Seal = rank %q tier %q, want C / Refined (from its C-RANK heading)", hunter.Rank, hunter.Tier)
 	}
 	armorSeal := seals[3]
 	if armorSeal.AppliesTo != "armor" || armorSeal.Name != "Blackened Seal" {
@@ -56,7 +56,8 @@ func TestParseEnhancementSealsFixture(t *testing.T) {
 
 // Whole-book regression (verified 2026-07-18 against v3.11): 149 seals
 // (69 weapon, 80 armor), exactly one anomaly — the genuine Hunter Seal
-// tier/heading mismatch in the printed book.
+// tier/heading mismatch in the printed book, now read as two distinct
+// Hunter Seals (Refined, C-Rank and Superior, A-Rank).
 func TestParseEnhancementSealsFullCorebook(t *testing.T) {
 	lines := loadCoreBookLines(t)
 	if lines == nil {
@@ -78,5 +79,19 @@ func TestParseEnhancementSealsFullCorebook(t *testing.T) {
 	}
 	if len(anomalies) != 1 || !strings.Contains(anomalies[0].Problem, "SUPERIOR") {
 		t.Errorf("anomalies = %+v, want only the Hunter Seal mismatch", anomalies)
+	}
+	hunters := map[string]int{}
+	for _, s := range seals {
+		if s.Name == "Hunter Seal" {
+			hunters[s.Tier+"/"+s.Rank] = s.CostRyo
+		}
+	}
+	for _, s := range seals {
+		if strings.Contains(s.Description, "RANK SEALS") {
+			t.Errorf("%s (%s): section heading leaked into description", s.Name, s.Tier)
+		}
+	}
+	if hunters["Refined/C"] != 650 || hunters["Superior/A"] != 1800 || len(hunters) != 2 {
+		t.Errorf("Hunter Seals = %v, want Refined/C 650 and Superior/A 1800", hunters)
 	}
 }

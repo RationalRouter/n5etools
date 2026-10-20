@@ -1,0 +1,241 @@
+{{/* Seal Crafting editor: base item, quality, seals and crafter inputs in
+     one form, with the calculated results beside them. Elements marked
+     data-crafting-live depend on the choices; /crafting/calculate answers
+     crafting_live with fresh copies, swapped in by id (crafting.js). Call
+     with a craftingView. */}}
+{{define "content"}}
+{{with .Crafting}}
+<p><a href="/crafting">{{T "crafting.back"}}</a></p>
+<h1>{{if .ID}}{{.Name}}{{else}}{{T "crafting.new_title"}}{{end}}</h1>
+<p class="page-subtitle">{{T "crafting.subtitle"}}</p>
+{{if .Saved}}<p class="crafting-flash" role="status">{{T "crafting.saved"}}</p>{{end}}
+{{if .ID}}<p class="encounter-builder-hint">{{T "crafting.shared_hint"}}</p>{{end}}
+{{if .Archived}}<p class="encounter-builder-warning">{{T "crafting.archived_hint"}}</p>{{end}}
+
+<form id="crafting-form" method="post" action="{{if .ID}}/crafting/{{.ID}}/update{{else}}/crafting{{end}}"
+      class="encounter-builder crafting-editor" data-preview-url="/crafting/calculate">
+  <div class="encounter-builder-steps creation-form">
+    <section class="encounter-builder-step">
+      <h2>{{T "crafting.step_base"}}</h2>
+      <label for="crafting-name">{{T "crafting.name_label"}}</label>
+      <input type="text" id="crafting-name" name="name" value="{{.Name}}" maxlength="120" required>
+
+      <label for="crafting-base">{{T "crafting.base_label"}}</label>
+      <div class="creation-form-inline">
+        <select id="crafting-base" name="base_slug" class="sheet-option-tooltip-select" data-tooltip-for="crafting-base-tip">
+          <option value="" data-description="{{T "crafting.base_pick_hint"}}">{{T "crafting.choose"}}</option>
+          <optgroup label="{{T "crafting.kind.weapon"}}">
+            {{range .WeaponOptions}}<option value="{{.Value}}" data-description="{{.Description}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+          </optgroup>
+          <optgroup label="{{T "crafting.kind.armor"}}">
+            {{range .ArmorOptions}}<option value="{{.Value}}" data-description="{{.Description}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+          </optgroup>
+        </select>
+        <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+          <span class="tooltip-trigger">ⓘ</span>
+          <span class="tooltip-content" id="crafting-base-tip">{{.BaseDescription}}</span>
+        </span>
+      </div>
+
+      {{template "crafting_select" (dict "ID" "crafting-quality" "Name" "quality" "Label" (T "crafting.quality_label") "Options" .QualityOptions)}}
+
+      <label for="crafting-notes">{{T "crafting.notes_label"}}</label>
+      <textarea id="crafting-notes" name="notes" maxlength="2000">{{.Notes}}</textarea>
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "crafting.step_seals"}}</h2>
+      <p class="encounter-builder-hint">{{T "crafting.seals_hint"}}</p>
+      {{template "crafting_seals" .}}
+    </section>
+
+    <section class="encounter-builder-step">
+      <h2>{{T "crafting.step_crafter"}}</h2>
+      <p class="encounter-builder-hint">{{T "crafting.crafter_hint"}}</p>
+      <fieldset class="crafting-fieldset">
+        <legend>{{T "crafting.source_label"}}</legend>
+        {{range .BaseSources}}
+        <label class="tooltip crafting-inline" tabindex="0">
+          <input type="radio" name="base_source" value="{{.Value}}"{{if .Checked}} checked{{end}}>
+          <span class="tooltip-trigger">{{.Name}}</span>
+          <span class="tooltip-content">{{.Description}}</span>
+        </label>
+        {{end}}
+      </fieldset>
+      <label class="tooltip crafting-inline" tabindex="0">
+        <input type="checkbox" name="hire_sealsmith" value="1"{{if .Crafting.HireSealsmith}} checked{{end}}>
+        <span class="tooltip-trigger">{{T "crafting.hire_sealsmith"}}</span>
+        <span class="tooltip-content">{{T "crafting.hire_sealsmith_tip"}}</span>
+      </label>
+      {{template "crafting_select" (dict "ID" "crafting-kit" "Name" "kit_tier" "Label" (T "crafting.kit_label") "Options" .KitOptions)}}
+      <div class="encounter-builder-adjust-grid crafting-numbers">
+        <label>{{T "crafting.participants"}} <input type="number" name="participants" min="1" max="20" value="{{.Crafting.Participants}}"></label>
+        <label>{{T "crafting.masters"}} <input type="number" name="masters" min="0" max="20" value="{{.Crafting.Masters}}"></label>
+        <label>{{T "crafting.crafter_level"}} <input type="number" name="crafter_level" min="1" max="20" value="{{.Crafting.CrafterLevel}}"></label>
+      </div>
+      <div class="crafting-checks">
+        <label class="crafting-inline"><input type="checkbox" name="proficient" value="1"{{if .Crafting.Proficient}} checked{{end}}> {{T "crafting.proficient"}}</label>
+        <label class="crafting-inline"><input type="checkbox" name="has_forge" value="1"{{if .Crafting.HasForge}} checked{{end}}> {{T "crafting.has_forge"}}</label>
+        <label class="crafting-inline"><input type="checkbox" name="has_seal_forge" value="1"{{if .Crafting.HasSealForge}} checked{{end}}> {{T "crafting.has_seal_forge"}}</label>
+      </div>
+    </section>
+  </div>
+
+  <aside class="encounter-builder-aside">
+    {{template "crafting_result" .}}
+    <div class="encounter-builder-actions crafting-actions">
+      <button type="submit">{{if .ID}}{{T "crafting.save_changes"}}{{else}}{{T "crafting.save"}}{{end}}</button>
+      <a href="/crafting">{{T "crafting.cancel"}}</a>
+    </div>
+  </aside>
+</form>
+
+{{if .ID}}
+<div class="crafting-item-actions">
+  <a href="/items/{{.Slug}}">{{T "crafting.view_item"}}</a>
+  <form method="post" action="/crafting/{{.ID}}/duplicate"><button type="submit">{{T "crafting.duplicate"}}</button></form>
+  {{if .Archived}}
+  <form method="post" action="/crafting/{{.ID}}/restore"><button type="submit">{{T "crafting.restore"}}</button></form>
+  {{else}}
+  <form method="post" action="/crafting/{{.ID}}/archive"><button type="submit">{{T "crafting.archive"}}</button></form>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}
+
+{{/* A select whose chosen option's description shows in its ⓘ tooltip
+     (sheet-option-tooltip.js, via data-tooltip-for). */}}
+{{define "crafting_select"}}
+<label for="{{.ID}}">{{.Label}}</label>
+<div class="creation-form-inline">
+  <select id="{{.ID}}" name="{{.Name}}" class="sheet-option-tooltip-select" data-tooltip-for="{{.ID}}-tip">
+    {{range .Options}}
+    <option value="{{.Value}}" data-description="{{.Description}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+    <span class="tooltip-trigger">ⓘ</span>
+    <span class="tooltip-content" id="{{.ID}}-tip">{{.Options.Current}}</span>
+  </span>
+</div>
+{{end}}
+
+{{define "crafting_live"}}
+{{template "crafting_seals" .}}
+{{template "crafting_result" .}}
+{{end}}
+
+{{define "crafting_seals"}}
+<div id="crafting-seals" data-crafting-live>
+  {{if not .HasBase}}
+  <p class="encounter-builder-hint">{{T "crafting.seals_need_base"}}</p>
+  {{else}}
+  <p class="encounter-builder-hint">{{T "crafting.slots_count" .Result.SlotsUsed .Result.SlotsAvailable}}</p>
+  {{end}}
+  {{if .Outside}}
+  <p class="encounter-builder-warning">{{T "crafting.seals_outside"}}</p>
+  <ul class="crafting-seal-list">
+    {{range .Outside}}{{template "crafting_seal" .}}{{end}}
+  </ul>
+  {{end}}
+  {{range .SealGroups}}
+  <details class="encounter-builder-trait-group" id="crafting-rank-{{.Rank}}" open>
+    <summary>{{T "crafting.rank_group" .Rank}} ({{.Checked}} / {{len .Seals}})</summary>
+    {{if .Seals}}
+    <ul class="crafting-seal-list">
+      {{range .Seals}}{{template "crafting_seal" .}}{{end}}
+    </ul>
+    {{else}}
+    <p class="encounter-builder-hint">{{T "crafting.rank_group_empty"}}</p>
+    {{end}}
+  </details>
+  {{end}}
+</div>
+{{end}}
+
+{{define "crafting_seal"}}
+<li class="crafting-seal{{if .Checked}} is-checked{{end}}{{if .Blocked}} is-blocked{{end}}">
+  <label class="tooltip" tabindex="0">
+    <input type="checkbox" id="crafting-seal-{{.Slug}}" name="seal" value="{{.Slug}}"{{if .Checked}} checked{{end}}{{if .Blocked}} disabled{{end}}>
+    <span class="tooltip-trigger">{{.Name}}</span>
+    <span class="tooltip-content">{{.Description}}</span>
+  </label>
+  <span class="crafting-seal-meta">{{T "crafting.seal_meta" .Slots (comma .CostRyo)}}{{if .Blocked}} · {{.BlockedReason}}{{end}}</span>
+  {{with .Choice}}{{template "crafting_choice" .}}{{end}}
+</li>
+{{end}}
+
+{{define "crafting_choice"}}
+{{$field := .Field}}
+<div class="crafting-choice{{if .Invalid}} is-invalid{{end}}">
+  {{if .Multi}}
+  <span class="encounter-builder-hint">{{T "crafting.choose_n" .Count}}</span>
+  <div class="crafting-choice-checks">
+    {{range .Checks}}
+    <label class="crafting-inline"><input type="checkbox" name="{{$field}}" value="{{.Value}}"{{if .Checked}} checked{{end}}> {{.Name}}</label>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="creation-form-inline">
+    <select id="crafting-choice-{{$field}}" name="{{$field}}" class="sheet-option-tooltip-select" data-tooltip-for="crafting-choice-{{$field}}-tip" aria-label="{{T "crafting.choose"}}">
+      {{range .Select}}
+      <option value="{{.Value}}" data-description="{{.Description}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select>
+    <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+      <span class="tooltip-trigger">ⓘ</span>
+      <span class="tooltip-content" id="crafting-choice-{{$field}}-tip">{{.Select.Current}}</span>
+    </span>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "crafting_result"}}
+{{with .Result}}
+<div id="crafting-result" class="encounter-builder-stats crafting-result" data-crafting-live>
+  <h2>{{T "crafting.result_title"}}</h2>
+  {{if .Errors}}
+  <ul class="crafting-messages crafting-errors">
+    {{range .Errors}}<li>{{.}}</li>{{end}}
+  </ul>
+  {{end}}
+  <dl class="crafting-stats">
+    <dt>{{T "crafting.result_quality"}}</dt><dd>{{.QualityName}}</dd>
+    <dt>{{T "crafting.result_slots"}}</dt><dd>{{.SlotsUsed}} / {{.SlotsAvailable}}</dd>
+    <dt>{{T "crafting.result_rank"}}</dt><dd>{{if .Rank}}{{.Rank}}{{else}}{{T "crafting.result_unranked"}}{{end}}</dd>
+    <dt>{{T "crafting.result_min_level"}}</dt><dd>{{.MinLevel}}</dd>
+    {{if .CraftsSeals}}<dt>{{T "crafting.result_dc"}}</dt><dd>{{.CraftDC}}{{if .KitCheckBonus}} <span class="encounter-builder-hint">{{T "crafting.result_kit_bonus"}}</span>{{end}}</dd>{{end}}
+    <dt>{{T "crafting.result_market_value"}}</dt><dd>{{T "crafting.ryo" (comma .MarketValue)}}</dd>
+  </dl>
+
+  <h3>{{T "crafting.result_cost"}}</h3>
+  <dl class="crafting-stats">
+    <dt>{{T "crafting.result_base_cost" .BaseSource}}</dt><dd>{{T "crafting.ryo" (comma .BaseCost)}}</dd>
+    {{if .Seals}}
+    <dt>{{if .Crafting.HireSealsmith}}{{T "crafting.result_seal_hired"}}{{else}}{{T "crafting.result_seal_materials"}}{{end}}</dt><dd>{{T "crafting.ryo" (comma .SealCost)}}</dd>
+    {{end}}
+    <dt><strong>{{T "crafting.result_total"}}</strong></dt><dd><strong>{{T "crafting.ryo" (comma .TotalCost)}}</strong></dd>
+  </dl>
+
+  <h3>{{T "crafting.result_downtime"}}</h3>
+  <dl class="crafting-stats">
+    {{if .CraftsBase}}<dt>{{T "crafting.result_base_downtime"}}</dt><dd>{{T "crafting.weeks" .BaseDowntime}}</dd>{{end}}
+    {{if .CraftsSeals}}
+    <dt>{{T "crafting.result_prep"}}</dt><dd>{{T "crafting.weeks" .SealPrepDowntime}}</dd>
+    <dt>{{T "crafting.result_seal_work"}}</dt><dd>{{T "crafting.weeks" .SealWeeksPerCrafter}}{{if gt .Crafting.Participants 1}} <span class="encounter-builder-hint">{{T "crafting.result_split" .SealWeeks .Crafting.Participants}}</span>{{end}}</dd>
+    {{end}}
+    {{if and .Seals .Crafting.HireSealsmith}}<dt>{{T "crafting.result_seal_work"}}</dt><dd>{{T "crafting.result_immediate"}}</dd>{{end}}
+    <dt><strong>{{T "crafting.result_total"}}</strong></dt><dd><strong>{{T "crafting.weeks" .TotalDowntime}}</strong></dd>
+    {{if .CraftsSeals}}<dt>{{T "crafting.result_failure"}}</dt><dd>{{T "crafting.weeks" .FailureDowntime}}</dd>{{end}}
+  </dl>
+
+  {{if .Warnings}}
+  <ul class="crafting-messages crafting-warnings">
+    {{range .Warnings}}<li>{{.}}</li>{{end}}
+  </ul>
+  {{end}}
+</div>
+{{end}}
+{{end}}

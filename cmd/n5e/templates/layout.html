@@ -11,9 +11,9 @@
 <body>
   <nav class="nav">
     <a class="nav-brand" href="/">N5etools</a>
-    {{/* Plain visual dividers between the brand/Backups/the two dropdown
+    {{/* Plain visual dividers between the brand/Backups/the dropdown
          menus -- provisional per the request that added them; if dropped
-         later, removing these three spans and the .nav-divider CSS rule is
+         later, removing these spans and the .nav-divider CSS rule is
          the whole change. */}}
     <span class="nav-divider" aria-hidden="true">|</span>
     <a href="/backups">{{T "nav.backups"}}</a>
@@ -40,6 +40,13 @@
       <button type="button" class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "nav.dungeon_master_tools"}}</button>
       <div class="nav-dropdown-panel">
         <a href="/encounters">{{T "nav.encounters"}}</a>
+      </div>
+    </div>
+    <span class="nav-divider" aria-hidden="true">|</span>
+    <div class="nav-dropdown" id="nav-dropdown-tools">
+      <button type="button" class="nav-dropdown-toggle" aria-expanded="false" aria-haspopup="true">{{T "nav.tools"}}</button>
+      <div class="nav-dropdown-panel">
+        <a href="/crafting">{{T "nav.seal_crafting"}}</a>
       </div>
     </div>
     <div class="nav-spacer"></div>
@@ -133,6 +140,7 @@
        window.n5eEquipmentSubfilters as it initialises. */}}
   <script src="/static/js/encounters.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/encounter-builder.js?v={{assetVersion}}" defer></script>
+  <script src="/static/js/crafting.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/equipment-subfilter.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/items-filter.js?v={{assetVersion}}" defer></script>
   <script src="/static/js/jutsu-filter.js?v={{assetVersion}}" defer></script>

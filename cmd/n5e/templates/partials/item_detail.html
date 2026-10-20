@@ -49,6 +49,74 @@
 {{formatDescription .BaseDescription}}
 {{end}}
 
+{{/* A crafted item (the Seal Crafting library, charstore.CraftedItem):
+     the fact list above is its base item's, renamed and repriced; this
+     block adds the quality, rank and seals, and adds a copy to a
+     character's inventory, optionally paid from their Ryo. */}}
+{{with .Crafted}}
+<section class="crafted-item">
+  {{if .AddedTo}}<p class="crafting-flash" role="status">{{T "crafting.given" .AddedTo}}<br><a href="/characters/{{.AddedToID}}#tab-inventory">{{T "crafting.go_to_inventory"}}</a></p>{{end}}
+  {{if .ShortOf}}<p class="encounter-builder-warning" role="alert">{{T "crafting.not_enough_ryo" .ShortOf}}</p>{{end}}
+  <dl class="fact-list fact-list-tight">
+    <div class="fact-row"><dt>{{T "crafting.result_quality"}}</dt><dd>{{.QualityName}}</dd></div>
+    <div class="fact-row"><dt>{{T "crafting.result_rank"}}</dt><dd>{{if .Rank}}{{.Rank}}{{else}}{{T "crafting.result_unranked"}}{{end}}</dd></div>
+    <div class="fact-row"><dt>{{T "crafting.result_min_level"}}</dt><dd>{{.MinLevel}}</dd></div>
+    <div class="fact-row"><dt>{{T "crafting.result_slots"}}</dt><dd>{{.SlotsUsed}} / {{.SlotsAvailable}}</dd></div>
+    <div class="fact-row"><dt>{{T "crafting.col_cost"}}</dt><dd>{{T "crafting.ryo" (comma .TotalCost)}}</dd></div>
+  </dl>
+  {{if gt .MinLevel 1}}<p class="section-hint crafted-item-hint">{{T "crafting.level_rule" .MinLevel}}</p>{{end}}
+  {{if .Errors}}<ul class="crafting-messages crafting-errors">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>{{end}}
+  {{if .Seals}}
+  <h3 class="item-base-heading">{{T "crafting.col_seals"}}</h3>
+  <ul class="crafted-item-seals">
+    {{range .Seals}}
+    <li>
+      <strong>{{.Name}}</strong> ({{.Rank}}){{if .Chosen}}: {{range $i, $c := .Chosen}}{{if $i}}, {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Name}}</a>{{else}}{{$c.Name}}{{end}}{{end}}{{end}}
+      <p>{{.Description}}</p>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+  <div class="crafting-item-actions">
+    <a href="/crafting/{{.ID}}">{{T "crafting.edit_in_planner"}}</a>
+  </div>
+  {{if .Characters}}
+  <form method="post" action="/crafting/{{.ID}}/give" class="creation-form crafted-item-give">
+    <h3 class="item-base-heading">{{T "crafting.give_title"}}</h3>
+    <label for="crafted-give-character">{{T "crafting.give_character"}}</label>
+    <div class="crafting-inline">
+      <select id="crafted-give-character" name="character_id" required class="sheet-option-tooltip-select" data-tooltip-for="crafted-give-character-tip">
+        {{range .Characters}}<option value="{{.ID}}" data-description="{{T "crafting.give_character_tip" .Name (comma .Ryo)}}">{{.Name}} — {{T "crafting.ryo" (comma .Ryo)}}</option>{{end}}
+      </select>
+      <span class="tooltip sheet-info-tooltip sheet-option-tooltip-box" tabindex="0">
+        <span class="tooltip-trigger">ⓘ</span>
+        <span class="tooltip-content" id="crafted-give-character-tip">{{with index .Characters 0}}{{T "crafting.give_character_tip" .Name (comma .Ryo)}}{{end}}</span>
+      </span>
+    </div>
+    <fieldset class="crafting-fieldset">
+      <legend>{{T "crafting.give_pay"}}</legend>
+      <label class="tooltip crafting-inline" tabindex="0">
+        <input type="radio" name="pay" value="" checked>
+        <span class="tooltip-trigger">{{T "crafting.give_pay_none"}}</span>
+        <span class="tooltip-content">{{T "crafting.give_pay_none_tip"}}</span>
+      </label>
+      <label class="tooltip crafting-inline" tabindex="0">
+        <input type="radio" name="pay" value="cost">
+        <span class="tooltip-trigger">{{T "crafting.give_pay_cost" (comma .TotalCost)}}</span>
+        <span class="tooltip-content">{{T "crafting.give_pay_cost_tip"}}</span>
+      </label>
+      <label class="tooltip crafting-inline" tabindex="0">
+        <input type="radio" name="pay" value="value">
+        <span class="tooltip-trigger">{{T "crafting.give_pay_value" (comma .MarketValue)}}</span>
+        <span class="tooltip-content">{{T "crafting.give_pay_value_tip"}}</span>
+      </label>
+    </fieldset>
+    <button type="submit">{{T "crafting.give_submit"}}</button>
+  </form>
+  {{end}}
+</section>
+{{end}}
+
 {{/* Custom items (the local item library, custom_items — see
      charstore.CustomItem) get an inline edit form right on their detail
      page instead of a separate creation-form reopen (the bug this

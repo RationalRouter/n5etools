@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"sort"
 	"strings"
+
+	"github.com/RationalRouter/n5e/internal/charstore"
+	"github.com/RationalRouter/n5e/internal/crafting"
 )
 
 // The reference libraries embedded in the character sheet's own tabs.
@@ -226,7 +229,80 @@ func (s *server) loadSheetItemLibrary(owned map[string]bool) ([]libraryGroup, er
 	for _, label := range extra {
 		groups = append(groups, libraryGroup{Label: label, Entries: byKind[label]})
 	}
+
+	// The two local libraries in characters.db come last: active Seal
+	// Crafting items, then custom items.
+	crafted, err := s.craftedLibraryEntries(owned)
+	if err != nil {
+		return nil, err
+	}
+	if len(crafted) > 0 {
+		groups = append(groups, libraryGroup{Label: "Crafted", Entries: crafted})
+	}
+	customRows, err := s.charDB.Query(`
+		SELECT slug, name, kind, bulk, COALESCE(description, '') FROM custom_items ORDER BY name COLLATE NOCASE, id`)
+	if err != nil {
+		return nil, err
+	}
+	var custom []libraryEntry
+	for customRows.Next() {
+		var slug, name, kind, description string
+		var bulk sql.NullFloat64
+		if err := customRows.Scan(&slug, &name, &kind, &bulk, &description); err != nil {
+			customRows.Close()
+			return nil, err
+		}
+		meta := kind
+		if b := itemMetaLabel(sql.NullFloat64{}, bulk); b != "" {
+			if meta != "" {
+				meta += " · "
+			}
+			meta += b
+		}
+		custom = append(custom, libraryEntry{
+			Slug: slug, Name: name, Kind: "Custom", Meta: meta,
+			Search: description, Owned: owned[slug], Href: "/items/" + slug,
+		})
+	}
+	customRows.Close()
+	if err := customRows.Err(); err != nil {
+		return nil, err
+	}
+	if len(custom) > 0 {
+		groups = append(groups, libraryGroup{Label: "Custom", Entries: custom})
+	}
 	return groups, nil
+}
+
+// craftedLibraryEntries lists the Seal Crafting library's active items for
+// the Inventory pane, priced at their market value. Archived items are
+// left out but stay valid wherever they are already carried.
+func (s *server) craftedLibraryEntries(owned map[string]bool) ([]libraryEntry, error) {
+	items, err := charstore.ListCraftedItems(s.charDB, false)
+	if err != nil || len(items) == 0 {
+		return nil, err
+	}
+	c, err := crafting.LoadCatalog(s.rulesDB, "")
+	if err != nil {
+		return nil, err
+	}
+	var out []libraryEntry
+	for _, it := range items {
+		res := crafting.Calculate(c, it.Recipe)
+		var bulk sql.NullFloat64
+		if err := s.rulesDB.QueryRow(`SELECT bulk FROM equipment WHERE slug = ?`, it.Recipe.BaseSlug).Scan(&bulk); err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+		meta := itemMetaLabel(sql.NullFloat64{Float64: res.MarketValue, Valid: true}, bulk)
+		if res.Rank != "" {
+			meta = res.Rank + "-Rank · " + meta
+		}
+		out = append(out, libraryEntry{
+			Slug: it.Slug, Name: it.Recipe.Name, Kind: "Crafted", Meta: meta,
+			Search: res.Base.Name + " " + it.Notes, Owned: owned[it.Slug], Href: "/items/" + it.Slug,
+		})
+	}
+	return out, nil
 }
 
 // itemMetaLabel renders the one-line "cost · bulk" summary shown on a library

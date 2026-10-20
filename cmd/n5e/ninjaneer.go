@@ -129,12 +129,16 @@ func (s *server) loadNinjaneerCandidateWeapons(characterID int64, locale string)
 			if item.Kind != "weapon" {
 				continue
 			}
+			mechSlug, err := charstore.ResolveMechanicalSlug(s.charDB, item.Slug)
+			if err != nil {
+				return nil, err
+			}
 			var d sql.NullString
-			if err := s.rulesDB.QueryRow(`SELECT description FROM equipment WHERE slug = ?`, item.Slug).Scan(&d); err != nil && err != sql.ErrNoRows {
+			if err := s.rulesDB.QueryRow(`SELECT description FROM equipment WHERE slug = ?`, mechSlug).Scan(&d); err != nil && err != sql.ErrNoRows {
 				return nil, err
 			}
 			description = d.String
-			if tr, err := i18n.Row(s.rulesDB, locale, "equipment", item.Slug); err == nil {
+			if tr, err := i18n.Row(s.rulesDB, locale, "equipment", mechSlug); err == nil {
 				if v, ok := tr["description"]; ok {
 					description = v
 				}
@@ -172,8 +176,12 @@ func (s *server) ninjaneerCandidateFinesse(characterID, inventoryID int64) (bool
 		}
 		properties = ci.Properties
 	} else {
+		mechSlug, err := charstore.ResolveMechanicalSlug(s.charDB, itemSlug)
+		if err != nil {
+			return false, err
+		}
 		var p sql.NullString
-		if err := s.rulesDB.QueryRow(`SELECT properties FROM equipment WHERE slug = ?`, itemSlug).Scan(&p); err != nil {
+		if err := s.rulesDB.QueryRow(`SELECT properties FROM equipment WHERE slug = ?`, mechSlug).Scan(&p); err != nil {
 			if err == sql.ErrNoRows {
 				return false, nil
 			}

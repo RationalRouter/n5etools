@@ -1,0 +1,60 @@
+{{/* Seal Crafting library: every saved crafted item, active or archived.
+     Call with Items ([]craftingListRow) and Archived. */}}
+{{define "content"}}
+<h1>{{T "crafting.title"}}</h1>
+<p class="page-subtitle">{{T "crafting.list_subtitle"}}</p>
+
+<div class="crafting-list-actions">
+  <a class="btn-primary" href="/crafting/new">{{T "crafting.new_button"}}</a>
+  {{if .Archived}}
+  <a href="/crafting">{{T "crafting.show_active"}}</a>
+  {{else}}
+  <a href="/crafting?archived=1">{{T "crafting.show_archived"}}</a>
+  {{end}}
+</div>
+
+{{if .Items}}
+<div class="table-scroll">
+<table class="data-table crafting-list">
+  <thead>
+    <tr>
+      <th>{{T "crafting.col_name"}}</th>
+      <th>{{T "crafting.col_base"}}</th>
+      <th>{{T "crafting.col_quality"}}</th>
+      <th>{{T "crafting.col_seals"}}</th>
+      <th>{{T "crafting.col_rank"}}</th>
+      <th>{{T "crafting.col_level"}}</th>
+      <th>{{T "crafting.col_value"}}</th>
+      <th>{{T "crafting.col_cost"}}</th>
+      <th>{{T "crafting.col_actions"}}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Items}}
+    <tr>
+      <td><a href="/items/{{.Slug}}">{{.Name}}</a>{{if not .Valid}} <span class="encounter-builder-warning">{{T "crafting.list_invalid"}}</span>{{end}}</td>
+      <td>{{.BaseName}}</td>
+      <td>{{.QualityName}}</td>
+      <td>{{.SealCount}}</td>
+      <td>{{if .Rank}}{{.Rank}}{{else}}{{T "crafting.result_unranked"}}{{end}}</td>
+      <td>{{.MinLevel}}</td>
+      <td>{{T "crafting.ryo" (comma .MarketValue)}}</td>
+      <td>{{T "crafting.ryo" (comma .TotalCost)}}</td>
+      <td class="crafting-row-actions">
+        <a href="/crafting/{{.ID}}">{{T "crafting.edit"}}</a>
+        <form method="post" action="/crafting/{{.ID}}/duplicate"><button type="submit">{{T "crafting.duplicate"}}</button></form>
+        {{if $.Archived}}
+        <form method="post" action="/crafting/{{.ID}}/restore"><button type="submit">{{T "crafting.restore"}}</button></form>
+        {{else}}
+        <form method="post" action="/crafting/{{.ID}}/archive"><button type="submit">{{T "crafting.archive"}}</button></form>
+        {{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="encounter-builder-hint">{{if .Archived}}{{T "crafting.list_empty_archived"}}{{else}}{{T "crafting.list_empty"}}{{end}}</p>
+{{end}}
+{{end}}

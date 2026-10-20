@@ -49,6 +49,16 @@
     btn.addEventListener("click", () => show(btn.dataset.tab, true));
   });
 
+  // A link to "/characters/{id}#tab-<name>" (e.g. Seal Crafting's "Go to
+  // inventory") opens that tab and remembers it. The fragment is then
+  // dropped from the URL so a later reload restores whichever tab the
+  // player has moved to since, not this one.
+  const linked = /^#tab-([\w-]+)$/.exec(window.location.hash);
+  if (linked && show(linked[1], true)) {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    return;
+  }
+
   let saved = null;
   try {
     saved = sessionStorage.getItem(storageKey);

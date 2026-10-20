@@ -25,6 +25,7 @@ import (
 	"github.com/RationalRouter/n5e/internal/charstore"
 	"github.com/RationalRouter/n5e/internal/features"
 	"github.com/RationalRouter/n5e/internal/puppetupgrades"
+	"github.com/RationalRouter/n5e/internal/sealeffects"
 )
 
 // Abilities lists the six abilities in the canonical order used
@@ -1165,6 +1166,13 @@ type Sheet struct {
 	// flying; neither has a numeric value to track, so only the speed
 	// itself is modeled here.
 	FlySpeed int
+	// ClimbSpeed and SwimSpeed are 0 unless an equipped crafted armor's
+	// Mobility Seal grants them, equal to the final Speed.
+	ClimbSpeed, SwimSpeed int
+	// Seals is the equipped crafted items' enhancement seals
+	// (internal/sealeffects): the auto effects already folded into the
+	// numbers above, and each item's level gate for the sheet's badge.
+	Seals *sealeffects.Totals
 	// PuppetUpgradeSources names any Puppet Upgrade that raised this
 	// character's own Speed or Max HP (see internal/puppetupgrades), so a
 	// number that differs from the clan/class default can say why.
@@ -1556,12 +1564,17 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// the only class-specific override of that rule, so it's applied
 	// directly against classLevels rather than through a curated grant
 	// table shaped for something reusable across classes.
+	sheet.Seals, err = sealeffects.Load(rulesDB, charDB, characterID, sheet.Level)
+	if err != nil {
+		return nil, err
+	}
 	yhprumsLaw := classLevels[scienceNinClassSlug] >= 7
 	skillCheckBonus := features.ResolveSkillCheckBonus(jackOfAllGate(scoutNinSkillFeatureSlug), sheet.Level)
 	for name, ability := range SkillAbility {
-		proficient := profSkills[name]
+		proficient := profSkills[name] || sheet.Seals.Skill == name
 		rank := masteryRanks[name]
 		modifier := CheckModifier(sheet.Abilities[ability].Modifier, sheet.ProficiencyBonus, proficient) + MasteryBonus(rank)
+		modifier += sheet.Seals.Checks[ability]
 		if yhprumsLaw && !proficient {
 			modifier += sheet.ProficiencyBonus / 2
 		}
@@ -1678,7 +1691,7 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 		if !proficient && nonProficientSaveBonusAbility != "" {
 			modifier += sheet.Abilities[nonProficientSaveBonusAbility].Modifier
 		}
-		modifier += mobilitySaveBonus
+		modifier += mobilitySaveBonus + sheet.Seals.Saves[ab]
 		sheet.Saves = append(sheet.Saves, SaveEntry{
 			Ability: ab, Proficient: proficient, MasteryRank: masteryRank,
 			Modifier: modifier,
@@ -1790,6 +1803,9 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			modifier += bukijutsuFocusBonus
 		}
 		modifier += sheet.JackOfAllCombatBonus
+		// Martial/Ninshou/Illusory Seals: "+N bonus to their <kind>
+		// Attack", attack rolls only.
+		modifier += sheet.Seals.JutsuAttackBonus(k.Kind)
 		// bukijutsuFocusBonus and JackOfAllCombatBonus are both documented
 		// (their own doc comments above) as Attack & Damage bonuses only —
 		// Weapon Focus's own text never mentions Save DC, and Combat's own
@@ -1900,6 +1916,8 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	if eipActiveBenefit(scienceNinKnownEIPs, scienceNinPermaPerk, sheet.ExoskeletonDonned, elementalInnovationistStaminaEIPSlug) {
 		sheet.Speed += 5
 	}
+	// Swift Seal: "+10/+20 to their movement speed".
+	sheet.Speed += sheet.Seals.Speed
 	// A player can pin their own Speed (part 10's "make Speed editable like
 	// Ryo" ask) the same way Max HP/Max Chakra can be pinned — an explicit
 	// override always wins over the clan default AND any feature bonus
@@ -1913,6 +1931,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 	// so a player who later pins Speed sees FlySpeed follow it too.
 	if skyKeeperGranted {
 		sheet.FlySpeed = sheet.Speed
+	}
+	// Mobility Seal: "a climbing and swimming speed equal to its wearers
+	// movement speed", read after the pin for the same reason.
+	if sheet.Seals.ClimbSwim {
+		sheet.ClimbSpeed, sheet.SwimSpeed = sheet.Speed, sheet.Speed
 	}
 
 	// character_level_gains.hp_gain/chakra_gain store the RAW hit-die/
@@ -2089,6 +2112,11 @@ func Compute(rulesDB, charDB *sql.DB, characterID int64) (*Sheet, error) {
 			v := *sheet.AC + bonus
 			sheet.AC = &v
 		}
+	}
+	// Elemental/Medical Seal (Greater/Mastercraft) on worn armor: +1/+2 AC.
+	if sheet.AC != nil && sheet.Seals.AC != 0 {
+		v := *sheet.AC + sheet.Seals.AC
+		sheet.AC = &v
 	}
 	if v, ok := overrideInt(overrides, "ac"); ok {
 		sheet.AC = &v
@@ -2320,6 +2348,16 @@ func loadMasteryRanks(charDB *sql.DB, characterID int64) (map[string]int, error)
 	return out, rows.Err()
 }
 
+// equippedMechanicalSlugsQuery lists a character's equipped item slugs as
+// the rules.db equipment slugs their mechanics come from: a crafted item
+// (crafted_items, characters migration 0095) plays as its base weapon or
+// armor, the same mapping charstore.ResolveMechanicalSlug does.
+const equippedMechanicalSlugsQuery = `
+		SELECT COALESCE(c.base_slug, i.item_slug) FROM character_inventory i
+		LEFT JOIN crafted_items c ON c.slug = i.item_slug
+		WHERE i.character_id = ? AND i.equipped = 1 AND i.item_slug IS NOT NULL
+		ORDER BY i.id`
+
 // equippedArmorCategory reports the character's currently equipped armor's
 // armor_category ("light", "medium", "heavy"), or "" for no armor equipped
 // (or armor with no recorded category) — the same "" the book's own "not
@@ -2330,9 +2368,7 @@ func loadMasteryRanks(charDB *sql.DB, characterID int64) (map[string]int, error)
 // computeEquippedAC's own signature (scores in, AC out) has no room for a
 // second return value without every existing caller changing.
 func equippedArmorCategory(rulesDB, charDB *sql.DB, characterID int64) (string, error) {
-	rows, err := charDB.Query(`
-		SELECT item_slug FROM character_inventory
-		WHERE character_id = ? AND equipped = 1 AND item_slug IS NOT NULL`, characterID)
+	rows, err := charDB.Query(equippedMechanicalSlugsQuery, characterID)
 	if err != nil {
 		return "", err
 	}
@@ -2495,9 +2531,7 @@ func computeEquippedAC(rulesDB, charDB *sql.DB, characterID int64, scores map[st
 	// took a single row with LIMIT 1 and gave up if it wasn't armor, so a
 	// character wearing a flak jacket and holding a kunai got an AC that
 	// depended on insertion order.
-	rows, err := charDB.Query(`
-		SELECT item_slug FROM character_inventory
-		WHERE character_id = ? AND equipped = 1 AND item_slug IS NOT NULL`, characterID)
+	rows, err := charDB.Query(equippedMechanicalSlugsQuery, characterID)
 	if err != nil {
 		return nil, err
 	}

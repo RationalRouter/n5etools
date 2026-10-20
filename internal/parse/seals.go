@@ -11,10 +11,13 @@
 //	  ...
 //
 // The tier word on each seal ("MINOR"/"REFINED"/"GREATER"/"SUPERIOR"/
-// "MASTERCRAFT") is the reliable rank signal — MASTERCRAFT entries print
-// under the "A-RANK SEALS" heading (the book has no S-RANK heading) but are
-// genuinely a step above SUPERIOR, so rank is derived from the tier word,
-// not the section heading; a mismatch between the two is flagged.
+// "MASTERCRAFT") normally sets the rank. Both sections print D- through
+// S-RANK SEALS headings; an unrecognized S heading would be swallowed into
+// the preceding seal's description. On a tier/heading mismatch under a
+// D/C/B heading the heading wins: the book's one mismatch is a C-Rank Hunter
+// Seal misprinted "(SUPERIOR)" (650 Ryo, no Ōtsutsuki — the real A-Rank Hunter
+// Seal follows later at 1800 Ryo), and trusting the tier word gave both the
+// same slug. A mismatch is still reported as an anomaly.
 package parse
 
 import (
@@ -36,13 +39,19 @@ type EnhancementSeal struct {
 
 var (
 	sealNameRe = regexp.MustCompile(`^(.+) \((MINOR|REFINED|GREATER|SUPERIOR|MASTERCRAFT)\)$`)
-	rankHeadRe = regexp.MustCompile(`^([DCBA])-RANK SEALS$`)
+	rankHeadRe = regexp.MustCompile(`^([DCBAS])-RANK SEALS$`)
 )
 
 // tierRank is the tier→rank mapping the book's own naming implies; used both
 // to fill Rank and to cross-check against the section heading.
 var tierRank = map[string]string{
 	"MINOR": "D", "REFINED": "C", "GREATER": "B", "SUPERIOR": "A", "MASTERCRAFT": "S",
+}
+
+// rankTier is tierRank inverted, for reading a misprinted tier word off its
+// D/C/B section heading instead.
+var rankTier = map[string]string{
+	"D": "MINOR", "C": "REFINED", "B": "GREATER", "A": "SUPERIOR", "S": "MASTERCRAFT",
 }
 
 // ParseEnhancementSeals scans the whole core-book line stream for the two
@@ -111,13 +120,18 @@ func ParseEnhancementSeals(lines []Line) ([]EnhancementSeal, []Anomaly) {
 		}
 		if m := sealNameRe.FindStringSubmatch(text); m != nil && capsLineRe.MatchString(text) {
 			flush()
-			rank := tierRank[m[2]]
+			tier := m[2]
+			rank := tierRank[tier]
 			if rankHeading != "" && rank != "S" && rank != rankHeading {
-				anomalies = append(anomalies, Anomaly{Page: ln.Page, Subject: tidyName(m[1]),
-					Problem: "tier " + m[2] + " (rank " + rank + ") printed under " + rankHeading + "-RANK SEALS heading"})
+				problem := "tier " + tier + " (rank " + rank + ") printed under " + rankHeading + "-RANK SEALS heading"
+				if rankHeading != "A" {
+					tier, rank = rankTier[rankHeading], rankHeading
+					problem += "; heading wins, read as " + tier
+				}
+				anomalies = append(anomalies, Anomaly{Page: ln.Page, Subject: tidyName(m[1]), Problem: problem})
 			}
 			cur = &EnhancementSeal{
-				Name: tidyName(m[1]), Tier: tidyName(m[2]), // tidyName expects ALL-CAPS input
+				Name: tidyName(m[1]), Tier: tidyName(tier), // tidyName expects ALL-CAPS input
 				Rank: rank, AppliesTo: appliesTo, SourcePage: ln.Page,
 			}
 			continue

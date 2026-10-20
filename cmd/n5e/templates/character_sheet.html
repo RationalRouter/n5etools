@@ -261,7 +261,7 @@
 
     <div class="sheet-box" data-box-id="inventory">
     <button type="button" class="sheet-box-handle" aria-label="{{T "sheet.drag_to_reorder_box"}}" title="{{T "sheet.drag_to_reorder"}}">⠿</button>
-    {{template "sheet_inventory" (dict "ID" .ID "Bulk" .Bulk "Inventory" .Inventory)}}
+    {{template "sheet_inventory" (dict "ID" .ID "Bulk" .Bulk "Inventory" .Inventory "Seals" .Sheet.Seals)}}
     </div>
 
     <div class="sheet-box" data-box-id="ryo">
@@ -916,7 +916,7 @@
      hiding them would look like the app lost them, but they have nothing
      to link to and nothing to equip. */}}
 <section data-tab-panel="inventory" hidden class="sheet-library-layout">
-  {{template "sheet_inventory_full" (dict "ID" .ID "Bulk" .Bulk "Inventory" .Inventory)}}
+  {{template "sheet_inventory_full" (dict "ID" .ID "Bulk" .Bulk "Inventory" .Inventory "Seals" .Sheet.Seals)}}
 
   <div class="sheet-library-browse">
     <h2>{{T "sheet.items_traps_poisons"}}</h2>
@@ -1302,7 +1302,7 @@
     {{range .Attacks}}
     <tr>
       <th scope="row"><a class="sheet-popup-trigger" href="/items/{{.Slug}}" data-slug="{{.Slug}}">{{.Name}}</a>
-        <span class="option-picker-epithet">{{.Ability}}{{if not .Derived}} · {{T "sheet.adjusted_epithet"}}{{end}}</span>{{if .SourceLabel}} <span class="weapon-source-badge">{{.SourceLabel}}</span>{{end}}</th>
+        <span class="option-picker-epithet">{{.Ability}}{{if not .Derived}} · {{T "sheet.adjusted_epithet"}}{{end}}{{with .SealReach}} · {{.}}{{end}}</span>{{if .SourceLabel}} <span class="weapon-source-badge">{{.SourceLabel}}</span>{{end}}</th>
       <td>
         <button type="button" class="sheet-attack-roll rollable" data-sides="20" data-count="1"
                 data-modifier="{{.AttackBonus}}" data-label="{{T "sheet.named_attack_label" .Name}}"
@@ -1424,7 +1424,7 @@
     {{range .Inventory}}
     <tr>
       <th scope="row">
-        {{if .Slug}}<a class="sheet-popup-trigger" href="{{.DetailHref}}" data-slug="{{.Slug}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}
+        {{if .Slug}}<a class="sheet-popup-trigger" href="{{.DetailHref}}" data-slug="{{.Slug}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{with $.Seals.Item .Slug}}{{if .Gated}} {{template "sheet_seal_gated" .}}{{end}}{{end}}
         {{if gt .Quantity 1}}<span class="option-picker-epithet">&times;{{.Quantity}}</span>{{end}}
       </th>
       <td class="sheet-inventory-bulk">
@@ -1435,7 +1435,7 @@
       <td>
         {{if .Slug}}
         <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.ID}}/update" class="sheet-inventory-form sheet-inventory-equip-form"
-              data-target="sheet-inventory" data-also-refresh="sheet-inventory-full sheet-ac sheet-weapon-attacks">
+              data-target="sheet-inventory" data-also-refresh="sheet-inventory-full sheet-ac sheet-weapon-attacks {{.SealRefresh}}">
           <input type="hidden" name="quantity" value="{{.Quantity}}">
           <input type="hidden" name="equipped" value="{{if .Equipped}}0{{else}}1{{end}}">
           {{/* Both inventory renderings (this condensed one and the fuller
@@ -1444,7 +1444,7 @@
                alone — this names it. See handleSheetInventoryUpdate. */}}
           <input type="hidden" name="view" value="sheet_inventory">
           <button type="submit" class="sheet-prof-bullet{{if .Equipped}} sheet-prof-bullet-on{{end}}"
-                  aria-label="{{if .Equipped}}Unequip{{else}}Equip{{end}} {{.Name}}" title="{{if .Equipped}}Unequip{{else}}Equip{{end}}"></button>
+                  aria-label="{{if .Equipped}}{{T "sheet.unequip_named" .Name}}{{else}}{{T "sheet.equip_named" .Name}}{{end}}" title="{{if .Equipped}}{{T "sheet.unequip_verb"}}{{else}}{{T "sheet.equip_verb"}}{{end}}"></button>
         </form>
         {{else}}
         <span class="option-picker-epithet">—</span>
@@ -1467,7 +1467,7 @@
         </form>
         {{end}}
         <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.ID}}/delete" class="sheet-inventory-form"
-              data-target="sheet-inventory" data-also-refresh="sheet-inventory-full sheet-ac sheet-weapon-attacks">
+              data-target="sheet-inventory" data-also-refresh="sheet-inventory-full sheet-ac sheet-weapon-attacks {{.SealRefresh}}">
           <input type="hidden" name="view" value="sheet_inventory">
           <button type="submit" class="sheet-delete-btn sheet-trash-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_named" .Name}}">🗑</button>
         </form>
@@ -1509,7 +1509,7 @@
       <tr>
         <th scope="row">
           {{if .Slug}}
-          <a class="sheet-popup-trigger" href="{{.DetailHref}}" data-slug="{{.Slug}}">{{.Name}}</a>
+          <a class="sheet-popup-trigger" href="{{.DetailHref}}" data-slug="{{.Slug}}">{{.Name}}</a>{{with $.Seals.Item .Slug}}{{if .Gated}} {{template "sheet_seal_gated" .}}{{end}}{{end}}
           {{else}}
           {{.Name}}
           {{end}}
@@ -1517,7 +1517,7 @@
         <td class="sheet-inventory-kind">{{if .Kind}}{{.Kind}}{{else}}<span class="option-picker-epithet">from creation</span>{{end}}</td>
         <td>
           <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.ID}}/update" class="sheet-inventory-form"
-                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks">
+                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks {{.SealRefresh}}">
             <input type="number" name="quantity" value="{{.Quantity}}" min="1" class="sheet-inventory-qty" aria-label="{{T "sheet.quantity_of_named" .Name}}">
             <input type="hidden" name="equipped" value="{{if .Equipped}}1{{else}}0{{end}}">
             <input type="hidden" name="view" value="sheet_inventory_full">
@@ -1540,7 +1540,7 @@
                .Slug and showed a bare "—" for every custom row no matter
                what. */}}
           <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.ID}}/update" class="sheet-inventory-form sheet-inventory-equip-form"
-                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks">
+                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks {{.SealRefresh}}">
             <input type="hidden" name="quantity" value="{{.Quantity}}">
             <input type="hidden" name="equipped" value="{{if .Equipped}}0{{else}}1{{end}}">
             <input type="hidden" name="view" value="sheet_inventory_full">
@@ -1566,7 +1566,7 @@
           </form>
           {{end}}
           <form method="post" action="/characters/{{$.ID}}/sheet/inventory/{{.ID}}/delete" class="sheet-inventory-form"
-                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks">
+                data-target="sheet-inventory-full" data-also-refresh="sheet-inventory sheet-ac sheet-weapon-attacks {{.SealRefresh}}">
             <input type="hidden" name="view" value="sheet_inventory_full">
             <button type="submit" class="sheet-delete-btn sheet-trash-btn" aria-label="{{T "sheet.remove_named" .Name}}" title="{{T "sheet.remove_named" .Name}}">🗑</button>
           </form>
@@ -4479,7 +4479,14 @@
        number rather than as part of it. */}}
   <div class="sheet-square-stat sheet-edit-box" data-endpoint="/characters/{{$.ID}}/sheet/speed" data-field="value" data-target="sheet-squares" data-subitem="speed">
     <button type="button" class="sheet-subitem-handle" aria-label="{{T "sheet.drag_to_reorder_named" (T "sheet.speed_label")}}" title="{{T "sheet.drag_to_reorder"}}">⠿</button>
+    {{if .Sheet.ClimbSpeed}}
+    <span class="sheet-square-label tooltip" tabindex="0">
+      <span class="tooltip-trigger">{{T "sheet.speed_label"}}*</span>
+      <span class="tooltip-content">{{T "sheet.seal_climb_swim" .Sheet.ClimbSpeed}}</span>
+    </span>
+    {{else}}
     <span class="sheet-square-label">{{T "sheet.speed_label"}}</span>
+    {{end}}
     <button type="button" class="sheet-square-value sheet-square-value-btn" data-role="display"
             title="{{T "sheet.click_to_edit_speed_title"}}">{{.Sheet.Speed}} <span class="sheet-square-unit">ft</span></button>
     <input type="text" class="sheet-vitals-edit-input sheet-square-edit-input" data-role="edit" placeholder="{{T "sheet.speed_placeholder"}}" inputmode="text" hidden>
@@ -5494,3 +5501,8 @@
   {{end}}
 </div>
 {{end}}
+
+{{/* An equipped crafted item the character is below the level of: the
+     book's level rule (crafting p.72) withholds its seals. Called with a
+     sealeffects.Item. */}}
+{{define "sheet_seal_gated"}}<span class="sheet-seal-gated tooltip" tabindex="0"><span class="tooltip-trigger">{{T "sheet.seal_gated_badge" .MinLevel}}</span><span class="tooltip-content">{{T "crafting.level_rule" .MinLevel}} {{T "sheet.seal_gated_tip"}}</span></span>{{end}}

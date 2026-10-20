@@ -526,13 +526,13 @@ dl.fact-list-tight dt, dl.fact-list-tight dd { float: none; width: auto; margin:
 
 .nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; flex: 1; }
 
-/* Plain visual separators between the brand/Backups/the two nav dropdowns
+/* Plain visual separators between the brand/Backups/the nav dropdowns
    (layout.html) -- provisional, may be dropped later; kept as a single
    muted character rather than a border/pseudo-element so removing them is
    a one-place change. */
 .nav-divider { color: var(--text-dim); user-select: none; }
 
-/* Nav bar dropdown menus ("Player References" / "Dungeon Master Tools") --
+/* Nav bar dropdown menus ("Player References" / "Dungeon Master Tools" / "Tools") --
    same click-to-toggle/outside-click-to-close shape as .lang-switcher
    below, generalized over every .nav-dropdown by nav-dropdown.js instead of
    one fixed element. */
@@ -1504,9 +1504,11 @@ body.bare-window #dice-roller:has(#dice-panel:not([hidden])) {
 .creation-form button.btn-primary { margin-top: 1.25rem; border: 1px solid var(--accent); cursor: pointer; }
 /* Pairs a .creation-form select with its rollover-tooltip "ⓘ" chip
    (encounters.html's Difficulty picker) -- the select's own 100%-width
-   rule above would otherwise push the chip onto its own line below it. */
+   rule above would otherwise push the chip onto its own line below it.
+   min-width: 0 lets the select shrink below its longest option's width,
+   which on a phone otherwise pushes the select and chip past the card. */
 .creation-form-inline { display: flex; align-items: center; gap: 0.5rem; }
-.creation-form-inline select { width: auto; flex: 1; }
+.creation-form-inline select { width: auto; flex: 1; min-width: 0; }
 /* Builder step 10: the name field with its Generate name button. */
 .encounter-builder-name input { flex: 1; min-width: 0; }
 .encounter-builder-name button { flex: none; white-space: nowrap; }
@@ -5397,3 +5399,70 @@ summary.companion-card-header::before {
 .companion-add-attack form { display: flex; flex-direction: column; gap: 0.6rem; }
 .companion-add-attack form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-dim); }
 .companion-add-attack form button[type="submit"] { align-self: flex-start; margin-top: 0.25rem; }
+
+/* Seal Crafting (crafting.html, crafting_editor.html): the editor reuses
+   the Adversary Builder's two-column layout (.encounter-builder), with the
+   results panel in the sticky column. The seal list wraps into as many
+   columns as fit; a long seal name wraps inside its own cell rather than
+   widening the grid. */
+.crafting-flash { color: var(--accent); margin: 0.5rem 0; }
+/* The flash text shares the link color, so the link needs its own cue. */
+.crafting-flash a { text-decoration: underline; text-underline-offset: 0.15em; }
+.crafting-seal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem 1rem;
+}
+.crafting-seal { min-width: 0; overflow-wrap: anywhere; }
+.crafting-seal.is-blocked > label { opacity: 0.55; }
+.crafting-seal.is-checked > label .tooltip-trigger { font-weight: 600; }
+.creation-form .crafting-seal > label.tooltip { display: inline-flex; gap: 0.4rem; align-items: center; margin: 0; font-size: inherit; color: inherit; }
+.crafting-seal-meta { display: block; color: var(--text-dim); font-size: 0.8rem; margin-left: 1.5rem; }
+.crafting-choice { margin: 0.35rem 0 0 1.5rem; }
+.crafting-choice.is-invalid { border-left: 2px solid var(--accent); padding-left: 0.5rem; }
+.crafting-choice-checks { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; }
+.creation-form .crafting-inline { display: inline-flex; gap: 0.4rem; align-items: center; margin: 0.3rem 1rem 0.3rem 0; font-size: inherit; color: inherit; }
+.crafting-fieldset {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  margin: 0 0 0.6rem;
+}
+.crafting-numbers { margin: 0.8rem 0 0.4rem; }
+.crafting-checks { display: flex; flex-wrap: wrap; }
+.crafting-result h3 { font-size: 0.95rem; margin: 0.9rem 0 0.3rem; }
+.crafting-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+}
+.crafting-stats dt { color: var(--text-dim); min-width: 0; }
+.crafting-stats dd { margin: 0; text-align: right; }
+.crafting-messages { margin: 0.6rem 0; padding-left: 1.2rem; font-size: 0.85rem; }
+.crafting-messages li + li { margin-top: 0.3rem; }
+.crafting-errors { color: var(--accent); }
+.crafting-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; }
+.crafting-item-actions,
+.crafting-list-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin: 1rem 0; }
+.crafting-item-actions form,
+.crafting-row-actions form { margin: 0; }
+.crafting-row-actions { white-space: nowrap; }
+.crafting-row-actions > * + * { margin-left: 0.6rem; }
+.crafting-row-actions form { display: inline; }
+
+/* The level-gate badge on an equipped crafted item's inventory row. */
+.sheet-seal-gated .tooltip-trigger {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--accent);
+  border: 1px solid currentColor;
+}
