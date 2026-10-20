@@ -31,6 +31,20 @@ func TestNormalizeTerms(t *testing.T) {
 		{"pt", "your Cooking Die", "seu Dado de Culinária", "seu Dado de Cozinha"},
 		// The English gate keeps the Cooking Kit ("Kit de Culinária") untouched.
 		{"pt", "Cooking Kit", "Kit de Culinária", "Kit de Culinária"},
+		// Class names move to the pinned renderings; plural determiners and
+		// plural variants take the plural.
+		{"pt", "your Science-Nin level", "seu nível de Ciência-Nin", "seu nível de Ninja Cientista"},
+		{"pt", "every Science-Nin", "todos os Science-Nin passam", "todos os Ninjas Cientistas passam"},
+		{"pt", "the Science-Nin table", "na Tabela Ciência-Ninja", "na Tabela do Ninja Cientista"},
+		{"pt", "Scout-Nin are", "Os Ninja Batedor são", "Os Ninjas Batedores são"},
+		{"pt", "Some Hunter-Nin", "Alguns Caçadores-Nin buscam", "Alguns Ninjas Caçadores buscam"},
+		{"pt", "your Puppet Master level", "seu nível de Mestre de Bonecos", "seu nível de Mestre das Marionetes"},
+		{"pt", "Intelligence Operative level", "seu Nível Operativo de Inteligência", "seu Nível de Agente de Inteligência"},
+		// The S.N.B. pet and the Scientific Ninja Tools feature are not the class.
+		{"pt", "your Science-Nin's Scientific Ninja Beast", "do seu Ninja Científico Bestial", "da sua Fera Ninja Científica"},
+		{"pt", "a Science-Nin's Scientific Ninja Tool", "uma Ferramenta de Ninja Científico", "uma Ferramenta de Ninja Científico"},
+		// Unknown English skips the class rules entirely.
+		{"pt", "", "Mestre de Bonecos", "Mestre de Bonecos"},
 		// "jogada" is feminine: stacked determiners and a trailing participle
 		// are re-inflected.
 		{"pt", "your next attack roll", "o seu próximo teste de ataque bem-sucedido",

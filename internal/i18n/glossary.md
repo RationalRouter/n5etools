@@ -752,6 +752,29 @@ keys. The Cooking Die and attack-roll rules were added the same day and rewrote 
 and 5 catalog keys; the two remaining hand fixes were "é necessário uma jogada de ataque" →
 "necessária".
 
+## Class names (pinned 2026-10-09)
+
+Before this pin the class table left every "-Nin" class in English, and the translated text
+mixed three styles for the same class: the English name ("Science-Nin"), an "X-Nin" hybrid
+("Ciência-Nin", "Batedor-Nin") and "Ninja X" ("Ninja Científico"). Puppet Master alone had
+eleven renderings ("Mestre de Marionetes", "Marionetista", "Mestre de Bonecos", "Mestre dos
+Fantoches", ...). The renderings below were chosen by native PT-BR speakers in the community;
+"-Nin" classes use the "Ninja X" form, which also matches the Spanish class names.
+
+| English | Portuguese | Source |
+|---|---|---|
+| Science-Nin | Ninja Cientista | community PT-BR translators. Replaces "Science-Nin", "Ciência-Nin", "Ninja Científico" |
+| Scout-Nin | Ninja Batedor | community PT-BR translators. Replaces "Scout-Nin", "Batedor-Nin", "Escoteiro-Nin" |
+| Hunter-Nin | Ninja Caçador | community PT-BR translators. Replaces "Hunter-Nin", "Caçador-Nin" |
+| Medical-Nin | Ninja Médico | community PT-BR translators (accent restored: "Médico"). Replaces "Medical-Nin", "Médico-Nin", "Medicina-Nin" |
+| Cooking-Nin | Ninja Cozinheiro | community PT-BR translators. Replaces "Cooking-Nin", "Cozinheiros-Nin" |
+| Puppet Master | Mestre das Marionetes | community PT-BR translators; already the class table's name. Replaces "Mestre de Marionetes", "Marionetista", "Mestre de Bonecos", "Mestre dos Fantoches", "Manipulador de Marionetes", "Puppet Master" |
+| Intelligence Operative | Agente de Inteligência | community PT-BR translators (accent restored: "Inteligência"). Capital I; replaces "Agente de inteligência", "Operativo de Inteligência" |
+| Weapon Specialist | Especialista em Armas | community PT-BR translators; already consistent |
+| Genjutsu Specialist | Especialista em Genjutsu | already consistent |
+| Ninjutsu Specialist | Especialista em Ninjutsu | already consistent |
+| Taijutsu Specialist | Especialista em Taijutsu | already consistent |
+
 ## Jutsu names — confirmed gaps (Spanish translated the same field, Portuguese didn't)
 
 | English | Portuguese | Source |

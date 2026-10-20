@@ -508,6 +508,106 @@ func rewritePTCookingDie(s string) string {
 	})
 }
 
+// ptClassName is one pinned class name and the drifted renderings it
+// replaces. Variants are matched case-insensitively on word boundaries.
+// A plural variant, or a singular one right after a plural determiner
+// ("todos os Science-Nin"), takes the plural rendering; one right after
+// "Tabela" gains the "do" the bare juxtaposition lacked. fixed holds
+// whole-phrase rewrites applied first, for renderings that need more than
+// a name swap.
+type ptClassName struct {
+	singular, plural string
+	variants         []string
+	plurals          []string
+	fixed            []ptFixed
+	keepAfter        *regexp.Regexp // leave a match alone when the text before it matches
+}
+
+type ptFixed struct {
+	re   *regexp.Regexp
+	repl string
+}
+
+// ptClassNames pins the class names from glossary.md's "Class names"
+// table. "Marionetista" is deliberately absent: it renders the Black and
+// Green Technique subclass names (Puppeteer, Marionettist) and the
+// ordinary noun "puppeteer", not the class. "Ninja Científica" is the
+// S.N.B. pet (Science Ninja Beast) and "Ferramenta(s) de Ninja Científico"
+// the Scientific Ninja Tools feature; neither is the class.
+var ptClassNames = []ptClassName{
+	{singular: "Ninja Cientista", plural: "Ninjas Cientistas",
+		variants: []string{`Science[- ]Nin`, `Ci[eê]ncia[- ]Ninja`, `Ci[eê]ncia[- ]Nin`, `Ninja\s+Cient[ií]fico`},
+		plurals:  []string{`Science[- ]Nins`},
+		fixed: []ptFixed{
+			{regexp.MustCompile(`(?i)do\s+seu\s+Ninja\s+Cient[ií]fico\s+Bestial`), "da sua Fera Ninja Científica"},
+		},
+		keepAfter: regexp.MustCompile(`(?i)Ferramentas?\s+d[eo]\s+$`)},
+	{singular: "Ninja Batedor", plural: "Ninjas Batedores",
+		variants: []string{`Scout[- ]Nin`, `Batedor-Nin(?:ja)?`, `Escoteiro-Nin`},
+		plurals:  []string{`Scout[- ]Nins`, `Batedores-Nin`, `Escoteiros[- ]Ninjas?`, `Escoteiros-Nin`}},
+	{singular: "Ninja Caçador", plural: "Ninjas Caçadores",
+		variants: []string{`Hunter[- ]Nin`, `Caçador-Nin(?:ja)?`},
+		plurals:  []string{`Hunter[- ]Nins`, `Caçadores-Nin`}},
+	{singular: "Ninja Médico", plural: "Ninjas Médicos",
+		variants: []string{`Medical[- ]Nin`, `Médico-Nin`, `Medicina-Nin`, `Nin\s+Médico`, `Ninja\s+Medico`},
+		plurals:  []string{`Medical[- ]Nins`, `Médicos-Nin`}},
+	{singular: "Ninja Cozinheiro", plural: "Ninjas Cozinheiros",
+		variants: []string{`Cooking[- ]Nin`, `Cozinheiro-Nin`, `Ninja\s+Culinário`},
+		plurals:  []string{`Cooking[- ]Nins`, `Cozinheiros-Nin`, `ninjas\s+cozinheiros`}},
+	{singular: "Mestre das Marionetes", plural: "Mestres das Marionetes",
+		variants: []string{`(?:The\s+)?Puppet\s+Master`, `Mestre\s+d(?:e|os)\s+(?:Marionetes?|Fantoches|Bonecos)`, `Manipulador\s+de\s+Marionetes`},
+		plurals:  []string{`Puppet\s+Masters`, `Mestres\s+d(?:e|os)\s+(?:Marionetes|Fantoches|Bonecos)`}},
+	{singular: "Agente de Inteligência", plural: "Agentes de Inteligência",
+		variants: []string{`Operativo\s+de\s+Inteligência`, `Agente\s+de\s+inteligência`},
+		fixed: []ptFixed{
+			// "Nível Operativo de Inteligência": the name glued to "Nível" as an adjective.
+			{regexp.MustCompile(`(?i)(n[ií]vel)\s+Operativo\s+de\s+Intelig[eê]ncia`), "${1} de Agente de Inteligência"},
+		}},
+}
+
+// ptPluralDetRe matches a plural determiner ending right before a class name.
+var ptPluralDetRe = regexp.MustCompile(`(?i)(?:^|[^\p{L}])(?:os|dos|aos|nos|pelos|alguns|outros|todos|vários|muitos|poucos|seus|nossos|esses|estes|aqueles|demais)\s+$`)
+
+// ptTabelaRe matches "Tabela " ending right before a class name.
+var ptTabelaRe = regexp.MustCompile(`(?:^|[^\p{L}])[Tt]abela\s+$`)
+
+func ptClassRe(alts []string) *regexp.Regexp {
+	if len(alts) == 0 {
+		return nil
+	}
+	return regexp.MustCompile(`(?i)(?:` + strings.Join(alts, "|") + `)`)
+}
+
+// rewritePTClassName returns the rewrite for one pinned class name.
+func rewritePTClassName(c ptClassName) func(string) string {
+	// The pinned singular itself is matched too, so a plural determiner
+	// before it ("Os Ninja Batedor são") still gets the plural.
+	sing, plur := ptClassRe(append([]string{regexp.QuoteMeta(c.singular)}, c.variants...)), ptClassRe(c.plurals)
+	return func(s string) string {
+		for _, f := range c.fixed {
+			s = replaceWords(f.re, s, func(s string, m []int) string {
+				return string(f.re.ExpandString(nil, f.repl, s, m))
+			})
+		}
+		if plur != nil {
+			s = replaceWords(plur, s, func(string, []int) string { return c.plural })
+		}
+		return replaceWords(sing, s, func(s string, m []int) string {
+			before := s[:m[0]]
+			if c.keepAfter != nil && c.keepAfter.MatchString(before) {
+				return s[m[0]:m[1]]
+			}
+			if c.plural != "" && ptPluralDetRe.MatchString(before) {
+				return c.plural
+			}
+			if ptTabelaRe.MatchString(before) {
+				return "do " + c.singular
+			}
+			return c.singular
+		})
+	}
+}
+
 // --- Spanish ----------------------------------------------------------------
 
 var (
@@ -532,6 +632,13 @@ var termRules = map[string][]termRule{
 		{name: "Flurry Die/Technique", enGate: regexp.MustCompile(`(?i)flurry`), enStrict: true, rewrite: rewritePTFlurry},
 		{name: "Cooking Die", enGate: regexp.MustCompile(`(?i)cooking`), enStrict: true, rewrite: rewritePTCookingDie},
 		{name: "attack roll", enGate: regexp.MustCompile(`(?i)\battack`), rewrite: rewritePTAttackRoll},
+		{name: "Science-Nin", enGate: regexp.MustCompile(`(?i)science[- ]nin`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[0])},
+		{name: "Scout-Nin", enGate: regexp.MustCompile(`(?i)scout[- ]nin`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[1])},
+		{name: "Hunter-Nin", enGate: regexp.MustCompile(`(?i)hunter[- ]nin`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[2])},
+		{name: "Medical-Nin", enGate: regexp.MustCompile(`(?i)medical[- ]nin`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[3])},
+		{name: "Cooking-Nin", enGate: regexp.MustCompile(`(?i)cooking[- ]nin`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[4])},
+		{name: "Puppet Master", enGate: regexp.MustCompile(`(?i)puppet\s+master`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[5])},
+		{name: "Intelligence Operative", enGate: regexp.MustCompile(`(?i)intelligence\s+operative`), enStrict: true, rewrite: rewritePTClassName(ptClassNames[6])},
 	},
 	"es": {
 		{name: "Hit Die/hit points", rewrite: rewriteESHit},
