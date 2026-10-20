@@ -1,0 +1,13 @@
+{{/* One sourcebook in the vendored PDF.js viewer. sourcebook-view.js sets
+     the iframe's src (after hooking the viewer's options) and keeps it
+     filling the window. Call with Title, ViewerURL and PDFJSLocale. */}}
+{{define "content"}}
+<div class="sourcebook-viewer">
+  <div class="sourcebook-viewer-header">
+    <a href="/sourcebooks">&larr; {{T "sourcebooks.back"}}</a>
+    <h1>{{.Title}}</h1>
+  </div>
+  <iframe class="sourcebook-frame" id="sourcebook-frame" title="{{.Title}}"
+          data-src="{{.ViewerURL}}" data-locale="{{.PDFJSLocale}}"></iframe>
+</div>
+{{end}}

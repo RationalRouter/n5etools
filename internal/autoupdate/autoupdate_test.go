@@ -6,9 +6,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -99,7 +101,7 @@ func TestCheckOneUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), version, book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), version, book)
 	if res.Action != "unchanged" {
 		t.Errorf("Action = %q, want %q (err: %v)", res.Action, "unchanged", res.Err)
 	}
@@ -142,7 +144,7 @@ func TestCheckOneUnmarkedMigrationDoesNotReingest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "unchanged" {
 		t.Errorf("Action = %q, want %q (err: %v)", res.Action, "unchanged", res.Err)
 	}
@@ -200,7 +202,7 @@ func TestCheckOneVersionStaleForcesReingest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "updated" {
 		t.Fatalf("Action = %q (err: %v), want %q — a stale ingest version must force a real re-ingest "+
 			"even though Drive itself is unchanged", res.Action, res.Err, "updated")
@@ -257,7 +259,7 @@ func TestCheckOneHashMatchSkipsReingest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), version, book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), version, book)
 	if res.Action != "unchanged" {
 		t.Fatalf("Action = %q (err: %v), want %q", res.Action, res.Err, "unchanged")
 	}
@@ -281,7 +283,7 @@ func TestCheckOneHeadError(t *testing.T) {
 	defer srv.Close()
 
 	book := sources.BookSource{Slug: "book/core", Title: "Test Book", DriveURL: fakeDriveURL}
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "error" || res.Err == nil {
 		t.Errorf("Action = %q, Err = %v; want error", res.Action, res.Err)
 	}
@@ -299,7 +301,7 @@ func TestCheckOneDownloadError(t *testing.T) {
 	defer srv.Close()
 
 	book := sources.BookSource{Slug: "book/core", Title: "Test Book", DriveURL: fakeDriveURL}
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "error" || res.Err == nil {
 		t.Errorf("Action = %q, Err = %v; want error (non-PDF download)", res.Action, res.Err)
 	}
@@ -319,7 +321,7 @@ func TestCheckOneNoParserYet(t *testing.T) {
 
 	// book/kage-guide has no entry in ingestDispatch — real, current state.
 	book := sources.BookSource{Slug: "book/kage-guide", Title: "Kage Guide", DriveURL: fakeDriveURL}
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "no parser yet" {
 		t.Fatalf("Action = %q (err: %v), want %q", res.Action, res.Err, "no parser yet")
 	}
@@ -377,7 +379,7 @@ func TestCheckOneNoParserStaysOnDriveCadence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "unchanged" {
 		t.Errorf("Action = %q, want %q (err: %v)", res.Action, "unchanged", res.Err)
 	}
@@ -420,7 +422,7 @@ func TestCheckOneUpdatedCallsRegisteredParser(t *testing.T) {
 	book := sources.BookSource{Slug: testSlug, Title: "Fixture Book", DriveURL: fakeDriveURL}
 	cacheDir := t.TempDir()
 	currentVersion := testVersion(t)
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", cacheDir, clientFor(srv), currentVersion, book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", cacheDir, "", clientFor(srv), currentVersion, book)
 
 	if res.Action != "updated" {
 		t.Fatalf("Action = %q (err: %v), want %q", res.Action, res.Err, "updated")
@@ -471,7 +473,7 @@ func TestCheckOneUpdatedIngestError(t *testing.T) {
 	t.Cleanup(func() { delete(ingestDispatch, testSlug) })
 
 	book := sources.BookSource{Slug: testSlug, Title: "Fixture Book", DriveURL: fakeDriveURL}
-	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), testVersion(t), book)
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), testVersion(t), book)
 	if res.Action != "error" || res.Err == nil {
 		t.Errorf("Action = %q, Err = %v; want an error result when the parser itself fails", res.Action, res.Err)
 	}
@@ -499,7 +501,7 @@ func TestRunOneResultPerBook(t *testing.T) {
 		{Slug: "book/core", Title: "A", DriveURL: fakeDriveURL},
 		{Slug: "book/kage-guide", Title: "B", DriveURL: fakeDriveURL},
 	}
-	results := Run(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), clientFor(srv), books)
+	results := Run(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), "", clientFor(srv), books)
 	if len(results) != len(books) {
 		t.Fatalf("got %d results, want %d", len(results), len(books))
 	}
@@ -507,5 +509,199 @@ func TestRunOneResultPerBook(t *testing.T) {
 		if r.Slug != books[i].Slug {
 			t.Errorf("result[%d].Slug = %q, want %q (order must match input)", i, r.Slug, books[i].Slug)
 		}
+	}
+}
+
+// pdfServer serves body as a Drive file last modified at remoteMod and
+// counts GET requests.
+func pdfServer(t *testing.T, remoteMod time.Time, body []byte, gets *int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Last-Modified", remoteMod.Format(http.TimeFormat))
+		if r.Method == http.MethodGet {
+			*gets++
+			w.Write(body)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// assertLibraryFile checks that book's kept PDF holds want and that nothing
+// is left staged.
+func assertLibraryFile(t *testing.T, libraryDir, slug string, want []byte) {
+	t.Helper()
+	got, err := os.ReadFile(LibraryPath(libraryDir, slug))
+	if err != nil {
+		t.Fatalf("library copy missing: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("library copy = %q, want %q", got, want)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(libraryDir, pendingDir)); len(entries) != 0 {
+		t.Errorf("staging dir not empty: %v", entries)
+	}
+}
+
+// TestCheckOneLibraryKeepsDownload: with a library dir, the downloaded PDF
+// is kept after every outcome that downloaded a valid file — an update, a
+// hash match, a book with no parser, and a failed ingest.
+func TestCheckOneLibraryKeepsDownload(t *testing.T) {
+	remoteMod := time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC)
+	pdfBody := []byte("%PDF-1.4\nkept\n")
+
+	cases := []struct {
+		name, slug, wantAction string
+		ingest                 ingestFunc // nil: no parser registered
+		storedSHA              string
+	}{
+		{name: "updated", slug: "book/fixture-lib-updated", wantAction: "updated",
+			ingest: func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
+				return &ingest.Report{}, store.RecordSourceBookProvenance(db, store.SourceBook{
+					Slug: "book/fixture-lib-updated", Title: "F", Version: version, FileName: "f.pdf", FileSHA256: "f"})
+			}},
+		{name: "hash match", slug: "book/fixture-lib-hash", wantAction: "unchanged",
+			ingest: func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
+				return nil, errors.New("must not re-ingest")
+			},
+			storedSHA: fmt.Sprintf("%x", sha256.Sum256(pdfBody))},
+		{name: "no parser", slug: "book/kage-guide", wantAction: "no parser yet"},
+		{name: "ingest error", slug: "book/fixture-lib-err", wantAction: "error",
+			ingest: func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
+				return nil, errors.New("boom")
+			}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := testDB(t)
+			gets := 0
+			srv := pdfServer(t, remoteMod, pdfBody, &gets)
+			if tc.ingest != nil {
+				ingestDispatch[tc.slug] = tc.ingest
+				t.Cleanup(func() { delete(ingestDispatch, tc.slug) })
+			}
+			version := testVersion(t)
+			if tc.storedSHA != "" {
+				if err := store.RecordSourceBookProvenance(db, store.SourceBook{
+					Slug: tc.slug, Title: "F", Version: "x", FileName: "x.pdf", FileSHA256: tc.storedSHA,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.SetSourceBookIngestVersion(db, tc.slug, version); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			libraryDir := t.TempDir()
+			os.MkdirAll(filepath.Join(libraryDir, pendingDir), 0o755)
+			book := sources.BookSource{Slug: tc.slug, Title: "F", DriveURL: fakeDriveURL}
+			res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), libraryDir, clientFor(srv), version, book)
+			if res.Action != tc.wantAction {
+				t.Fatalf("Action = %q (err: %v), want %q", res.Action, res.Err, tc.wantAction)
+			}
+			assertLibraryFile(t, libraryDir, tc.slug, pdfBody)
+		})
+	}
+}
+
+// TestCheckOneLibraryMissingForcesDownload: a current install (Drive
+// unchanged, ingest version current) with no library copy yet downloads the
+// file once, without re-ingesting, and stays on one HEAD request after that.
+func TestCheckOneLibraryMissingForcesDownload(t *testing.T) {
+	db := testDB(t)
+	remoteMod := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	pdfBody := []byte("%PDF-1.4\nfirst copy\n")
+	gets := 0
+	srv := pdfServer(t, remoteMod, pdfBody, &gets)
+
+	const testSlug = "book/fixture-lib-missing"
+	ingestDispatch[testSlug] = func(db *sql.DB, dbPath, pdfPath, version string) (*ingest.Report, error) {
+		return nil, errors.New("must not re-ingest")
+	}
+	t.Cleanup(func() { delete(ingestDispatch, testSlug) })
+
+	book := sources.BookSource{Slug: testSlug, Title: "F", DriveURL: fakeDriveURL}
+	if err := store.RecordSourceBookProvenance(db, store.SourceBook{
+		Slug: testSlug, Title: "F", Version: "x", FileName: "x.pdf",
+		FileSHA256: fmt.Sprintf("%x", sha256.Sum256(pdfBody)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSourceBookLastModified(db, testSlug, remoteMod.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	version := testVersion(t)
+	if err := store.SetSourceBookIngestVersion(db, testSlug, version); err != nil {
+		t.Fatal(err)
+	}
+
+	libraryDir := t.TempDir()
+	os.MkdirAll(filepath.Join(libraryDir, pendingDir), 0o755)
+	for run := 1; run <= 2; run++ {
+		res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), libraryDir, clientFor(srv), version, book)
+		if res.Action != "unchanged" {
+			t.Fatalf("run %d: Action = %q (err: %v), want unchanged", run, res.Action, res.Err)
+		}
+	}
+	if gets != 1 {
+		t.Errorf("downloads = %d, want exactly 1 (missing copy fetched once, then trusted)", gets)
+	}
+	assertLibraryFile(t, libraryDir, testSlug, pdfBody)
+}
+
+// TestCheckOneLibraryDownloadErrorLeavesNothing: a failed download leaves
+// neither a library file nor anything staged.
+func TestCheckOneLibraryDownloadErrorLeavesNothing(t *testing.T) {
+	db := testDB(t)
+	gets := 0
+	srv := pdfServer(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), []byte("<html>interstitial</html>"), &gets)
+
+	libraryDir := t.TempDir()
+	os.MkdirAll(filepath.Join(libraryDir, pendingDir), 0o755)
+	book := sources.BookSource{Slug: "book/kage-guide", Title: "Kage Guide", DriveURL: fakeDriveURL}
+	res := checkOne(context.Background(), db, t.TempDir()+"/rules.db", t.TempDir(), libraryDir, clientFor(srv), testVersion(t), book)
+	if res.Action != "error" {
+		t.Fatalf("Action = %q, want error", res.Action)
+	}
+	if _, err := os.Stat(LibraryPath(libraryDir, book.Slug)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("library file exists after a failed download (stat err: %v)", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(libraryDir, pendingDir)); len(entries) != 0 {
+		t.Errorf("staging dir not empty: %v", entries)
+	}
+}
+
+// TestPromotePending: completed staged downloads replace their library
+// file; unfinished ones and orphaned markers are discarded.
+func TestPromotePending(t *testing.T) {
+	libraryDir := t.TempDir()
+	pending := filepath.Join(libraryDir, pendingDir)
+	os.MkdirAll(pending, 0o755)
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(libraryDir, "core.pdf"), "old")
+	write(filepath.Join(pending, "core.pdf"), "new")
+	write(filepath.Join(pending, "core.pdf"+readySuffix), "")
+	write(filepath.Join(pending, "kage-guide.pdf"), "partial")
+	write(filepath.Join(pending, "bingo-book.pdf"+readySuffix), "")
+
+	if err := PromotePending(libraryDir); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(libraryDir, "core.pdf")); string(got) != "new" {
+		t.Errorf("core.pdf = %q, want the promoted download", got)
+	}
+	if _, err := os.Stat(filepath.Join(libraryDir, "kage-guide.pdf")); !errors.Is(err, fs.ErrNotExist) {
+		t.Error("an unfinished download was promoted")
+	}
+	if entries, _ := os.ReadDir(pending); len(entries) != 0 {
+		t.Errorf("staging dir not empty: %v", entries)
+	}
+	if err := PromotePending(t.TempDir()); err != nil {
+		t.Errorf("no staging dir should be a no-op, got %v", err)
 	}
 }

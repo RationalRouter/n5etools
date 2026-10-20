@@ -18,6 +18,13 @@
 // A never-stamped baseline counts as stale, so a book that was never
 // ingested on this install is ingested once.
 //
+// When Run is given a library directory, each book's downloaded PDF is kept
+// there (as <slug base>.pdf) for the app's in-app sourcebook reader instead
+// of being deleted after its ingest attempt, and a book whose library copy
+// is missing is downloaded even when neither signal above fired. The usual
+// hash check still applies, so an install that already has current rules
+// content only fetches the file.
+//
 // Once either signal says "stale," the PDF is downloaded. If only the Drive
 // timestamp moved and the file's SHA-256 matches the one recorded at the
 // last ingest, the content is identical and nothing is re-ingested.
@@ -32,10 +39,13 @@ package autoupdate
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/RationalRouter/n5e/internal/fetch"
@@ -105,19 +115,26 @@ const (
 // needed only to key internal/ingest's LanguageTool correction cache
 // sidecar file. cacheDir holds each book's downloaded PDF for the duration
 // of its own check — created if missing, and each file removed again right
-// after that book's dispatch attempt, successful or not. client may be nil
+// after that book's dispatch attempt, successful or not. libraryDir, when
+// not empty, replaces cacheDir for book downloads: each successfully
+// downloaded PDF is staged under libraryDir/pending and then moved to
+// LibraryPath, where it stays (see the package doc). client may be nil
 // (internal/fetch's own sane defaults apply); passing one in is mainly for
 // tests that need to redirect Drive's hardcoded hostname to a local
 // httptest server.
-func Run(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *http.Client, books []sources.BookSource) []Result {
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+func Run(ctx context.Context, db *sql.DB, dbPath, cacheDir, libraryDir string, client *http.Client, books []sources.BookSource) []Result {
+	dir := cacheDir
+	if libraryDir != "" {
+		dir = filepath.Join(libraryDir, pendingDir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		// Every book fails the same way if the cache dir can't be made —
 		// still report one Result per book rather than a bare error return,
 		// so callers only ever need to walk one shape of output.
 		results := make([]Result, len(books))
 		for i, b := range books {
 			results[i] = Result{Slug: b.Slug, Title: b.Title, Action: "error",
-				Err: fmt.Errorf("creating cache dir %s: %w", cacheDir, err)}
+				Err: fmt.Errorf("creating download dir %s: %w", dir, err)}
 		}
 		return results
 	}
@@ -137,13 +154,96 @@ func Run(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *http.
 
 	results := make([]Result, 0, len(books))
 	for _, book := range books {
-		results = append(results, checkOne(ctx, db, dbPath, cacheDir, client, currentVersion, book))
+		results = append(results, checkOne(ctx, db, dbPath, cacheDir, libraryDir, client, currentVersion, book))
 	}
 	return results
 }
 
-func checkOne(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *http.Client, currentVersion string, book sources.BookSource) Result {
+// pendingDir is the libraryDir subdirectory downloads are staged in, so a
+// partial file never sits under a book's real library name.
+const pendingDir = "pending"
+
+// readySuffix marks a staged download as complete. PromotePending only
+// promotes staged files that carry one.
+const readySuffix = ".ready"
+
+// LibraryFileName is the file name a book's PDF is kept under in the
+// library directory, e.g. "core.pdf" for book/core.
+func LibraryFileName(slug string) string {
+	return filepath.Base(slug) + ".pdf"
+}
+
+// LibraryPath is where a book's kept PDF lives inside libraryDir.
+func LibraryPath(libraryDir, slug string) string {
+	return filepath.Join(libraryDir, LibraryFileName(slug))
+}
+
+// promote moves a completed staged download over its library file. The
+// rename is retried briefly because Windows refuses to replace a file that
+// another handle (an in-progress read by the sourcebook reader) has open.
+// A rename that still fails leaves the staged file and its ready marker for
+// the next startup's PromotePending.
+func promote(staged, final string) error {
+	var err error
+	for attempt := 1; attempt <= 5; attempt++ {
+		if err = os.Rename(staged, final); err == nil {
+			os.Remove(staged + readySuffix)
+			return nil
+		}
+		time.Sleep(time.Duration(attempt) * 200 * time.Millisecond)
+	}
+	return err
+}
+
+// PromotePending finishes any library download a previous run completed but
+// could not move into place, and discards staged files that were never
+// completed (the process ended mid-download). Call it at startup, before
+// anything reads the library.
+func PromotePending(libraryDir string) error {
+	dir := filepath.Join(libraryDir, pendingDir)
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || strings.HasSuffix(name, readySuffix) {
+			continue
+		}
+		staged := filepath.Join(dir, name)
+		if _, err := os.Stat(staged + readySuffix); err != nil {
+			os.Remove(staged)
+			continue
+		}
+		if err := promote(staged, filepath.Join(libraryDir, name)); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	// A marker whose file is gone has nothing left to promote.
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasSuffix(name, readySuffix) {
+			if _, err := os.Stat(filepath.Join(dir, strings.TrimSuffix(name, readySuffix))); errors.Is(err, fs.ErrNotExist) {
+				os.Remove(filepath.Join(dir, name))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func checkOne(ctx context.Context, db *sql.DB, dbPath, cacheDir, libraryDir string, client *http.Client, currentVersion string, book sources.BookSource) Result {
 	res := Result{Slug: book.Slug, Title: book.Title}
+
+	libraryMissing := false
+	if libraryDir != "" {
+		if _, err := os.Stat(LibraryPath(libraryDir, book.Slug)); errors.Is(err, fs.ErrNotExist) {
+			libraryMissing = true
+		}
+	}
 
 	last, foundLast, err := store.GetSourceBookLastModified(db, book.Slug)
 	if err != nil {
@@ -181,20 +281,37 @@ func checkOne(ctx context.Context, db *sql.DB, dbPath, cacheDir string, client *
 		return res
 	}
 
-	if foundLast && !remote.After(last) && !versionStale {
+	if foundLast && !remote.After(last) && !versionStale && !libraryMissing {
 		res.Action = "unchanged"
 		return res
 	}
 
-	destPath := filepath.Join(cacheDir, filepath.Base(book.Slug)+".pdf")
+	destPath := filepath.Join(cacheDir, LibraryFileName(book.Slug))
+	if libraryDir != "" {
+		destPath = filepath.Join(libraryDir, pendingDir, LibraryFileName(book.Slug))
+	}
 	dlCtx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	sha, err := fetch.Download(dlCtx, client, book.DriveURL, destPath)
 	cancel()
 	if err != nil {
+		os.Remove(destPath)
 		res.Action, res.Err = "error", fmt.Errorf("downloading: %w", err)
 		return res
 	}
-	defer os.Remove(destPath)
+	if libraryDir == "" {
+		defer os.Remove(destPath)
+	} else {
+		// The file is the current Drive copy whatever happens to the ingest
+		// below, so it is kept for reading even when parsing fails. The
+		// marker is written before the deferred move so a failed move can be
+		// finished by PromotePending on the next startup.
+		if err := os.WriteFile(destPath+readySuffix, nil, 0o644); err != nil {
+			os.Remove(destPath)
+			res.Action, res.Err = "error", fmt.Errorf("marking download complete: %w", err)
+			return res
+		}
+		defer promote(destPath, LibraryPath(libraryDir, book.Slug))
+	}
 
 	// Drive's Last-Modified can move without the file's bytes changing. When
 	// the downloaded file hashes identically to the one last ingested and this

@@ -110,6 +110,16 @@ func run() error {
 	}
 	defer rulesDB.Close()
 
+	// The auto-updater keeps each sourcebook's PDF here for the in-app
+	// reader. Next to the exe, like rules.db, so the app stays portable.
+	sourcebookDir := filepath.Join(filepath.Dir(exe), "sourcebooks")
+	if err := os.MkdirAll(sourcebookDir, 0o755); err != nil {
+		return fmt.Errorf("preparing sourcebook folder: %w", err)
+	}
+	if err := autoupdate.PromotePending(sourcebookDir); err != nil {
+		log.Println("finishing pending sourcebook downloads:", err)
+	}
+
 	token, err := newToken()
 	if err != nil {
 		return err
@@ -130,6 +140,9 @@ func run() error {
 		token:          token,
 		expectedOrigin: baseURL,
 		shutdown:       make(chan struct{}),
+
+		sourcebookDir:      sourcebookDir,
+		sourcebookChecking: true,
 	}
 	httpServer := &http.Server{Handler: srv.routes()}
 
@@ -141,12 +154,14 @@ func run() error {
 
 	// Backgrounded, never blocks startup: check every official sourcebook
 	// for a newer Drive version and re-ingest anything that changed,
-	// entirely unattended. cacheDir is OS temp, not this app's own folder —
-	// each book's downloaded PDF is scratch space, removed again right
-	// after that book's ingest attempt.
+	// entirely unattended. Each book's downloaded PDF is kept in
+	// sourcebookDir for the in-app reader; cacheDir (OS temp) is scratch
+	// space for the translation bundles below.
 	go func() {
 		cacheDir := filepath.Join(os.TempDir(), "n5e-autoupdate")
-		for _, r := range autoupdate.Run(context.Background(), rulesDB, rulesDBPath, cacheDir, nil, sources.OfficialBooks) {
+		results := autoupdate.Run(context.Background(), rulesDB, rulesDBPath, cacheDir, sourcebookDir, nil, sources.OfficialBooks)
+		srv.finishSourcebookCheck(results)
+		for _, r := range results {
 			switch r.Action {
 			case "unchanged":
 				// quiet — this is the expected outcome on almost every startup

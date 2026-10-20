@@ -110,6 +110,15 @@ type server struct {
 	aliveOpen     int       // /alive streams currently held open
 	lastAlive     time.Time // when the count last dropped to zero
 	aliveSeen     bool      // an /alive stream has connected at least once, so the browser supports it
+
+	// sourcebookDir holds the auto-updater's kept sourcebook PDFs; "" turns
+	// the reader off. sourcebookChecking is true while the startup
+	// auto-update run is still going, and sourcebookErrs is that run's
+	// per-book errors once it finishes (see sourcebooks.go).
+	sourcebookDir      string
+	sourcebookMu       sync.Mutex
+	sourcebookChecking bool
+	sourcebookErrs     map[string]error
 }
 
 func newToken() (string, error) {
@@ -1579,6 +1588,9 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /crafting/{id}/update", s.handleCraftingSave)
 	mux.HandleFunc("POST /crafting/{id}/duplicate", s.handleCraftingDuplicate)
 	mux.HandleFunc("POST /crafting/{id}/give", s.handleCraftingGive)
+	mux.HandleFunc("GET /sourcebooks", s.handleSourcebooks)
+	mux.HandleFunc("GET /sourcebooks/{book}", s.handleSourcebookView)
+	mux.HandleFunc("GET /sourcebooks/{book}/file", s.handleSourcebookFile)
 	mux.HandleFunc("POST /crafting/{id}/archive", s.handleCraftingArchive(true))
 	mux.HandleFunc("POST /crafting/{id}/restore", s.handleCraftingArchive(false))
 	mux.HandleFunc("GET /seals", s.handleSeals)

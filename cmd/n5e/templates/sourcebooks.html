@@ -1,0 +1,28 @@
+{{/* Sourcebooks: every official book, opened in the in-app PDF reader.
+     Call with Books ([]sourcebookRow). */}}
+{{define "content"}}
+<h1>{{T "sourcebooks.title"}}</h1>
+<p class="page-subtitle">{{T "sourcebooks.subtitle"}}</p>
+
+<div class="card-grid sourcebook-grid">
+  {{range .Books}}
+  {{if eq .Status "available"}}
+  <a class="card sourcebook-card" href="/sourcebooks/{{.Key}}">
+    <h2>{{.Title}}{{if .GMFacing}} <span class="sourcebook-tag">{{T "sourcebooks.gm_tag"}}</span>{{end}}</h2>
+    {{if .Updated}}<p class="sourcebook-updated">{{T "sourcebooks.updated" .Updated}}</p>{{end}}
+    <span class="sourcebook-open">{{T "sourcebooks.open"}} &rarr;</span>
+  </a>
+  {{else}}
+  <div class="card sourcebook-card sourcebook-card-missing">
+    <h2>{{.Title}}{{if .GMFacing}} <span class="sourcebook-tag">{{T "sourcebooks.gm_tag"}}</span>{{end}}</h2>
+    {{if eq .Status "downloading"}}
+    <p class="sourcebook-status">{{T "sourcebooks.downloading"}}</p>
+    {{else}}
+    <p class="sourcebook-status">{{T "sourcebooks.unavailable"}}</p>
+    {{if .Err}}<p class="sourcebook-error">{{.Err}}</p>{{end}}
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+</div>
+{{end}}

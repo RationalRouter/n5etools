@@ -5466,3 +5466,32 @@ summary.companion-card-header::before {
   color: var(--accent);
   border: 1px solid currentColor;
 }
+
+/* Sourcebooks list. */
+.sourcebook-grid { margin-top: 1rem; }
+.sourcebook-card { display: flex; flex-direction: column; gap: 0.4rem; }
+.sourcebook-card h2 { margin: 0; color: var(--gold); }
+.sourcebook-tag {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.sourcebook-updated, .sourcebook-status { margin: 0; color: var(--text-dim); font-size: 0.85rem; }
+.sourcebook-error { margin: 0; color: var(--text-dim); font-size: 0.75rem; overflow-wrap: anywhere; }
+.sourcebook-open { margin-top: auto; color: var(--accent); font-size: 0.9rem; }
+.sourcebook-card-missing { opacity: 0.75; }
+
+/* Sourcebook reader: the viewer takes the full window width, and
+   sourcebook-view.js sizes the iframe's height to the window. */
+.content:has(.sourcebook-viewer) { max-width: none; padding: 0.75rem 1rem 0; }
+/* The fixed footer would sit on top of the viewer's bottom edge. */
+body:has(.sourcebook-viewer) .site-footer { display: none; }
+.sourcebook-viewer-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1.25rem; margin-bottom: 0.5rem; }
+.sourcebook-viewer-header h1 { margin: 0; font-size: 1.3rem; min-width: 0; overflow-wrap: anywhere; }
+.sourcebook-frame { display: block; width: 100%; height: 75vh; border: 1px solid var(--panel-border); border-radius: 6px; background: var(--panel); }
